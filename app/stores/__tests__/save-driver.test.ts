@@ -4,12 +4,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot } from "solid-js";
 import type { ArtifactContent, Section, SectionOp } from "@model/artifact";
 import { sectionOf } from "@canvas/testkit";
-import { commit, editor, loadArtifactContent } from "@editor/core/store";
+import {
+    commit,
+    editor,
+    loadArtifactContent,
+    loadArtifactWindow,
+    onEmitOps,
+    setArtifactLive,
+    startEditing,
+} from "@editor/core/store";
 import {
     flushAutosave,
     installAutosave,
     noteSavedContent,
     onCollabDriving,
+    onSaveConflict,
 } from "@app/stores/save";
 import { backoffFor, CollabClient, type CollabSink, type SocketLike } from "@app/stores/collab";
 
@@ -31,6 +40,8 @@ const saves = (): Call[] => calls.filter((c) => c.method === "PATCH" || c.method
 const opsSent = (): SectionOp[] =>
     saves().flatMap((c) => (c.body.ops as SectionOp[] | undefined) ?? []);
 
+let answer = { ok: true, status: 200 };
+
 function stubFetch(): void {
     vi.stubGlobal(
         "fetch",
@@ -41,10 +52,15 @@ function stubFetch(): void {
                 body: JSON.parse((init?.body as string) ?? "{}") as Record<string, unknown>,
             });
             return Promise.resolve({
-                ok: true,
-                status: 200,
-                statusText: "OK",
-                text: async () => JSON.stringify({ ok: true, updatedAt: "now", total: 1, seq: 1 }),
+                ok: answer.ok,
+                status: answer.status,
+                statusText: "",
+                text: async () =>
+                    JSON.stringify(
+                        answer.ok
+                            ? { ok: true, updatedAt: "now", total: 1, seq: 1 }
+                            : { error: "no" },
+                    ),
             });
         }),
     );
@@ -69,6 +85,7 @@ const install = (): void => {
 
 beforeEach(() => {
     calls = [];
+    answer = { ok: true, status: 200 };
     stubFetch();
     vi.useFakeTimers();
     loadArtifactContent("doc-1", doc);
@@ -81,6 +98,7 @@ beforeEach(() => {
 afterEach(() => {
     dispose?.();
     dispose = null;
+    onSaveConflict(null);
     onCollabDriving(
         () => false,
         () => null,
@@ -185,6 +203,7 @@ describe("the handover on reconnect", () => {
         granted: () => undefined,
         denied: () => undefined,
         lease: () => undefined,
+        access: () => undefined,
         resync: () => undefined,
         down: () => undefined,
     });
@@ -216,5 +235,92 @@ describe("the handover on reconnect", () => {
 
     it("spreads reconnects so a deploy does not bring every client back at once", () => {
         expect(backoffFor(3, 0)).toBeLessThan(backoffFor(3, 1));
+    });
+});
+
+// A save that fails is not always a save worth repeating. Retrying a refusal every three seconds
+// for the rest of the session is a request per three seconds and a save_failed event with it, and
+// it never succeeds; a conflict needs the window re-read before anything else is sent.
+describe("what happens when a save fails", () => {
+    const failWith = (status: number): void => {
+        answer = { ok: false, status };
+    };
+
+    // Windowed, so a failed patch is the whole answer: a client holding the entire document falls
+    // back to replacing it, which is a second request and a different question.
+    const windowed = (): void => {
+        loadArtifactWindow(
+            "doc-1",
+            { format: "deck", theme: "studio" },
+            [
+                { kind: "cover", id: "s1" },
+                { kind: "content", id: "s2" },
+            ],
+            [sec("s1")],
+        );
+    };
+
+    it("keeps retrying a network failure, backing off as it goes", async () => {
+        install();
+        windowed();
+        failWith(503);
+        commit(withText(editor.artifact, "s1", "typed"));
+        await flushAutosave();
+        expect(saves()).toHaveLength(1);
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(saves()).toHaveLength(2);
+        await vi.advanceTimersByTimeAsync(3_000); // the second wait is longer than the first
+        expect(saves()).toHaveLength(2);
+        await vi.advanceTimersByTimeAsync(3_000);
+        expect(saves()).toHaveLength(3);
+    });
+
+    it("stops after a refusal, which is not going to succeed on a timer", async () => {
+        install();
+        windowed();
+        failWith(403);
+        commit(withText(editor.artifact, "s1", "typed"));
+        await flushAutosave();
+        expect(saves()).toHaveLength(1);
+        await vi.advanceTimersByTimeAsync(120_000);
+        expect(saves()).toHaveLength(1);
+    });
+
+    it("re-reads the window on a conflict rather than resending ops it cannot apply", async () => {
+        install();
+        let reloads = 0;
+        onSaveConflict(() => {
+            reloads += 1;
+        });
+        // a windowed client cannot fall back to replacing the document, so the conflict surfaces
+        windowed();
+        failWith(409);
+        commit(withText(editor.artifact, "s1", "typed"));
+        await flushAutosave();
+        await vi.advanceTimersByTimeAsync(120_000);
+        expect(reloads).toBe(1);
+        expect(saves()).toHaveLength(1); // and no retry of ops the server has already refused
+    });
+});
+
+// The socket is the persistence path while it is up, and a text session only produces ops when it
+// ends: without this, navigating away or hiding the tab mid-sentence saved nothing at all.
+describe("a flush while a text session is open", () => {
+    it("pushes what has been typed into the room before it stands down", async () => {
+        install();
+        const batches: unknown[][] = [];
+        onEmitOps((ops) => {
+            batches.push(ops);
+            return `t${batches.length}`;
+        });
+        onCollabDriving(
+            () => true,
+            () => null,
+        );
+        startEditing({ section: "s1", path: [0] });
+        setArtifactLive(withText(editor.artifact, "s1", "half a sentence"));
+        await flushAutosave();
+        expect(saves()).toHaveLength(0); // still the socket's job
+        expect(batches).toHaveLength(1);
     });
 });

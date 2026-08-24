@@ -61,10 +61,19 @@ jump scrolls to, and what tells us the content a thread was written on has gone 
 what the thread points at.
 
 Anchoring needs the element to have an id, and ids are minted lazily by `withElementIds`, which runs
-on load and on every server write. An element the user created this session therefore has no id
-until then, so `captureAnchor` mints one at the moment of anchoring. That mint is metadata rather
-than an edit: it creates no history entry, though an undo past it drops the id again and the thread
-degrades exactly as it would if the mark had been edited away.
+on load and on every server write. The load pass only stamps what it was handed, so an element the
+user created this session (a palette insert lands after it) has no id until a write comes back, and
+`captureAnchor` mints one at the moment of anchoring. That mint is metadata rather than an edit: it
+creates no history entry, though an undo past it drops the id again and the thread degrades exactly
+as it would if the mark had been edited away.
+
+It does go out as a write, through `commitMeta`. Kept local, the id named an element only that tab
+knew about: the server minted a different one on its own next write, so the thread orphaned for
+every other reader immediately and for its author on the next load, and any op aimed at that element
+afterwards (the `cm` mark itself, most of all) addressed something the server did not hold, which
+the room refused and answered with a resync. The mint is a whole-section `set` rather than a `data`
+op, because an id is structural. Someone without edit access cannot persist one, so `captureAnchor`
+returns nothing there rather than handing back an anchor that would degrade the moment it was made.
 
 Not every element can take a comment. `commentableAt` treats the layout group as the one exemption,
 because columns and wraps hold blocks side by side without owning them. Every other container (a
@@ -103,12 +112,19 @@ caller may be an invited collaborator with no membership there, and the artifact
 decides whether they may act. The effect is that a member dropped to `view` can no longer edit or
 resolve the threads they left behind.
 
+Writing the `cm` mark is a content write, so a **text-range** anchor needs `edit`. At `comment` the
+chip anchors to the element instead, which is what the level can actually carry.
+
 Two per-reader flags are resolved server-side and ride on each row, so the editor can show an
 affordance exactly where the write would succeed without ever learning who is signed in:
 
 - `mine`, meaning the reader wrote it and may edit it
 - `canDelete`, meaning the author, or someone who can already administer the workspace (owner or
-  admin, via `roleOf`)
+  admin)
+
+Both come off the `Viewer` the route hands down, whose role is the one `gateShared` already
+resolved on the way in. Re-reading it in core was a second query per call, and a second answer to a
+question the gate had just settled.
 
 ## Routes
 
@@ -151,6 +167,38 @@ Placement is two functions worth knowing about. `markerX` puts a chip just outsi
 (`MARKER_GAP` of 12) and clamps it inside the stage when the section runs to the edge, so a chip
 never half-hangs off. `placeMarkers` walks requests in order and pushes each one down only as far as
 `MARKER_SPACING` (32) requires, which keeps an uncrowded rail exactly where it asked to be.
+
+**The creation chip is the grip's twin.** It appears on `hover() ?? selection()`, the same rule the
+drag grip uses, so the two travel together and an element under the pointer wears both. It used to
+key on selection alone, which pinned it beside an element for as long as that element stayed
+selected, and selection is an editing state rather than an invitation to comment. It carries the
+grip's height and icon at the same top edge, and sits the same `HANDLE_GAP` out from the element,
+which is one constant in `editor/core/store.ts` rather than one per panel: they drifted 2px apart
+the first time each owned its own, the grip on its own gap and the chip on the thread rail's. It is
+a little wider than the grip (20 against 16) because a speech bubble needs squarer room than a
+column of dots and looked pinched in the grip's box. It has the grip's hover bridge: a band
+spanning the gap from the element's edge out to the pill, so crossing it never lands on the canvas,
+which would read as hovering the section and take the chip away mid-reach. Only the pill takes a
+press, the bridge just holds the hover.
+
+Which right edge a chip hangs off depends on what it is about, and that is the one thing `markerX`
+is parameterised on. A thread marker takes its **section's** edge, so a rail of them lines up
+however wide the content inside is. The creation chip takes its **element's**, so the offer to
+comment stays beside the thing it is offering about: mirroring the drag grip, which hugs the same
+element's left edge, the two frame a selected element rather than cover it.
+
+It used to straddle the element's top-right corner instead, which put a 28px chip on top of the
+content it was offering to comment on: over a pill or a short heading it covered the last word.
+Anchoring it to the section's edge fixed that but traded it for distance, leaving the chip out at a
+rail the reader had to trace back from whenever the element was narrower than its section.
+
+The chip still goes through the placement pass, under the reserved id `CHIP_REQUEST_ID`. The two
+edges coincide only when an element runs its section's full width, which is exactly when a chip and
+a marker for that element would otherwise land on top of each other. The id sorts after a uuid so
+the chip loses that tie: selecting an element must not shove an existing thread's marker out of the
+place the reader already found it in. The composer then opens beside the chip, off the same edge and
+at the same height, flipping leftward when there is no room, which is what `panelAt` already decides
+for every marker.
 
 Two kinds of thread have no marker of their own, and each collapses into one chip in the section's
 border: the orphans, whose element is gone, and the resolved ones, which are hidden. `sectionChips`
@@ -206,16 +254,16 @@ run: the action silently did nothing. See `.docs/frontend.md` for the ownership 
 Six unit and integration suites of its own totalling 104 assertions, the shared dismissal test one
 layer down, and twelve browser flows:
 
-| Suite                                             | Covers                                                                                               |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `model/__tests__/comments.test.ts`                | Thread grouping, anchor validation, `anchorStateOf` and degradation                                  |
-| `editor/core/__tests__/comment-anchors.test.ts`   | Capture, id minting, `commentableAt`, mark ranges                                                    |
-| `editor/core/__tests__/comment-layout.test.ts`    | `markerX` clamping, `placeMarkers` spacing, `sectionChips` stacking, hover + resolved reveal rules   |
-| `app/stores/__tests__/comments.test.ts`           | Refetch-on-mutate, the autosave checkpoint, polling                                                  |
-| `services/api/__tests__/comments.itest.ts`        | The six routes, the three 409s, tenant scoping                                                       |
-| `services/api/__tests__/comment-anchors.itest.ts` | Anchor round-trips and per-reader `mine`/`canDelete`                                                 |
-| `e2e/editor/comments.spec.ts`                     | Twelve browser flows, including resolve-then-reveal, delete through the portaled menu, and dismissal |
-| `ui/__tests__/gesture.test.ts`                    | `pressInside`: the surface, its opener, a portaled node it owns, and another surface's               |
+| Suite                                             | Covers                                                                                                                             |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `model/__tests__/comments.test.ts`                | Thread grouping, anchor validation, `anchorStateOf` and degradation                                                                |
+| `editor/core/__tests__/comment-anchors.test.ts`   | Capture, id minting (and its write), `commentableAt`, mark ranges                                                                  |
+| `editor/core/__tests__/comment-layout.test.ts`    | `markerX` clamping, `placeMarkers` spacing + the creation chip's tie-break, `sectionChips` stacking, hover + resolved reveal rules |
+| `app/stores/__tests__/comments.test.ts`           | Refetch-on-mutate, the autosave checkpoint, polling                                                                                |
+| `services/api/__tests__/comments.itest.ts`        | The six routes, the three 409s, tenant scoping                                                                                     |
+| `services/api/__tests__/comment-anchors.itest.ts` | Anchor round-trips and per-reader `mine`/`canDelete`                                                                               |
+| `e2e/editor/comments.spec.ts`                     | Twelve browser flows, including resolve-then-reveal, delete through the portaled menu, and dismissal                               |
+| `ui/__tests__/gesture.test.ts`                    | `pressInside`: the surface, its opener, a portaled node it owns, and another surface's                                             |
 
 ## Planned / deferred
 

@@ -4,10 +4,16 @@
 > auto-presenting mode that reads those notes aloud in an ElevenLabs voice while the artifact advances
 > itself. Notes ship as text on their own; narration is the layer on top.
 
-Status: design, not built. Companion docs: `ai.md` (the turn protocol, the tool catalog, the credit
-gate, and the existing dictation route), `rendering.md` (the engine every present surface paints
-through), `collab.md` (the one-write-path invariant this feature has to stay inside), `workspaces.md`
-(entitlements and the credit window), `analytics.md` (the event catalog).
+Status: design settled, not built. **The build order and the gate list live in
+[`../prompts/10-voice-narration.md`](../prompts/10-voice-narration.md)**; this document is the
+rationale behind it, including the alternatives that were rejected and why. Where the two disagree,
+this one wins and the prompt is stale. When the feature ships, this file is folded into the
+current-state docs that own each area and deleted, per `../README.md`.
+
+Companion docs: `ai.md` (the turn protocol, the tool catalog, the credit gate, and the existing
+dictation route), `rendering.md` (the engine every present surface paints through), `collab.md` (the
+one-write-path invariant this feature has to stay inside), `workspaces.md` (entitlements and the
+credit window), `analytics.md` (the event catalog).
 
 ## 1. What we are building
 
@@ -877,37 +883,31 @@ them be last without the feature feeling unfinished before they land.
 
 ## 13. Working alongside the parallel sessions
 
-At the time of writing the tree carries 214 modified paths and about +6957/-2107, with
-`model/analytics.ts` and `services/core/ai/__tests__/catalog.test.ts` untracked. That is several
-features in flight at once, so this plan is sequenced to stay out of their way.
+This plan was written while the tree carried 214 modified paths across several features in flight, and
+it was sequenced to stay out of their way. **Those all landed.** The tree is clean as of `4689b50`, the
+`group` and `card` merge into `container` shipped, product analytics shipped, and `model/analytics.ts`
+is a committed file rather than an untracked one. The sequencing advice below is therefore about a
+condition that no longer holds, and is kept only because the condition recurs.
 
-Quiet and safe to work in now: `ui/present.tsx`, `editor/Present.tsx`, `app/views/PresentView.tsx`,
-`canvas/render/present.ts`, `services/core/ai/voice.ts`, `app/components/voice.ts`,
-`app/components/VoiceInput.tsx`. This is most of phases 3 and 5.
+The files this feature contends for, whenever another session is active in them:
+`model/artifact.ts`, `model/tools.ts`, `model/credits.ts`, `model/analytics.ts`, `model/billing.ts`,
+`services/db/schema.ts`, `services/api/ai.ts`, `app/api.ts`, `editor/core/store.ts`,
+`editor/Editor.tsx`, `publish/PublicView.tsx`, and `app/views/WorkspaceSettingsView.tsx`.
 
-Contended, so touch late and in the smallest possible diff: `model/artifact.ts` (a `group` and `card`
-merge into `container` is landing there), `model/tools.ts` and `model/credits.ts` (an analytics session
-is adding `ACTION_FOR` and `taskForUsage`), `model/analytics.ts` (untracked, so a new event definition
-has to wait for it to be committed), `services/db/schema.ts`, `services/api/ai.ts`, `app/api.ts`,
-`editor/core/store.ts`, `editor/Editor.tsx`, `publish/PublicView.tsx`,
-`app/views/WorkspaceSettingsView.tsx` (where the voice shelf goes), and `model/billing.ts` (the three
-new entitlement keys).
+Most of the surface deliberately does not touch any of them. `services/core/ai/speech.ts`,
+`services/core/voices.ts`, `services/api/voices.ts`, `services/core/ai/tools/notes.ts` and
+`services/core/ai/prompts/notes.ts` are all new files, which is both the one-concept-per-file rule and
+the lowest-collision way to add code to a busy tree.
 
-The voice work in phases 8 and 9 is the most exposed to this, since the shelf lands in a settings view
-someone else is editing and the entitlements land in the billing resolver. Both are additive: a new
-section in the settings view and three new keys in `FEATURES` and `Features`, so they append rather than
-restructure, which is the shape least likely to collide. `services/api/voices.ts` and
-`services/core/voices.ts` are new files precisely so that most of the surface lands where nobody else is
-working.
-
-Practical rules for the build:
+Practical rules whenever the tree is not clean:
 
 - Take contended files one edit at a time, verify against the file as it stands rather than against a
   remembered version, and never rewrite a region another session is clearly mid-way through.
-- Add the analytics events last, after `model/analytics.ts` is committed, so we are not editing an
-  untracked file underneath the session that created it.
-- The `narrations` table is additive, but `pnpm db:generate` writes a numbered migration, so generate it
-  in a quiet moment and check no one else has just added one.
+- Everything this feature adds to a shared file is additive: a field on `Section`, a field on
+  `ArtifactShell`, one cost unit, three `FEATURES` keys, three event definitions. Append rather than
+  restructure, which is the shape least likely to collide.
+- `pnpm db:generate` writes a numbered migration, so generate it in a quiet moment and check that
+  nobody else has just added one. Migrations are immutable once deployed.
 - New concepts go in new files (`services/core/ai/speech.ts`, `services/core/ai/tools/notes.ts`,
   `services/core/ai/prompts/notes.ts`, `services/api/narration.ts` if the AI router gets crowded), which
   is both the house rule and the lowest-conflict way to add code to a busy tree.

@@ -18,7 +18,17 @@ export async function loadFeatures(): Promise<void> {
     }
 }
 
-// Read through these, never through limitsFor(plan): only the resolved set carries the workspace's
+/**
+ * Background music is built, routed, and tested, but no deployment can serve a bed yet: every one has
+ * to be generated through the provider's music API, which refuses the plan this install is on. Rather
+ * than show a control whose only outcome is an error, the surfaces ask here and wire nothing.
+ *
+ * Not a `FeatureStatus`, because "planned" means unbuilt and would take the routes down with it. Flip
+ * this to true once there is audio to serve, from a paid plan or from vendored beds.
+ */
+export const MUSIC_SHIPPED = false;
+
+// Read through these, never through limitsFor(plan)// Read through these, never through limitsFor(plan): only the resolved set carries the workspace's
 // featureOverrides and each feature's launch status. Before /features loads, Free is the safe answer.
 export const can = (key: BoolFeature): boolean => featuresState()?.features[key] ?? false;
 export const exportFormatsOf = (): ExportFormat[] =>

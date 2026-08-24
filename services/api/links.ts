@@ -256,7 +256,7 @@ links.get("/p/:slug/content", async (c) => {
         visibility: asVisibility(read.visibility),
         by_owner: !!isOwner,
         referrer_host: recorded?.referrerHost ?? "direct",
-        device_tier: recorded?.device === "mobile" ? "phone" : "desktop",
+        device_tier: recorded?.tier ?? "desktop",
         is_first_view: recorded?.first ?? false,
     });
 

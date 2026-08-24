@@ -305,20 +305,48 @@ function emit(
     regions: Region[],
     opacity = 1,
     clip?: Rect,
+    link?: string,
 ): void {
     const { node } = ln;
     const acc = node.opacity !== undefined ? opacity * node.opacity : opacity;
     const o = acc < 1 ? acc : undefined;
+    // A link covers everything it wraps: the commands are flat siblings, so a descendant painted
+    // over the anchor would otherwise swallow the click.
+    const href = node.link ?? link;
     const box: Rect = { x: ln.x, y: ln.y, w: ln.w, h: ln.h };
     if (node.id)
         regions.push({ id: node.id, box, radius: node.fill?.radius ?? node.image?.radius });
     // This node's paint carries the ancestor clip; descendants also clip to its box.
     if (node.fill)
-        commands.push({ kind: "rect", box, fill: node.fill, id: node.id, opacity: o, clip });
+        commands.push({
+            kind: "rect",
+            box,
+            fill: node.fill,
+            id: node.id,
+            opacity: o,
+            clip,
+            link: href,
+        });
     if (node.image)
-        commands.push({ kind: "image", box, image: node.image, id: node.id, opacity: o, clip });
+        commands.push({
+            kind: "image",
+            box,
+            image: node.image,
+            id: node.id,
+            opacity: o,
+            clip,
+            link: href,
+        });
     if (node.text)
-        commands.push({ kind: "text", box, text: node.text, id: node.id, opacity: o, clip });
+        commands.push({
+            kind: "text",
+            box,
+            text: node.text,
+            id: node.id,
+            opacity: o,
+            clip,
+            link: href,
+        });
     if (node.surface)
         commands.push({
             kind: "surface",
@@ -327,6 +355,7 @@ function emit(
             id: node.id,
             opacity: o,
             clip,
+            link: href,
         });
     const childClip = ln.clip ? clipRect(clip, box, ln.clip) : clip;
     // Negative-z floats are decoration and paint under the flow; the rest are overlays on top.
@@ -334,10 +363,11 @@ function emit(
         .filter((c) => c.node.float)
         .sort((a, b) => (a.node.float?.z ?? 0) - (b.node.float?.z ?? 0));
     for (const c of floats)
-        if ((c.node.float?.z ?? 0) < 0) emit(c, commands, regions, acc, childClip);
-    for (const c of ln.children) if (!c.node.float) emit(c, commands, regions, acc, childClip);
+        if ((c.node.float?.z ?? 0) < 0) emit(c, commands, regions, acc, childClip, href);
+    for (const c of ln.children)
+        if (!c.node.float) emit(c, commands, regions, acc, childClip, href);
     for (const c of floats)
-        if ((c.node.float?.z ?? 0) >= 0) emit(c, commands, regions, acc, childClip);
+        if ((c.node.float?.z ?? 0) >= 0) emit(c, commands, regions, acc, childClip, href);
 }
 
 export function layout(

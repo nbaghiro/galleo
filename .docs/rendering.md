@@ -714,7 +714,7 @@ greedy). Continuous formats skip it on screen.
 
 Fitting a logical layout into a physical viewport (minimap thumbs, present) is one shared formula in
 `canvas/render/backends.ts` — `scaledHostCss` / `fitSlideContent`: lay out at the logical width, then
-CSS-scale the host to fit. Layout math never changes; only the transform does. (The old `render/geometry.ts`
+CSS-scale the host to fit. Layout math never changes; only the transform does. (The old `canvas/render/present.ts`
 was folded into `backends.ts`.)
 
 ### 8.1 Rendering a section at a shape that isn't its own (`canvas/render/fit.ts`)
@@ -851,3 +851,30 @@ gradients/clipped content and photos, which have no native vector form.
 See `architecture.md` for the file map, `ai.md` for how the streamed edit protocol drives these same content
 ops, `frontend.md` for the shared `@ui` control kit the inspectors are built from, and `testing.md` for the
 canvas/element test suites.
+
+## Present, and narrating it
+
+There is **one** present surface, `@ui/present`'s `PresentSurface`. The editor's overlay
+(`editor/Present.tsx`), the standalone `/present/:id`, and the published `/p/:slug` viewer are all
+thin callers of it. The editor used to reimplement the surface against its own store, which is why a
+section taller than its frame showed only its first page there while the same deck paginated
+correctly everywhere else; the convergence removed that render loop rather than patching it.
+
+Props switch the parts that differ: `overview` adds the slide grid on `O`, `notes` adds the
+presenter's pane on `N` (never set on publish, and the public payload carries no notes anyway),
+`narration` wires the player, and `viewOnly` drops the fullscreen control.
+
+**The step model** is what lets one player drive both format kinds. A step is one screenful of one
+section: a slide page in a paged format (`pagedSteps` over `sectionSlides`), a viewport-height chunk
+of the stack in a continuous one (`continuousSteps` over the painted `sectionTops`). Narration plays
+one track per **section** and steps through that section's screens at `stepHoldMs` intervals, so a
+three-page slide over a thirty-second track turns a page every ten seconds rather than talking about
+content still below the fold. All of it is pure and lives in `canvas/render/present.ts`.
+
+Playback (`@ui/narration`) owns one `<audio>` and knows nothing about slides or scrolling: the
+surface hands it `goToSection`, and it advances on `ended`. A section with no notes is skipped
+outright, which is what a hero or a footer on a site wants; a section that has notes but no prepared
+audio dwells instead, because someone meant to narrate it. Manual navigation retargets the audio
+(debounced 400ms in continuous formats), and while narration is playing Space becomes play and pause
+with the arrows still stepping. Autoplay with sound is blocked by browsers, so a narrated piece always
+starts from one gesture.

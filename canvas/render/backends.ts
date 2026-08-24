@@ -31,11 +31,20 @@ export const EXPORT_SCALE = 2;
 // concatenated span text equals the plain string
 function appendRuns(el: HTMLElement, runs: Run[]): void {
     for (const run of runs) {
-        const span = document.createElement("span");
+        const span: HTMLElement = document.createElement(run.link ? "a" : "span");
+        if (run.link) {
+            span.setAttribute("href", run.link);
+            span.setAttribute("target", "_blank");
+            span.setAttribute("rel", "noopener noreferrer");
+            span.style.color = "inherit"; // the theme's ink, not the UA's link blue
+        }
         span.textContent = run.text;
         if (run.bold) span.style.fontWeight = "700";
         if (run.italic) span.style.fontStyle = "italic";
-        const deco = [run.underline ? "underline" : "", run.strike ? "line-through" : ""]
+        const deco = [
+            run.underline || run.link ? "underline" : "",
+            run.strike ? "line-through" : "",
+        ]
             .filter(Boolean)
             .join(" ");
         if (deco) span.style.textDecorationLine = deco;
@@ -51,6 +60,14 @@ function appendRuns(el: HTMLElement, runs: Run[]): void {
 }
 
 function paintText(el: HTMLElement, t: TextLeaf): void {
+    // reused elements keep their attributes, so an absent level must clear the previous one
+    if (t.level) {
+        el.setAttribute("role", "heading");
+        el.setAttribute("aria-level", String(t.level));
+    } else {
+        el.removeAttribute("role");
+        el.removeAttribute("aria-level");
+    }
     el.style.font = `${t.weight ?? 400} ${t.size}px ${t.fontId}`;
     el.style.lineHeight = `${t.lineHeight ?? t.size * 1.35}px`;
     el.style.color = t.color ?? "#1a1a1a";
@@ -399,7 +416,35 @@ function warmImage(src: string): void {
     }
 }
 
+// An anchor earns a place in the a11y tree only when it has a name: the text under a linked button
+// is that name, the button's own fill is decoration wrapped in the same href so the click lands.
+function named(c: RenderCommand): boolean {
+    return c.kind === "text" || (c.kind === "image" && !!c.image.alt);
+}
+
+function applyLink(el: HTMLElement, c: RenderCommand): void {
+    const href = c.link;
+    if (!href) return;
+    el.setAttribute("href", href);
+    el.setAttribute("target", "_blank");
+    el.setAttribute("rel", "noopener noreferrer");
+    el.style.textDecoration = "none"; // the UA underline would repaint every linked box
+    el.draggable = false;
+    if (named(c)) {
+        // a reused anchor may have been the decorative half of the previous paint
+        el.removeAttribute("aria-hidden");
+        el.removeAttribute("tabindex");
+        return;
+    }
+    el.setAttribute("aria-hidden", "true");
+    el.setAttribute("tabindex", "-1");
+}
+
+// commands paint as flat siblings, so a linked one is its own anchor rather than a wrapper
+const tagFor = (c: RenderCommand): string => (c.link ? "a" : "div");
+
 function applyCommand(el: HTMLElement, c: RenderCommand): void {
+    applyLink(el, c);
     el.style.position = "absolute";
     el.style.left = `${c.box.x}px`;
     el.style.top = `${c.box.y}px`;
@@ -430,6 +475,9 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
         if (c.fill?.shadow) el.style.boxShadow = c.fill.shadow;
     } else if (c.kind === "image") {
         const im = c.image;
+        // reused elements keep their attributes; the zoomed path names itself with a real <img alt>
+        el.removeAttribute("role");
+        el.removeAttribute("aria-label");
         if (im.border) {
             el.style.border = `${im.border.width}px ${im.border.style ?? "solid"} ${im.border.color}`;
         }
@@ -440,12 +488,17 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
             if (im.radius !== undefined) el.style.borderRadius = `${im.radius}px`;
             const img = document.createElement("img");
             img.src = im.src;
+            img.alt = im.alt ?? "";
             img.draggable = false;
             img.decoding = "async"; // don't block the stack's paint on one decode
             img.style.cssText = `width:100%;height:100%;object-fit:${im.fit};object-position:center;transform:scale(${im.zoom});display:block`;
             el.appendChild(img);
         } else {
             warmImage(im.src);
+            if (im.alt) {
+                el.setAttribute("role", "img");
+                el.setAttribute("aria-label", im.alt);
+            }
             const scrim = im.scrim;
             const url = `url("${im.src}")`;
             el.style.backgroundImage = scrim
@@ -470,23 +523,30 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
     }
 }
 
-export function paint(commands: RenderCommand[], host: HTMLElement): void {
+// Returns the nodes it created, index-parallel to `commands`, for chrome that has to address one.
+export function paint(commands: RenderCommand[], host: HTMLElement): HTMLElement[] {
     host.replaceChildren();
     host.style.position = "relative";
+    const nodes: HTMLElement[] = [];
     for (const c of commands) {
-        const el = document.createElement("div");
+        const el = document.createElement(tagFor(c));
         applyCommand(el, c);
         host.appendChild(el);
+        nodes.push(el);
     }
+    return nodes;
 }
 
-// reset each reused <div> first so a kind change can't inherit old styling
-function paintReconcile(host: HTMLElement, commands: RenderCommand[]): void {
+// reset each reused node first so a kind change can't inherit old styling; a tag change (div ↔ a)
+// can only be resolved by replacing it
+function paintReconcile(host: HTMLElement, commands: RenderCommand[]): HTMLElement[] {
+    const out: HTMLElement[] = [];
     const nodes = host.childNodes;
     for (let i = 0; i < commands.length; i++) {
+        const tag = tagFor(commands[i]!);
         let el = nodes[i] as HTMLElement | undefined;
-        if (!el || el.nodeType !== 1 || el.tagName !== "DIV") {
-            const fresh = document.createElement("div");
+        if (!el || el.nodeType !== 1 || el.tagName !== tag.toUpperCase()) {
+            const fresh = document.createElement(tag);
             if (nodes[i]) host.replaceChild(fresh, nodes[i]!);
             else host.appendChild(fresh);
             el = fresh;
@@ -495,8 +555,10 @@ function paintReconcile(host: HTMLElement, commands: RenderCommand[]): void {
             el.replaceChildren();
         }
         applyCommand(el, commands[i]!);
+        out.push(el);
     }
     while (host.childNodes.length > commands.length) host.removeChild(host.lastChild!);
+    return out;
 }
 
 // greedy wrap must match measure.ts so line breaks agree
@@ -791,12 +853,23 @@ interface SectionCacheEntry {
     commands: RenderCommand[];
     ghost: boolean; // a stand-in, so resolving the real content is always a cache miss
     layer: HTMLElement | null;
+    nodes: HTMLElement[]; // index-parallel to `commands`, empty until the layer is painted
     regions: Region[]; // section-local (offset into stage coords per draw)
     height: number;
 }
 export interface SectionStackCache {
     entries: Map<string, SectionCacheEntry>;
 }
+
+/** One materialized section, for chrome that has to address a painted section or its elements. */
+export interface SectionLayer {
+    id: string;
+    section: Section;
+    el: HTMLElement;
+    commands: RenderCommand[];
+    nodes: HTMLElement[];
+}
+
 export function createSectionStackCache(): SectionStackCache {
     return { entries: new Map() };
 }
@@ -871,7 +944,14 @@ export function paintSectionStack(
             layoutW: number,
         ) => { commands: RenderCommand[]; height: number } | undefined;
     },
-): { tops: number[]; heights: number[]; regions: Region[]; height: number; painted: number } {
+): {
+    tops: number[];
+    heights: number[];
+    regions: Region[];
+    height: number;
+    painted: number;
+    layers: SectionLayer[];
+} {
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
     const slide = !!opts.slideFrame && profile.kind === "paged";
     // folded into the profile key so toggling the mode invalidates every cached layer
@@ -882,6 +962,7 @@ export function paintSectionStack(
     const heights: number[] = [];
     const regions: Region[] = [];
     const layers: HTMLElement[] = [];
+    const painted: SectionLayer[] = [];
     const live = new Set<string>();
     let y = opts.startY ?? 0;
 
@@ -915,6 +996,7 @@ export function paintSectionStack(
                 commands: ghost.commands,
                 ghost: true,
                 layer: prev?.layer ?? null,
+                nodes: [],
                 regions: [], // a stand-in isn't selectable
                 height: ghost.height,
             };
@@ -938,6 +1020,7 @@ export function paintSectionStack(
                 commands,
                 ghost: false,
                 layer: prev?.layer ?? null,
+                nodes: [],
                 regions: res.regions,
                 height: res.height,
             };
@@ -948,10 +1031,11 @@ export function paintSectionStack(
         if (inWindow && entry.commands.length) {
             if (!entry.layer) {
                 entry.layer = document.createElement("div");
-                paint(entry.commands, entry.layer);
+                entry.nodes = paint(entry.commands, entry.layer);
             } else if (!reuse) {
-                if (cache) paintReconcile(entry.layer, entry.commands);
-                else paint(entry.commands, entry.layer);
+                entry.nodes = cache
+                    ? paintReconcile(entry.layer, entry.commands)
+                    : paint(entry.commands, entry.layer);
             }
             const layer = entry.layer;
             layer.style.position = "absolute"; // paint() forces relative; keep layers out of flow
@@ -961,6 +1045,13 @@ export function paintSectionStack(
             layer.style.height = `${entry.height}px`;
             layer.style.opacity = opts.dimId === section.id ? "0.4" : "1"; // reset each paint (layers cache)
             layers.push(layer);
+            painted.push({
+                id: section.id,
+                section,
+                el: layer,
+                commands: entry.commands,
+                nodes: entry.nodes,
+            });
             for (const r of entry.regions)
                 regions.push({
                     id: r.id,
@@ -977,7 +1068,7 @@ export function paintSectionStack(
     if (cache)
         for (const id of [...cache.entries.keys()]) if (!live.has(id)) cache.entries.delete(id);
     host.replaceChildren(...layers);
-    return { tops, heights, regions, height: y, painted: layers.length };
+    return { tops, heights, regions, height: y, painted: layers.length, layers: painted };
 }
 
 const keep = (w: StackWindow): StackWindow => ({
@@ -990,12 +1081,11 @@ export function fitSlideContent(
     contentH: number,
     slideW: number,
     slideH: number,
-): HTMLDivElement {
+): { el: HTMLDivElement; nodes: HTMLElement[] } {
     const fit = Math.min(1, slideH / contentH);
     const content = document.createElement("div");
     content.style.cssText = `position:absolute;width:${slideW}px;height:${contentH}px;transform:scale(${fit});transform-origin:top left;left:${(slideW - slideW * fit) / 2}px;top:${(slideH - contentH * fit) / 2}px`;
-    paint(commands, content);
-    return content;
+    return { el: content, nodes: paint(commands, content) };
 }
 
 // CSS-scale from top-left so text wraps identically (thumbnails); `center` letterboxes into a fixed frame

@@ -28,6 +28,9 @@ with high-fidelity export. Net-new, TypeScript.
   the deploy pipeline.
 - `.docs/analytics.md` — product analytics: the event catalog, the two wrappers, the ingest proxy,
   identity + request correlation, the capture policy, and what never leaves the system.
+- `.docs/mcp.md` — the remote MCP server: the tool surface exposed outside the product, Galleo as an
+  OAuth authorization server, scopes + the step-up challenge, and the one executor all three
+  surfaces (chat agent, direct routes, MCP) run their tools through.
 - `.docs/onboarding.md` — the first session: the signup grant, the template-first path, the checklist.
 
 ## Structure (model · canvas · ui · editor · app)
@@ -35,7 +38,8 @@ with high-fidelity export. Net-new, TypeScript.
 - **`model/`** (`@model`, `@themes`) — the pure, edge-safe contract. Imports **nothing** outside `model`.
   **One file per concept**, each holding its types, its wire DTOs, and the functions that operate on them,
   so a new field is one file's diff: `artifact` (the content tree + tree/path ops + node addressing + REST
-  shapes + section-op semantics + the derived digest/search text), `ai` (the streamed turn protocol; the
+  shapes + section-op semantics + the derived digest/search text + the speaker-note fingerprint that
+  tells a current script from one written for copy that has since changed), `ai` (the streamed turn protocol; the
   LLM-facing catalog lives with its prompt in `services/core/ai/prompts/catalog.ts`), `credits` (metered credits +
   the AiTask steps), `tools` (the one tool catalog: identity, surfaces, pricing), `billing` (plans, seats,
   add-ons + the entitlement resolver), `eval` (the traced-run contract the eval playground reads),
@@ -48,11 +52,15 @@ with high-fidelity export. Net-new, TypeScript.
   super/identify/group traits, and the bucketing that keeps content out — a genuinely new concept
   rather than types belonging to one already here, and it lives at this layer because the frontend and
   the backend both emit and this is the only layer both may import), plus
+  `speech` (voice + narration + the music bed under them: the voice catalog and shelf DTOs, the browse
+  filters, the character alignment a caption highlights from, the `Soundtrack` DTO and the default
+  preset, and the pure word-span math both ends share — here for the same reason `analytics` is, since
+  the picker and the player are in the browser while synthesis and its cache are in services), plus
   `geometry` (sizing + format profiles), `media` (the picker + asset DTOs), `authoring` (fixture DSL),
   `elements` (element value-sets + the vector IR), and
   the two curated catalogs that carry their own contract: `theme` (the whole theme contract + library) and
   `templates` (the `Template` DTO + `TEMPLATE_INDEX`, ids/labels/grouping only — the bodies are served from
-  `services/core/templates.ts`, so this stays edge-safe). Seventeen files; resist adding an eighteenth for a
+  `services/core/templates.ts`, so this stays edge-safe). Eighteen files; resist adding a nineteenth for a
   handful of types that belong to a concept already here.
 - **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
   library + DOM / 2D-canvas / PDF backends + present-slide geometry + export. **Pure TS** — framework-
@@ -66,15 +74,25 @@ with high-fidelity export. Net-new, TypeScript.
   theme CSS-var utilities — `text-ink`, `bg-accent`, `var(--radius)`… — zero hardcoded colors, so every
   primitive recolors with the active theme). See `.docs/frontend.md`.
 - **`editor/`** (`@editor`) — the SolidJS studio: selection, inspectors, inline text, drag-drop over
-  `model` + `canvas` + `ui`. `register.ts` side-effect-registers the elements.
+  `model` + `canvas` + `ui`. Three surfaces at the root (`Editor.tsx` · `Canvas.tsx` · `Present.tsx`)
+  over `core/` (state + pure interaction logic) and `panels/` (the chrome drawn on the canvas). The element
+  registry belongs to canvas: `canvas/elements/register.ts` side-effect-registers it.
 - **`services/`** — backend (Hono + Postgres/Drizzle), depends only on `model`. A thin `server.ts` at the
   root mounts the routers; everything else sits in a layer, `api → core → db → utils`:
   **`api/`** one file per resource, HTTP only (parse · gate · shape a response) plus the shared
   `middleware.ts`; **`core/`** one file per functionality, owning every decision and every query, and
   forbidden from importing hono (`core/ai/`, the LLM runtime, is the one entry that is a folder rather than
-  a file); **`db/`** schema · the lazy client · derived columns · migrations · the `seed.ts` entry;
+  a file); **`db/`** schema · the lazy client · derived columns · migrations · `seed.ts` (the entry that writes the demo
+  universe) over the `seed/` folder that holds it as data;
   **`utils/`** http helpers · auth crypto · env, database-free by rule so it stays unit-testable.
 - **`app/`** — the product SPA (served at `/app`): library, templates, AI generation + chat, theme editor, sharing, wrapping the editor.
+- **Three more entry points, siblings of `app/` rather than layers above it** — each its own Vite build
+  from the same tree, each capped at what it is: **`publish/`** the public read-only viewer (`/p/:slug`)
+  over `model` + `canvas` + `ui`, with its own `api.ts` for the three unauthenticated `/p/:slug` reads,
+  since importing the product's client would ship the whole authenticated API to a customer's audience;
+  **`website/`** the marketing build served at `/`, same ceiling; **`widget/`** the component an MCP host
+  renders in its own chat, framework-free over `model` + `canvas` only (no `@ui`, which would pull Solid
+  into a bundle that travels inside someone else's page).
 - **Frontend = SolidJS + Vite + Tailwind v4.** `model` + `canvas` stay framework-free; the engine paints
   render commands imperatively into refs (`@canvas/render/backends`) — Solid only owns shell + state.
 
@@ -146,6 +164,29 @@ with high-fidelity export. Net-new, TypeScript.
   `pnpm check:copy` over `app`/`website`/`ui`/`editor`/`publish` plus `model/billing.ts`,
   `model/templates.ts`, and `services/core/mail.ts`; a genuine exception goes in that script's `ALLOW`
   with a reason. Both pre-commit and CI run it.
+- **New functionality gets an event, and the catalog is the contract.** Every product event lives in
+  `model/analytics.ts`, typed, so a call site cannot pass a name that does not exist or props that do
+  not match, and no call site passes a bare string. If a change adds something a person can do, add the
+  event with it: the four surfaces that shipped uninstrumented (the assistant rail, the media picker,
+  the theme editor, live collaboration) each cost a later audit to find. Read `.docs/analytics.md`
+  first; it is the current-state reference.
+  **Properties are ids, enums, counts, durations and booleans, never content.** No prompt or section
+  text, no titles, no file names, no email addresses, no search queries. Where magnitude matters send a
+  bucket (`charsBucket`, `queryBucket`), not the value. Reuse the enum the code already has, so a new
+  format or tool is a compile error rather than a silent hole.
+  **Instrument the seam, not the call sites.** Prefer the one place every path already funnels through
+  (`reserve` in `core/spend.ts` for anything metered, `provisionUser` for signup, `stopEditing` for a
+  typing session, `reportError` for a failure) so a new caller is measured by construction. Where that
+  does not exist, export a named reporter (`noteElementAdded`, `reportPaywall`) rather than capturing
+  inline, so a surface that gets rebuilt or moved keeps its instrumentation.
+  **The server emits what only it knows, the client what only it knows, and the server wins ties.** A
+  client can close its tab mid-stream; a Stripe webhook has no client at all.
+  **Widening a reporter's signature is riskier than it looks.** Adding a first parameter to something
+  wired as `onClick={fn}` silently hands it the DOM event; check the call sites, not just the types.
+  **Cleaning up costs more than adding.** A property whose value never varies is noise and should go,
+  but removing an event breaks any tile referencing it, so check `scripts/posthog-dashboards.ts` first.
+  Dashboards are built from that script (`pnpm posthog:dashboards`, idempotent, `--dry-run` to preview)
+  rather than clicked together, for the same reason `stripe:setup` builds the Stripe catalog.
 - **Request bodies are untrusted — state the shape, never cast.** A route reads its body with
   `await readJson(c, zThing)`, which returns `null` when the body does not match so the route can
   answer 400; the schema lives next to the route in the `services/api/` file that owns it. The old
@@ -162,6 +203,13 @@ with high-fidelity export. Net-new, TypeScript.
   Enforced twice, since the resolved form (`import/no-restricted-paths`) checks nothing when a specifier
   fails to resolve: `no-restricted-imports`/`no-restricted-syntax` re-state each zone against the raw
   specifier, covering static, type-only, and dynamic `import()`.
+- **The leaves are bound too** (same ESLint map, since the spine is not the whole tree): publish ⇏
+  editor/app/services and website ⇏ editor/app/services (both stop at `@ui`); **widget ⇏ ui**/editor/app/
+  services, which is what keeps the MCP bundle framework-free; scripts ⇏ editor/app (build tooling may
+  compose model + canvas + services, never a product shell); and an **e2e `*.spec.ts` ⇏
+  canvas/ui/editor/app/services**, so a browser test drives the real thing over HTTP and the DOM instead
+  of calling a store or a query directly (`@model` stays open for shared types, and `e2e/setup/` is
+  exempt because it shells out to `pnpm seed`). Every zone above is probed by `pnpm check:boundaries`.
 - **Services layer law** (ESLint, the same shape one level down): `api → core → db → utils`.
   **`core/` may not import hono** — a core file reaching for it is a route in disguise — and
   **`utils/` may not import `db/`**, which is what keeps it unit-testable. Shared code moves _down_,
@@ -196,6 +244,8 @@ pnpm check:copy           # no em-dashes in user-facing copy or in the prompts (
 pnpm check:elements       # every registered element is reachable and renders
 pnpm check:modules        # the model/ map in this file still matches the directory
 pnpm check:validation     # every request body is read through a schema, never cast
+pnpm check:tools          # one executor: no route reaches around it, no catalog entry it can't serve
+pnpm check:fonts          # every family a theme or the picker can name has a vendored face
 ```
 
 Galleo owns the **86xx** host-port block (runs alongside the sibling apps). See the ports table in
@@ -209,10 +259,11 @@ The layout engine (`canvas/engine/layout.ts`, Clay-style 3-pass solver) drives a
 state) and inline text editing (`panels/TextEditor.tsx`). State in `core/store.ts` (Solid store); painting
 is the `@canvas` layer — the engine's commands paint into refs (`@canvas/render/backends`, with a
 2D-canvas mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element
-has a structural ghost (`skeletonize` in `@elements/spec`). **60 palette elements** register via
-`canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 8 composite · 7 basic ·
-15 chart · 16 diagram), plus palette-hidden internals (`group`, `avatar`, the `chart`/`diagram` storage
-elements, the drop-preview); format-as-view
+has a structural ghost (`skeletonize` in `@elements/spec`). **62 palette elements** register via
+`canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 10 composite · 7 basic ·
+15 chart · 16 diagram), plus the three registered internals the palette hides (`avatar` and the
+`chart`/`diagram` storage elements; `group` and `card` are not elements at all, they are legacy type
+aliases onto `container`); format-as-view
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 
 The product SPA (`app/`, served at `/app`) wraps the studio: library / templates / trash / shared /

@@ -12,6 +12,7 @@ import {
     setGrantAccess,
     sharedWithMe,
 } from "@services/core/collaborators";
+import { syncArtifactAccess } from "@services/core/collab";
 import { gateShared, isResponse, requireUser, type AuthedEnv } from "./middleware";
 
 export const collaborators = new Hono<AuthedEnv>();
@@ -72,8 +73,11 @@ collaborators.patch("/artifacts/:id/collaborators/:grantId", requireUser, async 
     const body = await readJson(c, zLevel);
     if (!body) return c.json(BAD_BODY, 400);
     if (!isGrantable(body.access)) return c.json({ error: "that is not an access level" }, 400);
-    const ok = await setGrantAccess(c.req.param("id"), c.req.param("grantId"), body.access);
-    return ok ? c.json({ ok: true }) : c.json({ error: "not found" }, 404);
+    const changed = await setGrantAccess(c.req.param("id"), c.req.param("grantId"), body.access);
+    if (!changed) return c.json({ error: "not found" }, 404);
+    // an open socket carries the level it was upgraded with, so the room is told about the new one
+    if (changed.userId) await syncArtifactAccess(c.req.param("id"), [changed.userId]);
+    return c.json({ ok: true });
 });
 
 collaborators.delete("/artifacts/:id/collaborators/:grantId", requireUser, async (c) => {
@@ -81,8 +85,10 @@ collaborators.delete("/artifacts/:id/collaborators/:grantId", requireUser, async
     if (isResponse(gate)) return gate;
     if (!gate.role)
         return c.json({ error: "Only the workspace that owns this can change access." }, 403);
-    const ok = await revokeGrant(c.req.param("id"), c.req.param("grantId"));
-    return ok ? c.json({ ok: true }) : c.json({ error: "not found" }, 404);
+    const revoked = await revokeGrant(c.req.param("id"), c.req.param("grantId"));
+    if (!revoked) return c.json({ error: "not found" }, 404);
+    if (revoked.userId) await syncArtifactAccess(c.req.param("id"), [revoked.userId]);
+    return c.json({ ok: true });
 });
 
 // Reached from the emailed link; possession of the token is the credential, as with workspace invites.

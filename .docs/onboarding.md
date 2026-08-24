@@ -25,8 +25,8 @@ Built, pending manual QA. What ships:
 | the client store                                                               | `app/stores/onboarding.ts`                               |
 | the studio's format default                                                    | `app/stores/generate.ts`                                 |
 
-Not built: the seven events in the Events section below. `.docs/prompts/analytics-events.md` specifies them and
-`.docs/prompts/09-product-analytics.md` is the handoff, so none of this is measurable yet.
+Not built: the seven events in the Events section below. `.docs/analytics.md` specifies them and
+`.docs/analytics.md` is the handoff, so none of this is measurable yet.
 
 ## The constraint everything follows from
 
@@ -122,15 +122,22 @@ a starting proposal, not a derived result; we picked it to put month one near se
 is enough to try a few real briefs and still have room after a bad one.
 
 Two rules keep it from being farmed. The grant applies to a user's **first** workspace only, not to
-every workspace they create, since a user can own several. And it is released on **email
-verification** rather than at row creation. Verification is already sent from `session.ts` and
-currently gates nothing at all, so this gives it a purpose and puts the cheapest abuse behind a real
-mailbox. The monthly 100 still lands at signup, so an unverified user is not blocked, only ungranted.
+every workspace they create, since a user can own several. And it is released when the address is **confirmed** rather than at row creation, which puts the
+cheapest abuse behind a real mailbox. Confirming is now a gate in its own right (see below), so the
+grant lands at the same moment the account gets in.
 
 Mechanically this is a new ledger reason alongside `monthly-grant`, `renewal-grant`, and
-`upgrade-grant`. It must be idempotent, because verification can be requested more than once, so the
-insert is guarded on the absence of an existing `signup-grant` row for that workspace rather than on a
-flag we could lose.
+`upgrade-grant`. It must be idempotent, because a code can be requested more than once, so the insert
+is guarded on the absence of an existing `signup-grant` row for that workspace rather than on a flag
+we could lose.
+
+**The confirmation gate.** A password signup is answered with a session, so the person leaves the auth
+page at once, but that session is refused by `requireUser` and `requireWorkspace` alike: the only thing
+it reaches is the confirm step, which is step one of this surface. Confirming is a 6-digit code typed
+in the same tab, not a link, so nobody has to leave and come back. `mustConfirmEmail` in
+`@model/workspace` is the single rule both sides read, and it applies from 2026-08-22 forward, so
+accounts opened before the gate keep the access they already had and get the banner instead. Signing in
+unconfirmed is allowed and lands on the same step, because a code needs a session to be typed into.
 
 ### 5. A checklist, not a coachmark tour
 

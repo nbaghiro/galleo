@@ -180,22 +180,22 @@ your credits buy" list = tools that are both `usage`-priced **and** `live`) — 
 `ToolId`. The credit gate (§11) and the `/pricing` page read straight off this; retune a unit once and the
 paywall, the showcase, and every charge move together.
 
-**The catalog — 43 tool ids** (7 composites · 30 actions · 6 primitives):
+**The catalog — 55 tool ids** (8 composites · 42 actions · 5 primitives), defined once in
+`model/tools.ts`; `pnpm check:tools` fails if a route reaches around the executor or the catalog names a
+tool it cannot serve. The tiers, rather than an inventory that rots on the next tool:
 
-- **7 composites** (whole flows): `generate-artifact` · `revise-artifact` · `add-section` · `rewrite-section`
-  · `edit-artifact` (rewrite a section of _another_ library artifact) · `revise-element` · `ask-assistant`
-  (the agent turn).
-- **30 actions** (single calls). Content + structure: `rewrite-text` · `translate-text` · `translate-artifact`
-  · `suggest-title` · `generate-theme` · `generate-image` · `write-summary` · `write-alt-text` ·
-  `write-speaker-notes` · `suggest-sections` · `show-sections` · `reorder-section` · `remove-section` ·
-  `set-format` · `set-theme`. Studio: `draft-brief` (prompt → editable structured brief, 1 cr) ·
-  Workspace: `find-artifacts` · `read-artifact` ·
-  `rename-artifact` · `move-artifact` · `duplicate-artifact` · `trash-artifact` · `restore-artifact` ·
-  `create-folder` · `share-artifact` · `export-artifact` · `find-templates`. Media + system:
-  `find-stock-image` · `apply-patch`.
-- **6 primitives** (internal building blocks): `plan-outline` · `plan-section` · `write-section` ·
-  `source-image` · `check-section` · `pick-arc`. `plan-outline` is also a **live, direct, priced** step
-  now — the studio's `plan` turn bills it (3 cr), so an abandoned outline costs the plan, not the build.
+- **8 composites** (whole flows, each one turn): `generate-artifact` · `revise-artifact` · `add-section` ·
+  `rewrite-section` · `suggest-section-layouts` · `edit-artifact` (rewrite a section of _another_ library
+  artifact) · `revise-element` · `ask-assistant` (the agent turn).
+- **42 actions** (single calls): content and structure edits, the studio's brief/outline proposals, the
+  workspace verbs a chat or an MCP client can drive (`find-artifacts` · `read-artifact` · `rename-artifact`
+  · `move-artifact` · `duplicate-artifact` · `trash-artifact` · `restore-artifact` · `create-folder` ·
+  `share-artifact` · `export-artifact` · `find-templates`), the media and speech calls (`generate-image` ·
+  `generate-video` · `reimage` · `narrate-artifact` · `compose-soundtrack` · `audition-voice` ·
+  `design-voice`), and `apply-patch`.
+- **5 primitives** (internal building blocks): `plan-outline` · `plan-section` · `write-section` ·
+  `check-section` · `pick-arc`. `plan-outline` is also a **live, direct, priced** step now — the studio's
+  `plan` turn bills it (3 cr), so an abandoned outline costs the plan, not the build.
 
 **Pricing — metered, not flat.** Cost = Σ of the primitive **units of work** an action produces. The units
 (`@model/credits` `COST_UNITS`, anchored so a typical ~12-section, ~3-image build ≈ 40 credits):
@@ -656,7 +656,7 @@ ask + context. Cheap high-volume ops (rewrite/translate) deliberately drop the c
 - **Theme** (`prompts/theme.ts`, `services/core/ai/tools/theme.ts`): a coherent `ThemeInput` (name + mood + isDark + 8
   colors + font trio + radius/weight/border) from a prompt; the bundled font lists constrain the choice, and a
   deterministic contrast/OKLCH finalize pass guarantees legibility regardless of model.
-- **Image** (`prompts/image.ts`): expand a terse subject into one vivid, on-theme image prompt.
+- **Image** (`services/core/ai/images.ts`): expand a terse subject into one vivid, on-theme image prompt.
 - **Suggest** (`services/core/ai/tools/suggest.ts`): a cheap, unmetered call for "what to add next" ideas (the insert
   popup); the client caches per artifact.
 
@@ -783,7 +783,117 @@ POST /ai/voice-token  UNMETERED, rate-limited (30/min). Mints a single-use Eleve
                    voice.ts` + `VoiceInput.tsx`) captures mic audio in an AudioWorklet, downsamples to
                    16 kHz PCM, and reduces partial/committed events into the hold-to-talk overlay;
                    release inserts the transcript at the composer caret. Needs ELEVENLABS_API_KEY.
+POST /ai/notes     SSE. Writes speaker notes for the open piece: `{spoken, cues[]}` per section,
+                   streamed as each lands. One structured call over the whole deck, because
+                   continuity between adjacent notes is the point; a partial rewrite still sees
+                   every other section and the notes already on them. Meters write-speaker-notes
+                   by section count. Prompt: `prompts/notes.ts`; body: `tools/notes.ts`.
 ```
+
+**Narration lives in its own router**, `services/api/narration.ts` over `services/core/narration.ts`,
+because it is about audio rather than about a turn:
+
+```
+POST /artifacts/:id/narration   SSE. Synthesizes each section whose script has no current audio,
+                                skipping cached ones. Meters narrate-artifact by characters and
+                                settles to what was really spoken, so a mostly-cached run refunds.
+GET  /artifacts/:id/narration   The manifest: per section {url, ms, spoken, alignment}, plus the
+                                sections that have notes but no audio yet.
+GET  /artifacts/:id/narration/:sectionId?v=<hash>   The bytes, immutable-cached.
+GET  /p/:slug/narration[/:sectionId]                The same two reads through `publicRead`, so a
+                                password or a recipient token gates the audio exactly as it gates
+                                the words. The access params ride in the audio urls, because an
+                                <audio> element sends no headers of ours.
+```
+
+**Background music** is the third thing in this feature derived from the content and cached by what
+produced it, in the same router over `services/core/soundtrack.ts`:
+
+```
+GET  /music/presets                     The house set (`MUSIC_PRESETS` in core/ai/music.ts) and
+                                        whether this deployment has generated each one yet.
+POST /artifacts/:id/soundtrack          Either a preset or a bed written for this piece. Meters
+                                        compose-soundtrack by the minute and settles to zero when
+                                        the bed was already built, so asking twice is free.
+GET  /artifacts/:id/soundtrack          The bed this piece plays, or null. Never generates: an
+                                        anonymous link viewer reaches the same function and
+                                        cannot be billed.
+GET  /artifacts/:id/soundtrack/:trackId The bytes. A custom bed is only servable through the
+                                        artifact it belongs to.
+GET  /p/:slug/soundtrack[/:trackId]     The same two reads through `publicRead`, gated exactly as
+                                        the narration pair is.
+```
+
+A **preset** is generated once for the whole deployment and shared by every workspace, which is what
+keeps the common case at one provider call ever; `services/core/__tests__/soundtrack.itest.ts` asserts
+that by call count rather than by row count, as the voice adoption cache does. A **custom** bed is
+written from what the piece already says about itself: the theme's mood (a human-written phrase) or
+its descriptor, whether the theme is dark, the format, and the title. That prompt is deterministic and
+costs nothing, so no LLM turn is involved and there is no tool in the catalog for it. When the piece
+is narrated the request carries the narration's total length, so the bed runs exactly as long as the
+voice rather than looping under it.
+
+Playback ducks: `duckedVolume` in `@model/artifact` drops the bed to `MUSIC_DUCK` while narration
+speaks. Export ignores music entirely, as it ignores narration.
+
+**The control is the present bar's music button**, and it is the on-ramp rather than only a mute.
+`SoundtrackSource.enable` is wired where the caller may edit the piece, and the first press is what
+turns music on: it builds the default preset if the deployment has none, records `music.on` on the
+artifact, and plays. Every press after that is play/pause, because pausing mid-talk must not rewrite
+the artifact. A link viewer gets no `enable`, so on publish the button appears only once a bed exists
+and does nothing but play what the presenter chose. Which bed a piece uses stays with the picker in
+a picker the editor no longer carries; the bar is one button and has no room to ask.
+
+**Nothing is prepared ahead of time.** Pressing play in present is the only trigger, and it does both
+halves for the section it is about to speak: write the script if there is none, then record it. The
+first press is the only wait, because `prefetch` runs a section ahead of the voice.
+
+A script is stamped with `SectionNotes.of`, the `sectionFingerprint` of the section it was written
+against (`model/artifact.ts`, FNV-1a over the section's words alone, so moving a box does not
+invalidate an accurate script). That makes three states tellable apart, and `needsScript` folds the
+first two:
+
+```
+no notes                    → write them
+notes, source "ai",  of ≠   → the copy moved out from under the script; rewrite it
+notes, source "human"       → never rewritten, whatever the fingerprint says
+notes written before `of`   → counted as current, so a deploy rewrites nobody's notes at once
+```
+
+Staleness reaches the audio too. The player treats a stale section as a cache miss even when it has a
+recording, because audio made from a script that no longer describes the slide is wrong rather than
+merely old; the rewritten words then change the narration hash, so the section re-records itself.
+
+After the first section is speaking, `scriptRest` writes everything still unscripted in one pass
+behind the voice (`editor/core/notes.ts`), and every section after the first waits on that pass rather
+than asking for its own script. Per-section first buys latency, the whole-piece pass buys continuity.
+
+**The whole piece warms itself on open.** Mounting a present surface starts a background fill in
+document order that nothing waits on: the control renders at once, and a press arriving mid-fill joins
+whatever is already in flight for that section rather than paying twice for it. The bar shows a
+spinner only while the section a press would start on is still missing, so a long piece becomes
+playable as soon as its first section lands and finishes filling quietly behind the voice.
+
+Writing and recording are wired only where the caller may edit. Recording spends the artifact owner's
+credits, so an invited viewer and a published link play what is already there and warm nothing; the
+alternative is a fill loop that can only answer 403 and a control that never becomes ready.
+
+There is no speaker-notes editor. Notes are written by the model, on demand, and read in the present
+notes pane; `SectionNotes.source` still distinguishes writing a person did, because rows predating
+this exist and must never be rewritten under them.
+
+Synthesis itself is `services/core/ai/speech.ts`: always the `with-timestamps` endpoint, since the
+character alignment cannot be reconstructed afterwards and is what the caption overlay and the
+per-page step timing are built from. The cache key is
+`sha256(spoken + voice + model + output_format)`, so editing one section invalidates that section and
+changing the voice invalidates the piece.
+
+**Voices** are `services/api/voices.ts` over `services/core/voices.ts`: browsing the provider's
+community library (unmetered, rate-limited, provider previews cost nothing), saving to a per-workspace
+shelf, auditioning a saved voice on one short line, and designing one from a description. Adoption is
+**install-wide and idempotent on `voices.library_id`**: a community voice must be added to the calling
+account before it can speak, that add is capped monthly on the single account serving every workspace,
+and per-tenant adoption of the same popular voice would spend the allowance on duplicates.
 
 **Reconciliation (turn route).** The reserve is a pre-flight estimate; the `finally` block trues it up to what
 actually ran, even on a mid-turn error:
@@ -840,7 +950,7 @@ mode would be a second way to do the same thing. The stages:
 
 - **Intake** — a centred composer that owns its own settings (format / length / image-source as compact
   dropdowns in its footer, beside the attach actions) plus **context to build from**: pasted text and
-  dropped text files, merged into `GenerateInput.source` (`app/components/attachments.ts`; binaries are
+  dropped text files, merged into `GenerateInput.source` (`app/stores/attachments.ts`; binaries are
   refused with a reason rather than read as mojibake, and the 6000-char planner clip is surfaced). The intake is
   also the app's ONE create entry ("New artifact" on every device — the old create modal is gone):
   below the composer, a template row live-matches the typed prompt against the edge-safe
@@ -931,7 +1041,7 @@ mode would be a second way to do the same thing. The stages:
 **Planned / deferred** (net-new infra, kept off the critical path — no band-aids):
 
 - **Whole-artifact `edit` runtime.** The `edit` turn kind + `revise-artifact` tool are defined and priced, and
-  `prompts/edit.ts` sketches the builder, but the route 501s — one revision over the whole tree is a distinct
+  no prompt builder exists for it yet and the route 501s — one revision over the whole tree is a distinct
   reasoning task on Pro that isn't wired yet.
 - **Source-grounded generation, remaining sources.** Paste-as-source and single-artifact repurpose ship; still
   deferred are **URL fetch** (needs SSRF-safe fetching) and **PDF / file upload** (needs robust extraction +

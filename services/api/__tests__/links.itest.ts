@@ -250,6 +250,32 @@ describe("public read — GET /p/:slug/content access policy", () => {
         };
         expect(freeBody.branded).toBe(true);
     });
+
+    // Presenter cues are written to be seen by the speaker alone. The public payload must carry no
+    // notes at all: a caption's spoken text comes from the narration route, gated by this same read.
+    it("strips speaker notes from the public payload", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const artifactId = await insertArtifact(workspaceId, {
+            format: "deck",
+            theme: "studio",
+            sections: [
+                {
+                    id: "s1",
+                    root: { type: "text", data: { text: "Visible headline" } },
+                    notes: { spoken: "the script", cues: ["do not mention the layoffs"] },
+                },
+            ],
+        });
+        const link = await createLink(userId, artifactId);
+        const res = await request(`/p/${link.slug}/content`);
+        expect(res.status).toBe(200);
+        const raw = await res.text();
+        expect(raw).toContain("Visible headline");
+        expect(raw).not.toContain("do not mention the layoffs");
+        expect(raw).not.toContain("the script");
+        const body = JSON.parse(raw) as { content: { sections: Record<string, unknown>[] } };
+        expect(body.content.sections[0]).not.toHaveProperty("notes");
+    });
 });
 
 describe("view analytics — sessions in link_views", () => {

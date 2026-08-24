@@ -1,8 +1,11 @@
-import type { Surface } from "./ai";
+import type { BeatRole, Surface } from "./ai";
+import { BEAT_ROLES } from "./ai";
 import type { ArtifactAccess } from "./artifact";
 import type { AddOnId, CreditPackId, ExportFormat, FeatureKey, Interval, PlanId } from "./billing";
 import type { AiTask } from "./credits";
+import type { MediaSource } from "./media";
 import type { SectionArchetype } from "./eval";
+import type { VoiceSource } from "./speech";
 import type { ToolId, ToolSurface } from "./tools";
 import type { AuthProvider, OnboardingStep, WorkspaceRole } from "./workspace";
 
@@ -44,19 +47,6 @@ export type ElementCategory =
     | "chart"
     | "diagram";
 
-/** The narrative role the planner assigns a beat; `ROLE_WANTS` in `./eval` scores six of the seven. */
-export type BeatRole = "scene" | "tension" | "turn" | "proof" | "momentum" | "close" | "detail";
-
-const BEAT_ROLES: readonly string[] = [
-    "scene",
-    "tension",
-    "turn",
-    "proof",
-    "momentum",
-    "close",
-    "detail",
-];
-
 /** Where the generation studio was entered from during the first session. */
 export type StudioEntry = "checklist" | "library" | "empty_state" | "editor";
 
@@ -77,7 +67,7 @@ export const asFormat = (v: string | undefined): Surface =>
 
 /** A beat's role is a free string on the wire, so it is narrowed rather than cast. */
 export const asBeatRole = (v: string | undefined): BeatRole | undefined =>
-    v && BEAT_ROLES.includes(v) ? (v as BeatRole) : undefined;
+    BEAT_ROLES.find((r) => r === v);
 
 /** Mirrors `VISIBILITIES` in `services/core/links.ts`. */
 export type LinkVisibility = "private" | "protected" | "public";
@@ -205,23 +195,21 @@ export type AiFailureReason =
     | "rate_limited";
 
 export interface Events {
+    // Account and session.
     // The marketing page's own conversion step. The landing itself is a $pageview, which is what
     // carries the referrer and the campaign parameters; this is the click that leaves for signup,
     // so the two together say which placement earned the account.
     signup_cta_clicked: { placement: string };
-    // Account and session.
     signed_up: { method: AuthMethod; invited: boolean };
     email_verified: { hours_since_signup: number };
     logged_in: { method: AuthMethod };
     logged_out: NoProps;
     workspace_switched: { from_plan: PlanId; to_plan: PlanId; workspaces_available: number };
     password_reset_requested: NoProps;
-    password_changed: NoProps;
 
     // Onboarding, the first-session funnel in .docs/onboarding.md.
     onboarding_format_chosen: { format: Surface };
     onboarding_starter_opened: { format: Surface; template_id: string; ms_since_signup?: number };
-    onboarding_starter_edited: { format: Surface; first_edit_kind: string };
     onboarding_studio_opened: { from: StudioEntry };
     // The clock is the first session's own start, not signup: the browser never learns the signup
     // timestamp, and identify carries `signup_at` so the real elapsed time is a query-time join.
@@ -233,7 +221,31 @@ export interface Events {
     };
     onboarding_checklist_step_done: { step: OnboardingStep; ms_since_signup?: number };
     onboarding_checklist_dismissed: { steps_done: number };
-    onboarding_abandoned: { last_step: string; ms_since_signup: number };
+
+    // The assistant rail. `ai_action_*` already says what a chat turn costs; these say whether it
+    // works: whether people ask, and whether what it proposes gets taken.
+    chat_opened: { from: string };
+    chat_message_sent: { chars_bucket: CharsBucket; thread_length: number };
+    chat_proposal_applied: { kind: string };
+    chat_proposal_dismissed: { kind: string };
+
+    // The media picker. Generation cost rides ai_action_*; these say which source people reach for
+    // and whether searching finds anything.
+    media_searched: { provider: string; result_count: number; query_length_bucket: QueryBucket };
+    media_inserted: { source: MediaSource | "icon"; kind: string };
+    media_upload_failed: { reason: string };
+
+    // Live collaboration, a whole subsystem that was invisible. `peers` is how many others were in
+    // the room, so "opened a shared artifact alone" is separable from real multiplayer.
+    collab_joined: { peers: number; access: ArtifactAccess };
+    collab_edit_blocked: { element_type: string };
+
+    // The purest friction signal an editor has: work being taken back.
+    edit_undone: NoProps;
+    edit_redone: NoProps;
+
+    // Which model tier people pin, which drives cost directly.
+    model_pinned: { task: string; model_id: string };
 
     // AI actions. Three events for every tool, with `tool_id` as a property, so a tool added later
     // is instrumented the moment its id exists.
@@ -301,7 +313,6 @@ export interface Events {
     };
     generation_steered: { at_index: number; beat_count: number };
     generation_paused: { at_index: number };
-    generation_resumed: { at_index: number };
     generation_completed: {
         format: Surface;
         section_count: number;
@@ -328,16 +339,12 @@ export interface Events {
         age_days?: number;
         access: ArtifactAccess;
     };
-    artifact_renamed: NoProps;
     artifact_moved: { to_folder: boolean };
     artifact_duplicated: { format: Surface; section_count: number };
     artifact_trashed: { format: Surface; age_days: number; section_count: number };
     artifact_restored: { days_in_trash: number };
     artifact_deleted: { days_in_trash: number };
     trash_emptied: { count: number };
-    folder_created: NoProps;
-    folder_renamed: NoProps;
-    folder_deleted: { artifact_count: number };
     library_searched: {
         result_count: number;
         query_length_bucket: QueryBucket;
@@ -360,7 +367,6 @@ export interface Events {
     section_added: { how: "button" | "ai" | "template"; at_index: number; section_count: number };
     section_reordered: { from_index: number; to_index: number };
     section_removed: { section_count_after: number };
-    section_duplicated: NoProps;
     section_layout_changed: { preset: string };
     text_edited: { element_type: string; chars_delta_bucket: CharsBucket };
     theme_changed: { theme_id: string; from_theme_id: string; is_custom: boolean };
@@ -368,7 +374,6 @@ export interface Events {
     // only, so whether a model or a person chose them, and what it started from, are not on the
     // wire. Both would need the theme editor to say so when it saves.
     custom_theme_created: { how?: "editor" | "ai"; based_on_theme_id?: string };
-    custom_theme_deleted: NoProps;
     background_set: { kind: "color" | "gradient" | "image" };
     format_switched: { from: Surface; to: Surface; section_count: number };
     editor_session_ended: {
@@ -395,6 +400,48 @@ export interface Events {
         slides_advanced: number;
         ms: number;
     };
+    // Speaker notes and narration. No event carries a word of a script or of a voice description:
+    // both are the customer's own writing, and `chars` is a bucket rather than a count.
+    notes_written: { where: "panel" | "chat"; section_count: number; regenerated: boolean };
+    narration_prepared: {
+        section_count: number;
+        cached: number;
+        chars: CharsBucket;
+        credits_charged: number;
+        ms: number;
+    };
+    narration_played: {
+        where: "editor" | "present" | "publish";
+        artifact_format: Surface;
+        sections_heard: number;
+        section_count: number;
+        completed: boolean;
+        ms: number;
+    };
+    // Background music. The preset id is ours rather than the customer's words, so it travels; a
+    // custom bed's prompt is derived from their content and never does.
+    soundtrack_chosen: {
+        source: "preset" | "custom";
+        preset?: string;
+        cached: boolean; // the deployment already had this bed, so nothing was generated
+        credits_charged: number;
+        ms: number;
+    };
+    soundtrack_played: {
+        where: "present" | "publish";
+        artifact_format: Surface;
+        source: "preset" | "custom";
+        with_narration: boolean; // whether it spent the session ducked under a voice
+        ms: number;
+    };
+    voice_saved: {
+        source: VoiceSource;
+        from: "settings" | "editor";
+        shelf_size: number;
+        made_default: boolean;
+    };
+    voice_auditioned: { source: VoiceSource; kind: "preview" | "own_text" };
+    voice_designed: { kept: boolean; attempt: number };
     link_created: {
         visibility: LinkVisibility;
         has_password: boolean;
@@ -474,9 +521,7 @@ export interface Events {
     invite_revoked: { hours_pending: number };
     member_removed: { role: WorkspaceRole; member_count_after: number };
     member_role_changed: { from_role: WorkspaceRole; to_role: WorkspaceRole };
-    ownership_transferred: NoProps;
     member_left: { role: WorkspaceRole; days_as_member: number };
-    workspace_renamed: NoProps;
     workspace_setting_changed: { setting: string; value_kind: string };
 
     // Reliability.

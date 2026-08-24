@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { z } from "zod";
-import { appUrl, warn } from "@services/utils/env";
+import { warn } from "@services/utils/env";
 import {
     BAD_BODY,
     readJson,
@@ -9,11 +9,14 @@ import {
     clearSessionCookie,
     rateLimit,
 } from "@services/utils/http";
+import { verifyCodeError } from "@model/workspace";
 import { capture } from "@services/utils/analytics";
 import { readSession, SESSION_COOKIE } from "@services/utils/auth";
 import {
     authenticate,
+    confirmEmailWithCode,
     consumeAuthToken,
+    currentUser,
     emailTaken,
     isEmail,
     markEmailVerified,
@@ -23,15 +26,25 @@ import {
     sendResetEmail,
     sendVerifyEmail,
     signUp,
+    toUser,
 } from "@services/core/accounts";
+import { domainAcceptsMail } from "@services/core/mail";
 import { releaseSignupGrant } from "@services/core/onboarding";
-import { requireUser, type AuthedEnv } from "./middleware";
+import { requireSession, type AuthedEnv } from "./middleware";
 
 export const session = new Hono<AuthedEnv>();
 
 // Per-IP guards: login is the password-guessing target, signup/forgot the account-spam targets.
 const loginLimiter = rateLimit({ name: "login", limit: 10, windowMs: 5 * 60_000 });
 const signupLimiter = rateLimit({ name: "signup", limit: 5, windowMs: 15 * 60_000 });
+// 6 digits is only defensible with a ceiling on guesses. Per session rather than per IP: the code is
+// bound to one account, so the caller worth counting is the session presenting it.
+const confirmLimiter = rateLimit({
+    name: "confirm",
+    limit: 8,
+    windowMs: 15 * 60_000,
+    by: (c) => getCookie(c, SESSION_COOKIE) ?? null,
+});
 const forgotLimiter = rateLimit({ name: "forgot", limit: 5, windowMs: 15 * 60_000 });
 const resetLimiter = rateLimit({ name: "reset", limit: 10, windowMs: 15 * 60_000 });
 const resendLimiter = rateLimit({ name: "resend", limit: 5, windowMs: 15 * 60_000 });
@@ -45,16 +58,8 @@ const zSignup = z.object({
 });
 const zLogin = z.object({ email: z.string().optional(), password: z.string().optional() });
 const zForgot = z.object({ email: z.string().optional() });
+const zConfirm = z.object({ code: z.string().optional() });
 const zReset = z.object({ token: z.string().optional(), password: z.string().optional() });
-
-// Verification became a gate on 2026-08-22. Accounts opened before it keep the access they already
-// had, so the rule applies going forward rather than reaching back and locking out people who signed
-// up under the old contract. A date rather than a per-account flag: it needs no migration and it is
-// self-documenting about when the rule changed.
-const VERIFY_GATE_FROM = new Date("2026-08-22T00:00:00Z");
-
-export const mustVerify = (u: { emailVerified: boolean; createdAt: Date | string }): boolean =>
-    !u.emailVerified && new Date(u.createdAt) >= VERIFY_GATE_FROM;
 
 session.post("/auth/signup", signupLimiter, async (c) => {
     const body = await readJson(c, zSignup);
@@ -63,6 +68,13 @@ session.post("/auth/signup", signupLimiter, async (c) => {
     const cleanEmail = (email ?? "").trim().toLowerCase();
     if (!cleanEmail || !password) return c.json({ error: "email and password are required" }, 400);
     if (!isEmail(cleanEmail)) return c.json({ error: "enter a valid email address" }, 400);
+    // The field checks the shape; this checks the domain can receive at all, so a typo'd host is
+    // refused here rather than becoming an account nobody can confirm.
+    if (!(await domainAcceptsMail(cleanEmail)))
+        return c.json(
+            { error: "That email domain does not accept mail. Check the spelling." },
+            400,
+        );
     const pwErr = passwordError(password);
     if (pwErr) return c.json({ error: pwErr }, 400);
     if (await emailTaken(cleanEmail))
@@ -75,16 +87,19 @@ session.post("/auth/signup", signupLimiter, async (c) => {
         // unique(email) violation from a concurrent signup that raced past the check above
         return c.json({ error: "an account with this email already exists" }, 409);
     }
-    // No session yet: the account exists, but nothing is reachable until the address is confirmed.
-    // Never swallow the send, either: a verification mail that does not arrive is the difference
-    // between an account someone can finish and one they cannot, and it was silent while it was broken.
+    // A session, but a gated one: requireUser and requireWorkspace refuse an unconfirmed account, so
+    // the only thing it can reach is the onboarding surface telling it to go and confirm. The account
+    // lands somewhere that explains itself rather than on a form it has already filled in.
+    // Never swallow the send: a verification mail that does not arrive is the difference between an
+    // account someone can finish and one they cannot, and it was silent while it was broken.
     const sent = await sendVerifyEmail(user.id, user.email).catch((e: unknown) => {
         warn(
             `verify email failed for ${user.email}: ${e instanceof Error ? e.message : String(e)}`,
         );
         return false;
     });
-    return c.json({ pending: true, email: user.email, sent: sent === true });
+    setSessionCookie(c, user.id);
+    return c.json({ user: toUser(user), sent: sent === true });
 });
 
 session.post("/auth/login", loginLimiter, async (c) => {
@@ -97,15 +112,10 @@ session.post("/auth/login", loginLimiter, async (c) => {
     const found = await authenticate(email, password);
     if (!found) return c.json({ error: "invalid email or password" }, 401);
     const user = found.user;
-    if (mustVerify({ emailVerified: user.emailVerified, createdAt: found.createdAt }))
-        return c.json(
-            {
-                error: "Confirm your email before signing in.",
-                needsVerification: true,
-                email: user.email,
-            },
-            403,
-        );
+    // Signing in unconfirmed is allowed, and the session it makes reaches exactly one screen. Refusing
+    // here was the pre-gate design and, now that the code is typed into a session, it is a dead end:
+    // close the tab and there is no way back in, since sign-in was the only way to get a session and
+    // a session is the only place to enter a code.
     setSessionCookie(c, user.id);
     capture({ userId: user.id }, "logged_in", { method: "password" });
     return c.json({ user });
@@ -141,9 +151,9 @@ session.post("/auth/reset", resetLimiter, async (c) => {
     if (!userId) return c.json({ error: "This reset link is invalid or has expired." }, 400);
     const user = await resetPassword(userId, password);
     if (!user) return c.json({ error: "account not found" }, 400);
-    // Consuming a link we mailed proves control of the address, which is the same thing the verify
-    // link proves. Marking it here keeps the gate coherent: otherwise a reset would hand out a
-    // session to an account the sign-in route would then refuse.
+    // Consuming a link we mailed proves control of the address, which is the same thing the
+    // confirmation code proves. Marking it here keeps the gate coherent: otherwise someone who reset
+    // their password would land on the confirm step with nothing left to prove.
     if (!user.emailVerified) {
         await markEmailVerified(userId);
         await releaseSignupGrant(userId).catch(() => false);
@@ -153,16 +163,25 @@ session.post("/auth/reset", resetLimiter, async (c) => {
 });
 
 // No session required: the single-use token in the emailed link is the proof.
-session.get("/auth/verify", async (c) => {
-    const userId = await consumeAuthToken(c.req.query("token"), "verify");
-    if (!userId) return c.redirect(appUrl("/login?authError=verify_invalid"));
-    await markEmailVerified(userId);
-    // the grant is the reason verification is worth doing; grantOnce means a re-used link cannot re-pay
-    await releaseSignupGrant(userId).catch(() => false);
-    return c.redirect(appUrl("/login?verified=1"));
+// requireSession, not requireUser: an unconfirmed account is exactly who calls this, and requireUser
+// is the gate that refuses it.
+session.post("/auth/confirm", confirmLimiter, requireSession, async (c) => {
+    const body = await readJson(c, zConfirm);
+    if (!body) return c.json(BAD_BODY, 400);
+    const u = c.get("user");
+    const code = (body.code ?? "").replace(/\s+/g, "");
+    if (u.emailVerified) return c.json({ user: u });
+    const codeErr = verifyCodeError(code);
+    if (codeErr) return c.json({ error: codeErr }, 400);
+    if (!(await confirmEmailWithCode(u.id, code)))
+        return c.json({ error: "That code is wrong or has expired. Send a new one." }, 400);
+    // the grant is the reason confirming is worth doing; grantOnce means a replayed code cannot re-pay
+    await releaseSignupGrant(u.id).catch(() => false);
+    const fresh = await currentUser(getCookie(c, SESSION_COOKIE));
+    return c.json({ user: fresh ?? { ...u, emailVerified: true } });
 });
 
-session.post("/auth/resend-verification", resendLimiter, requireUser, async (c) => {
+session.post("/auth/resend-verification", resendLimiter, requireSession, async (c) => {
     const u = c.get("user");
     if (!u.emailVerified)
         await sendVerifyEmail(u.id, u.email).catch((e: unknown) => {

@@ -96,7 +96,7 @@ export const MenuItem: Component<{
             type="button"
             role="menuitem"
             disabled={props.disabled}
-            class={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors disabled:pointer-events-none disabled:opacity-40 ${tone()}`}
+            class={`flex w-full icon-row gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors disabled:pointer-events-none disabled:opacity-40 ${tone()}`}
             onClick={() => {
                 props.onClick?.();
                 close?.();

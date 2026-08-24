@@ -46,7 +46,7 @@ let events: string[] = [];
 let seq = 0;
 
 const sink = (): CollabSink => ({
-    welcome: (connId, at) => events.push(`welcome:${connId}:${at}`),
+    welcome: (self, at) => events.push(`welcome:${self.connId}:${at}`),
     peer: (connId, peer) => events.push(`peer:${connId}:${peer ? "in" : "out"}`),
     ops: (at) => events.push(`ops:${at}`),
     ack: (tag, at) => events.push(`ack:${tag}:${at}`),
@@ -55,6 +55,7 @@ const sink = (): CollabSink => ({
     denied: (el, holder) =>
         events.push(`denied:${el.elementId}:${holder ? holder.connId : "none"}`),
     lease: (el, holder) => events.push(`lease:${el.elementId}:${holder ? holder.connId : "free"}`),
+    access: (level) => events.push(`access:${level}`),
     resync: (at) => events.push(`resync:${at}`),
     down: () => events.push("down"),
 });
@@ -143,8 +144,15 @@ describe("the socket lifecycle", () => {
         });
         latest().deliver({ t: "peer", connId: "c2", peer: peer("c2") });
         latest().deliver({ t: "ack", tag: "t1", seq: 5 });
+        latest().deliver({ t: "access", access: "view" });
         latest().deliver({ t: "resync", seq: 9 });
-        expect(events).toEqual(["welcome:c1:4", "peer:c2:in", "ack:t1:5", "resync:9"]);
+        expect(events).toEqual([
+            "welcome:c1:4",
+            "peer:c2:in",
+            "ack:t1:5",
+            "access:view",
+            "resync:9",
+        ]);
         client.stop();
     });
 

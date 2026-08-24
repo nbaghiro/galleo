@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { asRequestId, charsBucket, GROUP_TYPE } from "@model/analytics";
+import { asBeatRole, asRequestId, charsBucket, GROUP_TYPE } from "@model/analytics";
+import { BEAT_ROLES } from "@model/ai";
 
 describe("charsBucket", () => {
     it("puts each boundary in the bucket that starts at it", () => {
@@ -19,6 +20,21 @@ describe("charsBucket", () => {
     it("buckets a deletion by its magnitude", () => {
         expect(charsBucket(-3_000)).toBe("2k-10k");
         expect(charsBucket(-1)).toBe("0-100");
+    });
+});
+
+describe("asBeatRole", () => {
+    it("accepts every role the planner and the outline editor can produce", () => {
+        for (const role of BEAT_ROLES) expect(asBeatRole(role)).toBe(role);
+    });
+
+    // The model supplies the role and can invent one, so an unrecognised value carries no property
+    // rather than a made-up one.
+    it("drops anything that is not a role", () => {
+        expect(asBeatRole("coda")).toBeUndefined();
+        expect(asBeatRole("Scene")).toBeUndefined();
+        expect(asBeatRole("")).toBeUndefined();
+        expect(asBeatRole(undefined)).toBeUndefined();
     });
 });
 

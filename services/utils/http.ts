@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Context, MiddlewareHandler } from "hono";
-import type { ZodType } from "zod";
+import { z, type ZodType } from "zod";
 import { setCookie, deleteCookie } from "hono/cookie";
 import { getConnInfo } from "@hono/node-server/conninfo";
 import type { BoolFeature, NumFeature, PlanBearer } from "@model/billing";
@@ -51,6 +51,35 @@ export async function readJson<T>(c: Context, schema: ZodType<T>): Promise<T | n
     const parsed = schema.safeParse(value);
     return parsed.success ? parsed.data : null;
 }
+
+// The same rule one content type over. OAuth speaks form-encoded rather than JSON, and hono hands
+// those back as `string | File`, so a route reading them by hand ends up coercing every field
+// itself; this states the shape once instead. Repeated fields arrive as arrays (the consent screen's
+// workspace checkboxes), so `all` is on and a schema asks for what it wants.
+export async function readForm<T>(c: Context, schema: ZodType<T>): Promise<T | null> {
+    const form = await c.req.parseBody({ all: true }).catch(() => null);
+    if (!form) return null;
+    const parsed = schema.safeParse(form);
+    return parsed.success ? parsed.data : null;
+}
+
+/** A form field that must be a single string; anything else (a file, a repeat) reads as absent. */
+export const zFormText = z
+    .union([z.string(), z.instanceof(File), z.array(z.unknown())])
+    .optional()
+    .transform((v) => (typeof v === "string" ? v : ""));
+
+/** A repeatable form field, as the list of its string values. */
+export const zFormList = z
+    .union([z.string(), z.instanceof(File), z.array(z.unknown())])
+    .optional()
+    .transform((v) =>
+        typeof v === "string"
+            ? [v]
+            : Array.isArray(v)
+              ? v.filter((x): x is string => typeof x === "string")
+              : [],
+    );
 
 export const BAD_BODY = { error: "invalid request body" } as const;
 
@@ -110,6 +139,10 @@ interface RateLimitOptions {
     name: string; // namespaces buckets so separate limiters don't collide
     limit: number;
     windowMs: number;
+    // What to count per. Defaults to the client address, which is right for anything a browser
+    // reaches directly and wrong for a delegated caller: every user of one directory client arrives
+    // from a handful of that vendor's egress addresses, so one bucket would hold all of them.
+    by?: (c: Context) => string | null;
 }
 
 // Never key on `X-Forwarded-For`: it's client-settable, so anyone could rotate it for a fresh bucket.
@@ -136,7 +169,9 @@ export function rateLimit(options: RateLimitOptions): MiddlewareHandler {
 
     return async (c, next) => {
         const now = Date.now();
-        const key = `${options.name}:${clientIp(c)}`;
+        const by = options.by?.(c) ?? null;
+        // a limiter that cannot identify its caller falls back to the address rather than to nothing
+        const key = `${options.name}:${by ?? clientIp(c)}`;
         let w = buckets.get(key);
         if (!w || now >= w.resetAt) {
             w = { count: 0, resetAt: now + options.windowMs };

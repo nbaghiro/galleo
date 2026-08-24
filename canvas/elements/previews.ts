@@ -461,6 +461,22 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
         <rect x="44" y="33" width="52" height="4.5" rx="2.2" fill="${muted}" opacity="0.7"/>
         <rect x="52" y="43" width="36" height="9" rx="4.5" fill="${accent}"/>`,
 
+        tabs: `
+        <rect x="14" y="12" width="34" height="13" rx="5" fill="${accent}"/>
+        <rect x="52" y="12" width="30" height="13" rx="5" fill="${ink}" opacity="0.1"/>
+        <rect x="86" y="12" width="26" height="13" rx="5" fill="${ink}" opacity="0.1"/>
+        <rect x="14" y="33" width="60" height="7" rx="3" fill="${ink}" opacity="0.8"/>
+        <rect x="14" y="46" width="108" height="5" rx="2.5" fill="${muted}" opacity="0.6"/>
+        <rect x="14" y="56" width="88" height="5" rx="2.5" fill="${muted}" opacity="0.45"/>`,
+
+        popup: `
+        <rect x="14" y="10" width="44" height="15" rx="5" fill="${ink}" opacity="0.08" stroke="${line}" stroke-width="1.5"/>
+        <rect x="20" y="15" width="22" height="5" rx="2.5" fill="${ink}" opacity="0.7"/>
+        <path d="M47 16.5 L50 19.5 L53 16.5" stroke="${muted}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <rect x="26" y="31" width="84" height="34" rx="7" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <rect x="34" y="39" width="46" height="6" rx="3" fill="${ink}" opacity="0.75"/>
+        <rect x="34" y="51" width="68" height="5" rx="2.5" fill="${muted}" opacity="0.6"/>`,
+
         faq: `
         <rect x="14" y="14" width="70" height="7" rx="3" fill="${ink}" opacity="0.85"/>
         <rect x="14" y="25" width="108" height="5" rx="2.5" fill="${muted}" opacity="0.6"/>

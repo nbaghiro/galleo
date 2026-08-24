@@ -68,8 +68,18 @@ path can miss `signed_up`.
 `stopEditing` in `editor/core/store.ts` is where a typing session becomes one undo entry, so
 `text_edited` is debounced per element by construction rather than by a timer.
 
+`endEditorSession` beside it is the one place `editor_session_ended` is reported, and it is
+idempotent: the editor route calls it on `pagehide` and again when the route unmounts, and loading
+another artifact calls it before resetting the counters, so a deck switch closes the session on the
+deck being left. It rides a page-hide handler, so a killed tab reports nothing and the event
+under-reports by construction: it is a view of sessions that happened, never a denominator.
+
 `reportError` in `app/stores/errors.ts` is the one place a failure reaches the user, so `error_shown` is
 a single call site rather than a hundred.
+
+`sendChat` and the four `apply*` functions in `app/stores/chat.ts` cover the assistant, and
+`pickMedia` in `app/stores/media.ts` covers every path the picker resolves through, so a new proposal
+kind or a new media source reports without a new call site.
 
 Everything else that reports is a named function rather than an inline capture: `noteElementAdded`,
 `noteElementRemoved`, `noteElementMoved`, `noteElementResized`, `noteSectionAdded`, `noteAiAction`,
@@ -125,6 +135,57 @@ rest: the group's own properties are queryable on any event carrying `$groups.wo
 reliable than a per-event copy that can go stale. Group membership on the client is sticky in the same
 way; on the server it is passed per call, for the same reason. `plan_interval` is absent because the workspace row does not store it; only the Stripe seam
 has it, and `plan_changed` and `checkout_completed` carry it explicitly.
+
+## Three surfaces, three policies
+
+`policyFor(surface)` in `ui/analytics.ts` returns one of three, and each entry point names its own:
+`app/main.tsx` is `"app"`, `website/main.tsx` is `"marketing"`, `publish/main.tsx` is `"publish"`.
+
+They differ on one question: is a page view the event, or noise? In the app it is noise, because the
+interesting acts are explicit and the editor repaints constantly. On the marketing site it _is_ the
+event, because it carries the referrer and the campaign parameters, and that is the whole of
+paid-traffic attribution. The publish viewer counts reach and nothing else.
+
+|                            | app                              | marketing     | publish    |
+| -------------------------- | -------------------------------- | ------------- | ---------- |
+| page views                 | no                               | yes           | yes        |
+| campaign params + referrer | SDK default                      | SDK default   | **off**    |
+| session replay             | on, masked, paused in the editor | on, masked    | **off**    |
+| persistence                | local storage                    | local storage | **memory** |
+
+The publish column is a deliberate position rather than an oversight. Those readers are our customer's
+audience rather than ours, looking at content its author considers confidential, so they get no campaign
+parameters, no referrer, no recording, and no id that outlives the page.
+
+## How paid traffic reaches a paying account
+
+Nothing here is bespoke; it is the SDK's own machinery, which we were simply not running on the page
+where it matters.
+
+An ad click lands on `/` with `fbclid` and whatever `utm_*` the campaign set. `save_campaign_params` and
+`save_referrer` default to true and we do not override them, and the SDK's shipped parameter list already
+covers `fbclid` and `igshid` for Meta, plus `gclid`, `ttclid`, `msclkid`, `twclid`, `li_fat_id`,
+`rdt_cid` and others. No custom configuration is needed for Meta.
+
+The visitor is anonymous, and with identified-only profiles that costs us nothing. posthog-js persists
+the initial referrer and campaign parameters, and applies them as `$set_once` when `$identify` later
+creates the person; the SDK does this deliberately, "so we can create the profile with mostly-accurate
+properties, despite earlier events not setting them". So the campaign survives the gap between landing
+and signing up, even days later.
+
+Marketing and app are one origin (Hono serves both), so local storage is shared and the anonymous
+distinct id survives the landing → `/signup` → signup navigation without any cross-domain plumbing. At
+signup, `identify` in `adopt()` stitches the anonymous id to `users.id`, which is the same id the server
+already uses, so `checkout_completed` from the Stripe webhook lands on the same person. Ad, landing,
+CTA click, signup and purchase are one timeline.
+
+`signup_cta_clicked` carries a `placement` (`nav`, `hero`, `midpage`, `footer`) so the landing page's own
+conversion step is separable from the campaign that produced the visit.
+
+**PostHog will not optimise your Meta ads.** Capturing `fbclid` tells _you_ which campaign produced
+signups. It sends nothing back to Meta, so their delivery algorithm learns nothing. For that you need the
+Meta pixel, or better their Conversions API fired server-side on `signed_up` and `checkout_completed`,
+which is a separate integration and not part of this.
 
 ## Capture policy
 
@@ -213,12 +274,23 @@ system stores traced runs with their prompts in our own database, under the work
 `model/__tests__/analytics.test.ts` covers the bucketing. `services/utils/__tests__/analytics.test.ts`
 proves the no-op-when-unset guarantee and asserts the real wire payload, gzip included, through a fake
 transport. `services/core/__tests__/spend-analytics.test.ts` covers the metered-run seam, including the
-failure classification. `services/api/__tests__/ingest.test.ts` pins the proxy's path rewriting and the
+failure classification. `services/core/__tests__/analytics.itest.ts` covers what only a real database
+shows: that the wall fires when a balance is genuinely short, that a member over their own cap is
+offered neither remedy, that `credits_charged` equals the ledger row rather than the estimate, and that
+a signed top-up webhook both reports and grants. Each was checked by breaking the code it guards and
+confirming the right test failed. `services/api/__tests__/ingest.test.ts` pins the proxy's path rewriting and the
 fact that it strips the session cookie. `ui/__tests__/analytics.test.ts` asserts the capture policy and
 that an unconfigured client makes no network call. We do not test PostHog itself.
 
 ## Planned / deferred
 
+- **The catalog was pruned once already.** Twelve events were removed after the first audit: nine
+  that carried no properties at all and answered no question on any dashboard (`artifact_renamed`,
+  the three `folder_*`, `section_duplicated`, `custom_theme_deleted`, `workspace_renamed`,
+  `ownership_transferred`, `password_changed`), one redundant with a richer event
+  (`generation_resumed`, since `generation_completed` carries `was_paused`), and the two below.
+  Removing an event breaks any tile that references it, so check `scripts/posthog-dashboards.ts`
+  before cutting another.
 - **Two events are not built.** `onboarding_starter_edited` needs the editor to know that the artifact it
   holds is the onboarding starter, which nothing tracks; the server-derived "make" checklist step marks
   the same transition and already fires as `onboarding_checklist_step_done`.
@@ -234,9 +306,11 @@ that an unconfigured client makes no network call. We do not test PostHog itself
   135-section eval corpus (p95 0.20ms, worst case 0.98ms per section), which says only that anything two
   orders of magnitude above that is dominated by font metrics or paint. Revisit it against real browser
   timings, which `eval:shots` does not record today.
-- **No integration test covers the server events.** `credits_exhausted` and the webhook events need a
-  database; the unit test covers the free-tool path through `reserve`. Worth adding before the next
-  person changes `spend.ts`.
+- **The subscription webhooks are still uncovered.** `services/core/__tests__/analytics.itest.ts`
+  covers the credit wall, the member-cap wall, the settle-versus-ledger invariant, and the top-up
+  webhook, which is the one that settles entirely from its own payload. The plan-change and
+  cancellation paths re-read the subscription from Stripe before they act, so testing them means
+  faking that call; worth doing when someone next touches `handleEvent`.
 - **Four enum values have no surface yet.** `section_added.how` never reports `"template"`, because the
   editor has no template-insert to report from, and `element_added.how` never reports `"ai"`, because
   element-level AI replaces rather than adds. Both go through `noteSectionAdded` / `noteElementAdded`,
@@ -248,3 +322,27 @@ that an unconfigured client makes no network call. We do not test PostHog itself
 - **Cost per outcome converts at query time.** `CREDIT_USD` in `model/credits.ts` moves when models or
   their prices move, so a dashboard that hardcodes it will quietly drift. We send credits and convert in
   the dashboard.
+
+## Speaker notes and narration
+
+Eight events, all in `model/analytics.ts` like every other. None carries a word of a script or of a
+voice description: both are the customer's own writing, so length is reported as a `CharsBucket`
+rather than a count, exactly as the generation events already do.
+
+- `notes_written` — where from, how many sections, whether it was a rewrite
+- `narration_prepared` — sections, how many were already cached, bucketed characters, credits, ms
+- `narration_played` — one row per listen rather than a stream: where, sections heard, whether it ran
+  to the end. Fired on the way out, from `@ui/narration`.
+- `voice_saved`, `voice_auditioned`, `voice_designed`
+- `soundtrack_chosen` — preset or custom, whether the deployment already had that bed, credits, ms.
+  A house preset's id travels because it is ours; a custom bed's prompt is derived from the
+  customer's content, so it never does.
+- `soundtrack_played` — one row per listen, same shape as `narration_played`: where, which kind of
+  bed, whether it spent the session ducked under a voice, ms.
+
+`voice_auditioned` carries `kind: "preview" | "own_text"` and is the one worth watching early: a free
+provider preview and a metered synthesis of the customer's own line are different acts, and which one
+people reach for says whether the free browse path is carrying the feature.
+
+The two AI tools (`write-speaker-notes`, `narrate-artifact`) need no events of their own: the three
+`ai_action_*` events key on `tool_id`, so a tool is instrumented the moment its id exists.

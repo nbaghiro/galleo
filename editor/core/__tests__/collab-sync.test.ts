@@ -6,6 +6,7 @@ import type { ArtifactContent, ElementInstance, Section, SectionOp } from "@mode
 import {
     applyRemoteOps,
     canUndo,
+    checkpointLiveEdit,
     clearEmitOps,
     commit,
     editing,
@@ -17,9 +18,12 @@ import {
     onEmitOps,
     onLoadSections,
     opsAcked,
+    opsDropped,
     opsRejected,
     pending,
     requestSections,
+    setArtifactLive,
+    setEditAccess,
     startEditing,
     stopEditing,
     undo,
@@ -103,6 +107,7 @@ beforeEach(() => {
     sent = [];
     tags = 0;
     clearEmitOps();
+    setEditAccess("edit");
     onEditSessionEnded(() => undefined);
 });
 
@@ -446,6 +451,171 @@ describe("remote writes against a windowed document", () => {
                     done();
                 });
             });
+        });
+    });
+});
+
+// A text session updates the tree on every keystroke and only records an undo entry when it ends.
+// While the room is the persistence path that made the whole session unsent, so a tab closed
+// mid-sentence lost it and peers saw the paragraph arrive in one lump.
+describe("a text session in progress", () => {
+    const typeInto = (value: string): void =>
+        setArtifactLive(setText(editor.artifact, "s1", "e1", value));
+
+    it("checkpoints what has been typed so far, without ending the session", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            wire();
+            startEditing({ section: "s1", path: [0] });
+            typeInto("on");
+            typeInto("one and a half");
+            checkpointLiveEdit();
+            expect(sent).toHaveLength(1);
+            expect(sent[0]?.ops).toEqual([
+                {
+                    kind: "data",
+                    sectionId: "s1",
+                    elementId: "e1",
+                    keys: { text: "one and a half" },
+                },
+            ]);
+            expect(editing()).not.toBeNull();
+            expect(canUndo()).toBe(false); // the session has not ended, so there is nothing to undo
+        });
+    });
+
+    it("sends only the remainder when the session ends, and still records one entry", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            wire();
+            startEditing({ section: "s1", path: [0] });
+            typeInto("half");
+            checkpointLiveEdit();
+            typeInto("half and half");
+            stopEditing();
+            expect(sent).toHaveLength(2);
+            expect(sent[1]?.ops).toEqual([
+                { kind: "data", sectionId: "s1", elementId: "e1", keys: { text: "half and half" } },
+            ]);
+            expect(canUndo()).toBe(true);
+            undo();
+            expect(textOf("e1")).toBe("one"); // the whole session undoes at once
+        });
+    });
+
+    it("puts back what a checkpoint already sent when the typing is undone by hand", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            wire();
+            startEditing({ section: "s1", path: [0] });
+            typeInto("one!");
+            checkpointLiveEdit();
+            typeInto("one"); // back to where it started
+            stopEditing();
+            // nothing to undo, but the room saw "one!" and has to be told it is gone again
+            expect(canUndo()).toBe(false);
+            expect(sent).toHaveLength(2);
+            expect(sent[1]?.ops).toEqual([
+                { kind: "data", sectionId: "s1", elementId: "e1", keys: { text: "one" } },
+            ]);
+        });
+    });
+
+    it("keeps its baseline when nothing went out, so the next checkpoint carries the lot", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            wire({ deliver: false }); // the socket is down; the HTTP save is carrying this
+            startEditing({ section: "s1", path: [0] });
+            typeInto("one and");
+            checkpointLiveEdit();
+            wire(); // it came back
+            typeInto("one and two");
+            checkpointLiveEdit();
+            expect(sent.at(-1)?.ops).toEqual([
+                { kind: "data", sectionId: "s1", elementId: "e1", keys: { text: "one and two" } },
+            ]);
+        });
+    });
+});
+
+// The gate is on `record`, not on `commit`, because a text session records straight through it: a
+// gate one level up let a viewer type, watched the room refuse the batch, and lost their window to
+// the resync that followed.
+describe("what a viewer may do", () => {
+    it("refuses to open a text session at all", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            setEditAccess("view");
+            startEditing({ section: "s1", path: [0] });
+            expect(editing()).toBeNull();
+        });
+    });
+
+    it("sends nothing and records nothing when a session is somehow open", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            wire();
+            startEditing({ section: "s1", path: [0] });
+            setEditAccess("comment"); // dropped mid-session, the way a revoked grant does it
+            setArtifactLive(setText(editor.artifact, "s1", "e1", "typed anyway"));
+            stopEditing();
+            expect(sent).toHaveLength(0);
+            expect(canUndo()).toBe(false);
+        });
+    });
+
+    it("commits nothing", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            wire();
+            setEditAccess("view");
+            commit(setText(editor.artifact, "s1", "e1", "nope"));
+            expect(sent).toHaveLength(0);
+            expect(textOf("e1")).toBe("one");
+        });
+    });
+});
+
+// Pending keys are a bet that an ack is coming. When the socket goes there is no ack coming, and a
+// key left pending goes on discarding every remote value for it, on exactly the elements this tab
+// was last editing.
+describe("when the socket goes away mid-flight", () => {
+    it("stops holding unacked keys against remote values", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            wire();
+            commit(setText(editor.artifact, "s1", "e1", "mine"));
+            opsDropped();
+            applyRemoteOps([
+                { kind: "data", sectionId: "s1", elementId: "e1", keys: { text: "theirs" } },
+            ]);
+            expect(textOf("e1")).toBe("theirs");
+        });
+    });
+});
+
+// The shell is compared generically, for the reason diffSections is: a hand-listed comparison
+// ignores every field added to ArtifactShell after it was written, and a remote change to one of
+// those was applied and then dropped as "nothing changed".
+describe("a remote write to the document shell", () => {
+    it("lands a field this file does not enumerate", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            const before = editSeq();
+            applyRemoteOps([
+                { kind: "shell", shell: { format: "deck", theme: "studio", voice: "v-narrator" } },
+            ]);
+            expect(editor.artifact.voice).toBe("v-narrator");
+            expect(editSeq()).toBe(before + 1);
+        });
+    });
+
+    it("still skips the repaint when the shell really did not change", () => {
+        inRoot(() => {
+            loadArtifactContent("a", doc());
+            const before = editSeq();
+            applyRemoteOps([{ kind: "shell", shell: { format: "deck", theme: "studio" } }]);
+            expect(editSeq()).toBe(before);
         });
     });
 });

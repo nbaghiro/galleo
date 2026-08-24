@@ -5,13 +5,17 @@ import type {
     Id,
     Section,
     SectionBackground,
+    SectionNotes,
+    ArtifactMusic,
 } from "@model/artifact";
 import type { ElementLayout } from "@model/geometry";
 import { getElement } from "@elements/spec";
 import {
     LAYOUT_PRESETS,
     colGroup,
+    elementRegionId,
     emptyRegion,
+    parseTarget,
     rowGroup,
     withFreshElementIds,
     withWidth,
@@ -371,6 +375,21 @@ export function setSectionBleed(
     return mapSection(art, section, (s) => ({ ...s, bleed }));
 }
 
+/** null clears the notes entirely, so an emptied panel leaves no key behind on the row. */
+export function setSectionNotes(
+    art: ArtifactContent,
+    section: Id,
+    notes: SectionNotes | null,
+): ArtifactContent {
+    return mapSection(art, section, (s) => {
+        if (!notes) {
+            const { notes: _dropped, ...rest } = s;
+            return rest;
+        }
+        return { ...s, notes };
+    });
+}
+
 export function insertSection(
     art: ArtifactContent,
     index: number,
@@ -411,6 +430,186 @@ export function setArtifactTheme(art: ArtifactContent, theme: Id): ArtifactConte
 
 export function setArtifactFormat(art: ArtifactContent, format: Id): ArtifactContent {
     return { ...art, format };
+}
+
+/** The bed this piece plays while it is presented. */
+export function setArtifactMusic(art: ArtifactContent, music: ArtifactMusic): ArtifactContent {
+    return { ...art, music };
+}
+
+/** null clears the override, so the piece follows the workspace default again. */
+export function setArtifactVoice(art: ArtifactContent, voice: Id | null): ArtifactContent {
+    if (!voice) {
+        const { voice: _dropped, ...rest } = art;
+        return rest;
+    }
+    return { ...art, voice };
+}
+
+// Viewer state and the affordances that move it. A `hit:` region means one thing in the editor (the
+// author is setting the stored default) and another in playback (this reader, this session), so what
+// an action does to the data is defined once here and written by whichever surface pressed it.
+
+const asData = (inst: ElementInstance): Record<string, unknown> =>
+    inst.data as Record<string, unknown>;
+
+/** Per-viewer overrides, keyed by the `elementRegionId` of the element each one patches. */
+export type ViewerPatches = ReadonlyMap<string, Record<string, unknown>>;
+
+function patchSection(section: Section, patches: ViewerPatches): Section {
+    const walk = (inst: ElementInstance, addr: ElementAddress): ElementInstance => {
+        let next = inst;
+        const kids = childrenOf(inst);
+        if (kids) {
+            let moved = false;
+            const mapped = kids.map((kid, i) => {
+                const k = walk(kid, { section: addr.section, path: [...addr.path, i] });
+                if (k !== kid) moved = true;
+                return k;
+            });
+            if (moved) next = withChildren(inst, mapped);
+        }
+        const patch = patches.get(elementRegionId(addr));
+        return patch ? { ...next, data: { ...asData(next), ...patch } } : next;
+    };
+    const root = walk(section.root, { section: section.id, path: [] });
+    return root === section.root ? section : { ...section, root };
+}
+
+/**
+ * Stored content with a viewer's overrides folded in. Fresh objects only along the touched paths,
+ * so the section paint cache (keyed on section identity) misses exactly the sections that moved.
+ */
+export function withViewerPatches(art: ArtifactContent, patches: ViewerPatches): ArtifactContent {
+    if (patches.size === 0) return art;
+    const touched = new Set<Id>();
+    for (const key of patches.keys()) {
+        const t = parseTarget(key);
+        if (t?.kind === "element") touched.add(t.address.section);
+    }
+    let moved = false;
+    const sections = art.sections.map((s) => {
+        if (!touched.has(s.id)) return s;
+        const next = patchSection(s, patches);
+        if (next !== s) moved = true;
+        return next;
+    });
+    return moved ? { ...art, sections } : art;
+}
+
+export interface AffordanceEdit {
+    address: ElementAddress; // whose data moves, which is not always the addressed element
+    patch: Record<string, unknown>;
+}
+
+/** What pressing a `hit:<action>` region does. Unknown actions are inert rather than an error. */
+export function affordanceEdit(
+    art: ArtifactContent,
+    action: string,
+    address: ElementAddress,
+): AffordanceEdit | null {
+    if (action === "checkbox" || action === "disclose") {
+        const inst = getElementAt(art, address);
+        if (!inst) return null;
+        const key = action === "checkbox" ? "checked" : "open";
+        return { address, patch: { [key]: asData(inst)[key] !== true } };
+    }
+    if (action === "tab") {
+        // the strip addresses the panel; what changes is its container's active index
+        const index = address.path[address.path.length - 1];
+        if (index === undefined) return null;
+        const parent = { section: address.section, path: address.path.slice(0, -1) };
+        return getElementAt(art, parent) ? { address: parent, patch: { active: index } } : null;
+    }
+    return null;
+}
+
+/** The affordance written into the document, which is what pressing one means in the editor. */
+export function applyAffordance(
+    art: ArtifactContent,
+    action: string,
+    address: ElementAddress,
+): ArtifactContent {
+    const edit = affordanceEdit(art, action, address);
+    const inst = edit && getElementAt(art, edit.address);
+    if (!edit || !inst) return art;
+    return updateDataAt(art, edit.address, { ...asData(inst), ...edit.patch });
+}
+
+// Live overlays: the elements a playback surface mounts real DOM over, and the static reduction
+// every other surface renders instead.
+
+export interface LiveElement {
+    id: string; // the region id its paint carries, which is how the overlay finds its box
+    type: string;
+    data: Record<string, unknown>;
+}
+
+const isLive = (type: string): boolean => {
+    const spec = getElement(type);
+    return spec?.tier === "interactive" || spec?.live === true;
+};
+
+/** Every element a playback surface mounts real DOM over, in paint order. */
+export function liveElements(art: ArtifactContent): LiveElement[] {
+    const out: LiveElement[] = [];
+    const walk = (inst: ElementInstance, addr: ElementAddress): void => {
+        if (isLive(inst.type))
+            out.push({ id: elementRegionId(addr), type: inst.type, data: asData(inst) });
+        childrenOf(inst)?.forEach((kid, i) =>
+            walk(kid, { section: addr.section, path: [...addr.path, i] }),
+        );
+    };
+    for (const s of art.sections) walk(s.root, { section: s.id, path: [] });
+    return out;
+}
+
+/**
+ * The overrides a playback surface starts with: a live element's disclosure is chrome the reader
+ * opens, so it begins shut however the author stored it. Only the ones actually left open are
+ * patched, since a no-op override would rebuild that section's data on every repaint.
+ */
+export function seedViewerPatches(art: ArtifactContent): Map<string, Record<string, unknown>> {
+    const out = new Map<string, Record<string, unknown>>();
+    const walk = (inst: ElementInstance, addr: ElementAddress): void => {
+        if (isLive(inst.type) && asData(inst).open === true)
+            out.set(elementRegionId(addr), { open: false });
+        childrenOf(inst)?.forEach((kid, i) =>
+            walk(kid, { section: addr.section, path: [...addr.path, i] }),
+        );
+    };
+    for (const s of art.sections) walk(s.root, { section: s.id, path: [] });
+    return out;
+}
+
+/**
+ * Interactive elements reduced to what a surface with no live layer should show (`ElementSpec
+ * .fallback`). Identity when nothing declares one, so an export path can call it unconditionally.
+ */
+export function applyFallbacks(art: ArtifactContent): ArtifactContent {
+    const fix = (inst: ElementInstance): ElementInstance => {
+        let next = inst;
+        const kids = childrenOf(inst);
+        if (kids) {
+            let moved = false;
+            const mapped = kids.map((kid) => {
+                const k = fix(kid);
+                if (k !== kid) moved = true;
+                return k;
+            });
+            if (moved) next = withChildren(inst, mapped);
+        }
+        const data = getElement(inst.type)?.fallback?.(next.data);
+        return data === undefined || data === next.data ? next : { ...next, data };
+    };
+    let moved = false;
+    const sections = art.sections.map((s) => {
+        const root = fix(s.root);
+        if (root === s.root) return s;
+        moved = true;
+        return { ...s, root };
+    });
+    return moved ? { ...art, sections } : art;
 }
 
 export { isContainer };

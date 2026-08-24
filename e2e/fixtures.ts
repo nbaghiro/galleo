@@ -17,9 +17,12 @@ const ALLOWED_NOISE: RegExp[] = [
     // the boot-time session probe: logged out, /api/me answers 401 and the app renders the auth
     // gate; the browser logs every non-2xx fetch regardless of the app handling it
     /401 \(Unauthorized\) \[[^\]]*\/api\/me\]/,
-    // the verification gate: an unverified account is refused a session with a 403 the auth page
-    // reads and explains, and the browser logs the fetch regardless
-    /403 \(Forbidden\) \[[^\]]*\/api\/auth\/login\]/,
+    // a rejected confirmation code answers 400, which is the behaviour the auth spec asserts; the
+    // browser logs the fetch whatever the app does with it
+    /400 \(Bad Request\) \[[^\]]*\/api\/auth\/confirm\]/,
+    // the verification gate from the inside: the confirm step holds a session every guarded route refuses,
+    // which is the point of it. The shell asks anyway on mount, and the browser logs each refusal.
+    /403 \(Forbidden\) \[[^\]]*\/api\/(billing|workspace|folders|templates|artifacts|themes|features|onboarding|ai\/voice)\]/,
     // rapid successive commits (drop then undo) can race the debounced content save into a 409;
     // the save store rebases and retries, the browser logs the failed fetch regardless. Recorded
     // as a finding in .docs/e2e-implementation-plan.md.

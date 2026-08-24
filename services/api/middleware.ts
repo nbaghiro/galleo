@@ -1,6 +1,7 @@
 import type { Context, Env, MiddlewareHandler } from "hono";
 import { getCookie } from "hono/cookie";
 import type { User, WorkspaceRole } from "@model/workspace";
+import { mustConfirmEmail } from "@model/workspace";
 import type { ArtifactAccess } from "@model/artifact";
 import { atLeast } from "@model/artifact";
 import { SESSION_COOKIE } from "@services/utils/auth";
@@ -22,9 +23,27 @@ export interface WorkspaceEnv {
     Variables: { user: User; ws: WorkspaceRow; role: WorkspaceRole };
 }
 
+const NEEDS_VERIFICATION = {
+    error: "Confirm your email to continue.",
+    needsVerification: true,
+} as const;
+
+/**
+ * A session, verified or not. Only for the handful of routes an unconfirmed account must still
+ * reach: reading itself, and asking for another confirmation mail. Everything else takes
+ * `requireUser`, which is this plus the gate.
+ */
+export const requireSession: MiddlewareHandler<AuthedEnv> = async (c, next) => {
+    const user = await currentUser(getCookie(c, SESSION_COOKIE));
+    if (!user) return c.json({ error: "unauthorized" }, 401);
+    c.set("user", user);
+    return next();
+};
+
 export const requireUser: MiddlewareHandler<AuthedEnv> = async (c, next) => {
     const user = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!user) return c.json({ error: "unauthorized" }, 401);
+    if (mustConfirmEmail(user)) return c.json(NEEDS_VERIFICATION, 403);
     c.set("user", user);
     return next();
 };
@@ -32,6 +51,7 @@ export const requireUser: MiddlewareHandler<AuthedEnv> = async (c, next) => {
 export const requireWorkspace: MiddlewareHandler<WorkspaceEnv> = async (c, next) => {
     const user = await currentUser(getCookie(c, SESSION_COOKIE));
     if (!user) return c.json({ error: "unauthorized" }, 401);
+    if (mustConfirmEmail(user)) return c.json(NEEDS_VERIFICATION, 403);
     const membership = await currentMembership(user.id);
     if (!membership) return c.json({ error: "no workspace" }, 400);
     c.set("user", user);

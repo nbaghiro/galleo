@@ -273,6 +273,7 @@ export interface RunFrag {
     strike: boolean;
     code: boolean;
     highlight?: string;
+    link?: string;
     x: number;
     width: number;
 }
@@ -344,6 +345,7 @@ function toFrag(cx: CanvasRenderingContext2D, piece: Piece, x: number): RunFrag 
         strike: !!r.strike,
         code: !!r.code,
         highlight: r.highlight,
+        link: r.link,
         x,
         width,
     };

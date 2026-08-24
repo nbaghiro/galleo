@@ -10,8 +10,10 @@ import {
     DIAGRAM_SHAPES,
     DIAGRAM_STYLES,
     DIAGRAM_TYPES,
+    FAQ_COLLAPSE,
     FLEX_DIRECTION,
     IMAGE_FIT,
+    POPUP_VARIANTS,
     TEXT_ALIGN,
     TEXT_STYLES,
 } from "@model/elements";
@@ -203,6 +205,11 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "number",
                 desc: "corner radius in px; omit to inherit the theme",
             },
+            {
+                key: "alt",
+                type: "string",
+                desc: "one plain sentence describing what the picture shows, for screen readers and search. Write it whenever the picture carries meaning; leave it out for pure decoration",
+            },
         ],
     },
     {
@@ -352,6 +359,79 @@ export const ELEMENTS: readonly ElementSchema[] = [
         ],
     },
     {
+        type: "faq",
+        label: "FAQ",
+        category: "composite",
+        container: true,
+        when: "questions a reader actually asks, answered in a line or two each",
+        fields: [
+            childrenField(
+                "`text` elements in question/answer pairs: question (style 'h3') then its answer (style 'body'), repeated. Always an even count",
+            ),
+            {
+                key: "collapse",
+                type: "enum",
+                values: FAQ_COLLAPSE,
+                default: "expanded",
+                desc: "expanded shows every answer at once; collapsible turns each question into an accordion row a reader opens. With collapsible, an answer whose data sets open: true starts open",
+            },
+        ],
+    },
+    {
+        type: "tabs",
+        label: "Tabs",
+        category: "composite",
+        container: true,
+        when: "two to four alternative views of the same subject, where a reader wants one at a time (audiences, plans, before/after in depth)",
+        fields: [
+            childrenField(
+                "one element per tab, usually a `container` holding that panel's content; keep the panels comparable in length",
+            ),
+            {
+                key: "labels",
+                type: "string",
+                desc: "the tab names, comma-separated, in panel order; keep each to one or two words",
+            },
+            {
+                key: "active",
+                type: "number",
+                default: 0,
+                desc: "which panel shows by default, 0-based; a static render (export, print) shows only this one",
+            },
+        ],
+    },
+    {
+        type: "popup",
+        label: "Popup",
+        category: "composite",
+        container: true,
+        when: "a detail worth keeping off the page until a reader asks for it: a definition, a caveat, a short list of links behind one trigger",
+        fields: [
+            childrenField(
+                "the elements that make up the floating panel, in order; keep it to a few lines, since a popup that needs scrolling belongs in the flow instead",
+            ),
+            {
+                key: "label",
+                type: "string",
+                default: "Details",
+                desc: "the trigger's own text, one or two words",
+            },
+            {
+                key: "variant",
+                type: "enum",
+                values: POPUP_VARIANTS,
+                default: "panel",
+                desc: "panel is a paragraph or two behind the trigger; menu is a tight column, whose children should be `button` elements with an href each",
+            },
+            {
+                key: "open",
+                type: "boolean",
+                default: false,
+                desc: "whether the panel shows in flow by default, which is what a static render (export, print) prints. A reader always starts with it shut",
+            },
+        ],
+    },
+    {
         type: "container",
         label: "Container",
         category: "container",
@@ -394,6 +474,11 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 values: BUTTON_VARIANTS,
                 default: "filled",
                 desc: "filled, outline, soft, or ghost",
+            },
+            {
+                key: "href",
+                type: "string",
+                desc: "the URL the button opens; set it only when you know a real destination",
             },
         ],
     },

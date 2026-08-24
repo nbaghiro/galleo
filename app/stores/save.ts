@@ -2,6 +2,7 @@ import { createEffect, on, onCleanup, untrack } from "solid-js";
 import type { ArtifactContent } from "@model/artifact";
 import { diffSections } from "@model/artifact";
 import {
+    checkpointLiveEdit,
     currentArtifactId,
     editor,
     editSeq,
@@ -16,6 +17,16 @@ import { capture } from "@ui/analytics";
 const DEBOUNCE_MS = 1200;
 const MAX_INTERVAL_MS = 10_000;
 const RETRY_MS = 3_000; // after a failed save; the baseline is unchanged, so the retry resends it
+const RETRY_MAX_MS = 60_000; // the ceiling the backoff walks up to while a save keeps failing
+
+// A network failure or a server one is worth waiting out. A refusal is not: the server has answered
+// the question, and asking again every three seconds for the rest of the session only produces one
+// more save_failed per attempt.
+const retryable = (status: number): boolean =>
+    status === 0 || status === 408 || status === 429 || status >= 500;
+
+const retryDelay = (attempt: number): number =>
+    Math.min(RETRY_MS * 2 ** Math.max(0, attempt - 1), RETRY_MAX_MS);
 
 // exposed so navigation can checkpoint the current doc before switching
 let activeFlush: (() => Promise<void>) | null = null;
@@ -33,6 +44,14 @@ export async function flushAutosave(): Promise<void> {
 let noteSaved: ((content: ArtifactContent) => void) | null = null;
 export function noteSavedContent(content: ArtifactContent): void {
     noteSaved?.(content);
+}
+
+// A conflict is not a failed save to retry: the server holds a document these ops do not describe,
+// so resending them fails the same way. The window has to be re-read first, which is the editor
+// route's job, exactly as it is for a resync off the collaboration socket.
+let conflicted: (() => void) | null = null;
+export function onSaveConflict(fn: (() => void) | null): void {
+    conflicted = fn;
 }
 
 // Asked, not imported, so the wire layer depends on this file and not the other way round.
@@ -64,6 +83,11 @@ export function installAutosave(): void {
     async function flush(): Promise<void> {
         const id = untrack(currentArtifactId);
         if (!id) return;
+        // An open text session holds its keystrokes in the tree and only turns them into ops when it
+        // ends, so whichever driver is about to persist is given them first. Under the socket this
+        // is the whole of what a flush does, which is what makes a navigation or a page hide
+        // mid-sentence save at all; under HTTP the diff below would have picked them up anyway.
+        checkpointLiveEdit();
         // the socket is persisting; a second writer here would race its own acks
         if (socketDriving()) {
             window.clearTimeout(timer);
@@ -104,15 +128,18 @@ export function installAutosave(): void {
             noteSaveState(true);
         } catch (e) {
             // the baseline is untouched, so the change is still pending; retry on a timer, not at once
+            const status = e instanceof ApiError ? e.status : 0;
             retries += 1;
             noteSaveState(false);
             capture("save_failed", {
-                reason: e instanceof ApiError ? String(e.status) : "network",
+                reason: status ? String(status) : "network",
                 retry_count: retries,
                 section_count: persisted.sections.length,
             });
             window.clearTimeout(timer);
-            timer = window.setTimeout(() => flush(), RETRY_MS);
+            if (status === 409) conflicted?.();
+            else if (retryable(status))
+                timer = window.setTimeout(() => flush(), retryDelay(retries));
         }
         saving = false;
         if (dirtyWhileSaving) {

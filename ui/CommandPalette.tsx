@@ -233,7 +233,7 @@ const PaletteBody: Component = () => {
             </Show>
             <Show when={row.hintIcon}>
                 {(name) => (
-                    <span class="text-muted">
+                    <span class="self-center text-muted">
                         <Icon name={name()} size={15} />
                     </span>
                 )}
@@ -251,7 +251,7 @@ const PaletteBody: Component = () => {
             role="option"
             aria-selected={i === active()}
             class={`flex w-full gap-2.5 rounded-lg px-2.5 text-left text-[13.5px] ${
-                row.thumb ? "items-start py-2" : "items-center py-2"
+                row.thumb ? "items-start py-2" : "icon-row py-2"
             } ${i === active() ? "bg-canvas" : "hover:bg-canvas/60"} ${
                 row.dangerous ? "text-accent" : "text-ink"
             }`}
@@ -275,7 +275,7 @@ const PaletteBody: Component = () => {
                     {(t) => (
                         <button
                             type="button"
-                            class="flex items-center gap-1.5 border-b border-line px-3.5 pt-3 pb-1 text-left text-[12px] font-semibold text-muted hover:text-ink"
+                            class="flex icon-row gap-1.5 border-b border-line px-3.5 pt-3 pb-1 text-left text-[12px] font-semibold text-muted hover:text-ink"
                             onClick={() => setStack((s) => s.slice(0, -1))}
                         >
                             <Icon name="chevronLeft" size={13} /> {t()}

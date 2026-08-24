@@ -50,6 +50,10 @@ export interface PlanFeatures {
     sso: boolean;
     prioritySupport: boolean;
     earlyAccess: boolean;
+    voiceNarration: boolean; // a piece can read itself aloud
+    voiceDesign: boolean; // generate a voice from a description; consumes a shared account slot
+    backgroundMusic: boolean; // an instrumental bed under present and preview
+    maxWorkspaceVoices: number; // how many voices a shelf holds; -1 = unlimited
 }
 
 export interface Plan {
@@ -185,6 +189,10 @@ export const PLANS: Record<PlanId, Plan> = {
             sso: false,
             prioritySupport: false,
             earlyAccess: false,
+            voiceNarration: false,
+            voiceDesign: false,
+            backgroundMusic: false,
+            maxWorkspaceVoices: 0,
         },
     },
     pro: {
@@ -229,6 +237,10 @@ export const PLANS: Record<PlanId, Plan> = {
             sso: false,
             prioritySupport: false,
             earlyAccess: false,
+            voiceNarration: true,
+            voiceDesign: true,
+            backgroundMusic: true,
+            maxWorkspaceVoices: 12,
         },
     },
     premium: {
@@ -273,6 +285,10 @@ export const PLANS: Record<PlanId, Plan> = {
             sso: true,
             prioritySupport: true,
             earlyAccess: true,
+            voiceNarration: true,
+            voiceDesign: true,
+            backgroundMusic: true,
+            maxWorkspaceVoices: -1,
         },
     },
 };
@@ -364,6 +380,9 @@ export type BoolFeature =
     | "apiAccess"
     | "sso"
     | "prioritySupport"
+    | "voiceNarration"
+    | "voiceDesign"
+    | "backgroundMusic"
     | "earlyAccess";
 
 // -1 = unlimited, 0 = none
@@ -372,7 +391,8 @@ export type NumFeature =
     | "customDomains"
     | "storageMb"
     | "includedCredits"
-    | "maxSectionsPerGeneration";
+    | "maxSectionsPerGeneration"
+    | "maxWorkspaceVoices";
 
 export type EnumFeature = "exportFormats" | "textModelTier" | "imageModelTier";
 
@@ -430,6 +450,26 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
         status: "beta",
         description: "Which image models media generation may use.",
     },
+    voiceNarration: {
+        label: "Voice narration",
+        status: "live",
+        description: "Read a piece aloud in a chosen voice.",
+    },
+    backgroundMusic: {
+        label: "Background music",
+        status: "live",
+        description: "Play an instrumental bed while a piece is presented.",
+    },
+    voiceDesign: {
+        label: "Designed voices",
+        status: "live",
+        description: "Generate a new voice from a written description.",
+    },
+    maxWorkspaceVoices: {
+        label: "Saved voices",
+        status: "live",
+        description: "How many narration voices a workspace can keep.",
+    },
     workspaceThemes: {
         label: "Shared brand kit",
         status: "planned",
@@ -483,12 +523,16 @@ export interface Features {
     sso: boolean;
     prioritySupport: boolean;
     earlyAccess: boolean;
+    voiceNarration: boolean;
+    voiceDesign: boolean;
+    backgroundMusic: boolean;
     // -1 = unlimited, 0 = none
     maxArtifacts: number;
     customDomains: number;
     storageMb: number;
     includedCredits: number;
     maxSectionsPerGeneration: number;
+    maxWorkspaceVoices: number;
     exportFormats: ExportFormat[];
     textModelTier: ModelTier;
     imageModelTier: ModelTier;
@@ -529,6 +573,10 @@ export function resolveFeatures(planId: PlanId, overrides?: FeatureOverrides): F
         storageMb: n("storageMb", p.account.storageMb),
         includedCredits: n("includedCredits", p.ai.includedCredits),
         maxSectionsPerGeneration: n("maxSectionsPerGeneration", p.ai.maxSectionsPerGeneration),
+        voiceNarration: b("voiceNarration", pf.voiceNarration),
+        voiceDesign: b("voiceDesign", pf.voiceDesign),
+        backgroundMusic: b("backgroundMusic", pf.backgroundMusic),
+        maxWorkspaceVoices: n("maxWorkspaceVoices", pf.maxWorkspaceVoices),
         exportFormats: launched("exportFormats")
             ? (overrides?.exportFormats ?? pf.exportFormats)
             : [],

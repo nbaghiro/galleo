@@ -1,7 +1,9 @@
 import type { Component } from "solid-js";
 import { createSignal, onMount, Show } from "solid-js";
-import { login, signup, resetPassword } from "@app/stores/auth";
+import { login, signup, resetPassword, setVerifyMailSent } from "@app/stores/auth";
 import { emailError, MAX_EMAIL } from "@model/workspace";
+
+// Said on the confirm screen because a step with nothing behind it is one people abandon.
 import { api } from "@app/api";
 import { Visual } from "@app/components/previews";
 import { TextField } from "@ui/inputs";
@@ -17,14 +19,13 @@ const oauthEnabled =
     "flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-line bg-panel py-2.5 text-[13px] font-medium text-soft transition-colors hover:border-accent hover:bg-accent/10 hover:text-ink";
 const serif = "var(--font-display, 'Fraunces', serif)";
 
-// codes the OAuth callback and verify link hand back via ?authError= (see services/api/*)
+// codes the OAuth callback hands back via ?authError= (see services/api/oauth.ts)
 const AUTH_ERRORS: Record<string, string> = {
     oauth_state: "Sign-in was interrupted or expired. Please try again.",
     oauth_exchange: "Could not complete sign-in with that provider. Please try again.",
     oauth_email: "That account has no verified email we can sign you in with.",
     oauth_email_taken: "That email already has an account. Sign in with your original method.",
     oauth_unavailable: "That sign-in method isn’t available right now.",
-    verify_invalid: "That verification link is invalid or has expired.",
 };
 
 type Mode = "signin" | "signup" | "forgot" | "reset";
@@ -37,7 +38,7 @@ const HEADING: Record<Mode, string> = {
 };
 const SUBCOPY: Record<Mode, string> = {
     signin: "One artifact. Decks, docs, and sites.",
-    signup: "Start with a deck, doc, or site — one canonical artifact.",
+    signup: "Start with a deck, doc, or site. One canonical artifact.",
     forgot: "Enter your email and we’ll send you a reset link.",
     reset: "Set a new password for your account.",
 };
@@ -50,10 +51,8 @@ export const AuthPage: Component = () => {
     const [confirm, setConfirm] = createSignal("");
     const [resetToken, setResetToken] = createSignal("");
     const [error, setError] = createSignal("");
-    const [notice, setNotice] = createSignal("");
     const [sent, setSent] = createSignal(false);
     // whether the provider accepted the verification mail, so a failure is said out loud
-    const [mailSent, setMailSent] = createSignal(true);
     const [busy, setBusy] = createSignal(false);
     const [googleReady, setGoogleReady] = createSignal(false);
 
@@ -69,14 +68,10 @@ export const AuthPage: Component = () => {
             setResetToken(token);
             setMode("reset");
         }
-        // a verify link lands logged out with ?verified=1
-        if (params.get("verified") === "1")
-            setNotice("Your email is verified — sign in to continue.");
-        // an OAuth / verify failure redirects here with ?authError=<code>
+        // an OAuth failure redirects here with ?authError=<code>
         const code = params.get("authError");
         if (code) setError(AUTH_ERRORS[code] ?? "Could not sign in. Please try again.");
-        if (token || code || params.has("verified"))
-            window.history.replaceState({}, "", window.location.pathname);
+        if (token || code) window.history.replaceState({}, "", window.location.pathname);
     });
 
     const startOAuth = (provider: "google"): void => {
@@ -86,7 +81,6 @@ export const AuthPage: Component = () => {
     const switchMode = (m: Mode): void => {
         setMode(m);
         setError("");
-        setNotice("");
         setSent(false);
     };
 
@@ -127,10 +121,9 @@ export const AuthPage: Component = () => {
         setBusy(true);
         try {
             const m = mode();
-            if (m === "signup") {
-                setMailSent(await signup(email().trim(), password(), name().trim()));
-                setSent(true);
-            } else if (m === "signin") await login(email().trim(), password());
+            if (m === "signup")
+                setVerifyMailSent(await signup(email().trim(), password(), name().trim()));
+            else if (m === "signin") await login(email().trim(), password());
             else if (m === "forgot") {
                 await api.forgotPassword(email().trim());
                 setSent(true);
@@ -244,35 +237,7 @@ export const AuthPage: Component = () => {
                         </p>
                     </Show>
 
-                    <Show when={mode() === "signup" && sent()}>
-                        <div class="rounded-lg border border-line bg-panel p-4 text-[13px] leading-relaxed text-soft">
-                            <Show
-                                when={mailSent()}
-                                fallback={
-                                    <>
-                                        Your account is ready, but we could not send the
-                                        confirmation email to{" "}
-                                        <span class="text-ink">{email().trim()}</span>. Contact
-                                        support and we will confirm it for you.
-                                    </>
-                                }
-                            >
-                                Confirm <span class="text-ink">{email().trim()}</span> to finish
-                                setting up Galleo. We’ve sent a link; it expires in 24 hours.
-                            </Show>
-                        </div>
-                        <p class="mt-6 text-[13px] text-muted">
-                            <button
-                                type="button"
-                                class="font-semibold text-accent hover:underline"
-                                onClick={() => switchMode("signin")}
-                            >
-                                Back to sign in
-                            </button>
-                        </p>
-                    </Show>
-
-                    <Show when={!sent()}>
+                    <Show when={!(mode() === "forgot" && sent())}>
                         <form onSubmit={(e) => submit(e)} noValidate class="flex flex-col gap-2.5">
                             <Show when={mode() === "signup"}>
                                 <Eyebrow>Name</Eyebrow>
@@ -335,9 +300,6 @@ export const AuthPage: Component = () => {
                             </Show>
                             <Show when={error()}>
                                 <p class="text-[12px] text-accent">{error()}</p>
-                            </Show>
-                            <Show when={notice() && !error()}>
-                                <p class="text-[12px] text-soft">{notice()}</p>
                             </Show>
                             <Button
                                 type="submit"

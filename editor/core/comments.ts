@@ -9,7 +9,16 @@ import { applyMark, marksWithValue, withoutMarkValue } from "@model/text";
 import { elementIdMap, getElementAt, setElementAt, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { say } from "./collab";
-import { commit, editing, editor, jumpToSection, setArtifactLive, setSelection } from "./store";
+import {
+    canEdit,
+    commit,
+    commitMeta,
+    editing,
+    editor,
+    HANDLE_GAP,
+    jumpToSection,
+    setSelection,
+} from "./store";
 import { setTextMark } from "./text";
 
 // The comment seam, shaped like the AI transports in ./store: the app pushes the list in and
@@ -89,12 +98,19 @@ export function cancelCommentDraft(): void {
 // An element the user made this session has no id yet (stamping runs on load and on every server
 // write), so anchoring to one mints it. Metadata, not an edit: no history entry, though an undo
 // past it drops the id and the thread degrades, exactly like the text mark.
+//
+// It goes out as a write even so. Kept local, the id named an element only this tab knew about: the
+// thread orphaned for everyone else at once and for its author on the next load, and every op aimed
+// at that element afterwards addressed something the server did not hold, which the room refused.
+// Nobody without edit access can persist one, and an anchor that cannot be persisted is an anchor
+// that degrades the moment it is made, so there is no id to give back.
 function ensureElementId(address: ElementAddress): Id | null {
     const inst = getElementAt(editor.artifact, address);
     if (!inst) return null;
     if (inst.id) return inst.id;
+    if (!canEdit()) return null;
     const id = newElementId();
-    setArtifactLive(setElementAt(editor.artifact, address, { ...inst, id }));
+    commitMeta(setElementAt(editor.artifact, address, { ...inst, id }));
     return id;
 }
 
@@ -316,31 +332,53 @@ export async function setThreadResolved(thread: CommentThread, resolved: boolean
 
 export const MARKER_SIZE = 28; // the chip itself (size-7)
 export const MARKER_GAP = 12; // between a section's right edge and the chip
+
+// The creation chip mirrors the drag grip across the element rather than joining the thread rail:
+// the same gap out from the edge, the same height, and a little more width because a speech bubble
+// needs squarer room than a grip's column of dots and looked pinched in the grip's own box.
+export const CHIP_GAP = HANDLE_GAP;
+export const CHIP_W = 20; // w-5
+export const CHIP_H = 20; // h-5, the grip's height
 export const MARKER_SPACING = 32; // the least vertical distance two chips may sit at
 // a hoverless tier draws the chip at the 44px tap target (size-11), which the desktop step overlaps
 export const MARKER_SPACING_TOUCH = 48;
 export const PANEL_EDGE = 6; // keep a clamped chip or panel this far inside the stage
 
-// A bleed section runs the full stage width and a narrow deck leaves under a chip's worth of
-// margin, so the natural x would put the marker outside the scroller, where it never paints. The
-// clamp keeps it just inside, the same trade the element grip makes on the left edge.
-export function markerX(sectionRight: number, stageWidth: number): number {
-    const wanted = sectionRight + MARKER_GAP;
-    return Math.max(PANEL_EDGE, Math.min(wanted, stageWidth - MARKER_SIZE - PANEL_EDGE));
+/**
+ * A chip sits just outside the right edge it belongs to, mirroring the drag grip on the left. Which
+ * edge that is depends on what the chip is about: a thread marker takes its section's, so a rail of
+ * them lines up however wide the content inside is, while the creation chip takes its own element's,
+ * so the offer to comment stays beside the thing it is offering about rather than out at the margin.
+ *
+ * A bleed section runs the full stage width and a narrow deck leaves under a chip's worth of margin,
+ * so the natural x would put the chip outside the scroller, where it never paints. The clamp keeps
+ * it just inside, the same trade the element grip makes on the left edge.
+ */
+export function markerX(
+    rightOf: number,
+    stageWidth: number,
+    gap = MARKER_GAP,
+    size = MARKER_SIZE,
+): number {
+    const wanted = rightOf + gap;
+    return Math.max(PANEL_EDGE, Math.min(wanted, stageWidth - size - PANEL_EDGE));
 }
 
-// The creation surface: a chip straddling the selected element's top-right corner. Same clamp as
-// the marker, so an element that runs to the stage edge still shows one.
-export function chipAt(
-    box: { x: number; y: number; w: number },
-    stageWidth: number,
-): { x: number; y: number } {
-    const wanted = box.x + box.w - MARKER_SIZE / 2;
-    return {
-        x: Math.max(PANEL_EDGE, Math.min(wanted, stageWidth - MARKER_SIZE - PANEL_EDGE)),
-        y: box.y + 4,
-    };
-}
+/**
+ * The creation chip goes through the same placement pass the thread markers do, under this reserved
+ * id, rather than by a rule of its own.
+ *
+ * It used to straddle the selected element's top-right corner, which put a 28px chip on top of the
+ * content it was offering to comment on: over a pill or a short heading it covered the last word.
+ * It now sits just outside that element's right edge, mirroring the drag grip on the left, so the
+ * two affordances for a selected thing frame it rather than cover it. Sharing the pass is what
+ * stops it landing under a marker when the element runs the full width of its section and the two
+ * edges coincide.
+ *
+ * The id sorts after a uuid so the chip loses a tie: selecting an element must not shove an
+ * existing thread's marker out of the place the reader already found it in.
+ */
+export const CHIP_REQUEST_ID = "~new";
 
 export const PANEL_GAP = 8; // between the opener and the panel it opened
 
@@ -393,7 +431,11 @@ export function sectionChips(
 export interface MarkerRequest {
     id: string;
     y: number; // where the anchored content actually sits
-    sectionRight: number; // section box x + width
+    rightOf: number; // the right edge this chip sits just outside; see markerX
+    // A thread marker takes the rail's gap and size; the creation chip carries the drag grip's, so
+    // the two handles on an element sit the same distance out on either side of it.
+    gap?: number;
+    size?: number;
 }
 
 export interface PlacedMarker {
@@ -411,7 +453,7 @@ export function placeMarkers(requests: MarkerRequest[], stageWidth: number): Pla
     let floor = -Infinity;
     for (const r of sorted) {
         const y = Math.max(r.y, floor);
-        out.push({ id: r.id, x: markerX(r.sectionRight, stageWidth), y });
+        out.push({ id: r.id, x: markerX(r.rightOf, stageWidth, r.gap, r.size), y });
         floor = y + MARKER_SPACING;
     }
     return out;

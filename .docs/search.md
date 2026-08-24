@@ -22,19 +22,19 @@ boundary.
 
 ## The pieces
 
-| Concern                                                                   | File                                 |
-| ------------------------------------------------------------------------- | ------------------------------------ |
-| Extraction + wire shapes (`SearchHit`, `SearchSnippet`, `ArtifactDigest`) | `model/artifact.ts`                  |
-| Columns, indexes, visit table                                             | `services/db/schema.ts`              |
-| Query construction, ranking, snippets                                     | `services/core/search.ts`            |
-| Route                                                                     | `services/core/search.ts`            |
-| Write path (index maintenance)                                            | `services/api/artifacts.ts`          |
-| Derived-column write (digest + search_text)                               | `services/db/derived.ts`             |
-| Palette source registry + list model                                      | `ui/palette-model.ts`                |
-| Palette overlay                                                           | `ui/CommandPalette.tsx`              |
-| Fetch, cache, local pass                                                  | `app/stores/search.ts`               |
-| Row assembly (what a result looks like)                                   | `app/components/palette-sources.tsx` |
-| Library integration                                                       | `app/views/LibraryView.tsx`          |
+| Concern                                                                   | File                        |
+| ------------------------------------------------------------------------- | --------------------------- |
+| Extraction + wire shapes (`SearchHit`, `SearchSnippet`, `ArtifactDigest`) | `model/artifact.ts`         |
+| Columns, indexes, visit table                                             | `services/db/schema.ts`     |
+| Query construction, ranking, snippets                                     | `services/core/search.ts`   |
+| Route                                                                     | `services/core/search.ts`   |
+| Write path (index maintenance)                                            | `services/api/artifacts.ts` |
+| Derived-column write (digest + search_text)                               | `services/db/derived.ts`    |
+| Palette source registry + list model                                      | `ui/palette-model.ts`       |
+| Palette overlay                                                           | `ui/CommandPalette.tsx`     |
+| Fetch, cache, local pass                                                  | `app/stores/search.ts`      |
+| Row assembly (what a result looks like)                                   | `app/stores/palette.tsx`    |
+| Library integration                                                       | `app/views/LibraryView.tsx` |
 
 ## Write path: what gets stored
 
@@ -139,13 +139,15 @@ row, and a card row with a 80x50 thumbnail, title, subtitle (author and format),
 time, and the highlighted snippet when the match came from body text. Enter opens; ⌘Enter runs the row's
 `altRun` (open in a new tab) and the footer names it.
 
-The app registers three sources in `app/components/palette-sources.tsx`:
+The app registers four sources in `app/stores/palette.tsx`:
 
 - artifacts (`minQuery: 0`, so the empty state is server-fed recents), capped at 8 rows with a "Show all
   results" row into `/?q=…` when there are more,
 - folders, local only, from the folder store,
 - one action row from three characters on: "Generate an artifact about …", which hands the query to the
-  generation studio rather than dead-ending on no results.
+  generation studio rather than dead-ending on no results,
+- model runs, which only exists when the model picker is enabled and only answers a query starting
+  "mod": each past run as an artifact row, with its per-step models where the snippet would be.
 
 Server hits are reconciled against the library store before rendering (`reconcile` in
 `app/stores/search.ts`): titles and covers are taken from the store so a rename is never stale, and hits

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@elements/register";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot } from "solid-js";
 import type { ArtifactContent } from "@model/artifact";
 import { emptyRegion } from "@model/artifact";
@@ -12,6 +12,11 @@ import {
     commit,
     commitOver,
     currentArtifactId,
+    currentTitle,
+    renameArtifact,
+    setEditAccess,
+    setSlideFrame,
+    slideFrame,
     duplicateSectionAt,
     editing,
     editor,
@@ -49,6 +54,7 @@ const inRoot = (body: () => void): void =>
 
 beforeEach(() => {
     // baseline reset; each test reloads its own fixture on top
+    setEditAccess("edit");
     loadArtifactContent("base", makeArt(["a", "b"]));
 });
 
@@ -382,5 +388,88 @@ describe("loadArtifactContent", () => {
             expect(previewingTheme()).toBe(false);
             expect(editSeq()).toBe(seq0); // load never triggers an autosave
         });
+    });
+});
+
+// Everything that changes the document funnels through `record`, so the access gate sits there
+// rather than on each caller: a gate on `commit` alone missed the text session, which records
+// straight through it, and the title, which is a write of its own.
+describe("without edit access", () => {
+    it("changes nothing and starts no session", () => {
+        inRoot(() => {
+            loadArtifactContent("doc", makeArt(["a", "b"]));
+            setEditAccess("view");
+            const before = editor.artifact;
+            commit(makeArt(["a", "b", "c"]));
+            addSectionAfter("a");
+            startEditing({ section: "a", path: [] });
+            expect(editor.artifact).toBe(before);
+            expect(editing()).toBeNull();
+            expect(canUndo()).toBe(false);
+        });
+    });
+
+    it("refuses a rename, which the server would refuse too", () => {
+        inRoot(() => {
+            loadArtifactContent("doc", makeArt(["a"]));
+            const was = currentTitle();
+            setEditAccess("comment");
+            renameArtifact("Something else");
+            expect(currentTitle()).toBe(was);
+        });
+    });
+});
+
+// It is how someone wants to see every deck, not a per-visit choice, so a reload must not drop it.
+// The storage is stubbed because node defines a bare `localStorage` global with no methods on it,
+// which is the same shape the store's try/catch is there to survive.
+describe("slideFrame", () => {
+    let store: Map<string, string>;
+    beforeEach(() => {
+        store = new Map();
+        vi.stubGlobal("localStorage", {
+            getItem: (k: string) => store.get(k) ?? null,
+            setItem: (k: string, v: string) => void store.set(k, v),
+            removeItem: (k: string) => void store.delete(k),
+        });
+    });
+    afterEach(() => vi.unstubAllGlobals());
+
+    const reload = async (): Promise<{ slideFrame: () => boolean }> => {
+        vi.resetModules();
+        return import("@editor/core/store");
+    };
+
+    it("writes the choice through, in both directions", () => {
+        setSlideFrame(true);
+        expect(slideFrame()).toBe(true);
+        expect(store.get("galleo:slide-frame")).toBe("1");
+
+        setSlideFrame((v) => !v);
+        expect(slideFrame()).toBe(false);
+        expect(store.get("galleo:slide-frame")).toBe("0");
+    });
+
+    it("reads it back on a fresh load, which is what a refresh is", async () => {
+        store.set("galleo:slide-frame", "1");
+        expect((await reload()).slideFrame()).toBe(true);
+    });
+
+    it("defaults to off when nothing was ever stored", async () => {
+        expect((await reload()).slideFrame()).toBe(false);
+    });
+
+    // the guard that matters: storage throws in some privacy modes, and the editor must still open
+    it("falls back to the default when storage throws", async () => {
+        vi.stubGlobal("localStorage", {
+            getItem: () => {
+                throw new Error("denied");
+            },
+            setItem: () => {
+                throw new Error("denied");
+            },
+        });
+        const fresh = await reload();
+        expect(fresh.slideFrame()).toBe(false);
     });
 });

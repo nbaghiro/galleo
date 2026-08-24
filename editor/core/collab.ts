@@ -1,6 +1,6 @@
 import { createMemo, createSignal } from "solid-js";
-import type { ElementAddress, Id, Target } from "@model/artifact";
-import { elementRegionId, parentTarget, sectionRegionId } from "@model/artifact";
+import type { ArtifactAccess, ElementAddress, Id, Target } from "@model/artifact";
+import { atLeast, elementRegionId, parentTarget, sectionRegionId } from "@model/artifact";
 import type {
     CollabCursor,
     CursorBox,
@@ -9,15 +9,26 @@ import type {
     Peer,
     PresenceState,
 } from "@model/collab";
-import { decodeCursor, encodeElementCursor, encodeSectionCursor, leaseKey } from "@model/collab";
-import { elementIdMap, getElementAt } from "@elements/ops";
 import {
+    cursorSection,
+    decodeCursor,
+    encodeElementCursor,
+    encodeSectionCursor,
+    leaseKey,
+} from "@model/collab";
+import { elementIdMap, getElementAt } from "@elements/ops";
+import { capture } from "@ui/analytics";
+import {
+    canEdit,
     canvasContentWidth,
+    canvasEl,
+    editAccess,
     editing,
     editor,
     onEditSession,
     onEditSessionEnded,
     regions,
+    setEditAccess,
     stopEditing,
 } from "./store";
 
@@ -30,11 +41,19 @@ import {
 // sender's, which is what lets a phone and a desktop agree on where someone is.
 
 export type PeerMap = ReadonlyMap<string, Peer>;
+
+/** The reader, as the roster has to ask about them: which socket, and which person. */
+export interface Self {
+    connId: string | null;
+    userId: string | null;
+}
+
 export type LeaseMap = ReadonlyMap<string, Lease>;
 
 const [peers, setPeers] = createSignal<PeerMap>(new Map());
 const [leases, setLeases] = createSignal<LeaseMap>(new Map());
 const [selfConnId, setSelfConnId] = createSignal<string | null>(null);
+const [selfUserId, setSelfUserId] = createSignal<string | null>(null);
 const [connected, setConnected] = createSignal(false);
 
 export { peers, leases, selfConnId };
@@ -42,17 +61,48 @@ export { peers, leases, selfConnId };
 /** True once the room is open; the chrome that only makes sense with a room reads this. */
 export const collabActive = (): boolean => connected();
 
-/** Other people in the room, in join order; the avatar stack renders only when this is non-empty. */
-export const otherPeers = createMemo((): Peer[] => {
-    const me = selfConnId();
-    return [...peers().values()].filter((p) => p.connId !== me);
-});
+/** Who the reader is, as both questions the roster gets asked. */
+const self = (): Self => ({ connId: selfConnId(), userId: selfUserId() });
 
-export function collabWelcome(connId: string, roster: Peer[], live: Lease[]): void {
-    setSelfConnId(connId);
+/**
+ * The other people in a roster, one entry each.
+ *
+ * A person is not a socket, and the roster is keyed by socket because ops and leases are. Two
+ * connections belong to one person in two ordinary situations: a second tab, which the room
+ * supports on purpose, and the window after an unclean drop, where the connection someone left
+ * behind stays in the room until its presence times out while they have already rejoined under a
+ * new id. Presence answers "who is here", so it collapses to the person: asking by `connId` alone
+ * drew the reader their own ghost when they were the only one here, and drew a reconnecting peer
+ * twice.
+ *
+ * The newest connection wins. After a reconnect it is the live one, and the one it replaced holds
+ * a cursor nobody is at.
+ */
+export function peopleOf(roster: Iterable<Peer>, me: Self): Peer[] {
+    const byPerson = new Map<string, Peer>();
+    for (const peer of roster) {
+        if (peer.connId === me.connId) continue;
+        if (me.userId !== null && peer.user.id === me.userId) continue;
+        byPerson.set(peer.user.id, peer);
+    }
+    return [...byPerson.values()];
+}
+
+/** Other people in the room; the avatar stack renders only when this is non-empty. */
+export const otherPeers = createMemo((): Peer[] => peopleOf(peers().values(), self()));
+
+export function collabWelcome(self: Peer, roster: Peer[], live: Lease[]): void {
+    setSelfConnId(self.connId);
+    setSelfUserId(self.user.id);
     setPeers(rosterOf(roster));
     setLeases(leasesOf(live));
     setConnected(true);
+    // `peers` is what separates real multiplayer from opening a shared artifact alone, which is the
+    // whole question about whether this subsystem earns its keep.
+    capture("collab_joined", {
+        peers: roster.filter((p) => p.connId !== self.connId).length,
+        access: editAccess(),
+    });
 }
 
 export function collabPeer(connId: string, peer: Peer | null): void {
@@ -67,9 +117,11 @@ export function collabLease(element: ElementRef, holder: Lease | null): void {
 /** Leaving the artifact clears everything, so a stale roster never outlives the room. */
 export function collabClosed(): void {
     setConnected(false);
+    setFollowing(null);
     setPeers(new Map());
     setLeases(new Map());
     setSelfConnId(null);
+    setSelfUserId(null);
 }
 
 // ---- the maps, as pure reductions ----------------------------------------------------------
@@ -220,13 +272,15 @@ export function elementRefFor(address: ElementAddress): ElementRef | null {
     return inst?.id ? { sectionId: address.section, elementId: inst.id } : null;
 }
 
-const addressOf = (elementId: Id): ElementAddress | undefined =>
-    elementIdMap(editor.artifact).get(elementId);
+// Both of these are read once per peer per presence frame, and presence arrives at about 30Hz:
+// rebuilding the id map walks the whole document and a find over regions scans everything painted,
+// so each is a memo rather than a call. The comment layer memoizes the same two, for the same reason.
+const idMap = createMemo(() => elementIdMap(editor.artifact));
+const regionMap = createMemo(() => new Map(regions().map((r) => [r.id, r] as const)));
 
-const boxOfRegion = (id: string): CursorBox | null => {
-    const region = regions().find((r) => r.id === id);
-    return region ? region.box : null;
-};
+const addressOf = (elementId: Id): ElementAddress | undefined => idMap().get(elementId);
+
+const boxOfRegion = (id: string): CursorBox | null => regionMap().get(id)?.box ?? null;
 
 // A section that has not painted yet still has a band in the stack, reserved from its digest size,
 // so a peer working in an unloaded section shows up at the right height rather than vanishing.
@@ -259,11 +313,12 @@ export interface RemoteCursor {
 }
 
 /** Every peer's cursor, resolved here and nowhere else against this client's own painted boxes. */
+// Per person, through the same reduction the roster uses: a connection that has gone quiet still
+// holds the last position it sent, so counting by socket parked a second cursor of the same name
+// where its owner used to be until the sweep caught up.
 export const remoteCursors = createMemo((): RemoteCursor[] => {
-    const me = selfConnId();
     const out: RemoteCursor[] = [];
-    for (const peer of peers().values()) {
-        if (peer.connId === me) continue;
+    for (const peer of peopleOf(peers().values(), self())) {
         const cursor = peer.state.cursor;
         if (!cursor) continue;
         const point = decodeCursor(cursor, boxOfRef);
@@ -293,6 +348,90 @@ export function cursorForPoint(
                     : elementRegionId(target.address),
             ),
     });
+}
+
+// ---- follow mode ------------------------------------------------------------------------------
+//
+// Clicking a peer's avatar ties this viewport to where they are working. Keyed on the person rather
+// than the connection, so a follow survives their reconnect: the socket changes underneath, the
+// person does not.
+//
+// What we can follow is where they ARE, not what they SEE: presence carries a cursor, a selection
+// and an edit session, never a viewport. Following therefore means keeping their focus on screen
+// rather than mirroring their scroll, which is close enough to read as following and costs nothing
+// on the wire.
+
+const [following, setFollowing] = createSignal<string | null>(null);
+export { following };
+
+/** How much of the viewport stays clear above and below before following scrolls again. */
+const FOLLOW_MARGIN = 140;
+
+export const followedPeer = createMemo((): Peer | null => {
+    const id = following();
+    return id ? (otherPeers().find((p) => p.user.id === id) ?? null) : null;
+});
+
+export function followPeer(userId: string): void {
+    setFollowing(userId);
+    // take the reader there at once, wherever they were: the click asked to go, not just to subscribe
+    const peer = otherPeers().find((p) => p.user.id === userId);
+    const focus = peer && peerFocus(peer);
+    if (focus) scrollFollowing(focus, true);
+}
+
+export function unfollow(): void {
+    setFollowing(null);
+}
+
+export const toggleFollow = (userId: string): void => {
+    if (following() === userId) unfollow();
+    else followPeer(userId);
+};
+
+/**
+ * Where a peer is on THIS client's canvas, in stage coordinates. Their cursor first, since that is
+ * the live signal and the thing a reader means by "take me to them"; then the element they are in,
+ * for a peer whose pointer has left the content or who never sends one at all (a coarse pointer
+ * renders remote cursors but sends none); then the band of the section, which is reserved from the
+ * digest and so answers even for a section this client has not painted yet.
+ */
+export function peerFocus(peer: Peer): CursorBox | null {
+    const cursor = peer.state.cursor;
+    if (cursor) {
+        const point = decodeCursor(cursor, boxOfRef);
+        if (point) return { x: point.x, y: point.y, w: 0, h: 0 };
+    }
+    const ref = peer.state.editing ?? peer.state.selection;
+    const box = ref ? boxOfElement(ref) : null;
+    if (box) return box;
+    const sectionId = ref?.sectionId ?? (cursor ? cursorSection(cursor) : null);
+    return sectionId ? sectionBand(sectionId) : null;
+}
+
+/**
+ * Where to scroll so a followed peer stays on screen, or null when they are already comfortably
+ * inside it. Null matters as much as the number: a follow that re-centred on every frame would
+ * fight the reader for the scrollbar over a few pixels of cursor drift.
+ */
+export function followScroll(
+    focus: { y: number; h: number },
+    view: { top: number; height: number },
+    force = false,
+): number | null {
+    const margin = Math.min(FOLLOW_MARGIN, view.height / 4);
+    const inside =
+        focus.y >= view.top + margin && focus.y + focus.h <= view.top + view.height - margin;
+    if (inside && !force) return null;
+    return Math.max(0, focus.y + focus.h / 2 - view.height / 2);
+}
+
+/** Applies the decision above to the canvas scroller, which is the one place that scrolls. */
+export function scrollFollowing(focus: CursorBox, force = false): void {
+    const el = canvasEl();
+    if (!el) return;
+    const to = followScroll(focus, { top: el.scrollTop, height: el.clientHeight }, force);
+    if (to !== null) el.scrollTo({ top: to, behavior: "smooth" });
 }
 
 // ---- the lease, as the editor asks about it --------------------------------------------------
@@ -342,6 +481,10 @@ export function installCollabGates(): void {
             const holder = leaseHolder(address);
             if (holder) {
                 say(`${nameOf(holder)} is editing this`);
+                // Two people reaching for the same element is the friction the lease exists for.
+                capture("collab_edit_blocked", {
+                    element_type: getElementAt(editor.artifact, address)?.type ?? "",
+                });
                 return false;
             }
             const ref = elementRefFor(address);
@@ -354,6 +497,20 @@ export function installCollabGates(): void {
         },
     );
     onEditSessionEnded(() => say("That was deleted while you were editing it"));
+}
+
+/**
+ * The room re-resolved what this connection may do, because a grant, a role, or the artifact's own
+ * level changed while the tab was open. The editor's gate follows it at once rather than at the next
+ * reload: anything typed but not yet committed is lost with the access that would have saved it,
+ * which is why the line says so.
+ */
+export function collabAccess(access: ArtifactAccess): void {
+    const had = canEdit();
+    setEditAccess(access);
+    if (atLeast(access, "edit")) return;
+    if (editing()) stopEditing();
+    if (had) say("Your access to this changed, so you can no longer edit it");
 }
 
 /** The server refused the claim; whoever actually holds it wins and this session stops. */

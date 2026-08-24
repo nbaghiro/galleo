@@ -11,9 +11,9 @@ import type {
     ElementInstance,
     SearchResponse,
     Section,
+    SectionNotes,
     SharedArtifact,
 } from "@model/artifact";
-import { asContent } from "@model/artifact";
 import { ACTION_FOR } from "@model/tools";
 import { REQUEST_ID_HEADER } from "@model/analytics";
 import { capture, setRequestId } from "@ui/analytics";
@@ -22,6 +22,7 @@ import type { Usage } from "@model/credits";
 import type { EvalCheck, EvalJudgement, EvalRun, EvalRunSummary, Rubric } from "@model/eval";
 import type {
     AccountConnection,
+    ConnectedApp,
     AuthProvider,
     Folder,
     Membership,
@@ -32,7 +33,7 @@ import type {
     WorkspaceRole,
 } from "@model/workspace";
 import type { Template } from "@model/templates";
-import type { ThemeSummary as Theme, ThemeInput, Tokens } from "@themes";
+import type { ThemeSummary as Theme, ThemeInput } from "@themes";
 import type {
     AddOn,
     AddOnId,
@@ -47,6 +48,16 @@ import type {
     ScheduledChange,
 } from "@model/billing";
 import type { BriefDraft, TurnEvent, TurnRequest } from "@model/ai";
+import type {
+    DesignedCandidate,
+    LibraryVoice,
+    MusicPresetInfo,
+    NarrationManifest,
+    NarrationTrack,
+    Soundtrack,
+    VoiceQuery,
+    WorkspaceVoice,
+} from "@model/speech";
 import type {
     IconPick,
     MediaCredit,
@@ -227,48 +238,6 @@ export interface LinkAnalytics {
     }[]; // private links only
 }
 
-// UNAUTHENTICATED GET /p/:slug/content; custom theme rides along (built-ins already in the viewer registry)
-export interface CustomThemeRecord {
-    id: string;
-    name: string;
-    tag: string;
-    dark: boolean;
-    tokens: Tokens;
-}
-export interface PublicContent {
-    title: string;
-    content: ArtifactContent;
-    branded: boolean;
-    customTheme: CustomThemeRecord | null;
-    credits: MediaCredit[];
-}
-// an unauthenticated raw body, so the shape is checked here; asContent() fills the shell defaults
-// rather than trusting the payload to be an ArtifactContent because the column said so
-function readPublicContent(d: Record<string, unknown>): PublicContent | null {
-    if (typeof d.title !== "string" || typeof d.content !== "object" || d.content === null) {
-        return null;
-    }
-    return {
-        title: d.title,
-        content: asContent(d.content),
-        branded: d.branded === true,
-        customTheme: (d.customTheme as CustomThemeRecord | null | undefined) ?? null,
-        credits: Array.isArray(d.credits) ? (d.credits as MediaCredit[]) : [],
-    };
-}
-
-// content or a gate; a gated response still carries the theme so the prompt shows themed
-export type PublicResult =
-    | { ok: true; content: PublicContent }
-    | {
-          ok: false;
-          status: number;
-          needsPassword?: boolean;
-          theme?: string;
-          customTheme?: CustomThemeRecord | null;
-          format?: string;
-      };
-
 // names the caller's collaboration connection on a write, so the room can skip its own author
 export const CONN_HEADER = "x-galleo-conn";
 
@@ -280,6 +249,7 @@ export type {
     Folder as ApiFolder,
     PublishPolicy,
     AccountConnection,
+    ConnectedApp,
     AuthProvider,
     Membership,
     UserPrefs,
@@ -376,9 +346,10 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ email, password }),
         }),
-    // No user comes back: signup opens the account and stops there until the address is confirmed.
+    // The session is gated until the address is confirmed, so the app opens on the onboarding
+    // surface rather than the library; `sent` says whether the confirmation mail actually went.
     signup: (email: string, password: string, name?: string) =>
-        req<{ pending: true; email: string; sent: boolean }>("/auth/signup", {
+        req<{ user: User; sent: boolean }>("/auth/signup", {
             method: "POST",
             body: JSON.stringify({ email, password, name }),
         }),
@@ -391,6 +362,8 @@ export const api = {
             body: JSON.stringify({ token, password }),
         }),
     resendVerification: () => req<{ ok: true }>("/auth/resend-verification", { method: "POST" }),
+    confirmEmail: (code: string) =>
+        req<{ user: User }>("/auth/confirm", { method: "POST", body: JSON.stringify({ code }) }),
     logout: () => req<{ ok: true }>("/auth/logout", { method: "POST" }),
 
     // the account surface; every writer answers with the whole user, so the store adopts one shape
@@ -409,6 +382,9 @@ export const api = {
     getConnections: () => req<{ connections: AccountConnection[] }>("/me/connections"),
     unlinkConnection: (provider: AuthProvider) =>
         req<{ ok: true }>(`/me/connections/${encodeURIComponent(provider)}`, { method: "DELETE" }),
+    getConnectedApps: () => req<{ apps: ConnectedApp[] }>("/me/apps"),
+    disconnectApp: (clientId: string) =>
+        req<{ ok: true }>(`/me/apps/${encodeURIComponent(clientId)}`, { method: "DELETE" }),
     getMemberships: () => req<{ memberships: Membership[] }>("/me/workspaces"),
     // `qs` carries the page's filters + cursor; the server owns folder/format/sort so pages stay coherent
     listArtifacts: (qs = "") => req<ArtifactPage>(`/artifacts${qs ? `?${qs}` : ""}`),
@@ -481,6 +457,69 @@ export const api = {
         req<{ id: string }>("/artifacts", { method: "POST", body: JSON.stringify(patch) }),
     getAiMeta: (id: string) =>
         req<{ meta: GenMeta | null }>(`/artifacts/${id}/ai-meta`).then((r) => r.meta),
+    narrationManifest: (id: string) => req<NarrationManifest>(`/artifacts/${id}/narration`),
+    // records the section if it has never been spoken; null when it has nothing to say
+    narrateSection: (id: string, sectionId: string, content?: ArtifactContent) =>
+        req<{ track: NarrationTrack | null }>(
+            `/artifacts/${id}/narration/section/${encodeURIComponent(sectionId)}`,
+            { method: "POST", body: JSON.stringify({ content }) },
+        ).then((r) => r.track),
+    soundtrack: (id: string) =>
+        req<{ track: Soundtrack | null }>(`/artifacts/${id}/soundtrack`).then((r) => r.track),
+    musicPresets: () =>
+        req<{ presets: MusicPresetInfo[] }>("/music/presets").then((r) => r.presets),
+    composeSoundtrack: (
+        id: string,
+        body: { preset?: string; custom?: boolean; lengthMs?: number; content?: ArtifactContent },
+    ) =>
+        req<{ trackId: string; cached: boolean }>(`/artifacts/${id}/soundtrack`, {
+            method: "POST",
+            body: JSON.stringify(body),
+        }),
+    voices: () => req<{ voices: WorkspaceVoice[] }>("/voices").then((r) => r.voices),
+    voiceLibrary: (q: VoiceQuery) => {
+        const p = new URLSearchParams();
+        for (const [k, v] of Object.entries(q)) if (v) p.set(k, String(v));
+        const qs = p.toString();
+        return req<{ voices: LibraryVoice[] }>(`/voices/library${qs ? `?${qs}` : ""}`).then(
+            (r) => r.voices,
+        );
+    },
+    saveVoice: (v: LibraryVoice & { makeDefault?: boolean }) =>
+        req<{ voices: WorkspaceVoice[] }>("/voices", {
+            method: "POST",
+            body: JSON.stringify(v),
+        }).then((r) => r.voices),
+    updateVoice: (id: string, patch: { name?: string; isDefault?: boolean }) =>
+        req<{ voices: WorkspaceVoice[] }>(`/voices/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(patch),
+        }).then((r) => r.voices),
+    removeVoice: (id: string) =>
+        req<{ voices: WorkspaceVoice[] }>(`/voices/${id}`, { method: "DELETE" }).then(
+            (r) => r.voices,
+        ),
+    designVoice: (description: string, sampleText?: string) =>
+        req<{ candidates: DesignedCandidate[] }>("/voices/design", {
+            method: "POST",
+            body: JSON.stringify({ description, sampleText }),
+        }).then((r) => r.candidates),
+    keepDesignedVoice: (v: {
+        generatedVoiceId: string;
+        name: string;
+        description?: string;
+        preview?: string;
+        makeDefault?: boolean;
+    }) =>
+        req<{ voices: WorkspaceVoice[] }>("/voices/design/keep", {
+            method: "POST",
+            body: JSON.stringify(v),
+        }).then((r) => r.voices),
+    auditionVoice: (voiceId: string | undefined, text?: string) =>
+        req<{ audio: string; ms: number }>("/voices/audition", {
+            method: "POST",
+            body: JSON.stringify({ voiceId, text }),
+        }),
     suggestSections: (content: ArtifactContent) =>
         req<{ suggestions: string[] }>("/ai/suggest", {
             method: "POST",
@@ -505,15 +544,17 @@ export const api = {
                     : {}),
             }),
         }).then((r) => r.brief),
+    // The path rather than the element: the server revises what the tree holds at that address, so
+    // it runs the same tool the agent does instead of trusting a node pasted into the body.
     reviseElement: (
         content: ArtifactContent,
         sectionId: string,
-        element: ElementInstance,
+        path: number[],
         instruction?: string,
     ) =>
         req<{ element: ElementInstance }>("/ai/element", {
             method: "POST",
-            body: JSON.stringify({ content, sectionId, element, instruction }),
+            body: JSON.stringify({ content, sectionId, path, instruction }),
         }).then((r) => r.element),
     assistText: (req_: {
         op: "rewrite" | "translate";
@@ -642,15 +683,18 @@ export const api = {
         req<{ item: MediaItem }>("/media/upload", { method: "POST", body: JSON.stringify(body) }),
     useMedia: (item: MediaItem) =>
         req<{ item: MediaItem }>("/media/use", { method: "POST", body: JSON.stringify({ item }) }),
-    // The workspace library. `link` is excluded by default: template placeholders are media the
-    // user never chose, and they would swamp everything that was.
-    libraryMedia: (opts: { before?: string; kind?: "image" | "video"; q?: string } = {}) =>
-        req<{ items: MediaItem[]; nextBefore: string | null }>(
-            `/media/library?sources=stock,generated,upload` +
-                (opts.kind ? `&kind=${opts.kind}` : "") +
-                (opts.q?.trim() ? `&q=${encodeURIComponent(opts.q.trim())}` : "") +
-                (opts.before ? `&before=${encodeURIComponent(opts.before)}` : ""),
-        ),
+    // Everything this workspace holds. Filtering by source hid the pictures actually in people's
+    // artifacts, which is the opposite of what a library is for.
+    libraryMedia: (opts: { before?: string; kind?: "image" | "video"; q?: string } = {}) => {
+        const q = new URLSearchParams();
+        if (opts.kind) q.set("kind", opts.kind);
+        if (opts.q?.trim()) q.set("q", opts.q.trim());
+        if (opts.before) q.set("before", opts.before);
+        const qs = q.toString();
+        return req<{ items: MediaItem[]; nextBefore: string | null }>(
+            `/media/library${qs ? `?${qs}` : ""}`,
+        );
+    },
     deleteMedia: (id: string) => req<{ ok: true }>(`/media/asset/${id}`, { method: "DELETE" }),
     artifactCredits: (id: string) => req<{ credits: MediaCredit[] }>(`/artifacts/${id}/credits`),
     mediaUsage: (id: string) =>
@@ -803,42 +847,6 @@ export const api = {
         }),
     removeRecipient: (linkId: string, recipientId: string) =>
         req<{ ok: true }>(`/links/${linkId}/recipients/${recipientId}`, { method: "DELETE" }),
-    // UNAUTHENTICATED — used by the public viewer
-    getPublicContent: async (
-        slug: string,
-        opts?: { pw?: string; k?: string; ref?: string },
-    ): Promise<PublicResult> => {
-        const q = new URLSearchParams();
-        if (opts?.pw) q.set("pw", opts.pw);
-        if (opts?.k) q.set("k", opts.k);
-        if (opts?.ref) q.set("ref", opts.ref.slice(0, 300));
-        const qs = q.toString();
-        // not via req(): a gated 401/429 isn't an error here — read its body
-        const res = await fetch(`/api/p/${slug}/content${qs ? `?${qs}` : ""}`, {
-            credentials: "same-origin",
-        });
-        let data: Record<string, unknown> = {};
-        try {
-            const text = await res.text();
-            if (text) data = JSON.parse(text);
-        } catch {
-            /* non-JSON body */
-        }
-        if (res.ok) {
-            const content = readPublicContent(data);
-            // a 200 whose body isn't the expected shape is a broken response, not content
-            if (content) return { ok: true, content };
-            return { ok: false, status: 502, customTheme: null };
-        }
-        return {
-            ok: false,
-            status: res.status,
-            needsPassword: data.needsPassword === true,
-            theme: typeof data.theme === "string" ? data.theme : undefined,
-            customTheme: (data.customTheme as CustomThemeRecord | null | undefined) ?? null,
-            format: typeof data.format === "string" ? data.format : undefined,
-        };
-    },
 };
 
 // stream one AI turn (POST /ai/turn) over SSE; throws ApiError pre-stream (e.g. 402), aborts via signal
@@ -1012,6 +1020,47 @@ export function streamGenerateMedia(
     signal?: AbortSignal,
 ): Promise<void> {
     return streamPost("/media/generate", body, onEvent, signal);
+}
+
+// POST /artifacts/:id/narration stream event: one per section as its audio lands
+export interface NarrationEvent {
+    type: "section" | "error" | "done";
+    sectionId?: string;
+    ms?: number;
+    cached?: boolean;
+    message?: string;
+    chars?: number;
+}
+
+export function streamNarration(
+    artifactId: string,
+    body: { content?: ArtifactContent; sectionIds?: string[] },
+    onEvent: (event: NarrationEvent) => void,
+    signal?: AbortSignal,
+): Promise<void> {
+    return streamPost(`/artifacts/${artifactId}/narration`, body, onEvent, signal);
+}
+
+// POST /ai/notes stream event: one per section as its notes land
+export interface NotesEvent {
+    type: "notes" | "error" | "done";
+    sectionId?: string;
+    notes?: SectionNotes;
+    message?: string;
+    written?: number;
+}
+
+export function streamSpeakerNotes(
+    body: {
+        artifactId?: string;
+        content: ArtifactContent;
+        sectionIds?: string[];
+        guidance?: string;
+    },
+    onEvent: (event: NotesEvent) => void,
+    signal?: AbortSignal,
+): Promise<void> {
+    return streamPost("/ai/notes", body, onEvent, signal);
 }
 
 // stream one generated Veo clip (progress heartbeats, then the item; ~1–2 min)

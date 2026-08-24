@@ -21,6 +21,7 @@ export function surfaceAllowed(_surface: Surface, _tier: Tier): boolean {
 }
 
 const COARSE = "(pointer: coarse)";
+const REDUCED = "(prefers-reduced-motion: reduce)";
 
 const initialWidth = (): number =>
     typeof window === "undefined" ? BREAKPOINTS.xl : window.innerWidth;
@@ -30,12 +31,15 @@ const matches = (q: string): boolean =>
 
 const [tier, setTier] = createSignal<Tier>(tierFor(initialWidth()));
 const [coarse, setCoarse] = createSignal(matches(COARSE));
+const [reduced, setReduced] = createSignal(matches(REDUCED));
 
 export const viewportTier = tier;
 export const isPhone = (): boolean => tier() === "phone";
 export const isDesktop = (): boolean => tier() === "desktop";
 // Coarse pointer means touch-sized hit targets, not a narrow viewport: a tablet is both.
 export const isCoarsePointer = coarse;
+// Playback motion stands down entirely under this, rather than running shortened.
+export const prefersReducedMotion = reduced;
 
 export const canEditHere = (): boolean => surfaceAllowed("manipulate", tier());
 
@@ -45,10 +49,12 @@ if (typeof window !== "undefined" && window.matchMedia) {
         window.matchMedia(`(min-width: ${BREAKPOINTS.md}px)`),
         window.matchMedia(`(min-width: ${BREAKPOINTS.lg}px)`),
         window.matchMedia(COARSE),
+        window.matchMedia(REDUCED),
     ];
     const sync = (): void => {
         setTier(tierFor(window.innerWidth));
         setCoarse(matches(COARSE));
+        setReduced(matches(REDUCED));
     };
     for (const m of watched) m.addEventListener("change", sync);
 }

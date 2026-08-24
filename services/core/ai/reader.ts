@@ -2,6 +2,8 @@ import { and, desc, eq, ilike, isNull } from "drizzle-orm";
 import type { ArtifactContent } from "@model/artifact";
 import { asContent } from "@model/artifact";
 import type { ArtifactRef } from "@model/ai";
+import type { Viewer } from "@services/core/artifacts";
+import { searchArtifacts } from "@services/core/search";
 import type { WorkspaceReader } from "./tools";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
@@ -22,9 +24,29 @@ const toRef = (r: {
     updatedAt: r.updatedAt.toISOString(),
 });
 
-export function makeWorkspaceReader(workspaceId: string): WorkspaceReader {
+/**
+ * `viewer` opts the search into the same index the library and ⌘K query, which needs a viewer to
+ * scope what this person may see at all. Without one the title match still answers, so a caller that
+ * has no viewer to hand (the eval harness) keeps working rather than seeing nothing.
+ */
+export function makeWorkspaceReader(workspaceId: string, viewer?: Viewer): WorkspaceReader {
     return {
         async find(query?: string): Promise<ArtifactRef[]> {
+            if (query && viewer) {
+                const hits = await searchArtifacts({
+                    workspaceId,
+                    userId: viewer.userId,
+                    query,
+                    limit: 12,
+                    viewer,
+                });
+                return hits.map((h) => ({
+                    id: h.id,
+                    title: h.title,
+                    format: h.formatId,
+                    updatedAt: h.updatedAt,
+                }));
+            }
             const rows = await db
                 .select({
                     id: schema.artifacts.id,

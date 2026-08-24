@@ -34,12 +34,27 @@ export interface PageSize {
     height: number;
 }
 
+// Presenter notes for one section. `spoken` is the narration script and the only part a voice ever
+// reads; `cues` are for the person at the podium and are stripped at the publish boundary.
+export interface SectionNotes {
+    spoken: string;
+    cues?: string[];
+    source?: "ai" | "human"; // an untouched AI draft can be regenerated without asking
+    /**
+     * `sectionFingerprint` of the section when these notes were written, so a script that no longer
+     * describes what is on screen can be told from one that does. Absent on notes written before
+     * this existed, which count as current: a deploy must not rewrite everyone's notes at once.
+     */
+    of?: string;
+}
+
 export interface Section {
     id: Id;
     root: ElementInstance; // one recursive container/leaf tree
     background?: SectionBackground;
     bleed?: boolean; // full-bleed edge-to-edge vs a contained card
     frame?: SectionFrame;
+    notes?: SectionNotes;
 }
 
 // Everything except the sections. The section-ops route rewrites stored content through this, so an
@@ -49,7 +64,29 @@ export interface ArtifactShell {
     theme: Id;
     background?: SectionBackground; // document-level backdrop behind all sections
     page?: PageSize;
+    // which voice narrates this piece, overriding the workspace default; a workspace_voices row.
+    // Not a secret, so unlike `notes` it is fine on a public payload: it names who is speaking.
+    voice?: Id;
+    // the instrumental bed heard while this piece is presented; `trackId` is a soundtracks row,
+    // either a house preset or one written for this artifact
+    music?: ArtifactMusic;
 }
+
+export interface ArtifactMusic {
+    on: boolean;
+    trackId?: Id;
+    volume?: number; // 0..1 of the bed's own level, before ducking; default MUSIC_VOLUME
+}
+
+/** The bed's resting level. Low by design: it is under something, not the thing. */
+export const MUSIC_VOLUME = 0.35;
+
+/** How far the bed drops while a voice speaks. Ordinary broadcast practice, not a guess at taste. */
+export const MUSIC_DUCK = 0.3;
+
+/** The bed's gain right now: its own level, cut hard while something is being said. */
+export const duckedVolume = (base: number, speaking: boolean): number =>
+    Math.max(0, Math.min(1, speaking ? base * MUSIC_DUCK : base));
 
 export interface ArtifactContent extends ArtifactShell {
     sections: Section[];
@@ -69,8 +106,26 @@ export const asContent = (draft: unknown): ArtifactContent => {
         sections: Array.isArray(d.sections) ? d.sections : [],
         ...(d.background ? { background: d.background } : {}),
         ...(d.page ? { page: d.page } : {}),
+        ...(d.voice ? { voice: d.voice } : {}),
+        ...(d.music ? { music: d.music } : {}),
     };
 };
+
+/**
+ * Content with every section's notes removed, for the publish boundary. Presenter cues are written
+ * to be seen by the speaker alone, so the payload a viewer receives must not carry them; the spoken
+ * script a caption needs is served from the narration route, which is gated per link.
+ *
+ * Identity-preserving: a section with no notes comes back as the same object.
+ */
+export function withoutNotes(content: ArtifactContent): ArtifactContent {
+    const sections = content.sections.map((s) => {
+        if (!s.notes) return s;
+        const { notes: _notes, ...rest } = s;
+        return rest;
+    });
+    return sections.some((s, i) => s !== content.sections[i]) ? { ...content, sections } : content;
+}
 
 // column fractions per named starter layout
 export const LAYOUT_PRESETS: Record<string, number[]> = {
@@ -582,7 +637,10 @@ export function applySectionOps(content: ArtifactContent, ops: SectionOp[]): App
                 return { ok: false, reason: "order is not a permutation of the document" };
             sections = op.ids.map((id) => by.get(id)!);
         } else {
-            shell = { ...shell, ...op.shell };
+            // A replace, not a merge: every emitter (diffSections, invertOps) sends the whole
+            // shell, and merging made a removed field inexpressible — clearing an artifact's voice
+            // back to the workspace default would have kept the old one forever.
+            shell = op.shell;
         }
     }
     return { ok: true, content: { ...shell, sections } };
@@ -631,8 +689,13 @@ function dataDelta(before: ElementInstance, after: ElementInstance): DataChange[
     return out;
 }
 
+// Every non-`root` field of a Section belongs here: narrowOps drops a `set` op whose shell is equal
+// and whose tree is identical, so a field missing from this list is an edit that never reaches the row.
 const SECTION_SHELL_EQUAL = (b: Section, a: Section): boolean =>
-    b.background === a.background && b.bleed === a.bleed && b.frame === a.frame;
+    b.background === a.background &&
+    b.bleed === a.bleed &&
+    b.frame === a.frame &&
+    b.notes === a.notes;
 
 /** Rewrites the `set` ops that are only element-data changes; everything else passes through. */
 export function narrowOps(before: ArtifactContent, ops: SectionOp[]): SectionOp[] {
@@ -742,19 +805,17 @@ export function diffSections(before: ArtifactContent, after: ArtifactContent): S
     if (kept.join() !== keptAfter.join())
         ops.push({ kind: "order", ids: after.sections.map((s) => s.id) });
 
-    if (
-        before.format !== after.format ||
-        before.theme !== after.theme ||
-        before.background !== after.background
-    )
-        ops.push({
-            kind: "shell",
-            shell: {
-                format: after.format,
-                theme: after.theme,
-                ...(after.background ? { background: after.background } : {}),
-            },
-        });
+    // The shell is compared generically rather than field by field. A hand-listed version silently
+    // dropped every field it did not name: adding `voice` to ArtifactShell made a voice-only change
+    // diff to zero ops, so the choice never reached the row. Anything added to the shell from here
+    // is carried by construction.
+    const { sections: _beforeSections, ...beforeShell } = before;
+    const { sections: _afterSections, ...afterShell } = after;
+    const keys = new Set([...Object.keys(beforeShell), ...Object.keys(afterShell)]);
+    const shellChanged = [...keys].some(
+        (k) => beforeShell[k as keyof ArtifactShell] !== afterShell[k as keyof ArtifactShell],
+    );
+    if (shellChanged) ops.push({ kind: "shell", shell: afterShell });
     return ops;
 }
 
@@ -1082,6 +1143,52 @@ function collect(value: unknown, key: string | null, push: (s: string) => void):
     if (value !== null && typeof value === "object")
         for (const [k, v] of Object.entries(value)) collect(v, k, push);
 }
+
+/** One section's prose, in tree order. The same walk the search index uses, over a single root. */
+export function sectionText(section: Section): string {
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    collect(section.root, null, (s) => {
+        if (seen.has(s)) return;
+        seen.add(s);
+        parts.push(s);
+    });
+    return parts.join(" ");
+}
+
+/**
+ * What a script was written against. FNV-1a rather than a real digest: this layer is edge-safe and
+ * has no crypto, and a collision costs one script that should have been rewritten and was not.
+ *
+ * Over the section's words alone, never its layout or its background, so moving a box does not
+ * invalidate a script that is still accurate.
+ */
+export function sectionFingerprint(section: Section): string {
+    const text = sectionText(section);
+    let h = 0x811c9dc5;
+    for (let i = 0; i < text.length; i++) {
+        h ^= text.charCodeAt(i);
+        h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0).toString(16);
+}
+
+/** No script at all: nothing for a voice to say until one is written. */
+export const unscripted = (section: Section): boolean => !section.notes?.spoken.trim();
+
+/**
+ * An AI script that no longer matches the section it describes. A person's own writing is never
+ * stale by this measure, because rewriting what someone wrote is not a cache decision.
+ */
+export function scriptStale(section: Section): boolean {
+    const notes = section.notes;
+    if (!notes?.spoken.trim() || notes.source !== "ai" || !notes.of) return false;
+    return notes.of !== sectionFingerprint(section);
+}
+
+/** Sections a narrator must write before it can speak them: never written, or written for old copy. */
+export const needsScript = (section: Section): boolean =>
+    unscripted(section) || scriptStale(section);
 
 /** Every prose string in the tree, section-blocks separated by a blank line so snippets never span two. */
 export function artifactSearchText(draft: unknown): string {

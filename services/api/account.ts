@@ -11,8 +11,9 @@ import {
     updatePrefs,
     updateProfile,
 } from "@services/core/accounts";
+import { appsFor, purgeSpent, revokeApp } from "@services/core/authorization";
 import { membershipsOf } from "@services/core/workspaces";
-import { requireUser, type AuthedEnv } from "./middleware";
+import { requireSession, requireUser, type AuthedEnv } from "./middleware";
 
 // Everything under /me: the account itself, as opposed to /auth/* (the session lifecycle) and
 // /workspace (the tenant).
@@ -21,7 +22,7 @@ export const account = new Hono<AuthedEnv>();
 // The change form takes the current password, so it is a guessing target the same way login is.
 const passwordLimiter = rateLimit({ name: "password-change", limit: 10, windowMs: 15 * 60_000 });
 
-account.get("/me", requireUser, (c) => c.json({ user: c.get("user") }));
+account.get("/me", requireSession, (c) => c.json({ user: c.get("user") }));
 
 // name is nullish rather than optional: sending null clears it, and zod keeps the key present so
 // the "nothing to update" check can still tell an absent field from a cleared one.
@@ -69,6 +70,20 @@ account.delete("/me/connections/:provider", requireUser, async (c) => {
     if (result === "last-credential")
         return c.json({ error: "Set a password first, so you keep a way to sign in." }, 409);
     return c.json({ ok: true });
+});
+
+// Apps connected over MCP, which are a credential this account handed out rather than an identity
+// it signed in with, so they sit beside /me/connections rather than inside it. The read is also
+// where spent codes and long-dead tokens get swept: it is the one moment someone looks at this data,
+// and the credit window already establishes that lazy-on-read beats a cron here.
+account.get("/me/apps", requireUser, async (c) => {
+    await purgeSpent();
+    return c.json({ apps: await appsFor(c.get("user").id) });
+});
+
+account.delete("/me/apps/:clientId", requireUser, async (c) => {
+    const gone = await revokeApp(c.get("user").id, c.req.param("clientId"));
+    return gone ? c.json({ ok: true }) : c.json({ error: "that app isn't connected" }, 404);
 });
 
 account.patch("/me/prefs", requireUser, async (c) => {

@@ -24,6 +24,7 @@ import {
     editing,
     editor,
     editorAccent,
+    hover,
     regions,
     selection,
     stageEl,
@@ -58,7 +59,10 @@ import {
     markersRevealed,
     sectionAtY,
     sectionChips,
-    chipAt,
+    CHIP_GAP,
+    CHIP_H,
+    CHIP_REQUEST_ID,
+    CHIP_W,
     lineOfOffset,
     lineTop,
     markerX,
@@ -234,16 +238,60 @@ export const CommentLayer: Component = () => {
             hoverless: isPhone(),
         });
 
+    /**
+     * The element a new comment would attach to. Same rule as the drag grip on the left edge
+     * (`hover() ?? selection()`), so the two travel together: what the pointer is over, falling back
+     * to what is selected once it leaves the canvas. It used to key on selection alone, which left
+     * the chip pinned beside an element for as long as it stayed selected, and selection is an
+     * editing state rather than an invitation to comment.
+     *
+     * A part of a composite gets no chip, inline editing included: that is the case where it floats
+     * over a cell too small to hold it and covers the very content it points at.
+     */
+    const chipTarget = createMemo((): ElementAddress | null => {
+        if (drag() || liveEdit()) return null;
+        const t = editing()
+            ? { kind: "element" as const, address: editing()! }
+            : (hover() ?? selection());
+        const at = t?.kind === "element" ? t.address : null;
+        return at && commentableAt(editor.artifact, at) ? at : null;
+    });
+
+    /**
+     * Where the creation chip wants to be: just outside the selected element's own right edge, at
+     * its top, which is the mirror of the drag grip on the left. It falls back to the section's edge
+     * only when there is no painted box to sit beside, which is a section that has not materialized.
+     */
+    const chipRequest = createMemo((): MarkerRequest | null => {
+        const target = chipTarget();
+        if (!target) return null;
+        const box = regionMap().get(elementRegionId(target))?.box;
+        return {
+            id: CHIP_REQUEST_ID,
+            y: box ? box.y : sectionTop(target.section),
+            rightOf: box ? box.x + box.w : sectionRight(target.section),
+            gap: CHIP_GAP,
+            size: CHIP_W,
+        };
+    });
+
+    // One pass for everything in the lane, the creation chip included. The markers hang off their
+    // section's edge and the chip off its element's, so the two only collide when the element runs
+    // the section's full width, and that is exactly when this keeps them apart.
     const placed = createMemo(() => {
         const requests: MarkerRequest[] = spots()
             .filter((s) => revealed(s.address.section))
             .map((s) => ({
                 id: s.thread.root.id,
                 y: s.y,
-                sectionRight: s.sectionRight,
+                rightOf: s.sectionRight,
             }));
+        const chip = chipRequest();
+        if (chip) requests.push(chip);
         return placeMarkers(requests, stageW());
     });
+
+    const chipSpot = createMemo(() => placed().find((m) => m.id === CHIP_REQUEST_ID) ?? null);
 
     const byThread = createMemo(() => new Map(placed().map((m) => [m.id, m])));
     const spotOf = (id: string): ThreadSpot | undefined =>
@@ -274,18 +322,19 @@ export const CommentLayer: Component = () => {
         return null;
     });
 
-    // The composer opens beside the chip that started it, which sits on the element's own top-right
-    // corner. Anchoring it to the section's border instead put it across the canvas from the thing
-    // being commented on, and on top of the docked inspector.
+    // The composer opens beside the chip that started it, so it hangs off the same edge: the
+    // anchored element's, at that element's own height. It flips leftward when there is no room to
+    // its right, which is what panelAt already decides for every marker's panel.
     const draftAt = createMemo(() => {
         const d = commentDraft();
         if (!d) return null;
         const address = ids().get(d.anchor.elementId);
-        const box = address ? regionMap().get(elementRegionId(address))?.box : undefined;
-        if (box) return chipAt(box, stageW());
-        // nothing painted to sit beside (an unmaterialized section), so the margin is the anchor
         const section = address?.section ?? d.sectionId;
-        return { x: markerX(sectionRight(section), stageW()), y: sectionTop(section) };
+        const box = address ? regionMap().get(elementRegionId(address))?.box : undefined;
+        return {
+            x: markerX(box ? box.x + box.w : sectionRight(section), stageW(), CHIP_GAP, CHIP_W),
+            y: box ? box.y : sectionTop(section),
+        };
     });
 
     return (
@@ -334,7 +383,20 @@ export const CommentLayer: Component = () => {
                     </Show>
                 )}
             </For>
-            <SelectionChip />
+            <Show when={chipTarget()}>
+                {(target) => (
+                    <Show when={chipSpot()}>
+                        {(spot) => (
+                            <SelectionChip
+                                address={target()}
+                                from={chipRequest()?.rightOf ?? spot().x}
+                                x={spot().x}
+                                y={spot().y}
+                            />
+                        )}
+                    </Show>
+                )}
+            </Show>
             {/* phone puts the thread and the composer in sheets instead (see CommentSheets) */}
             <Show when={!isPhone() && active()}>
                 {(a) => (
@@ -349,7 +411,11 @@ export const CommentLayer: Component = () => {
             <Show when={!isPhone() && orphanActive()}>
                 {(o) => <ThreadPanel thread={o().thread} x={o().x} y={o().y} degraded />}
             </Show>
-            <Show when={!isPhone() && draftAt()}>{(d) => <DraftPanel x={d().x} y={d().y} />}</Show>
+            {/* anchorW is the chip's own width, which is the grip's rather than a marker's, so the
+                composer sits the same gap from it that a thread panel sits from a marker */}
+            <Show when={!isPhone() && draftAt()}>
+                {(d) => <DraftPanel x={d().x} y={d().y} anchorW={CHIP_W} />}
+            </Show>
         </Show>
     );
 };
@@ -535,57 +601,53 @@ const ResolvedChip: Component<{
     );
 };
 
-// The creation surface: a chip on the selected element's top-right corner. The press keeps the
-// canvas out of it (preventDefault holds the contenteditable's focus and its selection,
-// stopPropagation stops the canvas clearing the selection), which is what lets the anchor be read
-// from whatever was in context.
-const SelectionChip: Component = () => {
-    const address = createMemo((): ElementAddress | null => {
-        if (drag() || liveEdit()) return null;
-        const sel = selection();
-        const at = editing() ?? (sel?.kind === "element" ? sel.address : null);
-        // a part of a composite gets no chip, inline editing included: that is the case where it
-        // floats over a cell too small to hold it and covers the very content it points at
-        return at && commentableAt(editor.artifact, at) ? at : null;
-    });
-    const box = createMemo((): Rect | null => {
-        const a = address();
-        if (!a) return null;
-        return regions().find((r) => r.id === elementRegionId(a))?.box ?? null;
-    });
-    const at = createMemo(() => {
-        const b = box();
-        return b ? chipAt(b, canvasContentWidth()) : null;
-    });
-
+/**
+ * The creation surface: a pill just outside the element's right edge, mirroring the grip on its
+ * left. The press keeps the canvas out of it (preventDefault holds the contenteditable's focus and
+ * its selection, stopPropagation stops the canvas clearing the selection), which is what lets the
+ * anchor be read from whatever was in context.
+ */
+const SelectionChip: Component<{
+    address: ElementAddress;
+    from: number; // the element's right edge, so the bridge below knows where to start
+    x: number;
+    y: number;
+}> = (props) => {
     const open = (e: PointerEvent): void => {
         e.preventDefault();
         e.stopPropagation();
-        const a = address();
-        if (!a) return;
         // read before anything can blur the field: the selection nulls the moment focus moves
         const range = textSelection();
-        const draft = captureAnchor(a, range);
+        const draft = captureAnchor(props.address, range);
         if (draft) startCommentDraft(draft);
     };
 
     return (
-        <Show when={at()}>
-            {(spot) => (
-                <button
-                    data-galleo-toolbar="true"
-                    data-galleo-comment="true"
-                    data-galleo-comment-chip="true"
-                    class="absolute z-panel grid size-7 place-items-center rounded-full border border-line bg-panel text-muted shadow-md transition-colors hover:border-accent hover:text-accent"
-                    style={{ left: `${spot().x}px`, top: `${spot().y}px` }}
-                    title="Comment on this"
-                    onPointerMove={(e) => e.stopPropagation()}
-                    onPointerDown={open}
-                >
-                    <Icon name="comment" size={14} />
-                </button>
-            )}
-        </Show>
+        // A hover bridge, not a target, exactly as the grip has: it runs from the element's own
+        // right edge out to the pill so crossing the gap never lands on the canvas, which would
+        // read as hovering the section and take the chip away mid-reach. Only the pill takes the
+        // press, or the margin would swallow every backdrop click.
+        <div
+            class="absolute z-menu flex items-start justify-end"
+            style={{
+                left: `${props.from}px`,
+                top: `${props.y}px`,
+                width: `${Math.max(CHIP_W, props.x + CHIP_W - props.from)}px`,
+                height: `${CHIP_H}px`,
+            }}
+            onPointerMove={(e) => e.stopPropagation()}
+        >
+            <button
+                data-galleo-toolbar="true"
+                data-galleo-comment="true"
+                data-galleo-comment-chip="true"
+                class="flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border border-line bg-panel/90 text-muted shadow-sm backdrop-blur-md transition-colors hover:border-accent hover:text-accent"
+                title="Comment on this"
+                onPointerDown={open}
+            >
+                <Icon name="comment" size={12} />
+            </button>
+        </div>
     );
 };
 

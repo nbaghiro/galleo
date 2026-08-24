@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { ArtifactContent, ElementInstance, Section, SectionOp, Target } from "@model/artifact";
+import type {
+    ArtifactContent,
+    ElementInstance,
+    Section,
+    SectionNotes,
+    SectionOp,
+    Target,
+} from "@model/artifact";
 import {
     LAYOUT_PRESETS,
     applySectionOps,
@@ -9,6 +16,11 @@ import {
     narrowOps,
     artifactDigest,
     artifactSearchText,
+    needsScript,
+    scriptStale,
+    sectionFingerprint,
+    sectionText,
+    unscripted,
     childrenRaw,
     colGroup,
     diffSections,
@@ -22,6 +34,8 @@ import {
     targetsEqual,
     updateAtPath,
     withWidth,
+    withoutNotes,
+    duckedVolume,
     toContainer,
 } from "@model/artifact";
 
@@ -515,6 +529,108 @@ describe("narrowOps", () => {
         // and the untouched section keeps its object, which the whole-section set would not have
         expect(applied.ok && applied.content.sections[1]).toBe(before.sections[1]);
     });
+
+    // A notes-only edit leaves the tree identical, so dataDelta returns [] — truthy — and without
+    // `notes` in SECTION_SHELL_EQUAL the set narrows to zero ops and the edit never reaches the row.
+    it("keeps a notes-only edit as a whole-section set", () => {
+        const before = dataDoc();
+        const next: Section = { ...before.sections[0]!, notes: { spoken: "say this" } };
+        const ops = narrowOps(before, [{ kind: "set", section: next }]);
+        expect(ops).toEqual([{ kind: "set", section: next }]);
+        const applied = applySectionOps(before, ops);
+        expect(applied.ok && applied.content.sections[0]?.notes).toEqual({ spoken: "say this" });
+    });
+
+    it("keeps a set that changes notes and element data together", () => {
+        const before = dataDoc();
+        const edited = withText(before, "s1", 0, "changed");
+        const next: Section = { ...edited, notes: { spoken: "and say this" } };
+        expect(narrowOps(before, [{ kind: "set", section: next }])[0]?.kind).toBe("set");
+    });
+});
+
+describe("diffSections — the shell", () => {
+    const shell = (over: Partial<ArtifactContent> = {}): ArtifactContent => ({
+        format: "deck",
+        theme: "studio",
+        sections: [],
+        ...over,
+    });
+
+    it("emits nothing when the shell is unchanged", () => {
+        expect(diffSections(shell(), shell())).toEqual([]);
+    });
+
+    // The hand-listed version compared format, theme and background only, so adding `voice` made a
+    // voice-only change diff to zero ops and the choice never reached the row.
+    it("notices a change to any shell field, named here or added later", () => {
+        for (const over of [
+            { theme: "other" },
+            { format: "doc" },
+            { voice: "v1" },
+            { page: { width: 1, height: 2 } },
+        ] as Partial<ArtifactContent>[]) {
+            const ops = diffSections(shell(), shell(over));
+            expect(ops).toHaveLength(1);
+            expect(ops[0]?.kind).toBe("shell");
+        }
+    });
+
+    it("carries the whole shell, so applying one change keeps the others", () => {
+        const before = shell({ voice: "v1", page: { width: 1, height: 2 } });
+        const after = { ...before, theme: "other" };
+        const applied = applySectionOps(before, diffSections(before, after));
+        expect(applied.ok && applied.content).toMatchObject({
+            theme: "other",
+            voice: "v1",
+            page: { width: 1, height: 2 },
+        });
+    });
+
+    it("round-trips a removed shell field rather than leaving it behind", () => {
+        const before = shell({ voice: "v1" });
+        const after = shell();
+        const applied = applySectionOps(before, diffSections(before, after));
+        expect(applied.ok && applied.content.voice).toBeUndefined();
+    });
+});
+
+describe("withoutNotes", () => {
+    const noted = (): ArtifactContent => ({
+        format: "deck",
+        theme: "studio",
+        sections: [
+            {
+                id: "s1",
+                root: leaf("one"),
+                notes: { spoken: "script", cues: ["do not mention Q3"] },
+            },
+            { id: "s2", root: leaf("two") },
+        ],
+    });
+
+    it("removes the notes key entirely rather than blanking it", () => {
+        const stripped = withoutNotes(noted());
+        expect(stripped.sections[0]).not.toHaveProperty("notes");
+        expect(JSON.stringify(stripped)).not.toContain("do not mention Q3");
+    });
+
+    it("leaves everything else alone, including the section's own identity", () => {
+        const before = noted();
+        const stripped = withoutNotes(before);
+        expect(stripped.sections[0]?.root).toBe(before.sections[0]!.root);
+        expect(stripped.sections[1]).toBe(before.sections[1]);
+        expect(stripped.format).toBe("deck");
+    });
+
+    it("returns the same object when no section carries notes", () => {
+        const plain: ArtifactContent = {
+            format: "doc",
+            theme: "studio",
+            sections: [{ id: "s1", root: leaf("one") }],
+        };
+        expect(withoutNotes(plain)).toBe(plain);
+    });
 });
 
 describe("invertOps", () => {
@@ -905,5 +1021,149 @@ describe("toContainer", () => {
     it("is idempotent, so a half-finished run is safe to repeat", () => {
         const once = toContainer({ type: "card", data: { children: [], style: "plain" } });
         expect(toContainer(once)).toBe(once);
+    });
+});
+
+describe("duckedVolume", () => {
+    it("leaves the bed at its own level when nothing is being said", () => {
+        expect(duckedVolume(0.35, false)).toBeCloseTo(0.35);
+    });
+
+    it("drops it hard while a voice speaks, which is the whole point", () => {
+        expect(duckedVolume(0.35, true)).toBeLessThan(0.35 / 2);
+    });
+
+    it("never leaves the 0..1 an audio element accepts", () => {
+        expect(duckedVolume(5, false)).toBe(1);
+        expect(duckedVolume(-1, false)).toBe(0);
+        expect(duckedVolume(1, true)).toBeLessThanOrEqual(1);
+    });
+
+    it("stays silent when the bed is muted, speaking or not", () => {
+        expect(duckedVolume(0, false)).toBe(0);
+        expect(duckedVolume(0, true)).toBe(0);
+    });
+});
+
+describe("sectionText", () => {
+    const sec = (root: ElementInstance): Section => ({ id: "s1", root });
+
+    it("reads the words out of the tree, in order", () => {
+        const got = sectionText(
+            sec({
+                type: "stack",
+                data: {
+                    children: [
+                        { type: "text", data: { text: "A headline" } },
+                        { type: "text", data: { text: "and a subhead" } },
+                    ],
+                },
+            }),
+        );
+        expect(got).toBe("A headline and a subhead");
+    });
+
+    it("leaves out ids, colors and urls, which are not what a script is about", () => {
+        const got = sectionText(
+            sec({
+                type: "image",
+                data: { color: "#ff0000", src: "https://example.com/a.png", align: "left" },
+            }),
+        );
+        expect(got).toBe("");
+    });
+
+    it("says nothing for a section with no words at all", () => {
+        expect(sectionText(sec({ type: "spacer", data: {} }))).toBe("");
+    });
+});
+
+describe("sectionFingerprint", () => {
+    const words = (text: string): Section => ({ id: "s1", root: { type: "text", data: { text } } });
+
+    it("is stable for the same words", () => {
+        expect(sectionFingerprint(words("A headline"))).toBe(
+            sectionFingerprint(words("A headline")),
+        );
+    });
+
+    it("moves when the words do", () => {
+        expect(sectionFingerprint(words("A headline"))).not.toBe(
+            sectionFingerprint(words("A different headline")),
+        );
+    });
+
+    // the script describes what is said, not where it sits, so a nudge must not invalidate it
+    it("ignores everything that is not the words", () => {
+        const base = words("A headline");
+        const moved: Section = {
+            ...base,
+            bleed: true,
+            background: { kind: "color", color: "#123456" },
+            notes: { spoken: "something else entirely" },
+        };
+        expect(sectionFingerprint(moved)).toBe(sectionFingerprint(base));
+    });
+});
+
+describe("scriptStale", () => {
+    const scripted = (text: string, notes: SectionNotes): Section => ({
+        id: "s1",
+        root: { type: "text", data: { text } },
+        notes,
+    });
+
+    it("is true when AI notes were written against copy that has since changed", () => {
+        const before = scripted("A headline", { spoken: "we say this", source: "ai" });
+        const stamped = scripted("A headline", {
+            spoken: "we say this",
+            source: "ai",
+            of: sectionFingerprint(before),
+        });
+        expect(scriptStale(stamped)).toBe(false);
+        expect(
+            scriptStale({ ...stamped, root: { type: "text", data: { text: "Rewritten" } } }),
+        ).toBe(true);
+    });
+
+    // rewriting what a person wrote is not a cache decision, whatever the fingerprint says
+    it("is never true for notes a person wrote", () => {
+        const s = scripted("A headline", { spoken: "mine", source: "human", of: "deadbeef" });
+        expect(scriptStale(s)).toBe(false);
+    });
+
+    // a deploy must not rewrite every script in the product at once
+    it("treats notes written before fingerprinting as current", () => {
+        expect(scriptStale(scripted("A headline", { spoken: "old", source: "ai" }))).toBe(false);
+    });
+
+    it("is false when there is nothing written yet", () => {
+        expect(scriptStale(scripted("A headline", { spoken: "   ", source: "ai" }))).toBe(false);
+    });
+});
+
+describe("needsScript", () => {
+    const bare: Section = { id: "s1", root: { type: "text", data: { text: "A headline" } } };
+
+    it("is true for a section nobody has written for", () => {
+        expect(needsScript(bare)).toBe(true);
+        expect(unscripted(bare)).toBe(true);
+    });
+
+    it("is false once it has something to say that still fits", () => {
+        const s: Section = {
+            ...bare,
+            notes: { spoken: "we say this", source: "ai", of: sectionFingerprint(bare) },
+        };
+        expect(needsScript(s)).toBe(false);
+    });
+
+    it("is true again after the copy moves out from under an AI script", () => {
+        const s: Section = {
+            ...bare,
+            notes: { spoken: "we say this", source: "ai", of: sectionFingerprint(bare) },
+            root: { type: "text", data: { text: "Something else" } },
+        };
+        expect(needsScript(s)).toBe(true);
     });
 });

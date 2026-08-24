@@ -22,6 +22,8 @@ import "@elements/composite/testimonial";
 import "@elements/composite/pricing";
 import "@elements/composite/cta";
 import "@elements/composite/faq";
+import "@elements/composite/tabs";
+import "@elements/composite/popup";
 import "@elements/composite/comparison";
 
 import "@elements/basic/button";

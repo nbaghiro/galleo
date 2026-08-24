@@ -84,6 +84,16 @@ function completion(p: string): string {
         const { id: _id, ...plan } = beat("sX", "Scripted beat", "proof");
         return JSON.stringify(plan);
     }
+    // speaker notes: the prompt names its targets, so the scripted answer covers exactly those
+    const notesFor = /Write notes for these sections\n(.+)/.exec(p);
+    if (notesFor)
+        return JSON.stringify({
+            notes: [...notesFor[1]!.matchAll(/\[([^\]]+)\]/g)].map((m) => ({
+                sectionId: m[1],
+                spoken: `Scripted script for ${m[1]}.`,
+                cues: [],
+            })),
+        });
     if (/section ideas/.test(p))
         return JSON.stringify({
             suggestions: [

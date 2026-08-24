@@ -12,7 +12,7 @@ import { currentMembership, type WorkspaceRow } from "@services/core/accounts";
 import { artifactCredits } from "@services/core/media";
 import { recordArtifactVisit, recordTemplateUse } from "@services/core/visits";
 import { markGrantSeen } from "@services/core/collaborators";
-import { CONN_HEADER, openRoom } from "@services/core/collab";
+import { CONN_HEADER, openRoom, syncArtifactAccess } from "@services/core/collab";
 import {
     applyContentOps,
     createArtifact,
@@ -248,13 +248,13 @@ artifacts.put("/artifacts/:id/access", requireWorkspace, async (c) => {
     if (access !== null && !isAccess(access))
         return c.json({ error: "that is not an access level" }, 400);
     const ok = await setArtifactAccess(c.get("ws").id, c.req.param("id"), access);
-    if (ok)
-        capture(
-            { userId: c.get("user").id, workspaceId: c.get("ws").id },
-            "artifact_access_changed",
-            { to: access ?? "workspace_default" },
-        );
-    return ok ? c.json({ ok: true, access }) : c.json({ error: "not found" }, 404);
+    if (!ok) return c.json({ error: "not found" }, 404);
+    // everyone in the room resolved their level from the old value, so they all re-resolve
+    await syncArtifactAccess(c.req.param("id"));
+    capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "artifact_access_changed", {
+        to: access ?? "workspace_default",
+    });
+    return c.json({ ok: true, access });
 });
 
 artifacts.patch("/artifacts/:id/content", requireUser, async (c) => {
@@ -290,11 +290,11 @@ artifacts.patch("/artifacts/:id", requireUser, async (c) => {
         return c.json({ error: "only the owning workspace can move this artifact" }, 403);
     const a = await updateArtifact(gate.ws.id, c.req.param("id"), body);
     if (!a) return c.json({ error: "not found" }, 404);
-    const who = { userId: c.get("user").id, workspaceId: gate.ws.id };
-    // Title and folder only. A content write is an edit, and the editing-depth events describe it.
-    if (body.title !== undefined) capture(who, "artifact_renamed", {});
+    // A move is a library act worth counting; a rename carries nothing a query can use.
     if (body.folderId !== undefined)
-        capture(who, "artifact_moved", { to_folder: body.folderId !== null });
+        capture({ userId: c.get("user").id, workspaceId: gate.ws.id }, "artifact_moved", {
+            to_folder: body.folderId !== null,
+        });
     // a whole-document write has no ops to replay, so anyone in the room reloads from the new seq
     if (body.draftContent !== undefined) openRoom(c.req.param("id"))?.resyncAll(a.seq);
     return c.json({ ok: true, updatedAt: a.updatedAt, seq: a.seq });

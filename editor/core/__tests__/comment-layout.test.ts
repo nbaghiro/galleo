@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import type { MarkerRequest } from "@editor/core/comments";
+import { HANDLE_GAP } from "@editor/core/store";
 import {
+    CHIP_GAP,
+    CHIP_W,
+    MARKER_GAP,
     MARKER_SIZE,
     MARKER_SPACING,
     MARKER_SPACING_TOUCH,
-    chipAt,
+    CHIP_REQUEST_ID,
     lineOfOffset,
     lineTop,
     markersRevealed,
@@ -72,8 +77,8 @@ describe("placeMarkers", () => {
     it("leaves markers where they ask to be when they already clear each other", () => {
         const placed = placeMarkers(
             [
-                { id: "a", y: 100, sectionRight: 900 },
-                { id: "b", y: 400, sectionRight: 900 },
+                { id: "a", y: 100, rightOf: 900 },
+                { id: "b", y: 400, rightOf: 900 },
             ],
             1200,
         );
@@ -84,9 +89,9 @@ describe("placeMarkers", () => {
     it("pushes a crowd down by the minimum spacing, in order", () => {
         const placed = placeMarkers(
             [
-                { id: "a", y: 100, sectionRight: 900 },
-                { id: "b", y: 105, sectionRight: 900 },
-                { id: "c", y: 110, sectionRight: 900 },
+                { id: "a", y: 100, rightOf: 900 },
+                { id: "b", y: 105, rightOf: 900 },
+                { id: "c", y: 110, rightOf: 900 },
             ],
             1200,
         );
@@ -101,8 +106,8 @@ describe("placeMarkers", () => {
     it("orders by y regardless of the order it was handed", () => {
         const placed = placeMarkers(
             [
-                { id: "late", y: 500, sectionRight: 900 },
-                { id: "early", y: 40, sectionRight: 900 },
+                { id: "late", y: 500, rightOf: 900 },
+                { id: "early", y: 40, rightOf: 900 },
             ],
             1200,
         );
@@ -111,8 +116,8 @@ describe("placeMarkers", () => {
 
     it("breaks a tie on id, so a repaint doesn't shuffle the stack", () => {
         const requests = [
-            { id: "b", y: 200, sectionRight: 900 },
-            { id: "a", y: 200, sectionRight: 900 },
+            { id: "b", y: 200, rightOf: 900 },
+            { id: "a", y: 200, rightOf: 900 },
         ];
         expect(placeMarkers(requests, 1200).map((m) => m.id)).toEqual(["a", "b"]);
         expect(placeMarkers([...requests].reverse(), 1200).map((m) => m.id)).toEqual(["a", "b"]);
@@ -121,8 +126,8 @@ describe("placeMarkers", () => {
     it("gives each marker the x of its own section", () => {
         const placed = placeMarkers(
             [
-                { id: "contained", y: 0, sectionRight: 900 },
-                { id: "bleed", y: 300, sectionRight: 1200 },
+                { id: "contained", y: 0, rightOf: 900 },
+                { id: "bleed", y: 300, rightOf: 1200 },
             ],
             1200,
         );
@@ -131,13 +136,59 @@ describe("placeMarkers", () => {
     });
 });
 
-describe("chipAt", () => {
-    it("straddles the element's top-right corner", () => {
-        expect(chipAt({ x: 100, y: 200, w: 300 }, 1200)).toEqual({ x: 386, y: 204 });
+// The creation chip is a request in the same lane as the markers rather than a rule of its own,
+// which is what keeps it off the content it is offering to comment on and out from under a marker
+// for the same element.
+describe("the creation chip in the lane", () => {
+    const chipReq = (y: number, rightOf: number): MarkerRequest => ({
+        id: CHIP_REQUEST_ID,
+        y,
+        rightOf,
+        gap: CHIP_GAP,
+        size: CHIP_W,
     });
 
-    it("clamps inside the stage for an element that runs to the edge", () => {
-        expect(chipAt({ x: 0, y: 0, w: 1120 }, 1120).x).toBe(1120 - MARKER_SIZE - 6);
+    it("sits just outside the element's own right edge, not the section's", () => {
+        // an element ending at 700 inside a section ending at 900: the chip follows the element
+        const [chip] = placeMarkers([chipReq(200, 700)], 1200);
+        expect(chip).toEqual({ id: CHIP_REQUEST_ID, x: 700 + CHIP_GAP, y: 200 });
+    });
+
+    // The drag grip hangs the same distance off the left edge, and the pair is read together, so a
+    // rail gap on one side and a grip gap on the other showed up as a 2px lean.
+    it("sits the same distance out as the drag grip, not the thread rail's", () => {
+        const [chip] = placeMarkers([chipReq(0, 700)], 1200);
+        expect(chip!.x - 700).toBe(HANDLE_GAP);
+        // the rail keeps its own, since it hangs off a section rather than an element
+        expect(markerX(700, 1200) - 700).toBe(MARKER_GAP);
+    });
+
+    it("clamps inside the stage against its own width, not a marker's", () => {
+        const [chip] = placeMarkers([chipReq(0, 1120)], 1120);
+        expect(chip!.x).toBe(1120 - CHIP_W - 6);
+    });
+
+    // The two only share an x when the element runs its section's full width, which is the case
+    // this pass exists for. Selecting must not shove a thread's marker out of the place the reader
+    // already found it in, so the chip is the one that moves.
+    it("gives way to a marker it ties with rather than displacing it", () => {
+        const placed = placeMarkers(
+            [
+                { id: CHIP_REQUEST_ID, y: 300, rightOf: 800 },
+                { id: "a1b2c3", y: 300, rightOf: 800 },
+            ],
+            1200,
+        );
+        expect(placed.map((m) => m.id)).toEqual(["a1b2c3", CHIP_REQUEST_ID]);
+        expect(placed[0]!.y).toBe(300);
+        expect(placed[1]!.y).toBe(300 + MARKER_SPACING);
+    });
+
+    // A narrow element leaves the chip well inside the section, beside the thing it is about,
+    // rather than out at a rail the reader has to trace back from.
+    it("stays with a narrow element instead of running out to the section edge", () => {
+        const [chip] = placeMarkers([{ id: CHIP_REQUEST_ID, y: 0, rightOf: 300 }], 1200);
+        expect(chip!.x).toBe(300 + MARKER_GAP);
     });
 });
 

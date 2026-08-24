@@ -9,6 +9,7 @@ import type { ZodType } from "zod";
 // for a cost estimate tree-shakes zod and all the schemas out of its bundle.
 
 import type { TurnKind } from "./ai";
+import type { Features } from "./billing";
 import type { UnitRates, Usage } from "./credits";
 import { costOf } from "./credits";
 
@@ -50,6 +51,10 @@ export type ToolId =
     | "write-summary"
     | "write-alt-text"
     | "write-speaker-notes"
+    | "narrate-artifact"
+    | "audition-voice"
+    | "design-voice"
+    | "compose-soundtrack"
     | "suggest-sections"
     | "show-sections"
     | "find-artifacts"
@@ -78,9 +83,44 @@ export type ToolId =
     | "apply-patch";
 
 type ToolTier = "composite" | "action" | "primitive";
+export type ToolEffect = "read" | "write" | "destructive";
 
 // where a tool is exposed; internal = composition-only (never called directly)
 export type ToolSurface = "agent" | "direct" | "mcp" | "internal";
+
+// What a caller has to have been granted before a tool will run for them. In the product a session
+// already carries it, so this only bites where permission was delegated: an OAuth token minted for
+// an MCP client holds a subset of these and nothing else. Four, mapping onto what the product
+// already distinguishes rather than onto the tool list.
+export type ToolScope =
+    | "artifacts:read"
+    | "artifacts:write"
+    | "artifacts:share"
+    | "artifacts:delete";
+
+export const TOOL_SCOPES = [
+    "artifacts:read",
+    "artifacts:write",
+    "artifacts:share",
+    "artifacts:delete",
+] as const satisfies readonly ToolScope[];
+
+export const isToolScope = (v: unknown): v is ToolScope =>
+    typeof v === "string" && (TOOL_SCOPES as readonly string[]).includes(v);
+
+/** What a consent screen calls each one; scope ids are not a sentence a person should have to read. */
+export const SCOPE_LABEL: Record<ToolScope, string> = {
+    "artifacts:read": "read your artifacts and templates",
+    "artifacts:write": "create and edit artifacts",
+    "artifacts:share": "create and change share links",
+    "artifacts:delete": "move artifacts to the trash and restore them",
+};
+
+// The boolean entitlements a tool can be gated on. A numeric limit (how many sections, which export
+// formats) shapes a call rather than permitting it, so it stays with the caller that knows the shape.
+export type ToolFeature = {
+    [K in keyof Features]: Features[K] extends boolean ? K : never;
+}[keyof Features];
 
 // showcase grouping for the credits table
 type ToolCategory = "create" | "edit" | "text" | "media" | "theme" | "assist";
@@ -96,6 +136,8 @@ export interface MeterParams {
     imageSource?: "stock" | "ai"; // stock images are free; AI images metered per image
     textRuns?: number;
     variations?: number;
+    speechUnits?: number; // thousands of characters synthesized; only narration means anything by it
+    musicMinutes?: number; // minutes of music composed
 }
 
 interface ToolMeta {
@@ -104,6 +146,19 @@ interface ToolMeta {
     summary: string;
     tier: ToolTier;
     surfaces: ToolSurface[];
+    // What a call does to stored state. Absent = "write". The MCP surface turns this into the
+    // readOnlyHint / destructiveHint annotations both directories check at review.
+    effect?: ToolEffect;
+    // Runs for anyone, with no account and no workspace: a curated catalog rather than somebody's
+    // content. A delegated client may call it before it has a token, which is what lets a person see
+    // what Galleo offers before deciding to sign in. Must be free, since there is no one to bill.
+    public?: boolean;
+    // The permission a delegated caller needs. Absent = derived from `effect` (see scopeFor); set it
+    // only where the three effects cannot express the answer, which today is sharing.
+    scope?: ToolScope;
+    // A plan entitlement the workspace must hold. Checked in the executor, so it answers the same
+    // way whichever surface the call came in on.
+    requires?: ToolFeature;
     kind?: ToolKind; // default "server"
     // present on credit-costing tools; absent = free
     category?: ToolCategory;
@@ -116,7 +171,19 @@ interface ToolMeta {
     live?: boolean; // false/undefined = planned (no route yet)
 }
 
-type Pricing = Pick<ToolMeta, "kind" | "category" | "usage" | "meter" | "ceiling" | "live">;
+type Traits = Pick<
+    ToolMeta,
+    | "kind"
+    | "category"
+    | "usage"
+    | "meter"
+    | "ceiling"
+    | "live"
+    | "effect"
+    | "scope"
+    | "requires"
+    | "public"
+>;
 
 const meta = (
     id: ToolId,
@@ -124,10 +191,13 @@ const meta = (
     summary: string,
     tier: ToolTier,
     surfaces: ToolSurface[],
-    pricing?: Pricing,
-): ToolMeta => ({ id, title, summary, tier, surfaces, ...pricing });
+    traits?: Traits,
+): ToolMeta => ({ id, title, summary, tier, surfaces, ...traits });
 
-const AGENT_DIRECT: ToolSurface[] = ["agent", "direct", "mcp"];
+const AGENT_DIRECT: ToolSurface[] = ["agent", "direct"];
+// Reachable over MCP today. A tool joins this list once it can take effect with no client to apply
+// its result, which the read tools already can and the rest wait on (see `.docs/mcp.md`).
+const OVER_MCP: ToolSurface[] = ["agent", "direct", "mcp"];
 const INTERNAL: ToolSurface[] = ["internal"];
 
 // length chip → expected section count
@@ -176,7 +246,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Add section",
         "Generate a new section and propose inserting it",
         "composite",
-        AGENT_DIRECT,
+        OVER_MCP,
         { category: "create", live: true, usage: { section: 1 } },
     ),
     "rewrite-section": meta(
@@ -184,7 +254,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Rewrite section",
         "Rewrite one existing section in place",
         "composite",
-        AGENT_DIRECT,
+        OVER_MCP,
         { category: "edit", live: true, usage: { section: 1 } },
     ),
     "suggest-section-layouts": meta(
@@ -205,37 +275,47 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Edit artifact",
         "Edit a section of another library artifact in place",
         "composite",
-        ["agent", "direct"],
-        { category: "edit", live: true, usage: { section: 1 } },
+        OVER_MCP,
+        { effect: "write", category: "edit", live: true, usage: { section: 1 } },
     ),
     "reorder-section": meta(
         "reorder-section",
         "Reorder section",
         "Move a section to a new position",
         "action",
-        ["agent", "direct"],
+        OVER_MCP,
+        { effect: "write" },
     ),
-    "remove-section": meta("remove-section", "Remove section", "Delete a section", "action", [
-        "agent",
-        "direct",
-    ]),
-    "set-format": meta("set-format", "Set format", "Re-render as deck / doc / web", "action", [
-        "agent",
-        "direct",
-    ]),
+    "remove-section": meta(
+        "remove-section",
+        "Remove section",
+        "Delete a section",
+        "action",
+        OVER_MCP,
+        { effect: "destructive" },
+    ),
+    "set-format": meta(
+        "set-format",
+        "Set format",
+        "Re-render as deck / doc / web",
+        "action",
+        OVER_MCP,
+        { effect: "write" },
+    ),
     "set-theme": meta(
         "set-theme",
         "Set theme",
         "Switch the artifact to a built-in theme",
         "action",
-        ["agent", "direct"],
+        OVER_MCP,
+        { effect: "write" },
     ),
     "revise-element": meta(
         "revise-element",
         "Revise element",
         "Rework a single element or cell",
         "composite",
-        AGENT_DIRECT,
+        OVER_MCP,
         { category: "edit", live: true, usage: { text: 2 } },
     ),
     "ask-assistant": meta(
@@ -367,7 +447,71 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Write presenter notes for slides",
         "action",
         AGENT_DIRECT,
-        { category: "assist", usage: { reply: 1 } },
+        {
+            category: "assist",
+            live: true,
+            // one call over the whole piece, but the work in it scales with how much there is to read
+            usage: { text: 12 },
+            meter: (m) => ({ text: Math.max(1, m.sections ?? sectionsForLength(m.length)) }),
+        },
+    ),
+    "narrate-artifact": meta(
+        "narrate-artifact",
+        "Narrate",
+        "Turn the speaker notes into spoken audio",
+        "action",
+        ["direct"],
+        {
+            category: "media",
+            live: true,
+            requires: "voiceNarration",
+            // one unit is 1000 characters; a 12-section deck at ~700 each is about nine
+            usage: { speech: 9 },
+            meter: (m) => ({ speech: Math.max(1, m.speechUnits ?? 9) }),
+        },
+    ),
+    "compose-soundtrack": meta(
+        "compose-soundtrack",
+        "Compose a soundtrack",
+        "Generate an instrumental bed for a piece being presented",
+        "action",
+        ["direct"],
+        {
+            category: "media",
+            live: true,
+            requires: "backgroundMusic",
+            // a two minute bed; a narrated piece asks for one as long as the voice
+            usage: { music: 2 },
+            meter: (m) => ({ music: Math.max(1, m.musicMinutes ?? 2) }),
+        },
+    ),
+    "audition-voice": meta(
+        "audition-voice",
+        "Try a voice",
+        "Hear a candidate voice read one line of your own",
+        "action",
+        ["direct"],
+        // one short line, capped at 200 characters server-side. A `speech` unit would round a
+        // 200-character sample up to a whole thousand, so this prices flat and closer to the truth.
+        { category: "media", live: true, requires: "voiceNarration", usage: { text: 1 } },
+    ),
+    "design-voice": meta(
+        "design-voice",
+        "Design a voice",
+        "Generate voice candidates from a written description",
+        "action",
+        ["direct"],
+        {
+            category: "media",
+            live: true,
+            requires: "voiceDesign",
+            // The provider documents no flat price for this and each of the three candidates carries
+            // a 100-1000 character sample, so the real cost is somewhere between 300 and 3000
+            // characters. MEASURE IT against a real account before setting this. Until then the
+            // ceiling holds the pessimistic end and the settle refunds the difference.
+            usage: { speech: 1 },
+            ceiling: { speech: 3 },
+        },
     ),
     "suggest-sections": meta(
         "suggest-sections",
@@ -381,32 +525,40 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Show sections",
         "Display the existing sections as a carousel",
         "action",
-        ["agent", "direct"],
+        OVER_MCP,
+        { effect: "read" },
     ),
     "find-artifacts": meta(
         "find-artifacts",
         "Find artifacts",
         "Search the user's library by title or topic",
         "action",
-        ["agent", "direct"],
+        OVER_MCP,
+        { effect: "read" },
     ),
     "read-artifact": meta(
         "read-artifact",
         "Read artifact",
         "Load one artifact's content to summarize or edit it",
         "action",
-        ["agent", "direct"],
+        OVER_MCP,
+        { effect: "read" },
     ),
-    "rename-artifact": meta("rename-artifact", "Rename artifact", "Rename an artifact", "action", [
-        "agent",
-        "direct",
-    ]),
+    "rename-artifact": meta(
+        "rename-artifact",
+        "Rename artifact",
+        "Rename an artifact",
+        "action",
+        OVER_MCP,
+        { effect: "write" },
+    ),
     "move-artifact": meta(
         "move-artifact",
         "Move artifact",
         "Move an artifact into a folder (or out)",
         "action",
-        ["agent", "direct"],
+        OVER_MCP,
+        { effect: "write" },
     ),
     "duplicate-artifact": meta(
         "duplicate-artifact",
@@ -420,14 +572,17 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Trash artifact",
         "Move an artifact to Trash",
         "action",
-        ["agent", "direct"],
+        OVER_MCP,
+        { effect: "destructive" },
     ),
     "restore-artifact": meta(
         "restore-artifact",
         "Restore artifact",
         "Restore an artifact from Trash",
         "action",
-        ["agent", "direct"],
+        OVER_MCP,
+        // the trash pair travels together: whoever may move something there may bring it back
+        { effect: "write", scope: "artifacts:delete" },
     ),
     "create-folder": meta("create-folder", "Create folder", "Make a new folder", "action", [
         "agent",
@@ -439,6 +594,10 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Open the share options for an artifact",
         "action",
         ["agent", "direct"],
+        // Handing a document to people outside the workspace is its own permission, not a write.
+        // No `requires`: the tool opens the share panel rather than creating a link, and the panel
+        // is where the plan's own limits are explained.
+        { scope: "artifacts:share" },
     ),
     "export-artifact": meta(
         "export-artifact",
@@ -452,7 +611,8 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Find templates",
         "List the starter templates",
         "action",
-        ["agent", "direct"],
+        OVER_MCP,
+        { effect: "read", public: true },
     ),
     "draft-brief": meta(
         "draft-brief",
@@ -558,6 +718,26 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
 // only tools that are BOTH priced (usage) and live, so no unbuyable prices
 export const PRICED_TOOLS: ToolMeta[] = Object.values(TOOLS).filter((t) => t.usage && t.live);
 
+// The permission one call needs. `effect` answers three of the four, and a tool whose scope it
+// cannot express declares one. The fallback leans restrictive on purpose: a tool that says nothing
+// at all lands on write, never on read, so forgetting to annotate cannot widen a token's reach.
+/** Needs no account: callable before a client has a token at all. */
+export const isPublicTool = (id: ToolId): boolean => TOOLS[id]?.public === true;
+
+export const scopeFor = (id: ToolId): ToolScope => {
+    const def = TOOLS[id];
+    if (def.scope) return def.scope;
+    if (def.effect === "read") return "artifacts:read";
+    if (def.effect === "destructive") return "artifacts:delete";
+    return "artifacts:write";
+};
+
+/** The scopes a set of tools needs between them, in catalog order, for a consent screen to list. */
+export const scopesForTools = (ids: readonly ToolId[]): ToolScope[] => {
+    const need = new Set(ids.map(scopeFor));
+    return TOOL_SCOPES.filter((s) => need.has(s));
+};
+
 // the units of work a run is expected to be made of, for the ledger and for costing
 export function usageFor(id: ToolId, m: MeterParams = {}): Usage {
     const t = TOOLS[id];
@@ -594,6 +774,8 @@ const SMALL: MeterParams = {
     length: "Short",
     sections: 6,
     textRuns: 5,
+    speechUnits: 4, // a short deck's scripts, in thousands of characters
+    musicMinutes: 2,
     images: 2,
     variations: 1,
     imageSource: "stock",
@@ -602,6 +784,8 @@ const LARGE: MeterParams = {
     length: "In-depth",
     sections: 20,
     textRuns: 40,
+    speechUnits: 18,
+    musicMinutes: 8,
     images: 6,
     variations: 4,
     imageSource: "ai",
@@ -887,6 +1071,19 @@ export const TOOL_SPEC = {
             "Build a whole deck, doc, or site from a brief — plans an outline, then writes and streams each section in order. Can build FROM source material (pasted text via `source`, or an existing artifact via `sourceArtifactId` — repurpose).",
         input: zBrief,
     },
+    // No body yet (services/api/narration.ts drives the provider directly), but the entry has to
+    // exist before one can be registered, and it is what makes the executor's entitlement gate
+    // reachable in a test rather than only in production.
+    "narrate-artifact": {
+        describe:
+            "Turn the speaker notes on this piece into spoken audio, one track per section that has a script.",
+        input: z.object({
+            sectionIds: z
+                .array(z.string())
+                .optional()
+                .describe("only these sections; omit for the whole piece"),
+        }),
+    },
     "generate-theme": {
         describe:
             "Create a theme (palette, mood, light/dark) from a text prompt — e.g. 'a warm editorial magazine look'.",
@@ -971,13 +1168,23 @@ export const TOOL_SPEC = {
             "Regenerate ONE element in place — a fresh, stronger version of the SAME element type, leaving the rest of the section alone. Reach for it when a chart, stat, table or diagram is weak but the section around it is fine. `elementType` is the element's type (chart · stat · table · diagram · image · quote …); `nth` picks between several of that type in the same section (0 = the first).",
         input: z.object({
             sectionId: z.string().describe("the id of the section the element is in"),
-            elementType: z.string().describe("the element's type, e.g. 'chart' or 'stat'"),
+            elementType: z
+                .string()
+                .optional()
+                .describe("the element's type, e.g. 'chart' or 'stat'"),
             nth: z
                 .number()
                 .int()
                 .min(0)
                 .optional()
                 .describe("which one, when the section has several of that type (default 0)"),
+            // The editor points with a selection and knows the exact node; an agent has neither and
+            // names a type instead. One tool, two ways to say which element, so the direct route and
+            // the agent run the same body rather than a copy of it.
+            path: z
+                .array(z.number().int().min(0))
+                .optional()
+                .describe("the element's index path, for a caller that already has one"),
             instruction: z
                 .string()
                 .optional()
@@ -1013,6 +1220,10 @@ export const TOOL_SPEC = {
         input: z.object({
             text: z.string().describe("the passage to rewrite"),
             instruction: z.string().describe("how to change it, e.g. 'make it more concise'"),
+            context: z
+                .string()
+                .optional()
+                .describe("the surrounding copy, so a rewritten fragment still fits where it sits"),
         }),
     },
     "refine-prompt": {
@@ -1054,6 +1265,18 @@ export const TOOL_SPEC = {
             "Propose 3–6 short section ideas that would strengthen the open artifact. Use when the user asks what to add, or for ideas.",
         input: z.object({}),
     },
+    "write-speaker-notes": {
+        describe:
+            "Write speaker notes for the open artifact: what the presenter says out loud over each section, plus private cues only they see. The spoken script is what a voice reads when the piece narrates itself. Use when the user asks for speaker notes, presenter notes, a script, or something to say. Writes the whole piece by default; pass sectionIds to redo only some. This replaces the notes on the sections it writes.",
+        input: z.object({
+            sectionIds: z
+                .array(z.string())
+                .optional()
+                .describe(
+                    "the sections to write notes for; omit to write the whole piece, which is the usual case",
+                ),
+        }),
+    },
     "suggest-section-layouts": {
         describe:
             "Generate 2–4 alternative LAYOUTS of one existing section: the same copy and images, arranged differently. Use when the user wants layout options or a different look for a section — NOT for changing what it says (that is rewrite-section).",
@@ -1078,6 +1301,12 @@ export const TOOL_SPEC = {
         input: z.object({
             text: z.string().describe("the passage to translate"),
             language: z.string().describe("the target language, e.g. 'Spanish' or 'Japanese'"),
+            context: z
+                .string()
+                .optional()
+                .describe(
+                    "the surrounding copy, so a translated fragment still fits where it sits",
+                ),
         }),
     },
     "trash-artifact": {

@@ -17,7 +17,7 @@ and tooltips pick it up automatically.
 **Layering law (stated once).** `model ← canvas ← ui ← editor ← app`, linear. `ui/` is Solid and sits just
 above `canvas`: it may import `model` + `canvas` + `@themes`, and **nothing higher** (not `editor`,
 `services`, or `app`) — ESLint enforces the zone. Command _definitions_ that close over editor/app state
-register from above via side-effect modules (`editor/core/commands.ts`, `app/stores/commands.ts`), so the shared
+register from above via side-effect modules (`editor/core/commands.ts`, `app/stores/palette.tsx`), so the shared
 registry holds only generic records and no upward import occurs.
 
 ---
@@ -53,8 +53,8 @@ ui/                     @ui · Solid · imports model + canvas + @themes only
   present.tsx           PresentSurface   (shared present paint + keyboard nav + control bar)
   gen-overlay.tsx       GenOverlay   (unified AI sweep/glow generation overlay)
   status.tsx            Meter · StatusDot · EmptyState
-  icons.tsx             Icon (merged registry ~70 glyphs) + generated named *Icon wrappers + UiThemeProvider
-  brand.tsx             Mark   (logo)
+  icons.tsx             Icon (merged registry ~90 glyphs) + generated named *Icon wrappers + UiThemeProvider
+  brand.tsx             Mark   (logo) · setFavicon   (the same mark as the tab icon)
   markdown.tsx          Markdown   (chat/AI markdown renderer)
   z.ts                  Z   (the overlay stacking scale; z-* utilities in styles.css mirror it)
   time.ts               relativeTime   (the coarse "3d ago" stamp every list and thread reads)
@@ -167,14 +167,29 @@ Unifies every thumbnail surface (MiniCanvas · SectionThumb · StoryTile · mini
 
 `Meter` (usage bars) · `StatusDot` (live / generation-step dots) · `EmptyState` (Trash + Library empties);
 `GenOverlay` (the unified `SectionGenStage`/`ElementGenStage` sweep/glow overlay, keyframes defined once in
-`theme/styles.css`); `Mark` (logo); `Markdown` (chat/AI renderer).
+`ui/styles.css`); `Mark` (logo) and `setFavicon`, which redraws that mark as a theme-coloured SVG
+data URI for the tab (here rather than in an app store because the app, the public viewer and the
+marketing page all paint one); `Markdown` (chat/AI renderer).
+
+### `icon-row` (ui/styles.css)
+
+The utility every icon+label control uses (`Button` · `Chip` · `MenuItem` · `barAction` · palette rows ·
+one-off flex buttons). Geometric `items-center` seats an icon against the label's line box, whose
+baseline position shifts per font, so themed chrome drifted up to ±1.7px; `icon-row` instead
+baseline-anchors a **direct-child** svg and lifts it to the label's optical band with
+`translate: 0 calc(50% - 0.25cap - 0.25ex)`, which tracks the active theme's font metrics exactly.
+Constraints: the container must be auto-height (a fixed `h-*` makes a baseline group fall back to
+start-alignment — pad instead), the svg must be a direct child (framed icons in `grid size-*` spans
+keep `items-center` rows), text-free children (`Spinner`, swatches) need `self-center`, and a control
+whose label hides responsively must swap to `IconButton` at that tier rather than leave a bare svg
+in the row (see `ToolAction` in `editor/Editor.tsx`).
 
 ### `icons.tsx`
 
 | Component            | Lvl | Detail                                                                         |
 | -------------------- | --- | ------------------------------------------------------------------------------ |
-| `Icon`               | B   | `name, size?` — renderer + merged `PATHS` (~70 glyphs) + theme-reactive stroke |
-| Named wrappers (~26) | B   | `CloseIcon`, `PlusIcon`, `CheckIcon`… each `= (p) => <Icon name=…/>`           |
+| `Icon`               | B   | `name, size?` — renderer + merged `PATHS` (~90 glyphs) + theme-reactive stroke |
+| Named wrappers (~29) | B   | `CloseIcon`, `PlusIcon`, `CheckIcon`… each `= (p) => <Icon name=…/>`           |
 
 Both former icon systems (`editor/icons.tsx` + `app/components/icons.tsx`) were deleted and unified here.
 
@@ -194,7 +209,7 @@ construction, not approximation. Three specifics:
   **snapshots the theme vars off its anchor** (`readThemeVars`/`overlayThemeVars` in `overlay.tsx`) and
   re-applies them on the portaled node — lifted into `Popover`/`Modal` once, so no consumer re-implements it.
 - **`Icon`** derives stroke weight/cap from theme (`--hw`, `--radius`) read from a small `@ui` theme context;
-  `UiThemeProvider` supplies it at the app / studio / public-viewer roots (`App.tsx`, `Studio.tsx`,
+  `UiThemeProvider` supplies it at the app / studio / public-viewer roots (`App.tsx`, `Editor.tsx`,
   `PublicView`). Portaled menus fall back to the atom's neutral mid weight (by design).
 - **Non-color values** that vary by theme — corner radius, border width, shadow, heading weight — use
   `var(--radius)` etc. so shape tracks the theme too (a brutalist theme's square corners, a refined theme's
@@ -296,7 +311,7 @@ its children really do get the full width.
 ## Framework-free geometry helpers (`canvas/render/backends.ts`)
 
 The strings assembled for `.style.cssText` + consumed by imperative `paint()` are pure TS and live in the
-canvas layer (the former `render/geometry.ts` was folded into `backends.ts`):
+canvas layer (the former `canvas/render/present.ts` was folded into `backends.ts`):
 
 - `scaledHostCss(layoutW, height, scale, center?)` → cssText for the scaled-canvas host; CSS-scale from
   top-left so text wraps identically (thumbnails). `center?` letterboxes into a fixed frame.
@@ -444,13 +459,13 @@ ui/ShortcutsSheet.tsx      ⌘, reference, generated from the registry (can't dr
 ui/focus.ts                focusables + trapFocus (focus trap + restore) for modals
 editor/core/commands.ts    every studio command + the migrated keymap + editor.* context effect
 editor/core/clipboard.ts   element copy/cut/paste store + pure pasteElement placement
-app/stores/commands.ts     nav / workspace commands (palette-only; router-free via setNavigate injection)
+app/stores/palette.tsx      nav / workspace commands + the ⌘K sources (router-free via setNavigate injection)
 app/stores/route-context.ts publishRoute — route → context keys (pure, tested)
 ```
 
 Wired directly in `app/App.tsx`'s shell (no separate `AppCommands` component): it injects the router via
 `setNavigate`, calls `installKeyDispatcher()` on mount, runs a `publishRoute(location.pathname)` effect, and
-mounts `<CommandPalette/> <ShortcutsSheet/>`. Importing `app/stores/commands.ts` also _runs_ the app-command
+mounts `<CommandPalette/> <ShortcutsSheet/>`. Importing `app/stores/palette.tsx` also _runs_ the app-command
 registrations. `editor/Editor.tsx` also calls `installKeyDispatcher()` so the studio keymap works standalone.
 
 **The dispatcher** (`installKeyDispatcher`) attaches a **single capture-phase** `keydown` on `window`; per
@@ -560,7 +575,7 @@ carry a key binding (see the keymap above). "Wires to" makes clear each is a re-
   debounced and abortable and replaces the local rows once it answers the current query. Rows carry a
   `thumb` render prop, so `@ui` renders artifact results without knowing what an artifact is. The app
   registers artifacts, folders, and a "generate from this query" action in
-  `app/components/palette-sources.tsx`; the search itself is documented in `search.md`.
+  `app/stores/palette.tsx`; the search itself is documented in `search.md`.
 - **Sub-list providers** — a command with a `provider` doesn't run on Enter; it **pushes a child list** the
   same widget renders (one mechanism for every "pick one of N"). Backspace at an empty query pops back a
   level. **Only `doc.setFormat` ships a provider today** (Deck / Document / Website).

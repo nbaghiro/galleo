@@ -47,7 +47,11 @@ describe("features — resolved feature set per plan", () => {
     it("400s for a user with no workspace", async () => {
         const [u] = await db
             .insert(schema.users)
-            .values({ email: "lonely@test.local", passwordHash: hashPassword("pw-12345678") })
+            .values({
+                email: "lonely@test.local",
+                passwordHash: hashPassword("pw-12345678"),
+                emailVerifiedAt: new Date(),
+            })
             .returning({ id: schema.users.id });
         const res = await request("/features", {
             headers: { Cookie: `${SESSION_COOKIE}=${makeSession(u!.id)}` },

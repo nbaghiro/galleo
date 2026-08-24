@@ -1,5 +1,11 @@
 import { createSignal } from "solid-js";
-import { api, type AccountConnection, type ApiUser, type AuthProvider } from "@app/api";
+import {
+    api,
+    type AccountConnection,
+    type ApiUser,
+    type AuthProvider,
+    type ConnectedApp,
+} from "@app/api";
 import { identifyUser, resetAnalytics } from "@ui/analytics";
 import { adoptUserPrefs, clearCustomThemes } from "./theme";
 
@@ -42,11 +48,23 @@ export async function login(email: string, password: string): Promise<void> {
     adopt(u);
 }
 
-/** Opens the account and returns whether the verification mail went out; no session is created. */
+/** Opens the account and signs in; the session is gated until the address is confirmed. */
 export async function signup(email: string, password: string, name: string): Promise<boolean> {
-    const { sent } = await api.signup(email, password, name || undefined);
+    const { user: u, sent } = await api.signup(email, password, name || undefined);
+    adopt(u);
     return sent;
 }
+
+// The code the person types on the confirm step. Adopting the returned user is what opens the gate,
+// so the format question appears in place of this one without a reload.
+export async function confirmEmail(code: string): Promise<void> {
+    const { user: u } = await api.confirmEmail(code);
+    adopt(u);
+}
+
+// Whether the confirmation mail went out, read by the onboarding step so a failure is said out loud
+// rather than leaving someone waiting on an email that was never accepted.
+export const [verifyMailSent, setVerifyMailSent] = createSignal(true);
 
 // the backend signs the user in as part of the reset, so adopt the returned user as login does
 export async function resetPassword(token: string, password: string): Promise<void> {
@@ -73,6 +91,15 @@ export async function loadConnections(): Promise<AccountConnection[]> {
 
 export async function unlinkConnection(provider: AuthProvider): Promise<void> {
     await api.unlinkConnection(provider);
+}
+
+export async function loadConnectedApps(): Promise<ConnectedApp[]> {
+    const { apps } = await api.getConnectedApps();
+    return apps;
+}
+
+export async function disconnectApp(clientId: string): Promise<void> {
+    await api.disconnectApp(clientId);
 }
 
 export async function logout(): Promise<void> {

@@ -1,6 +1,5 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { capture } from "@services/utils/analytics";
 import { BAD_BODY, readJson } from "@services/utils/http";
 import { currentWorkspace } from "@services/core/accounts";
 import { createFolder, deleteFolderTree, listFolders, renameFolder } from "@services/core/folders";
@@ -22,9 +21,7 @@ folders.get("/folders", requireUser, async (c) => {
 folders.post("/folders", requireWorkspace, async (c) => {
     const body = await readJson(c, zFolderInput);
     if (!body) return c.json(BAD_BODY, 400);
-    const folder = await createFolder(c.get("ws").id, body);
-    capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "folder_created", {});
-    return c.json({ folder });
+    return c.json({ folder: await createFolder(c.get("ws").id, body) });
 });
 
 folders.patch("/folders/:id", requireUser, async (c) => {
@@ -32,14 +29,10 @@ folders.patch("/folders/:id", requireUser, async (c) => {
     const name = body?.name;
     if (!name || !name.trim()) return c.json({ error: "name required" }, 400);
     const folder = await renameFolder(c.req.param("id"), name);
-    if (folder) capture({ userId: c.get("user").id }, "folder_renamed", {});
     return folder ? c.json({ folder }) : c.json({ error: "not found" }, 404);
 });
 
 folders.delete("/folders/:id", requireWorkspace, async (c) => {
-    const artifactCount = await deleteFolderTree(c.get("ws").id, c.req.param("id"));
-    capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "folder_deleted", {
-        artifact_count: artifactCount,
-    });
+    await deleteFolderTree(c.get("ws").id, c.req.param("id"));
     return c.json({ ok: true });
 });

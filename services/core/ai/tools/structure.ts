@@ -17,6 +17,7 @@ export const reorderSectionTool = implement(
             summary: `Move “${input.label ?? "section"}”${input.afterId ? "" : " to the front"}`,
         };
     },
+    (edit) => edit.patch,
 );
 
 export const removeSectionTool = implement(
@@ -27,26 +28,29 @@ export const removeSectionTool = implement(
             summary: `Remove “${input.label ?? "this section"}”`,
         };
     },
+    (edit) => edit.patch,
 );
 
-export const setFormatTool = implement("set-format", async function* (input): AsyncGenerator<
-    TurnEvent,
-    StructureEdit
-> {
-    return {
-        patch: [{ op: "setMeta", format: input.format }],
-        summary: `Switch to ${FORMAT_NAME[input.format] ?? input.format}`,
-    };
-});
+export const setFormatTool = implement(
+    "set-format",
+    async function* (input): AsyncGenerator<TurnEvent, StructureEdit> {
+        return {
+            patch: [{ op: "setMeta", format: input.format }],
+            summary: `Switch to ${FORMAT_NAME[input.format] ?? input.format}`,
+        };
+    },
+    (edit) => edit.patch,
+);
 
-export const setThemeTool = implement("set-theme", async function* (input): AsyncGenerator<
-    TurnEvent,
-    StructureEdit
-> {
-    const t = THEMES[input.theme];
-    if (!t) throw new Error(`there is no built-in theme "${input.theme}"`);
-    return {
-        patch: [{ op: "setMeta", theme: input.theme }],
-        summary: `Switch theme to ${t.name}`,
-    };
-});
+export const setThemeTool = implement(
+    "set-theme",
+    async function* (input): AsyncGenerator<TurnEvent, StructureEdit> {
+        const t = THEMES[input.theme];
+        if (!t) throw new Error(`there is no built-in theme "${input.theme}"`);
+        return {
+            patch: [{ op: "setMeta", theme: input.theme }],
+            summary: `Switch theme to ${t.name}`,
+        };
+    },
+    (edit) => edit.patch,
+);

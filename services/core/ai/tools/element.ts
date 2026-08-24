@@ -2,7 +2,7 @@ import type { ElementInstance, Section } from "@model/artifact";
 import type { ArtifactContent } from "@model/artifact";
 import { generateText } from "ai";
 import { implement, type ToolContext } from "@services/core/ai/tools";
-import { elementTypes, findElement, replaceElement } from "@services/core/ai/locate";
+import { elementAt, elementTypes, findElement, replaceElement } from "@services/core/ai/locate";
 import { modelFor } from "@services/core/models";
 import { modelCall } from "@services/core/ai/provider";
 import { reviseElementParts } from "@services/core/ai/prompts/generate";
@@ -46,17 +46,24 @@ export async function reviseElement(
     throw new Error("the model returned an unreadable element");
 }
 
-// the agent has no selection to point with, so it names section + element type and we resolve the path
+// Two callers, two ways to name an element: the editor has a selection and hands over its path, the
+// agent has neither and names a type plus an ordinal. Both land on the same body.
 export const reviseElementTool = implement(
     "revise-element",
     async function* (input, ctx): AsyncGenerator<never, Section> {
         if (!ctx.artifact) throw new Error("no artifact is open");
         const section = ctx.artifact.sections.find((s) => s.id === input.sectionId);
         if (!section) throw new Error(`There is no section “${input.sectionId}” in this piece.`);
-        const hit = findElement(section.root, input.elementType, input.nth ?? 0);
-        if (!hit)
+        const hit = input.path
+            ? { path: input.path, element: elementAt(section.root, input.path) }
+            : input.elementType
+              ? findElement(section.root, input.elementType, input.nth ?? 0)
+              : null;
+        if (!hit?.element)
             throw new Error(
-                `No “${input.elementType}” element in ${input.sectionId}. It contains: ${elementTypes(section.root).join(", ")}.`,
+                input.path
+                    ? `There is no element at that path in ${input.sectionId}.`
+                    : `No “${input.elementType}” element in ${input.sectionId}. It contains: ${elementTypes(section.root).join(", ")}.`,
             );
         const revised = await reviseElement(
             ctx.artifact,
@@ -67,4 +74,5 @@ export const reviseElementTool = implement(
         );
         return replaceElement(section, hit.path, revised);
     },
+    (section, input) => [{ op: "replaceSection", id: input.sectionId, section }],
 );

@@ -32,6 +32,13 @@ export function tapZone(x: number, width: number): TapZone {
     return x < width * TAP_BACK_FRACTION ? "prev" : "next";
 }
 
+// A press on a link or a live player belongs to that thing, so whatever the surface underneath
+// would have done with it (advance a slide, toggle a disclosure) stands down.
+export const CONTENT_PRESS = "a, [data-live]";
+
+export const pressOnContent = (target: EventTarget | null): boolean =>
+    target instanceof Element && !!target.closest(CONTENT_PRESS);
+
 // ---- outside dismissal ------------------------------------------------------------------------
 //
 // What a pointerdown means for a surface that is already open. The caller does the containment test

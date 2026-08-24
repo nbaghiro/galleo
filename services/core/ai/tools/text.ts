@@ -66,6 +66,7 @@ export const rewriteTextTool = implement("rewrite-text", async function* (input,
         signal: ctx.signal,
         tier: ctx.tier,
         models: ctx.models,
+        ...(input.context ? { context: input.context } : {}),
     });
 });
 
@@ -74,6 +75,7 @@ export const translateTextTool = implement("translate-text", async function* (in
         signal: ctx.signal,
         tier: ctx.tier,
         models: ctx.models,
+        ...(input.context ? { context: input.context } : {}),
     });
 });
 
@@ -99,4 +101,5 @@ export const rewritePassageTool = implement(
         });
         return replacePassage(section, hit.path, rewritten.trim() || hit.text);
     },
+    (section, input) => [{ op: "replaceSection", id: input.sectionId, section }],
 );

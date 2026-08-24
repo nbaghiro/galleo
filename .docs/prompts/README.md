@@ -5,13 +5,14 @@ context it needs, so the intended use is to copy a whole file into a fresh sessi
 the authority on conventions; where a prompt and `AGENTS.md` disagree, `AGENTS.md` wins and the prompt is
 stale.
 
-| File                   | Feature                    | Flag              | State                                              |
-| ---------------------- | -------------------------- | ----------------- | -------------------------------------------------- |
-| `03-brand-kit.md`      | Shared workspace theme     | `workspaceThemes` | not started                                        |
-| `05-custom-domains.md` | Custom domains             | `customDomains`   | not started; the publishing layer it sits on is in |
-| `06-public-api.md`     | Public API + API keys      | `apiAccess`       | not started                                        |
-| `07-sso.md`            | Workspace SSO              | `sso`             | partially built (Google OIDC sign-in ships)        |
-| `08-object-storage.md` | Source files to R2 + MinIO | (infra)           | not started                                        |
+| File                    | Feature                         | Flag                            | State                                                                   |
+| ----------------------- | ------------------------------- | ------------------------------- | ----------------------------------------------------------------------- |
+| `03-brand-kit.md`       | Shared workspace theme          | `workspaceThemes`               | not started                                                             |
+| `05-custom-domains.md`  | Custom domains                  | `customDomains`                 | not started; the publishing layer it sits on is in                      |
+| `06-public-api.md`      | Public API + API keys           | `apiAccess`                     | not started                                                             |
+| `07-sso.md`             | Workspace SSO                   | `sso`                           | partially built (Google OIDC sign-in ships)                             |
+| `08-object-storage.md`  | Source files to R2 + MinIO      | (infra)                         | not started                                                             |
+| `10-voice-narration.md` | Speaker notes + voice narration | `voiceNarration`, `voiceDesign` | built, pending manual QA; rationale in `../planning/voice-narration.md` |
 
 Each prompt tells its session to build the feature, gate it through the resolver in `model/billing.ts`,
 and flip `FEATURES["<flag>"].status` from `"planned"` to `"live"` once it is verified end to end. The plan
@@ -20,6 +21,12 @@ grants are already set, so that one status line is normally the only edit `model
 **Order.** These are independent of each other. `05` is the only one with a real prerequisite, public
 links, and that shipped. `08` touches the context and media storage paths and nothing else, so it runs in
 parallel with anything.
+
+`10` is built across all nine phases and is waiting on manual QA; it stays here until that passes,
+then it moves to the list below and the current-state docs own it. Its two incidental fixes have
+landed: the editor now presents through the shared surface, so a tall section no longer loses every
+page after the first, and `SECTION_SHELL_EQUAL` knows about `notes`, so a notes-only edit is no longer
+discarded on the save path.
 
 ## Shipped, prompts removed
 

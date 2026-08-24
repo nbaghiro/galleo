@@ -1,4 +1,5 @@
-import type { Id, SectionOp } from "./artifact";
+import type { ArtifactAccess, Id, SectionOp } from "./artifact";
+import { isAccess } from "./artifact";
 
 // The live-collaboration wire contract: what a client and the room server say to each other, plus
 // the pure helpers both sides need. Frames are JSON and every inbound one is guarded here, so
@@ -92,6 +93,9 @@ export type ServerMessage =
     // holder null = the claim was refused outright, not lost to someone: this connection may not edit
     | { t: "denied"; element: ElementRef; holder: Lease | null }
     | { t: "lease"; element: ElementRef; holder: Lease | null }
+    // What this connection may do here, re-resolved after a grant, a role, or the artifact's own
+    // level changed. A drop to `none` closes the socket instead, so this only ever carries a level.
+    | { t: "access"; access: ArtifactAccess }
     | { t: "resync"; seq: number };
 
 // ---- guards ---------------------------------------------------------------------------------
@@ -220,6 +224,10 @@ export function readServerMessage(
             if (raw.holder === null) return { t: "lease", element: raw.element, holder: null };
             return isLease(raw.holder)
                 ? { t: "lease", element: raw.element, holder: raw.holder }
+                : null;
+        case "access":
+            return isAccess(raw.access) && raw.access !== "none"
+                ? { t: "access", access: raw.access }
                 : null;
         case "resync":
             return typeof raw.seq === "number" ? { t: "resync", seq: raw.seq } : null;

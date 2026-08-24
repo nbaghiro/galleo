@@ -10,6 +10,27 @@ export type ColorToken =
 
 export type FontRole = "display" | "ui" | "mono";
 
+export const SLIDE_TRANSITIONS = ["cut", "fade", "push"] as const;
+export type SlideTransition = (typeof SLIDE_TRANSITIONS)[number];
+
+export const BUILD_RHYTHMS = ["none", "settle", "rise"] as const;
+export type BuildRhythm = (typeof BUILD_RHYTHMS)[number];
+
+// Playback only: motion never reaches layout, so every static render is unaffected by it.
+export interface MotionTokens {
+    transition: SlideTransition;
+    build: BuildRhythm;
+    duration: number; // ms for one slide change; the build stagger derives from it
+    easing: string;
+}
+
+export const DEFAULT_MOTION: MotionTokens = {
+    transition: "fade",
+    build: "settle",
+    duration: 260,
+    easing: "cubic-bezier(.2,.7,.2,1)",
+};
+
 export interface Tokens {
     bg: string; // page / canvas behind sections
     surface: string; // section + card background
@@ -27,6 +48,7 @@ export interface Tokens {
     border?: number; // border width for cards/sections
     shadow?: string; // box-shadow for cards
     scrim?: number; // 0..1 darkening over bg images; default 0.45
+    motion?: Partial<MotionTokens>; // absent, or partial, falls back to DEFAULT_MOTION
 }
 
 export interface Theme {
@@ -36,6 +58,8 @@ export interface Theme {
     dark: boolean;
     tokens: Tokens;
 }
+
+export const motionFor = (t: Tokens): MotionTokens => ({ ...DEFAULT_MOTION, ...t.motion });
 
 export function fontStack(role: FontRole, t: Tokens): string {
     if (role === "display") return `'${t.fontDisplay}', serif`;
@@ -365,6 +389,7 @@ interface Pal {
     bw?: number; // border width (default 1)
     sh?: string; // box-shadow (default soft lift)
     sc?: number; // scrim 0..1 over background images (default 0.45)
+    mo?: Partial<MotionTokens>; // playback motion (default DEFAULT_MOTION)
 }
 
 function mk(
@@ -401,11 +426,67 @@ function mk(
             fontBody: u,
             fontMono: m,
             headingWeight: hw,
+            ...(p.mo ? { motion: p.mo } : {}),
         },
     };
 }
 
 // the pickable set; studio + brut are the defaults
+// The families a custom theme may choose from, beside the ones the built-in themes use. Here rather
+// than in the editor that renders them because the vendoring script and its guard read the same
+// list: a family offered in the picker but not vendored would silently render as a fallback face.
+export const DISPLAY_FONTS = [
+    "Fraunces",
+    "Playfair Display",
+    "Cormorant Garamond",
+    "Bodoni Moda",
+    "Newsreader",
+    "Spectral",
+    "Marcellus",
+    "Cinzel",
+    "Prata",
+    "Yeseva One",
+    "Anton",
+    "Oswald",
+    "Space Grotesk",
+    "Bricolage Grotesque",
+    "Sora",
+    "Archivo",
+    "Quicksand",
+    "Fredoka",
+    "Orbitron",
+    "VT323",
+    "Tektur",
+    "Silkscreen",
+    "Handjet",
+    "Major Mono Display",
+];
+export const BODY_FONTS = [
+    "Hanken Grotesk",
+    "Manrope",
+    "Mulish",
+    "Jost",
+    "Figtree",
+    "Outfit",
+    "Nunito",
+    "Albert Sans",
+    "Plus Jakarta Sans",
+    "Barlow",
+    "Inter Tight",
+    "Lora",
+    "Rajdhani",
+    "Chakra Petch",
+];
+export const MONO_FONTS = [
+    "DM Mono",
+    "IBM Plex Mono",
+    "Geist Mono",
+    "Space Mono",
+    "JetBrains Mono",
+    "Fragment Mono",
+    "Overpass Mono",
+];
+
 export const THEME_LIST: Theme[] = [
     mk("studio", "Studio", "editorial", false, "Fraunces", "Hanken Grotesk", "DM Mono", 560, 18, {
         bg: "#F4F0E8",
@@ -434,6 +515,7 @@ export const THEME_LIST: Theme[] = [
         ac: "#111111",
         ai: "#F5E000",
         bd: "#111111",
+        mo: { transition: "cut", build: "none" },
     }),
     mk("couture", "Couture", "luxe", true, "Cormorant Garamond", "Jost", "Geist Mono", 600, 6, {
         bg: "#0C0C0C",
@@ -444,6 +526,7 @@ export const THEME_LIST: Theme[] = [
         ac: "#C0A875",
         ai: "#0C0C0C",
         bd: "#262626",
+        mo: { build: "rise", duration: 420 },
     }),
     mk("carbon", "Carbon", "monochrome", true, "Geist Mono", "Geist Mono", "Geist Mono", 500, 4, {
         bg: "#0A0A0A",
@@ -509,6 +592,7 @@ export const THEME_LIST: Theme[] = [
         bd: "#243240",
         bw: 2,
         sh: "0 0 18px rgba(152,221,169,0.25)",
+        mo: { transition: "push", build: "rise", duration: 180 },
     }),
     mk("cement", "Cement", "industrial", false, "Anton", "Space Grotesk", "Space Mono", 400, 0, {
         bg: "#D8D6D1",
@@ -521,6 +605,7 @@ export const THEME_LIST: Theme[] = [
         bd: "#1C1C1A",
         bw: 3,
         sh: "6px 6px 0 rgba(28,28,26,1)",
+        mo: { transition: "push", build: "settle", duration: 200 },
     }),
     mk("obsidian", "Obsidian", "brutalist", true, "Archivo", "Inter Tight", "Geist Mono", 800, 0, {
         bg: "#0A0A0C",
@@ -533,6 +618,7 @@ export const THEME_LIST: Theme[] = [
         bd: "#3A3D44",
         bw: 3,
         sh: "3px 3px 0 rgba(242,244,248,0.15)",
+        mo: { transition: "cut", build: "none" },
     }),
     mk(
         "chalk",
@@ -587,6 +673,7 @@ export const THEME_LIST: Theme[] = [
         ac: "#dcdee0",
         ai: "#111212",
         bd: "#353638",
+        mo: { transition: "cut", build: "settle", duration: 160 },
     }),
     mk(
         "telegraph",
@@ -619,6 +706,7 @@ export const THEME_LIST: Theme[] = [
         ac: "#262324",
         ai: "#fafafa",
         bd: "#d6d3d4",
+        mo: { transition: "cut", build: "settle", duration: 160 },
     }),
     mk("royal", "Royal", "luxe", true, "Cinzel", "Jost", "Geist Mono", 500, 4, {
         bg: "#0d0e13",
@@ -629,6 +717,7 @@ export const THEME_LIST: Theme[] = [
         ac: "#f4c357",
         ai: "#161107",
         bd: "#34363c",
+        mo: { build: "rise", duration: 420 },
     }),
     mk("vellum", "Vellum", "classic", true, "Playfair Display", "Mulish", "Sometype Mono", 500, 6, {
         bg: "#121110",
@@ -651,6 +740,7 @@ export const THEME_LIST: Theme[] = [
         ai: "#FFF4EF",
         bd: "#272727",
         sh: "none",
+        mo: { build: "rise", duration: 380 },
     }),
     mk("moss", "Moss", "natural", true, "Marcellus", "Figtree", "Overpass Mono", 400, 8, {
         bg: "#10140F",
@@ -674,9 +764,22 @@ export const THEME_LIST: Theme[] = [
         bd: "#3A3936",
         bw: 2,
         sh: "4px 4px 0 rgba(221,157,53,0.85)",
+        mo: { transition: "push", build: "settle", duration: 200 },
     }),
 ];
 
+// Every family the product can render: what the built-in themes use, plus what a custom theme may
+// pick. The vendoring script and its guard both read this, so a family can never be offered without
+// a face to render it in.
+export const themeFontFamilies = (): string[] => {
+    const set = new Set<string>([...DISPLAY_FONTS, ...BODY_FONTS, ...MONO_FONTS]);
+    for (const t of THEME_LIST) {
+        set.add(t.tokens.fontDisplay);
+        set.add(t.tokens.fontBody);
+        set.add(t.tokens.fontMono);
+    }
+    return [...set].sort();
+};
 export const DEFAULT_THEME = THEME_LIST[0]!;
 export const THEMES: Record<string, Theme> = Object.fromEntries(THEME_LIST.map((t) => [t.id, t]));
 

@@ -74,9 +74,28 @@ would silently drop every inheriting row. Two invariants hold, and are tested:
 - an accessible artifact appears in exactly one of (library, shared-with-me), never zero
 - anything `artifactStanding` resolves above `none` is reachable from some list
 
-**Decisions taken.** AI stays members-only: an external collaborator with `edit` can change content,
-but every `/ai/*` route keeps its workspace-membership requirement, because their turns would spend
-the host workspace's credits. Inviting further people takes `edit` **and** membership of the owning
+**Access is resolved once, at the upgrade, and pushed after that.** A socket would otherwise carry
+the level it opened with for as long as it stayed open, so a revoked collaborator kept receiving
+every op, and an editor demoted to view kept writing, until that tab happened to reconnect. Every
+route that can change someone's standing calls `syncArtifactAccess` (a grant's level, a revoke, the
+artifact's own `member_access`) or `syncWorkspaceAccess` (the workspace default, a role change, a
+member removed or leaving). Both re-resolve through `artifactStanding` rather than applying the
+delta the route knows about, so the precedence chain stays in the one place that owns it. `none`
+closes the connection; anything else sends `access` to that client, releases any lease it can no
+longer use, and re-broadcasts its roster entry so the other tabs stop drawing it as an editor.
+
+**Decisions taken.** AI is members-only where a turn writes to the host's artifact on their behalf:
+`/ai/turn` and the generation routes gate on `gateArtifact`, which a grant does not open, because
+their turns would spend the host workspace's credits.
+
+Speaker notes and narration went the other way and are open to a grantee with `edit`, on the grounds
+that someone who may edit a piece may also write and voice what is said over it. What made that safe
+is that the bill did not move with the permission: both gate on `gateShared` and then reserve
+against **the artifact's** workspace, not the caller's. Billing the caller would drain an outsider's
+credits for someone else's deck, and gating on the caller's plan would let a Free collaborator block
+narration on a Pro owner's artifact. A grantee has no membership in that workspace, so they are
+capped as an ordinary member would be. The rule this settles on, for anything added here later: a
+grant extends what someone may do to the owner's artifact, and never who pays for it. Inviting further people takes `edit` **and** membership of the owning
 workspace, so an invited editor may change the document but not widen who else can reach it.
 Publishing, trashing, and permanent deletion are workspace-scoped for the same reason.
 
@@ -125,6 +144,7 @@ Server to client:
 | `reject {tag, reason}`                        | your batch did not apply; resync                    |
 | `granted \| denied {element, holder\|null}`   | your claim won, or lost to `holder`                 |
 | `lease {element, holder\|null}`               | someone else took or released an element            |
+| `access {access}`                             | your level here changed; the editor's gate follows  |
 | `resync {seq}`                                | reload the window; the gap is wider than the buffer |
 
 Reconnect is exponential backoff with jitter, capped at 15s (`backoffFor` in `app/stores/collab.ts`).
@@ -147,6 +167,29 @@ roster.
 
 Peer colours come from a small curated palette assigned by join order (`colorForIndex`), so two
 clients showing the same room agree without negotiating.
+
+**The roster is per person, the wire is per connection.** One person holds two connections in two
+ordinary situations: a second tab, which the room supports on purpose, and the window after an
+unclean drop, where the connection they left behind stays in the room until its presence times out
+(30s, swept every 10s) while they have already rejoined under a new id. Ops, leases and cursors are
+addressed per connection because that is what they are about; presence answers "who is here", so
+`peopleOf` collapses a roster to one entry per person, newest connection winning. Asking by `connId`
+alone drew a reader their own ghost when they were the only one in the room, and drew a reconnecting
+peer twice.
+
+**Follow mode.** Clicking a peer's avatar ties the viewport to them: it scrolls to where they are
+and stays with them until the reader scrolls, presses Escape or an arrow, clicks the avatar again,
+or the peer leaves. It is keyed on the person, so a follow survives their reconnect.
+
+What is followed is where they **are**, not what they **see**. Presence carries a cursor, a
+selection and an edit session; it does not carry a viewport, and adding one would put a scroll
+offset on a wire whose whole invariant is that it carries none. So following keeps their focus on
+screen (`peerFocus`: their cursor, else the element they are in, else the band of their section)
+rather than mirroring their scroll, and `followScroll` moves only when they leave a margin, because
+a follow that re-centred every frame would fight the reader for the scrollbar. The consequence worth
+knowing: a peer who stops moving their pointer and only scrolls is somewhere this client cannot see,
+and a coarse-pointer peer sends no cursor at all, so both fall back to the element or section they
+last touched.
 
 The wiring mirrors comments: `app/stores/collab.ts` owns the socket and knows the session cookie;
 `editor/core/collab.ts` is the seam the editor reads (`peers`, `leases`, `remoteCursors`,
@@ -188,6 +231,14 @@ the content, and sends the batch with a client `tag`. The room applies it throug
 pipeline, acks `{tag, seq}` to the sender, and broadcasts `{seq, author, ops}` to everyone else. The
 sender never receives its own echo.
 
+Batches apply one at a time, through a promise chain, so the seq the server hands out and the order
+clients see are the same order. That chain has to survive its own links: a write that _throws_
+rather than failing (the database going away mid-transaction) would reject the chain, and every
+batch queued behind it would have its callback skipped, so the room went on accepting writes,
+applied none of them, and answered nobody, while each sender still held its keys as in flight and
+its autosave stood down. `applyOne` therefore answers every outcome itself and never throws: a throw
+is warned and answered as a `reject`, which the client resolves with the resync it already has.
+
 Two client rules make this stable:
 
 1. **Remote ops apply through the same pure ops local editing uses**, via a remote-origin path that
@@ -196,7 +247,10 @@ Two client rules make this stable:
    `(sectionId) -> tag` for whole-section writes, holds everything sent but not yet acked. An
    incoming value for a pending key is discarded until the ack clears it. That prevents flicker
    fights with no clocks and no vector timestamps. Structural ops are never discarded: a removal has
-   to land whatever else is in flight.
+   to land whatever else is in flight. A pending key is a bet that an ack is coming, so the socket
+   going away cancels the bet: `opsDropped` clears the map on a drop, since whatever was in flight
+   is the HTTP save's problem from that moment, and a key left pending would go on discarding every
+   remote value for it long after the room came back, on exactly the elements this tab last touched.
 
 A remote batch that cannot apply (an unknown section, a gap the buffer cannot cover, a `reject`)
 triggers the existing resync path: refetch the window, take the server's `seq`. A `data` op aimed at
@@ -292,19 +346,23 @@ them, and the client mounts the read-only editor the permissions layer ships (co
 
 ## Tests
 
-| Suite                                           | What it pins                                               |
-| ----------------------------------------------- | ---------------------------------------------------------- |
-| `model/__tests__/collab.test.ts`                | guards, cursor round-trip, no geometry on the wire         |
-| `model/__tests__/artifact.test.ts`              | `data` merge, identity preservation, `narrowOps`, inverses |
-| `model/__tests__/artifact-access.test.ts`       | the precedence chain, both directions                      |
-| `services/__tests__/collab-room.test.ts`        | join/leave/evict, leases, catch-up, two clients converging |
-| `services/api/__tests__/collab-access.itest.ts` | grants end to end, and what a grant does not open          |
-| `services/api/__tests__/collab-socket.itest.ts` | the upgrade path and its auth                              |
-| `editor/core/__tests__/collab-cursors.test.ts`  | encode/decode against fake engine output, roster maps      |
-| `editor/core/__tests__/collab-sync.test.ts`     | pending keys, remote apply, undo skip, deletion wins       |
-| `app/stores/__tests__/collab.test.ts`           | socket lifecycle, backoff, heartbeat, presence coalescing  |
-| `app/stores/__tests__/save-driver.test.ts`      | driver exclusivity and the handover both ways              |
-| `e2e/editor/collab.spec.ts`                     | two browsers: roster, cursor, live edit, the lease         |
+| Suite                                           | What it pins                                                |
+| ----------------------------------------------- | ----------------------------------------------------------- |
+| `model/__tests__/collab.test.ts`                | guards, cursor round-trip, no geometry on the wire          |
+| `model/__tests__/artifact.test.ts`              | `data` merge, identity preservation, `narrowOps`, inverses  |
+| `model/__tests__/artifact-access.test.ts`       | the precedence chain, both directions                       |
+| `services/__tests__/collab-room.test.ts`        | join/leave/evict, leases, catch-up, two clients converging  |
+| `services/__tests__/collab-room.test.ts`        | a write that throws, and a level changed under a socket     |
+| `services/api/__tests__/collab-access.itest.ts` | grants end to end, and what a grant does not open           |
+| `services/api/__tests__/collab-access.itest.ts` | an open room following a revoke, a lock, and a removal      |
+| `services/api/__tests__/collab-socket.itest.ts` | the upgrade path and its auth                               |
+| `editor/core/__tests__/collab-cursors.test.ts`  | encode/decode against fake engine output, roster maps       |
+| `editor/core/__tests__/collab-sync.test.ts`     | pending keys, remote apply, undo skip, deletion wins        |
+| `editor/core/__tests__/collab-sync.test.ts`     | session checkpoints, the viewer gate, a dropped socket      |
+| `app/stores/__tests__/collab.test.ts`           | socket lifecycle, backoff, heartbeat, presence coalescing   |
+| `app/stores/__tests__/save-driver.test.ts`      | driver exclusivity and the handover both ways               |
+| `app/stores/__tests__/save-driver.test.ts`      | the retry policy, the conflict reload, the flush checkpoint |
+| `e2e/editor/collab.spec.ts`                     | two browsers: roster, cursor, live edit, the lease          |
 
 ## Scale path, and what is deferred
 
@@ -318,4 +376,4 @@ them, and the client mounts the read-only editor the permissions layer ships (co
   problem instead of a merge problem. The upgrade path is a per-text-element CRDT whose value would
   live under one `data` key, which the per-key LWW rules already accommodate.
 - **AI for external collaborators** is deferred with the credit question it raises.
-- **Follow mode, huddles, and public-link viewer presence** are out of scope.
+- **Huddles and public-link viewer presence** are out of scope.

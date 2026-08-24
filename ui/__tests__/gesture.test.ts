@@ -6,6 +6,7 @@ import {
     newOwnerToken,
     OWNER_ATTR,
     pressInside,
+    pressOnContent,
     SWIPE_MAX_MS,
     SWIPE_MIN_PX,
     TAP_BACK_FRACTION,
@@ -187,5 +188,30 @@ describe("newOwnerToken", () => {
         const b = newOwnerToken("thread");
         expect(a).not.toBe(b);
         expect(a.startsWith("thread")).toBe(true);
+    });
+});
+
+describe("pressOnContent", () => {
+    const mounted = (html: string): HTMLElement => {
+        document.body.innerHTML = html;
+        return document.body.firstElementChild as HTMLElement;
+    };
+
+    it("stands the surface down for a press on a link, or anything inside one", () => {
+        const a = mounted(`<a href="https://galleo.app"><span id="label">Get started</span></a>`);
+        expect(pressOnContent(a)).toBe(true);
+        expect(pressOnContent(document.getElementById("label"))).toBe(true);
+    });
+
+    it("stands down for a live player, so a play click never advances the slide", () => {
+        const wrap = mounted(`<div data-live="video"><video id="v"></video></div>`);
+        expect(pressOnContent(wrap)).toBe(true);
+        expect(pressOnContent(document.getElementById("v"))).toBe(true);
+    });
+
+    it("lets an ordinary press through, and survives a non-element target", () => {
+        expect(pressOnContent(mounted(`<div><p id="p">text</p></div>`))).toBe(false);
+        expect(pressOnContent(null)).toBe(false);
+        expect(pressOnContent(window)).toBe(false);
     });
 });

@@ -8,7 +8,12 @@ import {
     unitMultipliers,
 } from "@model/credits";
 import {
+    isToolScope,
     PRICED_TOOLS,
+    SCOPE_LABEL,
+    scopeFor,
+    scopesForTools,
+    TOOL_SCOPES,
     TOOLS,
     costRange,
     estimateCost,
@@ -211,12 +216,16 @@ describe("the credits table", () => {
         expect(PRICED_TOOLS.map((t) => t.id).sort()).toEqual([
             "add-section",
             "ask-assistant",
+            "audition-voice",
+            "compose-soundtrack",
+            "design-voice",
             "draft-brief",
             "edit-artifact",
             "generate-artifact",
             "generate-image",
             "generate-theme",
             "generate-video",
+            "narrate-artifact",
             "plan-outline",
             "refine-prompt",
             "revise-element",
@@ -225,6 +234,7 @@ describe("the credits table", () => {
             "rewrite-text",
             "suggest-section-layouts",
             "translate-text",
+            "write-speaker-notes",
         ]);
     });
 
@@ -277,5 +287,73 @@ describe("usageFor", () => {
         expect(describeUsage(usageFor("generate-artifact", { length: "Short" }))).toBe(
             "1 plan · 7 sections",
         );
+    });
+});
+
+describe("describeUsage", () => {
+    it("names the speech unit in words, since the key's plural is not one", () => {
+        expect(describeUsage({ speech: 9 })).toBe("9k characters spoken");
+        expect(describeUsage({ speech: 1 })).toBe("1k characters spoken");
+    });
+
+    it("still pluralizes the ordinary units", () => {
+        expect(describeUsage({ section: 1 })).toBe("1 section");
+        expect(describeUsage({ section: 3, image: 2 })).toBe("3 sections · 2 images");
+        expect(describeUsage({ reply: 2 })).toBe("2 replies");
+    });
+
+    it("is a dash for nothing, so a ledger row is never blank", () => {
+        expect(describeUsage({})).toBe("—");
+    });
+});
+
+// The permission half of the catalog. It lives beside the pricing because both answer "what does
+// this tool cost you", one in credits and one in trust.
+describe("scopeFor", () => {
+    it("reads a tool's effect when that is enough to say", () => {
+        expect(scopeFor("read-artifact")).toBe("artifacts:read");
+        expect(scopeFor("add-section")).toBe("artifacts:write");
+        expect(scopeFor("trash-artifact")).toBe("artifacts:delete");
+    });
+
+    // sharing is a write that needs its own permission, and restoring is a write that belongs with
+    // the trash: neither is something three effects can express
+    it("takes the tool's own answer where effect cannot give one", () => {
+        expect(scopeFor("share-artifact")).toBe("artifacts:share");
+        expect(scopeFor("restore-artifact")).toBe("artifacts:delete");
+    });
+
+    // the fallback leans restrictive on purpose: forgetting to annotate must not widen a token
+    it("falls back to write, never to read", () => {
+        const unannotated = Object.values(TOOLS).filter((t) => !t.effect && !t.scope);
+        expect(unannotated.length).toBeGreaterThan(0);
+        for (const t of unannotated) expect(scopeFor(t.id)).toBe("artifacts:write");
+    });
+
+    it("resolves every tool to one of the four", () => {
+        for (const t of Object.values(TOOLS)) expect(isToolScope(scopeFor(t.id))).toBe(true);
+    });
+});
+
+describe("scopesForTools", () => {
+    it("collapses a set of tools to the permissions it needs, in catalog order", () => {
+        expect(scopesForTools(["trash-artifact", "read-artifact", "add-section"])).toEqual([
+            "artifacts:read",
+            "artifacts:write",
+            "artifacts:delete",
+        ]);
+    });
+
+    it("is empty for nothing", () => {
+        expect(scopesForTools([])).toEqual([]);
+    });
+});
+
+describe("SCOPE_LABEL", () => {
+    it("gives every scope a sentence a person can agree to", () => {
+        for (const scope of TOOL_SCOPES) {
+            expect(SCOPE_LABEL[scope]).toBeTruthy();
+            expect(SCOPE_LABEL[scope]).not.toMatch(/artifacts:/);
+        }
     });
 });

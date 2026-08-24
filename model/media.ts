@@ -85,6 +85,78 @@ export const vimeoId = (url: string | undefined): string | null =>
 
 export const isEmbedVideoUrl = (url: string): boolean => !!youtubeId(url) || !!vimeoId(url);
 
+export interface PlayerOpts {
+    controls: boolean;
+    autoplay: boolean;
+    loop: boolean;
+    muted: boolean;
+}
+
+export interface Embed {
+    id: string;
+    kind: "iframe" | "file";
+    src: string; // iframe: player opts baked into the URL; file: applied as <video> attributes
+    opts: PlayerOpts;
+}
+
+/**
+ * How a url plays: a provider iframe with the options baked into it, a file the <video> element can
+ * take, or null when nothing here can play it (the surface then paints the poster). Lives at this
+ * layer because the live player is in the browser and the whitelist is a security boundary both the
+ * editor and the published viewer answer to.
+ */
+export function embedFor(
+    url: string,
+    opts?: Partial<PlayerOpts>,
+): Pick<Embed, "kind" | "src" | "opts"> | null {
+    const o: PlayerOpts = {
+        controls: opts?.controls ?? true,
+        autoplay: !!opts?.autoplay,
+        loop: !!opts?.loop,
+        muted: !!opts?.muted || !!opts?.autoplay, // browsers only allow muted autoplay
+    };
+    const u = url.trim();
+    if (!u) return null;
+    const yt = youtubeId(u);
+    if (yt) {
+        const p = new URLSearchParams();
+        if (!o.controls) p.set("controls", "0");
+        if (o.autoplay) {
+            p.set("autoplay", "1");
+            p.set("playsinline", "1");
+        }
+        if (o.muted) p.set("mute", "1");
+        if (o.loop) {
+            p.set("loop", "1");
+            p.set("playlist", yt); // yt loops only with a playlist of the same id
+        }
+        const qs = p.toString();
+        return {
+            kind: "iframe",
+            src: `https://www.youtube-nocookie.com/embed/${yt}${qs ? `?${qs}` : ""}`,
+            opts: o,
+        };
+    }
+    const vm = vimeoId(u);
+    if (vm) {
+        const p = new URLSearchParams();
+        if (!o.controls) p.set("controls", "0");
+        if (o.autoplay) p.set("autoplay", "1");
+        if (o.muted) p.set("muted", "1");
+        if (o.loop) p.set("loop", "1");
+        const qs = p.toString();
+        return {
+            kind: "iframe",
+            src: `https://player.vimeo.com/video/${vm}${qs ? `?${qs}` : ""}`,
+            opts: o,
+        };
+    }
+    if (/\.(mp4|webm|ogg|mov)(\?|#|$)/i.test(u)) return { kind: "file", src: u, opts: o };
+    // stored clips live behind extension-less asset urls; on a video element that's a file source
+    if (assetIdFromUrl(u)) return { kind: "file", src: u, opts: o };
+    return null;
+}
+
 export interface MediaSearchResponse {
     items: MediaItem[];
     page: number;

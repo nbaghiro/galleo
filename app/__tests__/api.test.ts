@@ -92,7 +92,6 @@ async function caught(p: Promise<unknown>): Promise<ApiError> {
 }
 
 const content: ArtifactContent = { format: "deck", theme: "aurora", sections: [] };
-const element: ElementInstance = { type: "heading", data: { text: "Hi" } };
 
 afterEach(() => {
     vi.unstubAllGlobals();
@@ -170,10 +169,12 @@ describe("representative methods (method · path · mapping)", () => {
         expect(result).toEqual(["Add a CTA", "Trim the intro"]);
     });
 
-    it("reviseElement POSTs the full payload and unwraps r.element", async () => {
+    // The address, not the node: the server resolves it against the content it was handed, which is
+    // what lets the route and the chat agent run the same tool.
+    it("reviseElement POSTs the element's address and unwraps r.element", async () => {
         const revised: ElementInstance = { type: "heading", data: { text: "Punchier" } };
         const calls = stubFetch(jsonResponse({ element: revised }));
-        const result = await api.reviseElement(content, "sec1", element, "make it punchier");
+        const result = await api.reviseElement(content, "sec1", [0, 2], "make it punchier");
 
         const call = firstCall(calls);
         expect(call.url).toBe("/api/ai/element");
@@ -181,7 +182,7 @@ describe("representative methods (method · path · mapping)", () => {
         expect(bodyOf(call)).toEqual({
             content,
             sectionId: "sec1",
-            element,
+            path: [0, 2],
             instruction: "make it punchier",
         });
         expect(result).toEqual(revised);
@@ -343,45 +344,6 @@ describe("searchMedia — query-string encoding", () => {
         expect(firstCall(calls).url).toBe(
             "/api/media/search?provider=pexels&q=cats%20%26%20dogs&page=1&kind=gif",
         );
-    });
-});
-
-describe("getPublicContent — direct fetch (not via req) with URLSearchParams", () => {
-    it("maps an ok response to { ok: true, content } and sets pw + k in the query", async () => {
-        const payload = { title: "Deck", content, branded: true, customTheme: null };
-        const calls = stubFetch(jsonResponse(payload));
-        const result = await api.getPublicContent("my-slug", { pw: "secret", k: "tok123" });
-
-        const call = firstCall(calls);
-        expect(call.url).toBe("/api/p/my-slug/content?pw=secret&k=tok123");
-        expect(call.init?.credentials).toBe("same-origin");
-        // credits are resolved from the artifact's assets, so an omitted list reads as none
-        expect(result).toEqual({ ok: true, content: { ...payload, credits: [] } });
-    });
-
-    it("omits the query entirely when no pw/k are given", async () => {
-        const payload = { title: "Deck", content, branded: false, customTheme: null };
-        const calls = stubFetch(jsonResponse(payload));
-        await api.getPublicContent("my-slug");
-        expect(firstCall(calls).url).toBe("/api/p/my-slug/content");
-    });
-
-    it("maps a gated 401 to { ok: false, ... } read from the body", async () => {
-        stubFetch(
-            jsonResponse(
-                { needsPassword: true, theme: "aurora", customTheme: null, format: "deck" },
-                { status: 401, statusText: "Unauthorized" },
-            ),
-        );
-        const result = await api.getPublicContent("my-slug", { pw: "wrong" });
-        expect(result).toEqual({
-            ok: false,
-            status: 401,
-            needsPassword: true,
-            theme: "aurora",
-            customTheme: null,
-            format: "deck",
-        });
     });
 });
 

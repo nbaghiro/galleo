@@ -3,8 +3,8 @@ import { eq } from "drizzle-orm";
 import { monthlyGrantFor } from "@model/billing";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { createAuthToken } from "@services/core/accounts";
-import { appUrl } from "@services/utils/env";
+import { createAuthToken, createVerifyCode } from "@services/core/accounts";
+import { DEV_CONFIRM_CODE } from "@model/workspace";
 import { authed, jsonInit, request, seedUser } from "@services/__tests__/harness";
 
 interface AuthUser {
@@ -41,6 +41,8 @@ const login = (body: unknown): Promise<Response> =>
     request("/auth/login", limited(jsonInit("POST", body)));
 const reset = (body: unknown): Promise<Response> =>
     request("/auth/reset", limited(jsonInit("POST", body)));
+const confirm = (userId: string, code: string): Promise<Response> =>
+    authed(userId, "/auth/confirm", limited(jsonInit("POST", { code })));
 
 const tokenRows = (userId: string) =>
     db.select().from(schema.authTokens).where(eq(schema.authTokens.userId, userId));
@@ -48,6 +50,17 @@ const tokenRows = (userId: string) =>
 const userRow = async (id: string) => {
     const [u] = await db.select().from(schema.users).where(eq(schema.users.id, id));
     return u!;
+};
+
+// seedUser lands verified, which is right for every other suite; the confirm route is the one place
+// that needs an account still waiting.
+const unverified = async (): Promise<{ userId: string }> => {
+    const { userId } = await seedUser();
+    await db
+        .update(schema.users)
+        .set({ emailVerifiedAt: null, createdAt: new Date() })
+        .where(eq(schema.users.id, userId));
+    return { userId };
 };
 
 describe("POST /auth/signup", () => {
@@ -58,11 +71,11 @@ describe("POST /auth/signup", () => {
             name: "Ada",
         });
         expect(res.status).toBe(200);
-        // No session until the address is confirmed: the account exists, nothing is reachable yet.
-        const pending = (await res.json()) as { pending: boolean; email: string };
-        expect(pending.pending).toBe(true);
-        expect(pending.email).toBe("ada@example.com");
-        expect(res.headers.get("set-cookie") ?? "").not.toContain("galleo_session=");
+        // A session, but a gated one: it exists so the app can open on the onboarding surface, and
+        // requireUser/requireWorkspace refuse it until the address is confirmed.
+        const body = (await res.json()) as { user: { email: string }; sent: boolean };
+        expect(body.user.email).toBe("ada@example.com");
+        expect(res.headers.get("set-cookie")).toContain("galleo_session=");
 
         const [user] = await db
             .select()
@@ -89,7 +102,7 @@ describe("POST /auth/signup", () => {
         expect(ws!.creditsResetAt.getTime()).toBeGreaterThan(Date.now());
     });
 
-    it("mints a verification token even though mail is unconfigured", async () => {
+    it("mints a confirmation code even though mail is unconfigured", async () => {
         await signup({ email: "verify-me@example.com", password: "pw-12345678" });
         const [user] = await db
             .select()
@@ -99,30 +112,29 @@ describe("POST /auth/signup", () => {
         expect(tokens).toHaveLength(1);
         expect(tokens[0]!.purpose).toBe("verify");
         expect(tokens[0]!.consumedAt).toBeNull();
-        // 24h ttl, and only the hash is stored (sha-256 hex, never the raw link token)
-        expect(tokens[0]!.expiresAt.getTime()).toBeGreaterThan(Date.now() + 23 * 60 * 60 * 1000);
+        // 15m ttl, short because the code is typed in the tab that is already open
+        expect(tokens[0]!.expiresAt.getTime()).toBeGreaterThan(Date.now() + 13 * 60 * 1000);
+        expect(tokens[0]!.expiresAt.getTime()).toBeLessThan(Date.now() + 16 * 60 * 1000);
+        // the code itself is never stored, only a hash salted with the account it belongs to
         expect(tokens[0]!.tokenHash).toMatch(/^[0-9a-f]{64}$/);
     });
 
-    it("refuses a sign-in until the address is confirmed, then allows it", async () => {
+    // The code is typed into a session, so refusing sign-in to an unconfirmed account would be a dead
+    // end: no session, and no other way to make one. The gate holds it after the door instead.
+    it("signs an unconfirmed account in, and the session it gets still reaches nothing", async () => {
         const email = "gated@example.com";
         await signup({ email, password: "pw-12345678" });
 
-        const blocked = await login({ email, password: "pw-12345678" });
-        expect(blocked.status).toBe(403);
-        const body = (await blocked.json()) as { needsVerification?: boolean };
-        expect(body.needsVerification).toBe(true);
-        expect(blocked.headers.get("set-cookie") ?? "").not.toContain("galleo_session=");
+        const res = await login({ email, password: "pw-12345678" });
+        expect(res.status).toBe(200);
+        const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0]!;
+        expect(cookie).toContain("galleo_session=");
 
-        const [u] = await db.select().from(schema.users).where(eq(schema.users.email, email));
-        await db
-            .update(schema.users)
-            .set({ emailVerifiedAt: new Date() })
-            .where(eq(schema.users.id, u!.id));
-
-        const ok = await login({ email, password: "pw-12345678" });
-        expect(ok.status).toBe(200);
-        expect(ok.headers.get("set-cookie")).toContain("galleo_session=");
+        const guarded = await request("/artifacts", { headers: { Cookie: cookie } });
+        expect(guarded.status).toBe(403);
+        expect(((await guarded.json()) as { needsVerification?: boolean }).needsVerification).toBe(
+            true,
+        );
     });
 
     // The gate applies from its own date forward, so accounts opened before it keep their access.
@@ -137,6 +149,30 @@ describe("POST /auth/signup", () => {
         const res = await login({ email, password: "pw-12345678" });
         expect(res.status).toBe(200);
         expect(res.headers.get("set-cookie")).toContain("galleo_session=");
+    });
+
+    // The session signup hands out reaches nothing until the address is confirmed. This is the whole
+    // security of the gate: without it, an unconfirmed account would simply be a normal account.
+    it("hands out a session that every guarded route refuses", async () => {
+        const email = "gated-session@example.com";
+        const res = await signup({ email, password: "pw-12345678" });
+        const cookie = (res.headers.get("set-cookie") ?? "").split(";")[0]!;
+
+        for (const path of ["/artifacts", "/themes", "/folders"]) {
+            const r = await request(path, { headers: { Cookie: cookie } });
+            expect(r.status, `${path} must refuse an unconfirmed session`).toBe(403);
+            expect(((await r.json()) as { needsVerification?: boolean }).needsVerification).toBe(
+                true,
+            );
+        }
+
+        // but it can read itself and ask for another mail, which is all the confirm step needs
+        expect((await request("/me", { headers: { Cookie: cookie } })).status).toBe(200);
+        const again = await request(
+            "/auth/resend-verification",
+            limited({ method: "POST", headers: { Cookie: cookie } }),
+        );
+        expect(again.status).toBe(200);
     });
 
     it("rejects a missing password, a malformed email, and a short password", async () => {
@@ -246,16 +282,15 @@ describe("POST /auth/reset", () => {
         expect((await reset({ token: raw, password: "fresh-password-9" })).status).toBe(400);
     });
 
-    it("refuses a token minted for the other purpose, in both directions", async () => {
+    it("refuses a token minted for the other purpose", async () => {
         const { userId } = await seedUser();
         const verifyToken = await createAuthToken(userId, "verify", 3600);
         expect((await reset({ token: verifyToken, password: "fresh-password-9" })).status).toBe(
             400,
         );
 
-        const resetToken = await createAuthToken(userId, "reset", 3600);
-        const res = await request(`/auth/verify?token=${resetToken}`);
-        expect(res.headers.get("location")).toBe(appUrl("/login?authError=verify_invalid"));
+        // The other direction has no test because it has no path: a confirmation code is six digits,
+        // so a reset token is refused on shape before the purpose column is ever read.
     });
 
     it("400s when the token or password is missing", async () => {
@@ -264,23 +299,108 @@ describe("POST /auth/reset", () => {
     });
 });
 
-describe("GET /auth/verify", () => {
-    it("confirms the email, redirects to the app, and cannot be replayed", async () => {
-        const { userId } = await seedUser();
-        const raw = await createAuthToken(userId, "verify", 3600);
-
-        const res = await request(`/auth/verify?token=${raw}`);
-        expect(res.status).toBe(302);
-        expect(res.headers.get("location")).toBe(appUrl("/login?verified=1"));
-        expect((await userRow(userId)).emailVerifiedAt).not.toBeNull();
-
-        const replay = await request(`/auth/verify?token=${raw}`);
-        expect(replay.headers.get("location")).toBe(appUrl("/login?authError=verify_invalid"));
+describe("POST /auth/confirm", () => {
+    it("401s without a session", async () => {
+        const res = await request("/auth/confirm", limited(jsonInit("POST", { code: "123456" })));
+        expect(res.status).toBe(401);
     });
 
-    it("redirects to the error destination when the token is absent", async () => {
-        const res = await request("/auth/verify");
-        expect(res.headers.get("location")).toBe(appUrl("/login?authError=verify_invalid"));
+    it("confirms the address, and the same code cannot be spent twice", async () => {
+        const { userId } = await unverified();
+        const code = await createVerifyCode(userId);
+
+        const res = await confirm(userId, code);
+        expect(res.status).toBe(200);
+        expect(((await res.json()) as AuthBody).user.emailVerified).toBe(true);
+        expect((await userRow(userId)).emailVerifiedAt).not.toBeNull();
+
+        // already verified, so the route answers with the user rather than spending anything
+        const replay = await confirm(userId, code);
+        expect(replay.status).toBe(200);
+    });
+
+    it("opens the routes the gate was refusing", async () => {
+        const { userId } = await unverified();
+        expect((await authed(userId, "/artifacts")).status).toBe(403);
+        await confirm(userId, await createVerifyCode(userId));
+        expect((await authed(userId, "/artifacts")).status).toBe(200);
+    });
+
+    it("400s a wrong code, an expired one, and one minted for another account", async () => {
+        const { userId } = await unverified();
+        const code = await createVerifyCode(userId);
+        const wrong = String((Number(code) + 1) % 1_000_000).padStart(6, "0");
+        expect((await confirm(userId, wrong)).status).toBe(400);
+
+        const other = await unverified();
+        expect((await confirm(other.userId, code)).status).toBe(400);
+
+        await db
+            .update(schema.authTokens)
+            .set({ expiresAt: new Date(Date.now() - 1000) })
+            .where(eq(schema.authTokens.userId, userId));
+        expect((await confirm(userId, code)).status).toBe(400);
+    });
+
+    it("400s a code that is not six digits, without touching the row", async () => {
+        const { userId } = await unverified();
+        const code = await createVerifyCode(userId);
+        for (const bad of ["", "12345", "1234567", "abcdef"])
+            expect((await confirm(userId, bad)).status).toBe(400);
+        expect((await confirm(userId, code)).status).toBe(200);
+    });
+
+    // "send it again" must not leave the earlier codes working, or the guess budget multiplies
+    it("supersedes the previous code when a new one is issued", async () => {
+        const { userId } = await unverified();
+        const first = await createVerifyCode(userId);
+        const second = await createVerifyCode(userId);
+        expect(second).not.toBe(first);
+        expect((await confirm(userId, first)).status).toBe(400);
+        expect((await confirm(userId, second)).status).toBe(200);
+    });
+
+    // The bypass and, more to the point, its off switch. NODE_ENV is what Render sets, so this is the
+    // assertion that stands between a convenience and 123456 confirming every account in production.
+    it("takes the dev code, and refuses it once NODE_ENV says production", async () => {
+        const dev = await unverified();
+        expect((await confirm(dev.userId, DEV_CONFIRM_CODE)).status).toBe(200);
+        expect((await userRow(dev.userId)).emailVerifiedAt).not.toBeNull();
+
+        const prod = await unverified();
+        const was = process.env.NODE_ENV;
+        process.env.NODE_ENV = "production";
+        try {
+            expect((await confirm(prod.userId, DEV_CONFIRM_CODE)).status).toBe(400);
+            expect((await userRow(prod.userId)).emailVerifiedAt).toBeNull();
+        } finally {
+            if (was === undefined) delete process.env.NODE_ENV;
+            else process.env.NODE_ENV = was;
+        }
+        // and it is a bypass, not a skeleton key: the real code still works
+        expect((await confirm(prod.userId, await createVerifyCode(prod.userId))).status).toBe(200);
+    });
+
+    // it must not leave the codes it skipped past still standing
+    it("supersedes a live code when the dev code is used", async () => {
+        const { userId } = await unverified();
+        const real = await createVerifyCode(userId);
+        expect((await confirm(userId, DEV_CONFIRM_CODE)).status).toBe(200);
+        const rows = await tokenRows(userId);
+        expect(rows.every((r) => r.consumedAt !== null)).toBe(true);
+        expect(real).not.toBe(DEV_CONFIRM_CODE);
+    });
+
+    // 6 digits is only defensible with a ceiling on guesses
+    it("stops guessing after the attempt limit", async () => {
+        const { userId } = await unverified();
+        await createVerifyCode(userId);
+        const ip = freshIp();
+        const guess = (): Promise<Response> =>
+            authed(userId, "/auth/confirm", asIp(ip, jsonInit("POST", { code: "000000" })));
+        const codes: number[] = [];
+        for (let i = 0; i < 10; i++) codes.push((await guess()).status);
+        expect(codes.filter((s) => s === 429).length).toBeGreaterThan(0);
     });
 });
 

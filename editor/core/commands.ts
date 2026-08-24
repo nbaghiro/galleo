@@ -329,6 +329,15 @@ registerCommands([
         run: () => present(),
     },
     {
+        id: "present.narrate",
+        title: "Play with voice",
+        group: "present",
+        icon: "play",
+        slash: "/narrate",
+        when: inEditor,
+        run: () => present({ withVoice: true }),
+    },
+    {
         id: "share.open",
         title: "Share…",
         group: "share",

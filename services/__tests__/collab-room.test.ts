@@ -469,3 +469,109 @@ describe("two clients converging through the real applier", () => {
         expect(dataOf(server)).toEqual({ text: "hello", color: "green" });
     });
 });
+
+// The applier reaches a database, and a database can go away mid-transaction. The queue that keeps
+// writes in order is the thing at risk: a rejection there skips the callback of every batch behind
+// it, so the room would go on accepting writes, apply none of them, and answer nobody.
+describe("a write that throws rather than failing", () => {
+    const op = (text: string): SectionOp => ({
+        kind: "data",
+        sectionId: "s1",
+        elementId: "e1",
+        keys: { text },
+    });
+
+    it("answers the sender and leaves the queue able to carry the next batch", async () => {
+        let calls = 0;
+        const room = new Room(TARGET, 0, {
+            apply: () => {
+                calls += 1;
+                return calls === 1
+                    ? Promise.reject(new Error("connection terminated unexpectedly"))
+                    : Promise.resolve({ ok: true as const, seq: 9 });
+            },
+            now: () => clock,
+        });
+        const a = join(room, "a");
+        const b = join(room, "b");
+
+        room.handle("a", { t: "ops", tag: "t1", ops: [op("one")] });
+        await settle();
+        expect(a.last("reject")?.tag).toBe("t1");
+        expect(a.last("ack")).toBeUndefined();
+        expect(b.ofType("ops")).toHaveLength(0); // nothing landed, so nothing is broadcast
+
+        room.handle("a", { t: "ops", tag: "t2", ops: [op("two")] });
+        await settle();
+        expect(calls).toBe(2);
+        expect(a.last("ack")).toEqual({ t: "ack", tag: "t2", seq: 9 });
+        expect(b.last("ops")?.seq).toBe(9);
+    });
+});
+
+// A socket carries the level it was upgraded with, and standing changes under it: a grant is
+// revoked, an admin is demoted, the artifact itself is locked. The routes that do any of that push
+// the re-resolved level in here rather than leaving the tab on its old rights until it reconnects.
+describe("an access change under an open socket", () => {
+    it("tells that connection its new level and takes back what it was holding", () => {
+        const room = new Room(TARGET, 0, deps());
+        const a = join(room, "a");
+        const b = join(room, "b");
+        room.handle("a", { t: "claim", element: el("e1") });
+
+        room.applyAccess("u-a", "view");
+
+        expect(a.last("access")).toEqual({ t: "access", access: "view" });
+        expect(b.last("lease")).toEqual({ t: "lease", element: el("e1"), holder: null });
+        expect(a.closed).toBe(false);
+    });
+
+    it("stops accepting writes from them from that moment", async () => {
+        const room = new Room(TARGET, 0, deps());
+        const a = join(room, "a");
+        room.applyAccess("u-a", "comment");
+        room.handle("a", {
+            t: "ops",
+            tag: "t1",
+            ops: [{ kind: "remove", id: "s1" }],
+        });
+        await settle();
+        expect(a.last("reject")).toEqual({ t: "reject", tag: "t1", reason: "read only" });
+        expect(applied).toHaveLength(0);
+    });
+
+    it("re-states the roster entry, so the others stop seeing an editor", () => {
+        const room = new Room(TARGET, 0, deps());
+        join(room, "a");
+        const b = join(room, "b");
+        room.applyAccess("u-a", "view");
+        const peer = b.last("peer");
+        expect(peer?.connId).toBe("a");
+        expect(peer?.peer?.canEdit).toBe(false);
+    });
+
+    it("closes a connection whose access is gone entirely", () => {
+        const room = new Room(TARGET, 0, deps());
+        const a = join(room, "a");
+        const b = join(room, "b");
+        room.applyAccess("u-a", "none");
+        expect(a.closed).toBe(true);
+        expect(room.size).toBe(1);
+        expect(b.last("peer")).toEqual({ t: "peer", connId: "a", peer: null });
+    });
+
+    it("says nothing when the level did not actually change", () => {
+        const room = new Room(TARGET, 0, deps());
+        const a = join(room, "a");
+        const before = a.sent.length;
+        room.applyAccess("u-a", "edit");
+        expect(a.sent).toHaveLength(before);
+    });
+
+    it("names everyone connected, so a caller can re-resolve each of them", () => {
+        const room = new Room(TARGET, 0, deps());
+        join(room, "a");
+        join(room, "b");
+        expect(room.userIds.sort()).toEqual(["u-a", "u-b"]);
+    });
+});

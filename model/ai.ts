@@ -356,9 +356,23 @@ export type Phase =
 
 export type SectionStatus = "queued" | "active" | "writing" | "image" | "done";
 
+// The generate prompt offers the model the first six; `detail` is only ever chosen by hand in the
+// outline editor. `ROLE_WANTS` in ./eval scores six of the seven.
+export const BEAT_ROLES = [
+    "scene",
+    "tension",
+    "turn",
+    "proof",
+    "momentum",
+    "close",
+    "detail",
+] as const;
+export type BeatRole = (typeof BEAT_ROLES)[number];
+
 export interface Beat {
     id: string;
     label: string;
+    // stays a string: the model supplies it and can invent one, so narrow with asBeatRole
     role: string;
     layout?: string; // a named layout preset; shapes the pre-content skeleton
     image?: boolean; // carries a prominent image (drives sourcing + ghost)

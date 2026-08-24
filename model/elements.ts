@@ -16,6 +16,14 @@ export type TextAlign = (typeof TEXT_ALIGN)[number];
 export const BULLET_MARKERS = ["dot", "number", "dash", "check", "arrow", "checkbox"] as const;
 export type BulletMarker = (typeof BULLET_MARKERS)[number];
 
+// "expanded" is the stored default: every answer reads at once, which is what a printed FAQ wants
+export const FAQ_COLLAPSE = ["expanded", "collapsible"] as const;
+export type FaqCollapse = (typeof FAQ_COLLAPSE)[number];
+
+// "panel" is a paragraph or two behind a trigger; "menu" is a tight column of links
+export const POPUP_VARIANTS = ["panel", "menu"] as const;
+export type PopupVariant = (typeof POPUP_VARIANTS)[number];
+
 export const CALLOUT_TONES = [
     "note",
     "info",

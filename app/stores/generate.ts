@@ -839,7 +839,6 @@ export function pauseBuild(): void {
 export function resumeBuild(): void {
     if (gen.stage !== "building") return;
     setGen("paused", false);
-    capture("generation_resumed", { at_index: builtCount() });
     void buildLoop();
 }
 export function stopHere(): void {

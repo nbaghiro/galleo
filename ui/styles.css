@@ -30,6 +30,21 @@
     z-index: 80;
 }
 
+/* Icon+label rows (Button · Chip · MenuItem · barAction · one-off flex buttons). Geometric flex
+   centring places an icon against the label's line box, whose baseline shifts per font, so themed
+   chrome drifted up to ±1.7px. Instead: anchor a direct-child svg to the text baseline, then lift
+   it to the label's optical band (midway between the cap-height and x-height midpoints) — cap/ex
+   resolve from the element's own font, so it lands exactly in every theme font. The negative
+   margin keeps the svg's box from growing a line the text already sizes. Requires auto height:
+   with a fixed height a baseline group falls back to start-alignment, so pad instead of h-*. */
+@utility icon-row {
+    align-items: baseline;
+    & > svg {
+        margin-top: -4px;
+        translate: 0 calc(50% - 0.25cap - 0.25ex);
+    }
+}
+
 @theme {
     --color-canvas: #f4f0e8;
     --color-panel: #fbf8f1;

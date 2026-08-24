@@ -15,7 +15,6 @@ import type { Tokens } from "@themes";
 import { themeCssVars } from "@themes";
 import type { ElementAddress, SectionBackground } from "@model/artifact";
 import type { Peer } from "@model/collab";
-import { cursorSection } from "@model/collab";
 import { getElementAt } from "@elements/ops";
 import { getElement, listElements } from "@elements/spec";
 import { installKeyDispatcher } from "@ui/keys";
@@ -25,7 +24,7 @@ import { Icon, UiThemeProvider } from "@ui/icons";
 import { TextField, FormatSwitcher } from "@ui/inputs";
 import { FloatingPanel, OverlayOwner, Sheet } from "@ui/overlay";
 import { dismissalFor, newOwnerToken, pressInside } from "@ui/gesture";
-import { isPhone } from "@ui/viewport";
+import { isDesktop, isPhone } from "@ui/viewport";
 import { resolveProfile } from "@engine/profile";
 import { Canvas, Thumb } from "./Canvas";
 import { Present } from "./Present";
@@ -34,7 +33,7 @@ import { ExportModal, openExportModal } from "./panels/ExportModal";
 import { DragGhost, PaletteItem } from "./panels/Insert";
 import { ElementInspector } from "./panels/RightPanel";
 import { CommentSheets } from "./panels/Comments";
-import { collabActive, otherPeers } from "./core/collab";
+import { collabActive, following, otherPeers, toggleFollow } from "./core/collab";
 import { drag } from "./core/dnd";
 import { pickArtifactBackground } from "./core/media";
 import { setSectionBackground, clearBackgroundImage } from "@elements/ops";
@@ -56,7 +55,6 @@ import {
     editorTokens,
     ensureAllSections,
     features,
-    jumpToSection,
     leftOpen,
     moveSectionBy,
     present,
@@ -178,17 +176,22 @@ const ArtifactName: Component = () => {
         setRenaming(false);
     };
 
+    const NAME_CLASS =
+        "min-w-0 max-w-25 truncate rounded px-1 text-[13px] text-muted md:max-w-40 lg:max-w-none";
+
     return (
         <Show
             when={renaming()}
             fallback={
-                <button
-                    class="min-w-0 max-w-25 cursor-text truncate rounded px-1 text-[13px] text-muted hover:text-ink md:max-w-40 lg:max-w-none"
-                    title="Rename"
-                    onClick={startRename}
-                >
-                    {current()}
-                </button>
+                <Show when={canEdit()} fallback={<span class={NAME_CLASS}>{current()}</span>}>
+                    <button
+                        class={`${NAME_CLASS} cursor-text hover:text-ink`}
+                        title="Rename"
+                        onClick={startRename}
+                    >
+                        {current()}
+                    </button>
+                </Show>
             }
         >
             <input
@@ -225,7 +228,8 @@ const HistoryButtons: Component = () => (
 );
 
 const Swatch: Component<{ surface: string; ink: string; accent: string }> = (props) => (
-    <span class="flex h-4 w-4 overflow-hidden rounded-full border border-line">
+    // self-center: a text-free chip would otherwise sit on the Button's baseline
+    <span class="flex h-4 w-4 self-center overflow-hidden rounded-full border border-line">
         <span class="h-full w-1/2" style={{ background: props.surface }} />
         <span class="h-full w-1/4" style={{ background: props.ink }} />
         <span class="h-full w-1/4" style={{ background: props.accent }} />
@@ -269,22 +273,62 @@ const BackdropCornerButton: Component = () => {
     );
 };
 
-const ExportButton: Component = () => (
-    <Button variant="tool" size="sm" onClick={() => openExportModal()}>
-        <Icon name="export" size={14} /> <span class="hidden lg:inline">Export</span>
-    </Button>
+// Topbar tool action: a labeled Button on desktop, a bordered IconButton below lg. The label used
+// to display:none away inside one Button, but a bare svg mis-sizes an icon-row's baseline line.
+const ToolAction: Component<{
+    icon: string;
+    label: string;
+    title?: string;
+    onClick: () => void;
+}> = (props) => (
+    <Show
+        when={isDesktop()}
+        fallback={
+            <IconButton
+                size="lg"
+                tone="tool"
+                bordered
+                class="bg-canvas"
+                title={props.title ?? props.label}
+                onClick={() => props.onClick()}
+            >
+                <Icon name={props.icon} size={14} />
+            </IconButton>
+        }
+    >
+        <Button variant="tool" size="sm" title={props.title} onClick={() => props.onClick()}>
+            <Icon name={props.icon} size={14} /> {props.label}
+        </Button>
+    </Show>
 );
 
+// Narration lives inside the present surface now, on its own control, so this is one plain action
+// again: a split whose second entry only chose how to start the same view was a menu for nothing.
+const PresentButton: Component = () => (
+    <ToolAction
+        icon="present"
+        label={editor.artifact.format === "deck" ? "Present" : "Preview"}
+        onClick={() => {
+            void ensureAllSections(); // presenting walks the whole deck
+            present();
+        }}
+    />
+);
+
+const ExportButton: Component = () => (
+    <ToolAction icon="export" label="Export" onClick={() => openExportModal()} />
+);
+
+// Topbar openers live outside the rail, so the rail's outside-press dismissal has to know them.
+const FLYOUT_OPENER = "[data-flyout-opener]";
+
 const ShareButton: Component = () => (
-    <Button
-        variant="tool"
-        size="sm"
+    <ToolAction
+        icon={features().publicLinks ? "link" : "lock"}
+        label="Share"
         title={features().publicLinks ? "Share" : "Sharing is a paid feature · upgrade"}
         onClick={() => (features().publicLinks ? requestShare() : requestUpgrade())}
-    >
-        <Icon name={features().publicLinks ? "link" : "lock"} size={14} />
-        <span class="hidden lg:inline">Share</span>
-    </Button>
+    />
 );
 
 // phone: format · theme · share · export fold into one sheet behind a "⋯"
@@ -335,35 +379,39 @@ const AccessBadge: Component = () => (
     </Show>
 );
 
-// Who else is in the room, in join order, coloured to match their cursor. Clicking one jumps to the
-// section they are working in, which is the only navigation collaboration needs.
-const PeerStack: Component = () => {
-    const jumpTo = (peer: Peer): void => {
-        const at = peer.state.editing ?? peer.state.selection;
-        const sectionId = at?.sectionId ?? (peer.state.cursor && cursorSection(peer.state.cursor));
-        if (!sectionId) return;
-        const i = editor.artifact.sections.findIndex((s) => s.id === sectionId);
-        if (i >= 0) jumpToSection(i);
-    };
-    return (
-        <Show when={collabActive() && otherPeers().length}>
-            <div class="flex items-center -space-x-1.5 pr-1">
-                <For each={otherPeers()}>
-                    {(peer) => (
+// Who else is in the room, coloured to match their cursor. Clicking one follows them: the viewport
+// is taken to where they are working and stays with them until the reader scrolls, presses Escape,
+// or clicks the same avatar again. One person, one avatar, however many connections they hold.
+const PeerStack: Component = () => (
+    <Show when={collabActive() && otherPeers().length}>
+        <div class="flex items-center -space-x-1.5 pr-1">
+            <For each={otherPeers()}>
+                {(peer) => {
+                    const followed = (): boolean => following() === peer.user.id;
+                    return (
                         <button
-                            class="cursor-pointer rounded-full ring-2 transition-transform hover:-translate-y-0.5"
+                            data-testid="peer-avatar"
+                            class="cursor-pointer rounded-full transition-transform hover:-translate-y-0.5"
+                            classList={{ "ring-2": !followed(), "ring-3": followed() }}
                             style={{ "--tw-ring-color": peer.color }}
-                            title={`${peer.user.name || "Someone"} is here`}
-                            onClick={() => jumpTo(peer)}
+                            title={
+                                followed()
+                                    ? `Following ${nameOf(peer)}. Click to stop.`
+                                    : `Follow ${nameOf(peer)}`
+                            }
+                            aria-pressed={followed()}
+                            onClick={() => toggleFollow(peer.user.id)}
                         >
                             <Avatar size="sm" src={peer.user.avatarUrl} name={peer.user.name} />
                         </button>
-                    )}
-                </For>
-            </div>
-        </Show>
-    );
-};
+                    );
+                }}
+            </For>
+        </div>
+    </Show>
+);
+
+const nameOf = (peer: Peer): string => peer.user.name || "Someone";
 
 const Topbar: Component = () => (
     <header class="relative z-menu flex items-center gap-2 border-b border-line bg-panel px-3 md:gap-3.5 md:px-4.5">
@@ -389,19 +437,7 @@ const Topbar: Component = () => (
             <ShareButton />
             <ExportButton />
         </div>
-        <Button
-            variant="tool"
-            size="sm"
-            onClick={() => {
-                void ensureAllSections(); // Present walks the whole deck
-                present();
-            }}
-        >
-            <Icon name="present" size={14} />
-            <span class="hidden lg:inline">
-                {editor.artifact.format === "deck" ? "Present" : "Preview"}
-            </span>
-        </Button>
+        <PresentButton />
         <TopbarMore />
     </header>
 );
@@ -614,7 +650,11 @@ function dismissFlyoutOnOutside(rail: () => HTMLElement | undefined, owner: stri
     createEffect(() => {
         if (!rightTab()) return;
         const onDown = (e: PointerEvent): void => {
-            const inside = pressInside(e.composedPath(), { el: rail(), owner });
+            const inside = pressInside(e.composedPath(), {
+                el: rail(),
+                owner,
+                opener: FLYOUT_OPENER,
+            });
             const onCanvas = e
                 .composedPath()
                 .some((n) => n instanceof Element && n.tagName === "MAIN");

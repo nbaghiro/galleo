@@ -11,7 +11,9 @@ import type {
     ServerMessage,
 } from "@model/collab";
 import { colorForIndex, leaseKey, OP_BUFFER, PRESENCE_TTL_MS } from "@model/collab";
+import { warn } from "@services/utils/env";
 import { applyContentOps } from "./artifacts";
+import { artifactStanding } from "./collaborators";
 
 // The room: one per open artifact, in this process. It holds who is connected, where they are, who
 // is holding which element, and a short ring buffer of recent op broadcasts so a reconnecting client
@@ -187,6 +189,32 @@ export class Room {
         for (const m of this.members.values()) m.conn.send({ t: "resync", seq: this.seq });
     }
 
+    /** Everyone connected right now, so a caller can re-resolve what each of them may do here. */
+    get userIds(): string[] {
+        return [...new Set([...this.members.values()].map((m) => m.user.id))];
+    }
+
+    // A socket carries the level it was upgraded with, so a revoked grant or a lowered role would
+    // otherwise keep working until that tab happened to reconnect. Access changes are pushed in
+    // here instead: no access closes the connection, and anything else re-states the level to that
+    // client and re-broadcasts the roster entry, whose canEdit the other tabs render from.
+    applyAccess(userId: string, access: ArtifactAccess): void {
+        for (const m of [...this.members.values()]) {
+            if (m.user.id !== userId || m.access === access) continue;
+            if (access === "none") {
+                this.leave(m.connId);
+                m.conn.close();
+                continue;
+            }
+            m.access = access;
+            // dropping below edit takes back whatever they were holding, so nobody waits on a lease
+            // held by someone who can no longer use it
+            if (!atLeast(access, "edit")) this.releaseAllOf(m.connId);
+            m.conn.send({ t: "access", access });
+            this.toOthers(m.connId, { t: "peer", connId: m.connId, peer: peerOf(m) });
+        }
+    }
+
     // ---- internals ---------------------------------------------------------------------------
 
     private write(member: Member, tag: string, ops: SectionOp[]): void {
@@ -199,17 +227,38 @@ export class Room {
             connId: member.connId,
             userId: member.user.id,
         };
-        this.queue = this.queue.then(async () => {
-            const result = await this.deps.apply(this.target, ops);
-            // the sender may have gone while the write was in flight; the broadcast still stands
-            const live = this.members.get(member.connId);
-            if (!result.ok) {
-                live?.conn.send({ t: "reject", tag, reason: result.reason });
-                return;
-            }
-            live?.conn.send({ t: "ack", tag, seq: result.seq });
-            this.publish(result.seq, author, ops);
-        });
+        // The chain must survive its own links: a rejected promise here would skip the callback of
+        // every batch queued behind it, so the room would go on accepting writes and silently apply
+        // none of them, with the sender still holding them as in flight. `applyOne` therefore
+        // answers every outcome itself and never throws, and the tail catch is the second belt.
+        this.queue = this.queue
+            .then(() => this.applyOne(member.connId, tag, author, ops))
+            .catch(() => undefined);
+    }
+
+    private async applyOne(
+        connId: string,
+        tag: string,
+        author: OpAuthor,
+        ops: SectionOp[],
+    ): Promise<void> {
+        let result: ApplyOutcome;
+        try {
+            result = await this.deps.apply(this.target, ops);
+        } catch (e) {
+            // A write that threw (the database went away mid-transaction) is a failed write like any
+            // other: the sender is told, and its resync is what puts the two sides back together.
+            warn(`collab write failed on ${this.target.artifactId}: ${String(e)}`);
+            result = { ok: false, reason: "could not save that change" };
+        }
+        // the sender may have gone while the write was in flight; the broadcast still stands
+        const live = this.members.get(connId);
+        if (!result.ok) {
+            live?.conn.send({ t: "reject", tag, reason: result.reason });
+            return;
+        }
+        live?.conn.send({ t: "ack", tag, seq: result.seq });
+        this.publish(result.seq, author, ops);
     }
 
     // Answers a reconnect. The buffer covers a short gap; anything older is a resync, which the
@@ -318,6 +367,25 @@ export function roomFor(target: RoomTarget, seq: number): Room {
 
 /** The room only if one is open, so a write outside the socket costs nothing when nobody is in it. */
 export const openRoom = (artifactId: string): Room | undefined => rooms.get(artifactId);
+
+// Access is resolved once, at the upgrade, so every route that can change someone's standing calls
+// one of these afterwards. Resolving through `artifactStanding` rather than applying the delta the
+// route knows about keeps the precedence chain in the single place that owns it.
+export async function syncArtifactAccess(artifactId: string, userIds?: string[]): Promise<void> {
+    const room = rooms.get(artifactId);
+    if (!room) return;
+    const who = userIds ? userIds.filter((id) => room.userIds.includes(id)) : room.userIds;
+    for (const userId of who) {
+        const standing = await artifactStanding(userId, artifactId);
+        room.applyAccess(userId, standing?.access ?? "none");
+    }
+}
+
+/** The workspace-wide version: a default level, a role, or a membership changed under every room. */
+export async function syncWorkspaceAccess(workspaceId: string): Promise<void> {
+    const open = [...rooms.values()].filter((r) => r.target.workspaceId === workspaceId);
+    for (const room of open) await syncArtifactAccess(room.target.artifactId);
+}
 
 export function closeIfEmpty(artifactId: string): void {
     const room = rooms.get(artifactId);

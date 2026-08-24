@@ -1,3 +1,4 @@
+import { resolveMx } from "node:dns/promises";
 import type { ArtifactAccess } from "@model/artifact";
 import { out, warn } from "@services/utils/env";
 
@@ -26,6 +27,52 @@ export function checkMailConfig(): void {
         warn("RESEND_API_KEY is not set: no email will be delivered, including verification");
 }
 
+// Real validation, as opposed to the shape check the field does: an address whose domain accepts no
+// mail cannot be confirmed, so refusing it at signup is more honest than mailing a code into a hole.
+// It answers the domain question only; whether the mailbox exists is what the code is for.
+//
+// Only when there is a mailer. Refusing an address as undeliverable while we are not sending anything
+// is incoherent, and it keeps DNS out of the test path, where every suite runs with the key blank.
+//
+// Fails OPEN on anything that is not a clear answer. A resolver timeout is an outage on our side, and
+// a signup refused because DNS was slow is worse than one that proceeds to a code it may not receive.
+const MX_TTL_MS = 6 * 60 * 60 * 1000;
+const MX_TIMEOUT_MS = 2_500;
+const mxCache = new Map<string, { ok: boolean; at: number }>();
+
+export async function domainAcceptsMail(email: string): Promise<boolean> {
+    if (!mailReady()) return true;
+    const domain = email.split("@")[1]?.trim().toLowerCase();
+    if (!domain) return false;
+    const hit = mxCache.get(domain);
+    if (hit && Date.now() - hit.at < MX_TTL_MS) return hit.ok;
+
+    const timeout = new Promise<boolean>((resolve) =>
+        setTimeout(() => resolve(true), MX_TIMEOUT_MS).unref(),
+    );
+    const ok = await Promise.race([lookupMx(domain), timeout]);
+    mxCache.set(domain, { ok, at: Date.now() });
+    return ok;
+}
+
+// An MX is required rather than preferred. RFC 5321 says a domain with only an address record still
+// takes mail at that host, but in practice the domains that fit that description are parked ones, and
+// they are most of what this is here to catch: `gmial.com` has an A record and no mail.
+// A single "." exchange is RFC 7505's null MX, which is a domain saying outright that it takes none.
+async function lookupMx(domain: string): Promise<boolean> {
+    try {
+        const mx = await resolveMx(domain);
+        return mx.some((r) => {
+            const host = r.exchange.trim().replace(/\.$/, "");
+            return host !== "";
+        });
+    } catch (e) {
+        // ENOTFOUND/NODATA is an answer: no MX, or no such domain. Anything else is our problem.
+        const code = (e as NodeJS.ErrnoException).code;
+        return code !== "ENOTFOUND" && code !== "ENODATA";
+    }
+}
+
 export interface EmailMessage {
     to: string;
     subject: string;
@@ -38,7 +85,9 @@ export interface EmailMessage {
 export async function sendEmail(msg: EmailMessage): Promise<void> {
     const key = process.env.RESEND_API_KEY;
     if (!key) {
-        out(`[email:dev] to=${msg.to} | ${msg.subject}\n${msg.text}`);
+        out(
+            `\n[email:dev] no RESEND_API_KEY, so this was not sent.\n  to      ${msg.to}\n  subject ${msg.subject}\n${msg.text.replace(/^/gm, "  ")}\n`,
+        );
         return;
     }
     const res = await fetch("https://api.resend.com/emails", {
@@ -65,26 +114,33 @@ interface Email {
     html: string;
 }
 
+// The invite paths, where a send failure must not break the flow that triggered it: false rather
+// than a throw. One sender underneath, so there is a single place the From and the reply-to are set.
 async function deliver(msg: Email): Promise<boolean> {
-    const key = process.env.RESEND_API_KEY;
-    if (!key) return false; // unconfigured → skip silently (dev)
+    if (!mailReady()) return false;
     try {
-        const res = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-                from: FROM,
-                reply_to: REPLY_TO,
-                to: msg.to,
-                subject: msg.subject,
-                html: msg.html,
-            }),
-        });
-        return res.ok;
+        await sendEmail({ ...msg, text: htmlToText(msg.html) });
+        return true;
     } catch {
-        return false; // never let a send failure break the publish flow
+        return false;
     }
 }
+
+// Resend requires a text part, and an invite's body is written as HTML. Not a general converter: it
+// unwraps the handful of tags these templates use so the plain-text alternative reads as sentences.
+const htmlToText = (html: string): string =>
+    html
+        .replace(/<a [^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g, "$2: $1")
+        .replace(/<\/(p|div|li|h1|h2|h3|tr)>/g, "\n")
+        .replace(/<br\s*\/?>/g, "\n")
+        .replace(/<[^>]+>/g, "")
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
 
 const escapeHtml = (s: string): string =>
     s.replace(

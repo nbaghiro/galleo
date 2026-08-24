@@ -1,282 +1,61 @@
-import type { Component, JSX } from "solid-js";
-import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
-import { previewContentProfile, profileFor, sectionFrame } from "@engine/profile";
-import { paintSectionStack } from "@canvas/render/backends";
-import { slideElement } from "@canvas/render/present";
-import { SlideProgress, backdropHostStyle } from "@ui/section";
-import { FloatingBar } from "@ui/overlay";
-import { IconButton } from "@ui/button";
-import { classifySwipe, tapZone } from "@ui/gesture";
-import { isCoarsePointer, isPhone } from "@ui/viewport";
+import type { Component } from "solid-js";
+import { Show } from "solid-js";
+import { PresentSurface } from "@ui/present";
+import { createNotesRunner } from "./core/notes";
 import {
+    canEdit,
     editor,
-    editorTokens,
     exitPresent,
-    nextSlide,
+    getNarration,
+    getSoundtrack,
+    notePresentProgress,
     presenting,
-    prevSlide,
-    setSlideIndex,
-    slideIndex,
+    presentWithVoice,
 } from "./core/store";
-import { Icon } from "@ui/icons";
 
-const MINI_W = 250;
+// The surface itself is @ui/present, shared with /present/:id and the published viewer, so the
+// editor's rehearsal is the same paint and the same pagination its audience gets.
 
-export const Present: Component = () => {
-    let overlay!: HTMLDivElement;
-    let host!: HTMLDivElement;
-    const [overview, setOverview] = createSignal(false);
-    const theme = createMemo(() => editorTokens());
-    const profile = createMemo(() => profileFor(editor.artifact));
-    const paged = createMemo(() => profile().kind === "paged");
+const Overlay: Component = () => {
+    const runner = createNotesRunner();
 
-    const renderCurrent = (): void => {
-        if (!host) return;
-        const section = editor.artifact.sections[slideIndex()];
-        if (!section) return;
-        const slide = slideElement(section, theme(), profile());
-        const { w, h } = sectionFrame(section, profile());
-        const k = Math.min((window.innerWidth - 24) / w, (window.innerHeight - 24) / h);
-        slide.style.transform = `scale(${k})`;
-        slide.style.transformOrigin = "center center";
-        slide.style.borderRadius = "4px";
-        host.replaceChildren(slide);
-    };
-
-    const renderOverview = (): void => {
-        if (!host) return;
-        const tk = theme();
-        const grid = document.createElement("div");
-        grid.style.cssText = `display:grid;grid-template-columns:repeat(auto-fill,minmax(${MINI_W}px,1fr));gap:18px;padding:48px;width:100%;max-width:1280px;margin:0 auto;align-content:start`;
-        editor.artifact.sections.forEach((section, i) => {
-            const fr = sectionFrame(section, profile()); // per-section: a section may set its own aspect
-            const s = MINI_W / fr.w;
-            const slide = slideElement(section, theme(), profile());
-            slide.style.transform = `scale(${s})`;
-            slide.style.transformOrigin = "top left";
-            const cell = document.createElement("button");
-            cell.style.cssText = `position:relative;width:${MINI_W}px;height:${fr.h * s}px;overflow:hidden;border-radius:9px;border:2px solid ${i === slideIndex() ? tk.accent : tk.line};cursor:pointer;background:${tk.bg};padding:0`;
-            cell.appendChild(slide);
-            const num = document.createElement("span");
-            num.textContent = String(i + 1);
-            num.style.cssText = `position:absolute;left:7px;top:6px;font:600 10px/1 ui-monospace,monospace;color:${tk.muted};background:${tk.surface};border-radius:5px;padding:2px 5px`;
-            cell.appendChild(num);
-            cell.onclick = () => {
-                setSlideIndex(i);
-                setOverview(false);
-            };
-            grid.appendChild(cell);
-        });
-        host.replaceChildren(grid);
-    };
-
-    const renderContinuous = (): void => {
-        if (!host) return;
-        const fullW = host.clientWidth || window.innerWidth;
-        // preview lets a doc widen with the viewport (not the editor's fixed reading-column width)
-        const prof = previewContentProfile(profile(), fullW, isPhone());
-        const stage = document.createElement("div");
-        stage.style.cssText = `position:relative;width:${fullW}px`;
-        const { height } = paintSectionStack(stage, editor.artifact.sections, prof, theme(), {
-            fullW,
-        });
-        stage.style.height = `${height}px`;
-        host.replaceChildren(stage);
-    };
-
-    const render = (): void => {
-        if (!paged()) renderContinuous();
-        else if (overview()) renderOverview();
-        else renderCurrent();
-    };
-
-    createEffect(() => {
-        if (!presenting()) return;
-        overview();
-        slideIndex();
-        render();
-    });
-
-    // the present() click is the user gesture browsers require for fullscreen
-    createEffect(() => {
-        if (presenting() && !document.fullscreenElement)
-            overlay?.requestFullscreen?.()?.catch(() => {});
-    });
-
-    onMount(() => {
-        const onKey = (e: KeyboardEvent): void => {
-            if (!presenting()) return;
-            if (paged()) {
-                switch (e.key) {
-                    case "ArrowRight":
-                    case " ":
-                    case "ArrowDown":
-                        if (!overview()) nextSlide();
-                        break;
-                    case "ArrowLeft":
-                    case "ArrowUp":
-                        if (!overview()) prevSlide();
-                        break;
-                    case "o":
-                    case "O":
-                        setOverview((v) => !v);
-                        break;
-                    case "Escape":
-                        if (overview()) setOverview(false);
-                        else exitPresent();
-                        break;
-                }
-                return;
-            }
-            switch (e.key) {
-                case " ":
-                case "ArrowDown":
-                case "PageDown":
-                    e.preventDefault();
-                    host?.scrollBy({ top: host.clientHeight * 0.9, behavior: "smooth" });
-                    break;
-                case "ArrowUp":
-                case "PageUp":
-                    e.preventDefault();
-                    host?.scrollBy({ top: -host.clientHeight * 0.9, behavior: "smooth" });
-                    break;
-                case "Escape":
-                    exitPresent();
-                    break;
-            }
-        };
-        const onResize = (): void => {
-            if (presenting()) render();
-        };
-        // Esc exits fullscreen natively without a keydown, so treat leaving fullscreen as a full close
-        const onFsChange = (): void => {
-            if (!document.fullscreenElement && presenting()) exitPresent();
-        };
-        window.addEventListener("keydown", onKey);
-        window.addEventListener("resize", onResize);
-        document.addEventListener("fullscreenchange", onFsChange);
-        onCleanup(() => {
-            window.removeEventListener("keydown", onKey);
-            window.removeEventListener("resize", onResize);
-            document.removeEventListener("fullscreenchange", onFsChange);
-        });
-    });
-
-    // mirrors @ui/present: fine pointer advances on any click, coarse gets swipe plus a back zone
-    let down: { x: number; y: number; t: number } | null = null;
-    const onPointerDown = (e: PointerEvent): void => {
-        if (!paged() || overview()) return;
-        down = { x: e.clientX, y: e.clientY, t: e.timeStamp };
-    };
-    const onPointerUp = (e: PointerEvent): void => {
-        if (!paged() || overview()) return;
-        const start = down;
-        down = null;
-        if (!start) return;
-        if (!isCoarsePointer()) {
-            nextSlide();
-            return;
-        }
-        const swipe = classifySwipe({
-            dx: e.clientX - start.x,
-            dy: e.clientY - start.y,
-            dt: e.timeStamp - start.t,
-        });
-        if ((swipe ?? tapZone(e.clientX, host?.clientWidth ?? 0)) === "prev") prevSlide();
-        else nextSlide();
-    };
-
-    const total = (): number => editor.artifact.sections.length;
-    const ctrl = (): "md" | "touch" => (isCoarsePointer() ? "touch" : "md");
-    const hostStyle = createMemo(
-        (): JSX.CSSProperties => backdropHostStyle(paged(), editor.artifact.background, theme()),
-    );
+    // Nothing here has to be prepared: pressing play writes the script for the section it is about
+    // to speak, records it, and fills the rest of the piece in behind the voice. This action stays
+    // for the presenter who wants the whole script written up front, before an audience is watching.
+    const notesActions = (): { label: string; run: () => void; busy?: boolean }[] =>
+        canEdit() && runner.canWrite()
+            ? [
+                  {
+                      label: runner.writing() ? "Writing…" : "Write notes for this piece",
+                      run: () => void runner.writeWithAi("all"),
+                      busy: !!runner.writing(),
+                  },
+              ]
+            : [];
 
     return (
-        <Show when={presenting()}>
-            <div ref={overlay} class="fixed inset-0 z-present bg-[#0a0a0c]">
-                <div
-                    ref={host}
-                    class={
-                        paged()
-                            ? "flex h-full w-full touch-pan-y select-none items-center justify-center overflow-auto overscroll-x-contain"
-                            : "h-full w-full overflow-y-auto"
-                    }
-                    style={hostStyle()}
-                    onPointerDown={onPointerDown}
-                    onPointerUp={onPointerUp}
-                />
-
-                <Show when={paged()}>
-                    <SlideProgress index={slideIndex()} total={total()} />
-                    <FloatingBar
-                        tone="dark"
-                        anchor="bottomCenter"
-                        rounded="xl"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <IconButton
-                            size={ctrl()}
-                            rounded="lg"
-                            tone="onDark"
-                            title="Previous (←)"
-                            onClick={() => prevSlide()}
-                        >
-                            <Icon name="chevronLeft" size={16} />
-                        </IconButton>
-                        <span class="whitespace-nowrap px-1.5 font-mono text-[12px] tabular-nums">
-                            {slideIndex() + 1} / {total()}
-                        </span>
-                        <IconButton
-                            size={ctrl()}
-                            rounded="lg"
-                            tone="onDark"
-                            title="Next (→)"
-                            onClick={() => nextSlide()}
-                        >
-                            <Icon name="chevronRight" size={16} />
-                        </IconButton>
-                        <span class="mx-1 h-4 w-px bg-white/15" />
-                        <IconButton
-                            size={ctrl()}
-                            rounded="lg"
-                            tone="onDark"
-                            active={overview()}
-                            title="Overview (O)"
-                            onClick={() => setOverview((v) => !v)}
-                        >
-                            <Icon name="grid" size={15} />
-                        </IconButton>
-                        <IconButton
-                            size={ctrl()}
-                            rounded="lg"
-                            tone="onDark"
-                            title="Exit (Esc)"
-                            onClick={() => exitPresent()}
-                        >
-                            <Icon name="close" size={15} />
-                        </IconButton>
-                    </FloatingBar>
-                </Show>
-
-                <Show when={!paged()}>
-                    <FloatingBar tone="dark" anchor="bottomCenter" rounded="xl">
-                        <span class="px-1.5 text-[11px] uppercase tracking-wider text-white/55">
-                            Preview
-                        </span>
-                        <span class="mx-1 h-4 w-px bg-white/15" />
-                        <IconButton
-                            size={ctrl()}
-                            rounded="lg"
-                            tone="onDark"
-                            title="Exit (Esc)"
-                            onClick={() => exitPresent()}
-                        >
-                            <Icon name="close" size={15} />
-                        </IconButton>
-                    </FloatingBar>
-                </Show>
-            </div>
-        </Show>
+        <PresentSurface
+            artifact={editor.artifact}
+            autoFullscreen
+            overview
+            notes
+            where="editor"
+            autoNarrate={presentWithVoice()}
+            notesActions={notesActions}
+            notesError={runner.error}
+            narration={getNarration()}
+            scriptable={canEdit() && runner.canWrite()}
+            soundtrack={getSoundtrack()}
+            onExit={exitPresent}
+            onFullscreenExit={exitPresent}
+            onProgress={notePresentProgress}
+        />
     );
 };
+
+// mounted only while presenting, so the runner's abort controller dies with the overlay
+export const Present: Component = () => (
+    <Show when={presenting()}>
+        <Overlay />
+    </Show>
+);

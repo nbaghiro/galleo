@@ -51,10 +51,11 @@ present + publish surfaces) live in `editor/`, `app/`, and `publish/`.
 model/      the pure contract — content model, themes, the AI turn/tool/credit protocols, authoring DSL (edge-safe, no DOM, no framework)
 canvas/     the paint layer — layout engine + element library + DOM/2D/PDF/PPTX backends + present geometry + export (pure TS, no framework)
 editor/     the editing UI — the SolidJS studio (selection, inspectors, inline text, drag-drop, in-canvas AI) over model + canvas
-services/   the backend (Hono + Postgres/Drizzle) — a thin server.ts over four tiers: core (db · http · auth · mail) ← plan (entitlements · credits · models · Stripe) ← media ← the verticals accounts · artifacts · ai; depends only on model
+services/   the backend (Hono + Postgres/Drizzle) — a thin server.ts over four layers: api → core → db → utils; depends only on model
 app/        the product SPA (served at /app) — library, templates, AI generation + chat, theming, sharing, wrapping the editor
-publish/    a standalone public read-only viewer (served at /p/:slug) — the engine + theme registry, no app SPA
+publish/    a standalone public read-only viewer (served at /p/:slug) — the engine + theme registry, no app SPA; publish/api.ts is its own client for the three unauthenticated /p/:slug reads
 website/    a separate public marketing build (served at /)
+widget/     the component an MCP host renders in its own chat — the engine with no framework at all
 ```
 
 Path aliases are directory aliases: `@model/*`→`model/*`, `@engine`→
@@ -64,6 +65,15 @@ theme contract is a single file). No `index.ts` barrels — every concept is a n
 imports use aliases; same-directory siblings stay relative (enforced by
 `import/no-relative-parent-imports`). Dependency direction: `model ← canvas ← ui ← editor ← app`; canvas
 imports only model; services imports only model.
+
+The spine is not the whole tree. `publish/`, `website/` and `widget/` are separate Vite builds, siblings
+of `app/` rather than layers above it, and each is capped at what it actually is: the two Solid viewers
+stop at `ui`, and the widget stops at `canvas`, since `@ui` would pull Solid into a bundle that travels
+inside someone else's page. `scripts/` and `e2e/` are tooling that composes across the layers, so they
+are capped only where a dependency would be a mistake: build tooling must not reach `editor`/`app`, and
+an `e2e/**/*.spec.ts` must not reach `canvas`/`ui`/`editor`/`app`/`services`, so a browser test drives
+the real thing over HTTP and the DOM rather than calling a store or a query directly. All of it lives in
+the same `LAYERS` map in `eslint.config.js`, and every zone is probed by `pnpm check:boundaries`.
 
 ---
 
@@ -79,14 +89,23 @@ is safe to import from the backend as well as the frontend.
 the JSON shapes shared with the backend can't drift from the type they describe, and adding a field to a
 concept is one file's diff rather than three)
 
+<!-- map: model -->
+
 ```
 artifact.ts    the whole artifact concept: ArtifactContent → Section → ElementInstance (the recursive section.root tree; draft_content jsonb IS this) · the tree builders + path ops (rowGroup/colGroup/emptyRegion, updateAtPath/removeAtPath, layout presets) · the REST DTOs (ArtifactSummary · Cover · ArtifactWindow · ArtifactInput · GenMeta) · the addressing of selectable nodes (ElementAddress · Target · region ids) · the SectionOp semantics both sides apply (applySectionOps/diffSections) · the derived digest + search text written on every content write
 elements.ts    the element value-sets (the enumerable option sets elements + the AI catalog share) + the Vector IR that vector/icon element data stores
 ai.ts          the AI turn PROTOCOL only: turns · patches · events · applyPatch. The LLM-facing element/layout CATALOG lives with the prompt that renders it (services/core/ai/prompts/catalog.ts) — it is server-only, and keeping it here shipped it to the browser
-credits.ts     what an AI capability is and what it costs: the metered-credit engine (Usage bag + costOf) · the AiTask steps a run is made of + their per-model rate multipliers · the ONE tool catalog (every capability's identity/tier/surfaces + its pricing: usage · meter · live)
+tools.ts       the ONE tool catalog: every capability's identity/tier/surfaces + its pricing (usage · meter · live) · the scope each call needs · TOOL_SPEC (the agent-facing description + zod input for each), kept beside the catalog but tree-shaken out of a client that only wants a cost
+credits.ts     what a run costs: the metered-credit engine (Usage bag + costOf) · the AiTask steps a run is made of + their per-model rate multipliers
 billing.ts     the plan catalog (plans · packs · PlanLimits) AND the entitlement resolver over it (FEATURES launch registry · resolveFeatures · can/limit/withinLimit) — read together at every call site
 workspace.ts   the person, as opposed to the tenant: User (incl. hasPassword + UserPrefs) · Folder · WorkspaceRole/asRole · Membership · AccountConnection + the auth/account DTOs (LoginBody · ProfileBody · PasswordBody · FolderInput) and the readers both sides share (readUserPrefs · mergeUserPrefs · cleanDisplayName)
 text.ts        rich-text core — marks/runs + selection math + the render-facing Run type (canvas re-exports Run for its backends)
+comments.ts    the anchors, thread DTOs + wire bodies, and the pure anchor-resolution helpers (see comments.md)
+collab.ts      the live-collaboration wire protocol: presence/lease/op messages, their guards, and the content-relative cursor math both ends share (see collab.md)
+analytics.ts   the product-event contract: every event name and its property shape, the super/identify/group traits, and the bucketing that keeps content out. Here because the frontend and the backend both emit, and model is the only layer both may import
+speech.ts      voice + narration + the music bed: the voice catalog and shelf DTOs, the browse filters, the character alignment a caption highlights from, the Soundtrack DTO and its default preset, and the pure word-span math both ends share
+eval.ts        the traced-run contract the eval playground reads
+templates.ts   the Template DTO + TEMPLATE_INDEX (ids/labels/grouping only — the bodies are served from services/core/templates.ts, so this stays edge-safe)
 media.ts       MediaKind + IconPick + the media descriptors the picker and image elements exchange
 geometry.ts    the dimensional contract: Size (+ fit/grow/percent/fixed constructors), box insets, per-instance ElementLayout, and the deck/doc/web format profiles
 authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) — fixture material for demos/templates, not a wire contract
@@ -94,6 +113,8 @@ authoring.ts   concise content-authoring DSL (t/img/section/group/deck/doc/web) 
 
 **`theme.ts` — themes as data** (`@themes`, one file; the token/Theme types + resolvers + color math + the
 curated library + custom registration, no DOM)
+
+<!-- map: model -->
 
 ```
 theme.ts     Tokens (the semantic token set) · themeCssVars() · fontStack() · the wire DTOs (ThemeSummary · ThemeInput) · color math (hexToRgb · luminance · mix · mixWhite · hexA) · the curated theme registry (mk / resolveTheme) + registerThemes() for custom themes
@@ -108,10 +129,13 @@ geometry solver) → `elements/` (the library + composer) → `render/` (the DOM
 
 **`engine/` — the layout + render core** (a custom, Clay-style, immediate-mode box solver — see `rendering.md`)
 
+<!-- map: canvas/engine -->
+
 ```
 layout.ts    the 3-pass solver (widths top-down → heights bottom-up → positions → laid-out boxes) + pagination (fragment: slice a tall command flow into fixed-height pages)
 node.ts      EngineNode (the layout-tree input) · the backend-abstract Graphics API self-drawn elements use · RenderCommand (rect/text/image/surface) + Region (the box + corner radius of every id'd node); re-exports Run from @model/text
 profile.ts   format-as-view presets — the same artifact as a paged deck, a doc, or a web page
+drawscale.ts a DrawContext wrapper that turns an unscaled drawing into a k× one, so a self-drawn surface keeps working in its own 1× space and every coordinate is multiplied on the way out
 ```
 
 **`elements/` — the element library + composer** (grouped by the element's own `category`; see `rendering.md`)
@@ -129,13 +153,19 @@ drop-preview, plus the chart/diagram variants — via `canvas/elements/register.
 
 **`render/` — the paint backends** (the pipeline + slide/page geometry + export — pure TS, no framework)
 
+<!-- map: canvas/render -->
+
 ```
 commands.ts        engine layout → RenderCommand[] + canvas text measurement (keeps the model DOM-free)
 backends.ts        the DOM drawer (absolute divs) + the 2D-canvas mirror + section backdrops + the section-stack painter
 present.ts         slideElement() — one section as a self-contained 1280×720 slide (shared by the in-editor present overlay + the standalone present/publish views)
 export.ts          exportPdfAuto / exportDeckPng / exportPrint — parameterized by (artifact, tokens), no editor
-export-pptx.ts · pptx.ts · pptx-fonts.ts   native PowerPoint export (real .pptx, embedded fonts)
-export-geometry.ts shared page/slice geometry for the paged exporters
+pptx.ts            native PowerPoint export (real .pptx, embedded fonts)
+pdf-draw.ts        the pdf-lib drawer the paged exporters paint through
+fonts.ts           face loading + the wawoff2 decompress that embeds a family into PDF/PPTX
+fit.ts · fit-checks.ts   autofit: shrink-to-fit passes and the invariants a fitted section must hold
+window.ts          paint windowing for the section stack (see loading.md)
+placeholder.ts · archetype.ts · svg-emit.ts · diagnose.ts   streaming placeholders, section archetypes, SVG emission, and the layout diagnostics the eval harness reads
 ```
 
 The standalone present **surface** (`app/views/PresentView.tsx`) and the public read-only viewer
@@ -144,23 +174,36 @@ outside `canvas/` — with the app and the publish build respectively.
 
 ### editor/ — the editing UI (`@editor`)
 
-The SolidJS studio: pure editor UI on top of `model` + `canvas`. `Studio.tsx` (shell) · `editor.ts`
-(the reactive store + `editorTokens`/`editorTheme`/`editorAccent` selectors + the injected AI/host seams) ·
-`register.ts` (side-effect module that registers every element into the registry; `app/main.tsx` imports it
-before mount) · `icons.tsx`. The folders are grouped by **feature** — each owns its own interaction state
-(drag, live-edit, mark helpers) rather than pooling them in a shared "editing" bucket.
+The SolidJS studio: pure editor UI on top of `model` + `canvas` + `ui`. Three files at the root are the
+surfaces themselves — `Editor.tsx` (the shell: topbar · minimap · canvas · panel) · `Canvas.tsx` (the
+continuous section stack, plus the minimap's `Thumb`) · `Present.tsx` (the in-editor present overlay) — and
+everything else sits in one of two folders: `core/` is the state and the pure interaction logic, `panels/`
+is the chrome drawn over it. The element registry is not here: `canvas/elements/register.ts` owns it, and
+`app/main.tsx` imports it for its side effect before mount.
+
+<!-- map: editor/core editor/panels -->
 
 ```
-canvas/    the editing canvas + everything overlaid on / driving it — Canvas.tsx (live editing canvas + the Minimap section Thumb) · Present.tsx (in-editor present overlay) · embeds.tsx (live media players) · insert.tsx (cell-add · element picker/palette · context menu · drag ghosts · theme SVG previews) · dnd.ts (drag-and-drop engine)
-select/    selection + direct manipulation — selection.tsx (outline + section actions/toolbar) · handles.tsx (resize · column-divider · section-reorder handles + the live-edit state they drive)
-inspect/   property editing + its input kit — fields.tsx (the schema-driven ControlField dispatcher, extending @ui/inputs) · format-bar.tsx (floating contextual bar + rich-text marks) · inspectors.tsx (docked element inspector) · SectionLayoutPopup.tsx (inline section layout/background) · DataEditor.tsx + DataGrid.tsx + data-model.ts (the chart/diagram spreadsheet editor)
-text/      inline text editing — text-editor.tsx (the contenteditable overlay + its marks/runs model) · text-format.ts (mark helpers shared with the format bar)
-ai/        in-canvas AI — section-gen + SectionGenPopup/SectionGenStage (generate a section) · element-gen + ElementGenStage (regenerate an element) · text-assist + TextAiMenu (rewrite/translate a passage) · suggest.ts
-chrome/    the frame — Topbar.tsx (doc menu · format · theme · present · export · share) · Panel.tsx (element palette + inspector rail) · Minimap.tsx (section thumbnails)
+core/      state + pure interaction logic, one file per concept —
+           store.ts (the Solid store + editorTokens/editorTheme/editorAccent selectors + undo/redo + the
+           edit session) · dnd.ts (the drag-and-drop engine) · commands.ts · comments.ts (the comment seam:
+           threads in, draft state, anchor capture, the onComment* handlers) · collab.ts (presence, leases,
+           remote cursors) · ai.ts (section-gen · element-gen · text-assist state) · notes.ts (speaker
+           notes + the narration runner) · infographic.ts (the chart/diagram data model the grid edits) ·
+           text.ts · clipboard.ts · media.ts · leaf.ts · export.ts (the fingerprinted build cache
+           behind ExportModal)
+panels/    the chrome over the canvas —
+           Selection.tsx (outline · resize · column dividers · section actions) · ControlBars.tsx (the
+           floating format bar + mark controls) · RightPanel.tsx (the docked inspector) ·
+           SharedControlFields.tsx (the schema-driven ControlField dispatcher over @ui/inputs) ·
+           TextEditor.tsx (the contenteditable overlay + its marks/runs model) · Insert.tsx (palette ·
+           context menu · drag ghosts) · DropIndicators.tsx · DataEditor.tsx (the chart/diagram grid) ·
+           Comments.tsx · Collab.tsx · GenPrompt.tsx + GenOverlays.tsx ·
+           SectionLayoutPopup.tsx · ExportModal.tsx
 ```
 
-The editor talks to the app through inversion-of-control handlers on `editor.ts`
-(`onHome`/`onSwitchArtifact`/`onThemePicker`/`onShare`/`onMediaPicker`, plus the AI transports
+The editor talks to the app through inversion-of-control handlers on `core/store.ts`
+(`onHome`/`onUpgrade`/`onThemePicker`/`onShare`/`onMediaPicker`, plus the AI transports
 `onSectionStream`/`onSuggestSections`/`onReviseElement`/`onTextAssist`), so it never imports `app/`. The
 Solid UI it shares with `app` lives in `@ui` (see `frontend.md`).
 
@@ -205,8 +248,10 @@ server.ts      the entrypoint — a thin Hono app: /health + mounts every router
 api/           HTTP only; `requireUser`/`requireWorkspace` in middleware.ts replace what used to be
                a four-line auth preamble repeated in 60 handlers
                artifacts · folders · themes · templates · search · links (incl. the unauthenticated
-               /p/:slug reader) · session · oauth · workspace · billing · features · media · ai ·
-               context (the context library CRUD + item ingestion) ·
+               /p/:slug reader) · comments · collaborators · collab (the WebSocket upgrade) ·
+               session · account · oauth · authorize (the OAuth authorization server) · mcp ·
+               workspace · billing · features · media · ai · narration · voices ·
+               context (the context library CRUD + item ingestion) · eval · onboarding · ingest ·
                middleware.ts (the layer's only non-resource file)
 
 core/          one file per functionality; no hono, no Response, no Context
@@ -215,11 +260,19 @@ core/          one file per functionality; no hono, no Response, no Context
                artifacts.ts  the library: keyset paging · windowed reads · the section-op transaction
                folders · themes · search (the FTS query)
                links.ts      share links · recipients · analytics · the public read + view recording
-               billing.ts    plans · subscriptions · recurring add-ons · the Stripe webhook
-               credits.ts    the row-locked spend engine
+               billing.ts    plans · subscriptions · recurring add-ons · Stripe price resolution
+                             (by env, with the SDK apiVersion pinned) · the transactional webhook
+               ledger.ts     the credit window + its ledger rows
+               spend.ts      the row-locked spend engine (reserve → settle) + the per-model rates
+               collab.ts     the in-process room per artifact: presence · leases · the op ring buffer
+               collaborators.ts  per-artifact grants for people outside the workspace
+               comments.ts   threads, anchors, and the comment access level
+               authorization.ts  the OAuth authorization server: clients · codes · tokens · scopes
+               mcp.ts        the remote MCP server's tool surface (see mcp.md)
+               narration.ts · soundtrack.ts · voices.ts   speech synthesis, the music bed, the voice shelf
+               onboarding.ts · visits.ts · widget.ts   the first session, recency, the MCP app shell
                context.ts    the context library: item ingestion (extract → chunk → embed) · vector
                              retrieval · conversation memory (see ai.md §10.5)
-               context-text.ts  the pure text half: the chunker + retrieval-pack assembly
                extract.ts    upload extraction decisions: format dispatch + size caps + the
                              Gemini read of images/scanned PDFs (ImageReader seam)
                models.ts     the model registry: tier defaults, cost multipliers, override parsing
@@ -228,8 +281,10 @@ core/          one file per functionality; no hono, no Response, no Context
                templates.ts  the 30 hand-authored bodies, grouped by the category the index uses,
                              plus the id → body resolution (5.7k lines: coverage-excluded, guarded by
                              the index↔body test in core/__tests__/templates.test.ts)
-               ai/           the LLM runtime (may NOT import canvas — see ai.md): run · chat · tasks ·
+               ai/           the LLM runtime (may NOT import canvas — see ai.md): run · chat ·
+                             execute (the one executor all three surfaces run tools through) ·
                              provider · schema · locate · quality · meter · thinking · reader ·
+                             images · speech · music · effects · embed · fake (the offline double) ·
                              voice (the ElevenLabs single-use-token mint for chat dictation; audio
                              streams browser → provider directly, needs ELEVENLABS_API_KEY) ·
                              tools/ · prompts/ · eval/ · corpus/ (the seven gold-standard artifacts,
@@ -238,7 +293,8 @@ core/          one file per functionality; no hono, no Response, no Context
 
 db/            schema.ts (the tables — see Data model below) · client.ts (the lazy handle; inert
                without DATABASE_URL so unit tests can import through it) · derived.ts · migrations/ ·
-               seed.ts (an entry point: `pnpm seed`)
+               seed.ts (an entry point: `pnpm seed`) · seed/ (the demo universe as data, with no
+               writer in it: workspaces.ts · artifacts.ts · assets.ts · contexts.ts · knowledge.ts)
 
 utils/         http.ts (readJson · cookies · rateLimit · the 402 feature guards) · auth.ts (scrypt +
                signed-cookie session) · env.ts (out/warn/appUrl) · webpage.ts (the SSRF-vetted
@@ -263,17 +319,24 @@ The root holds only the entry, the shell, and the wire boundary — `main.tsx` (
 ```
 api.ts       the typed backend client + streamTurn (SSE) — the one wire boundary
 stores/      the client stores + app-level controllers, one file each —
-             auth.ts · library.ts (artifact list/content + trash + blank-artifact factory) · folders.ts ·
-             save.ts (debounced autosave) · generate.ts (the AI generation session) · chat.ts (chat thread + tool dispatch) ·
-             billing.ts · features.ts · links.ts (public share links) ·
-             theme.ts (the app + custom theme system: app-chrome theme + favicon + overlay tokens + custom-theme CRUD into the @themes registry) ·
+             auth.ts · workspace.ts · library.ts (artifact list/content + trash + blank-artifact factory) ·
+             folders.ts · search.ts · save.ts (debounced autosave) · collab.ts (the WebSocket client) ·
+             comments.ts · generate.ts + generate-plan.ts (the AI generation session and its outline) ·
+             chat.ts + chat-blocks.ts (chat thread + tool dispatch) · contexts.ts (the context library) ·
+             models.ts + model-usage.ts (model overrides and what a run actually used) ·
+             billing.ts · features.ts · onboarding.ts · links.ts (public share links) · errors.ts ·
+             theme.ts (the app + custom theme system: app-chrome theme + overlay tokens + custom-theme CRUD into the @themes registry) ·
              share.ts (the share bridge: openShare / closeShare) · media.ts (the media-picker bridge: openMediaPicker · pickMedia · pickMediaIcon) ·
-             commands.ts (the app command registrations + navigate seam) · route-context.ts (publishRoute — route→context keys, kept router-free for testing)
-components/   general reusable UI — Sidebar.tsx (the confirm dialog is @ui/overlay's ConfirmModal, used inline) · TemplateGallery.tsx (category rows + preview + use; hosted by the Templates page and the intake's in-place browser) · previews.tsx (Visual · SectionThumb · PreviewCanvas) · ShareModal.tsx (multi-link sharing: create/manage per-audience links + recipients + view stats) · MediaPicker.tsx (stock · AI generate · upload · icons)
+             templates.ts · eval-shots.ts ·
+             commands.ts (the app command registrations + navigate seam) · navigate.ts · route-context.ts (publishRoute — route→context keys, kept router-free for testing)
+components/   general reusable UI — Sidebar.tsx (the confirm dialog is @ui/overlay's ConfirmModal, used inline) · TemplateGallery.tsx (category rows + preview + use; hosted by the Templates page and the intake's in-place browser) · previews.tsx (Visual · SectionThumb · PreviewCanvas) · ShareModal.tsx (multi-link sharing: create/manage per-audience links + recipients + view stats) · MediaPicker.tsx (stock · AI generate · upload · icons) · ModelPicker.tsx · VoiceInput.tsx + VoiceShelf.tsx · Upgrade.tsx + UpgradePlans.tsx · OnboardingChecklist.tsx + OnboardingSteps.tsx · VerifyBanner.tsx + ConfirmCode.tsx · ErrorModal.tsx · context-attach.tsx + attachments.ts (pasted/uploaded generation context) · palette-sources.tsx (the ⌘K source registry) · credits.tsx · voice.ts
 views/       the routed pages + the global modals mounted in the shell —
   AuthPage · LibraryView (/ + /folder/:id) · TemplatesView · SharedView · TrashView · PricingView ·
+  WorkspaceSettingsView (/settings) · AccountSettingsView (/account) · InviteView + CollabInviteView ·
+  OnboardingView (the first session) · EvalView (the eval playground) ·
   EditorView (/edit/:id — the studio bridge) · PresentView (the standalone /present/:id surface, painting through @canvas) ·
-  GenerateModal (the AI generation intake + live build board) · ThemeEditor (the singular theme picker + custom-token editor + AI generate) · ChatPanel (the AI chat dock)
+  ThemeEditor (the singular theme picker + custom-token editor + AI generate) · ChatPanel (the AI chat dock) ·
+  generate/ (the staged generation studio, one full-screen surface: Mission · Intake · Board · OutlineCard · Console · ContextsPane · TemplateRow over app/stores/generate.ts)
 ```
 
 `EditorView.tsx` is the bridge: it fetches an artifact from the API, hands its content to the editor
@@ -283,12 +346,12 @@ AI turn/suggest/revise/text-assist transports).
 ### publish/ — the standalone public viewer (served at `/p/:slug`)
 
 `main.tsx` (entry) · `PublicView.tsx` — a thin Solid wrapper that paints a shared artifact through
-`@canvas` + the theme registry, with no app SPA, auth, or editor. Its own build, so anonymous viewers load
-only the engine.
+`@canvas` + the theme registry, with no app SPA, auth, or editor · `api.ts` (its own client for the three
+unauthenticated `/p/:slug` reads). Its own build, so anonymous viewers load only the engine.
 
 ### website/ — the public landing build (served at `/`), separate from the product SPA.
 
-`theme/styles.css` (root) — the shared Tailwind `@theme` tokens every layer reads.
+`ui/styles.css` — the shared Tailwind `@theme` tokens every layer reads.
 
 ---
 
@@ -740,7 +803,7 @@ one balance, and every charge/settle/grant/reset writes a `credits` ledger row (
 `GET /billing/ledger` and on the pricing page). The plan's AI fields are enforced end-to-end:
 `maxSectionsPerGeneration` clamps the outline (prompt + hard slice) and the metered price, the model tiers
 pick flash- vs pro-class models (`modelFor(task, tier)` + the image-model override), and `storageMb` gates
-uploads/generation on stored bytes. Stripe is wired end-to-end: `stripe.ts` resolves prices by env and pins
+uploads/generation on stored bytes. Stripe is wired end-to-end: `core/billing.ts` resolves prices by env and pins
 the SDK `apiVersion`, and the routes cover checkout (incl. `trial_period_days` when a plan sets it), portal,
 `change-plan` (up/down/seat/interval; seat floor = member count), `resume`, `topup` (payment-mode packs),
 `spend`, and the transactional idempotent `webhook`. Billing mutations are **owner-only**. **Teams are

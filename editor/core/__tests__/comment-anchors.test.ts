@@ -5,7 +5,17 @@ import { createRoot } from "solid-js";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { contentWithElementIds } from "@model/artifact";
 import type { CommentDto, CommentThread } from "@model/comments";
-import { editor, loadArtifactContent, startEditing, stopEditing } from "@editor/core/store";
+import type { SectionOp } from "@model/artifact";
+import {
+    clearEmitOps,
+    commit,
+    editor,
+    loadArtifactContent,
+    onEmitOps,
+    setEditAccess,
+    startEditing,
+    stopEditing,
+} from "@editor/core/store";
 import {
     applyCommentMark,
     captureAnchor,
@@ -66,7 +76,18 @@ const inRoot = (body: () => void): void =>
 
 const reload = (): void => loadArtifactContent("a", editor.artifact);
 
+let sent: SectionOp[][] = [];
+const wire = (): void => {
+    onEmitOps((ops) => {
+        sent.push(ops);
+        return `t${sent.length}`;
+    });
+};
+
 beforeEach(() => {
+    sent = [];
+    clearEmitOps();
+    setEditAccess("edit");
     loadArtifactContent("a", stored());
 });
 
@@ -111,6 +132,68 @@ describe("an element anchor", () => {
             expect(threadAddress(thread)).toBeDefined(); // fine in this tab
             loadArtifactContent("a", doc()); // the next read mints a different set
             expect(threadAddress(thread)).toBeUndefined();
+        });
+    });
+});
+
+// An element made this session has no id until a write stamps one, and the load pass only stamps
+// what it was handed: a palette insert reaches the tree afterwards. Anchoring to one mints an id,
+// and that mint has to travel. Kept local it named an element only this tab knew about, so the
+// thread orphaned for every other reader at once, and the next op aimed at that element addressed
+// something the server did not hold, which the room refused.
+describe("minting an id to anchor to", () => {
+    // what a palette insert leaves behind: a child with no id, in a tree that already has them
+    const addUnstamped = (art: ArtifactContent): ArtifactContent => ({
+        ...art,
+        sections: art.sections.map((s) => ({
+            ...s,
+            root: {
+                ...s.root,
+                data: {
+                    ...(s.root.data as object),
+                    children: [
+                        ...(s.root.data as { children: ElementInstance[] }).children,
+                        text("Just typed"),
+                    ],
+                },
+            },
+        })),
+    });
+
+    const insert = (): void => {
+        commit(addUnstamped(editor.artifact));
+        sent = []; // the insert itself is not what these are about
+    };
+
+    it("sends the mint to the server as a write", () => {
+        inRoot(() => {
+            wire();
+            insert();
+            const draft = captureAnchor({ section: "s1", path: [2] })!;
+            expect(sent).toHaveLength(1);
+            const op = sent[0]![0]!;
+            expect(op.kind).toBe("set"); // an id is structural, so it is not narrowed to a data op
+            const root = op.kind === "set" ? op.section.root : undefined;
+            const kids = (root?.data as { children: ElementInstance[] }).children;
+            expect(kids[2]!.id).toBe(draft.anchor.elementId);
+        });
+    });
+
+    it("mints nothing without the access to persist it, so no anchor is offered", () => {
+        inRoot(() => {
+            wire();
+            insert();
+            setEditAccess("comment");
+            expect(captureAnchor({ section: "s1", path: [2] })).toBeNull();
+            expect(sent).toHaveLength(0);
+        });
+    });
+
+    it("leaves an element that already has an id alone", () => {
+        inRoot(() => {
+            wire();
+            captureAnchor({ section: "s1", path: [0] });
+            expect(sent).toHaveLength(0);
         });
     });
 });

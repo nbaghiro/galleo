@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { DeviceTier } from "@model/analytics";
 import type { ArtifactContent } from "@model/artifact";
-import { asContent } from "@model/artifact";
+import { asContent, withoutNotes } from "@model/artifact";
 import type { PlanId } from "@model/billing";
 import { resolveFeatures } from "@model/billing";
 import { db } from "@services/db/client";
@@ -655,7 +655,9 @@ export async function publicRead(
         format,
         recipientId,
         title: artifact.title,
-        content,
+        // presenter cues are written to be seen by the speaker alone, so they never reach a viewer;
+        // the spoken script a caption needs comes from the narration route, gated by this same read
+        content: withoutNotes(content),
         branded: !owner.removeBranding,
         customTheme,
     };

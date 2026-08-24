@@ -101,6 +101,8 @@ export interface ElementSpec<Data = unknown> {
         aspect?: { min: number; max: number }; // bottom handle → data.aspect (width / height)
     };
     fallback?: (data: Data) => Data; // interactive -> static for paged/export
+    // playback mounts a live overlay over this element without giving up the editing its tier buys
+    live?: boolean;
     // compose() uses children+arrange; ops use children+withChildren; `layout` stands alone
     container?: {
         children: (data: Data) => ElementInstance[];

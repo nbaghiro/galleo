@@ -24,9 +24,10 @@ export async function makeArtifact(
     request: APIRequestContext,
     title: string,
     sections: { id: string; root: El }[],
+    format = "deck",
 ): Promise<string> {
     const res = await request.post("/api/artifacts", {
-        data: { title, draftContent: { format: "deck", theme: "base", sections } },
+        data: { title, draftContent: { format, theme: "base", sections } },
     });
     if (!res.ok()) throw new Error(`makeArtifact "${title}" failed: ${res.status()}`);
     const body = (await res.json()) as { id: string };

@@ -22,6 +22,7 @@ import type { GenMeta, ArtifactDigest, ArtifactAccess } from "@model/artifact";
 import type { CommentAnchor } from "@model/comments";
 import type { FeatureOverrides, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
+import type { SpeechAlignment, VoiceLabels } from "@model/speech";
 import type { ArtifactContent } from "@model/artifact";
 import type { EvalCheck, EvalConfig, EvalJudgement, EvalStatus } from "@model/eval";
 import type { PublishPolicy, UserPrefs } from "@model/workspace";
@@ -536,6 +537,179 @@ export const evalRuns = pgTable(
     (t) => [index("eval_runs_ws_created_idx").on(t.workspaceId, t.createdAt.desc())],
 );
 
+// Voices we can speak with. Adoption is install-wide rather than per workspace: a community voice is
+// unusable until it has been added to the calling ElevenLabs account, that add is rate-limited per
+// month on the one account serving every workspace, and adopting the same popular voice per tenant
+// would spend the allowance on duplicates. Keyed on external_id so the add happens at most once.
+export const voices = pgTable(
+    "voices",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        externalId: text("external_id").notNull().unique(), // what THIS account speaks with
+        // The community id we adopted from, which the add may exchange for a different account-local
+        // one. Dedup keys on this, not on external_id: a caller holds the community id, so keying on
+        // the id we got back would miss the cache and spend the monthly add budget twice.
+        // Unique, but nullable: Postgres treats NULLs as distinct, so every designed voice (which has
+        // no community origin) coexists while no community voice is ever adopted twice.
+        libraryId: text("library_id").unique(),
+        source: text("source").notNull(), // library | designed | seeded
+        ownerId: text("owner_id"), // library only: the public_owner_id the add needed
+        name: text("name").notNull(),
+        description: text("description"),
+        labels: jsonb("labels").$type<VoiceLabels>(),
+        previewUrl: text("preview_url"), // library: the provider's own free sample
+        previewData: text("preview_data"), // designed: base64, since a designed voice has no url
+        adoptedAt: timestamp("adopted_at").notNull().defaultNow(),
+    },
+    (t) => [index("voices_source_idx").on(t.source)],
+);
+
+// The shelf: which voices a workspace has saved, and which one narrates by default.
+export const workspaceVoices = pgTable(
+    "workspace_voices",
+    {
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id, { onDelete: "cascade" }),
+        voiceId: uuid("voice_id")
+            .notNull()
+            .references(() => voices.id, { onDelete: "cascade" }),
+        name: text("name"), // a per-workspace rename, e.g. "Our narrator"
+        isDefault: boolean("is_default").notNull().default(false),
+        addedAt: timestamp("added_at").notNull().defaultNow(),
+    },
+    (t) => [
+        primaryKey({ columns: [t.workspaceId, t.voiceId] }),
+        // exactly one default per workspace, enforced by the database rather than by the UI
+        uniqueIndex("workspace_voices_default_key")
+            .on(t.workspaceId)
+            .where(sql`${t.isDefault}`),
+    ],
+);
+
+// Narration audio, cached per section and keyed by the text that produced it. Derived, not an asset:
+// it is regenerated from the notes at any time, so it never counts against the storage cap and never
+// appears in the media picker.
+export const narrations = pgTable(
+    "narrations",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        artifactId: uuid("artifact_id")
+            .notNull()
+            .references(() => artifacts.id, { onDelete: "cascade" }),
+        sectionId: text("section_id").notNull(),
+        hash: text("hash").notNull(), // sha256(spoken + voice + model + format)
+        voiceId: text("voice_id").notNull(), // the provider id that actually spoke
+        modelId: text("model_id").notNull(),
+        mime: text("mime").notNull(),
+        data: text("data").notNull(), // base64 bytes, as assets.data already does
+        bytes: bigint("bytes", { mode: "number" }).notNull(),
+        ms: integer("ms").notNull(), // measured duration; what auto-advance is timed from
+        alignment: jsonb("alignment").$type<SpeechAlignment>(),
+        chars: integer("chars").notNull(), // what we billed
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [
+        uniqueIndex("narrations_section_hash_key").on(t.artifactId, t.sectionId, t.hash),
+        index("narrations_artifact_idx").on(t.artifactId),
+    ],
+);
+
+// Galleo as an OAuth 2.1 authorization server, for the MCP endpoint. Distinct from `oauthAccounts`,
+// which is the opposite direction: Galleo as a client of Google.
+export const oauthClients = pgTable("oauth_clients", {
+    id: uuid("id").primaryKey().defaultRandom(),
+    clientId: text("client_id").notNull().unique(),
+    name: text("name").notNull(),
+    redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
+    // dynamic (RFC 7591) | metadata (client id metadata document) | static (pre-registered)
+    source: text("source").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// One row per authorization code. Single use: `consumedAt` makes a replay visible rather than only
+// impossible, and the granted workspaces ride along so the token inherits what the consent screen said.
+export const oauthAuthorizations = pgTable(
+    "oauth_authorizations",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        codeHash: text("code_hash").notNull().unique(),
+        clientId: text("client_id").notNull(),
+        userId: uuid("user_id")
+            .notNull()
+            .references(() => users.id),
+        workspaceIds: jsonb("workspace_ids").$type<string[]>().notNull(),
+        defaultWorkspaceId: uuid("default_workspace_id").notNull(),
+        scopes: jsonb("scopes").$type<string[]>().notNull(),
+        resource: text("resource").notNull(),
+        codeChallenge: text("code_challenge").notNull(),
+        redirectUri: text("redirect_uri").notNull(),
+        expiresAt: timestamp("expires_at").notNull(),
+        consumedAt: timestamp("consumed_at"),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [index("oauth_authorizations_user_idx").on(t.userId)],
+);
+
+// Revoked by timestamp rather than deleted, so a credential that was used stays explainable.
+export const oauthTokens = pgTable(
+    "oauth_tokens",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        clientId: text("client_id").notNull(),
+        userId: uuid("user_id")
+            .notNull()
+            .references(() => users.id),
+        workspaceIds: jsonb("workspace_ids").$type<string[]>().notNull(),
+        defaultWorkspaceId: uuid("default_workspace_id").notNull(),
+        scopes: jsonb("scopes").$type<string[]>().notNull(),
+        // One consent, however many rotations later. Presenting a refresh token that was already
+        // spent means the credential leaked, so the whole family dies rather than that one row.
+        familyId: uuid("family_id").notNull().defaultRandom(),
+        // the audience this token was minted for, carried from the authorization it came from
+        resource: text("resource").notNull().default(""),
+        accessHash: text("access_hash").notNull().unique(),
+        refreshHash: text("refresh_hash").unique(),
+        expiresAt: timestamp("expires_at").notNull(),
+        revokedAt: timestamp("revoked_at"),
+        lastUsedAt: timestamp("last_used_at"),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [
+        index("oauth_tokens_user_idx").on(t.userId),
+        index("oauth_tokens_family_idx").on(t.familyId),
+    ],
+);
+
+// Instrumental beds, cached by what produced them. Two kinds of row in one table because they are
+// the same thing with different owners: a preset is generated once for the install and shared by
+// every workspace, a custom bed belongs to one artifact and dies with it.
+export const soundtracks = pgTable(
+    "soundtracks",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        source: text("source").notNull(), // preset | custom
+        preset: text("preset"), // the preset's stable id; null on a custom bed
+        artifactId: uuid("artifact_id").references(() => artifacts.id, { onDelete: "cascade" }),
+        prompt: text("prompt").notNull(), // what produced it, so a listener can see why it sounds so
+        hash: text("hash").notNull(), // sha256(prompt + length + model + format)
+        modelId: text("model_id").notNull(),
+        mime: text("mime").notNull(),
+        data: text("data").notNull(), // base64, as narrations and assets already do
+        bytes: bigint("bytes", { mode: "number" }).notNull(),
+        ms: integer("ms").notNull(),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [
+        // one row per preset for the whole deployment, which is what makes the common case free.
+        // Unpredicated on purpose: NULLs are distinct, so custom rows never collide here, and a
+        // partial index cannot be an ON CONFLICT target without repeating its predicate.
+        uniqueIndex("soundtracks_preset_key").on(t.preset),
+        uniqueIndex("soundtracks_artifact_key").on(t.artifactId, t.hash),
+        index("soundtracks_artifact_idx").on(t.artifactId),
+    ],
+);
+
 export const schema = {
     users,
     oauthAccounts,
@@ -560,4 +734,11 @@ export const schema = {
     chunks,
     chatMessages,
     evalRuns,
+    voices,
+    workspaceVoices,
+    narrations,
+    oauthClients,
+    oauthAuthorizations,
+    oauthTokens,
+    soundtracks,
 };

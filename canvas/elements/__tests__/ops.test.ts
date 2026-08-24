@@ -4,6 +4,8 @@ import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { childrenRaw, colGroup, rowGroup, withWidth } from "@model/artifact";
 import {
     addColumn,
+    affordanceEdit,
+    applyAffordance,
     applyLayoutPreset,
     columnFractions,
     deleteElement,
@@ -26,6 +28,7 @@ import {
     splitSection,
     stripWidth,
     updateDataAt,
+    withViewerPatches,
     wrapWith,
 } from "@elements/ops";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
@@ -246,5 +249,87 @@ describe("section-level", () => {
         const art = artOf(txt("a"));
         expect(setArtifactTheme(art, "midnight").theme).toBe("midnight");
         expect(setArtifactFormat(art, "web").format).toBe("web");
+    });
+});
+
+describe("withViewerPatches", () => {
+    const two = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(colGroup([txt("a"), txt("b")]), { id: "s1" }),
+            sectionOf(colGroup([txt("c")]), { id: "s2" }),
+        ]);
+
+    it("is the identity when there is nothing to overlay", () => {
+        const art = two();
+        expect(withViewerPatches(art, new Map())).toBe(art);
+    });
+
+    it("merges the patch onto the addressed element's data", () => {
+        const out = withViewerPatches(two(), new Map([["el:s1:1", { open: true }]]));
+        const patched = getElementAt(out, { section: "s1", path: [1] });
+        expect(patched!.data).toEqual({ text: "b", open: true });
+    });
+
+    it("returns fresh objects only along the touched path, so the paint cache misses one section", () => {
+        const art = two();
+        const out = withViewerPatches(art, new Map([["el:s1:1", { open: true }]]));
+        expect(out).not.toBe(art);
+        expect(out.sections[1]).toBe(art.sections[1]); // untouched section keeps its identity
+        expect(out.sections[0]).not.toBe(art.sections[0]);
+        const kids = childrenRaw(out.sections[0]!.root)!;
+        expect(kids[0]).toBe(childrenRaw(art.sections[0]!.root)![0]); // untouched sibling
+        expect(kids[1]).not.toBe(childrenRaw(art.sections[0]!.root)![1]);
+    });
+
+    it("leaves the stored content alone, so a viewer's view is never a document write", () => {
+        const art = two();
+        const before = JSON.stringify(art);
+        withViewerPatches(art, new Map([["el:s1:1", { open: true }]]));
+        expect(JSON.stringify(art)).toBe(before);
+    });
+
+    it("ignores a key that addresses nothing, in a missing section or a missing node", () => {
+        const art = two();
+        expect(withViewerPatches(art, new Map([["el:s9:3", { open: true }]]))).toBe(art);
+        expect(withViewerPatches(art, new Map([["el:s1:7", { open: true }]]))).toBe(art);
+    });
+});
+
+describe("affordances", () => {
+    const list = (): ArtifactContent =>
+        artOf({
+            type: "bullets",
+            data: { marker: "checkbox", children: [txt("one"), txt("two")] },
+        });
+
+    it("checkbox and disclose flip their own flag on the addressed element", () => {
+        expect(affordanceEdit(list(), "checkbox", at([0]))).toEqual({
+            address: at([0]),
+            patch: { checked: true },
+        });
+        const checked = applyAffordance(list(), "checkbox", at([0]));
+        expect(affordanceEdit(checked, "checkbox", at([0]))!.patch).toEqual({ checked: false });
+        expect(affordanceEdit(list(), "disclose", at([1]))!.patch).toEqual({ open: true });
+    });
+
+    it("a tab press moves the container's active index, not the panel it addressed", () => {
+        const art = artOf({
+            type: "tabs",
+            data: { children: [txt("one"), txt("two")], active: 0 },
+        });
+        expect(affordanceEdit(art, "tab", at([1]))).toEqual({
+            address: at([]),
+            patch: { active: 1 },
+        });
+        expect(getElementAt(applyAffordance(art, "tab", at([1])), at([])!)!.data).toMatchObject({
+            active: 1,
+        });
+    });
+
+    it("is inert for an unknown action, a missing element, or a rootless tab press", () => {
+        expect(affordanceEdit(list(), "nope", at([0]))).toBeNull();
+        expect(affordanceEdit(list(), "checkbox", at([9]))).toBeNull();
+        expect(affordanceEdit(list(), "tab", at([]))).toBeNull();
+        expect(applyAffordance(list(), "nope", at([0]))).toEqual(list());
     });
 });

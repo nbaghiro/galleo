@@ -5,7 +5,7 @@ import type { ToolSpec } from "@model/tools";
 import { TOOL_SPEC, TOOLS } from "@model/tools";
 import type { ModelOverrides } from "@services/core/models";
 import type { ModelTier } from "@model/billing";
-import type { ArtifactRef, TurnEvent } from "@model/ai";
+import type { ArtifactRef, Patch, TurnEvent } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
 import type { ImageOptions } from "./images";
 
@@ -37,6 +37,14 @@ export interface Tool<Input, Result> {
     describe: string;
     input: ZodType<Input>;
     run(input: Input, ctx: ToolContext): AsyncGenerator<TurnEvent, Result>;
+    // How this tool's result changes an artifact. The one definition of that mapping: the chat agent
+    // reads it to build a proposal card, and the effect path reads it to apply the change. A tool
+    // that changes nothing (every read tool) leaves it absent.
+    //
+    // Erased rather than `(result: Result, input: Input)` because both would sit in parameter
+    // position, and the registry holds every tool as `Tool<never, unknown>`. `implement` takes the
+    // typed mapper and narrows here, so authoring stays checked and only storage is loose.
+    patch?: (result: unknown, input: unknown) => Patch;
 }
 
 // the id→tool map can't carry each tool's concrete I/R
@@ -51,6 +59,7 @@ const REGISTRY = new Map<ToolId, AnyTool>();
 export function implement<Id extends ToolId, R>(
     id: Id,
     run: (input: ToolInput<Id>, ctx: ToolContext) => AsyncGenerator<TurnEvent, R>,
+    patch?: (result: R, input: ToolInput<Id>) => Patch,
 ): Tool<ToolInput<Id>, R> {
     const def = TOOLS[id];
     if (!def) throw new Error(`tool "${id}" has no definition in @model/tools`);
@@ -66,6 +75,9 @@ export function implement<Id extends ToolId, R>(
         describe: found?.describe ?? def.summary,
         input: (found?.input ?? z.unknown()) as ZodType<ToolInput<Id>>,
         run,
+        patch:
+            patch &&
+            ((result: unknown, input: unknown) => patch(result as R, input as ToolInput<Id>)),
     };
     REGISTRY.set(id, tool as AnyTool);
     return tool;

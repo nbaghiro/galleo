@@ -232,6 +232,10 @@ describe("readServerMessage", () => {
             element: ref,
             holder: null,
         });
+        expect(readServerMessage({ t: "access", access: "comment" }, isOp)).toEqual({
+            t: "access",
+            access: "comment",
+        });
         expect(readServerMessage({ t: "resync", seq: 9 }, isOp)).toEqual({ t: "resync", seq: 9 });
     });
 
@@ -247,6 +251,9 @@ describe("readServerMessage", () => {
             readServerMessage({ t: "denied", element: ref, holder: { connId: 1 } }, isOp),
         ).toBeNull();
         expect(readServerMessage({ t: "unknown" }, isOp)).toBeNull();
+        expect(readServerMessage({ t: "access", access: "editor" }, isOp)).toBeNull();
+        // losing access closes the socket instead, so this frame never carries `none`
+        expect(readServerMessage({ t: "access", access: "none" }, isOp)).toBeNull();
     });
 });
 

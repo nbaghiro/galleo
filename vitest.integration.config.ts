@@ -28,6 +28,7 @@ export default defineConfig({
             // (global-setup creates it on first use); CI and the default stay galleo_test
             DATABASE_URL: `postgres://galleo:galleo@localhost:8602/${process.env.GALLEO_TEST_DB ?? "galleo_test"}`,
             SESSION_SECRET: "integration-test-secret",
+            RESEND_API_KEY: "", // a test must never reach the mail provider
         },
         hookTimeout: 30000,
         testTimeout: 20000,

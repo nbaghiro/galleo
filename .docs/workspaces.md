@@ -43,7 +43,7 @@ one code path rather than a personal one and a team one.
 | `/me/*`                                                             | `services/api/account.ts`                                                                                                           |
 | Client stores                                                       | `app/stores/workspace.ts`, `app/stores/billing.ts`, `app/stores/features.ts`, `app/stores/auth.ts`                                  |
 | Surfaces                                                            | `app/views/WorkspaceSettingsView.tsx`, `AccountSettingsView.tsx`, `PricingView.tsx`, `InviteView.tsx`, `app/components/Sidebar.tsx` |
-| The demo universe                                                   | `services/db/seed-workspaces.ts` (data), `services/db/seed.ts` (the writer)                                                         |
+| The demo universe                                                   | `services/db/seed/` (the data), `services/db/seed.ts` (the writer)                                                                  |
 
 ## The row (`workspaces`)
 
@@ -603,7 +603,7 @@ The workspace is the tenant; the account is the person, and it owns the handful 
 follow someone between workspaces and between browsers. Everything under `/me` lives in
 `services/api/account.ts`, which is deliberately separate from `services/api/session.ts`: that file owns the
 session lifecycle (`/auth/signup`, `/auth/login`, `/auth/logout`, `/auth/forgot`, `/auth/reset`,
-`/auth/verify`, `/auth/resend-verification`), this one owns the account behind it.
+`/auth/confirm`, `/auth/resend-verification`), this one owns the account behind it.
 
 | Route                              | Does                                                                         |
 | ---------------------------------- | ---------------------------------------------------------------------------- |
@@ -669,10 +669,13 @@ themes, and no public links.
 
 ## The seeded demo workspaces (`pnpm seed`)
 
-`services/db/seed-workspaces.ts` declares the demo universe as data (six people, five workspaces, their
-folders, links, themes, ledgers), and `services/db/seed.ts` writes it. The split exists so the specs can
+`services/db/seed/` holds the demo universe as data and `services/db/seed.ts` writes it, with nothing
+declared in the writer: `workspaces.ts` is the bulk of it (six people, five workspaces, their folders,
+links, themes, ledgers), beside `artifacts.ts` (what each seeded document is called), `assets.ts` (the
+media the demo workspace "chose"), `contexts.ts`, and `knowledge.ts`. The split exists so the specs can
 be read without importing an entry point that would run the seed on import, and because `db/` may not
-reach into `core/`: documents are named in the spec and resolved to content by `seed.ts`.
+reach into `core/`: a document is named in the data and resolved to content by `seed.ts`, which is the
+one file allowed to reach for the corpus and template bodies that live in `core/`.
 
 Two properties are worth knowing before reading the fixtures. A workspace is found by slug and then
 **every column the spec owns is rewritten**, so a workspace that has been clicked around in converges
@@ -777,3 +780,38 @@ which sees only the plan and would silently ignore a workspace's `featureOverrid
 | The account surface             | `services/api/__tests__/account.itest.ts`   | `/me` carrying `hasPassword` + `prefs`, rename (trim, cap, clear), password change and first-set, wrong/missing/over-cap current, the `password_changed_at` stamp and the reissued cookie, connections list, unlink with a password or a second provider, the last-credential 409, prefs merge/clear/normalize, memberships with roles, and leaving a named workspace                                                                                                                |
 | The OAuth link path             | `services/api/__tests__/oauth.itest.ts`     | the intent cookie only on `?link=1`, linking to the session's account when the provider's email belongs to someone else, refusing an identity linked elsewhere, idempotent relink, the expired-session fallback to sign-in, and failures reporting to `/account` when linking and `/login` when signing in                                                                                                                                                                           |
 | Prefs + name normalization      | `model/__tests__/workspace.test.ts`         | `asRole` legacy mapping, `readUserPrefs` dropping unknown keys, wrong types and oversized ids, `mergeUserPrefs` patching, clearing, and refusing to mutate its input, `cleanDisplayName` trimming before capping                                                                                                                                                                                                                                                                     |
+
+## Narration voices
+
+A workspace keeps a **shelf** of voices, with exactly one marked default, enforced by a partial unique
+index on `workspace_voices` rather than by the UI. An artifact can override it through
+`ArtifactShell.voice`; absent means "follow the workspace default", so changing the default carries
+every piece that never overrode it.
+
+The shelf points at `voices`, which is an **install-wide** adoption cache rather than a per-tenant
+table. A community voice cannot be spoken with until it has been added to the calling ElevenLabs
+account, and that add is capped monthly on the one account serving every workspace, so `adopt()` is
+idempotent on `voices.library_id` and is the only path that calls the provider. Two workspaces saving
+the same voice make one provider call and one row, which is asserted by call count in
+`services/core/__tests__/voices.itest.ts` rather than by row count.
+
+Four entitlements, resolved the usual way in `model/billing.ts`:
+
+| Key                  | What it gates                                       |
+| -------------------- | --------------------------------------------------- |
+| `voiceNarration`     | whether a piece can be narrated at all              |
+| `voiceDesign`        | whether a voice can be generated from a description |
+| `maxWorkspaceVoices` | how many voices a shelf holds; -1 unlimited         |
+| `backgroundMusic`    | whether a piece can carry an instrumental bed       |
+
+`soundtracks` follows the same install-wide shape for the same reason: a house preset is one row for
+the whole deployment, so the first workspace to pick "Calm" anywhere pays the one generation and no
+workspace pays again. Only a bed written for a single piece is tenant-scoped, and it cascades with the
+artifact. Composing is metered as `music` (`model/credits.ts`), priced by the minute rather than by
+tokens, and a cached pick settles to zero.
+
+Saved library voices cost the account no custom voice slot, so `maxWorkspaceVoices` is generous.
+**Designed** voices do take a slot, and slots are finite for every workspace put together, so they
+carry a second limit that is ours rather than any plan's: `DESIGN_CEILING` in
+`services/core/voices.ts`, plus `reapDesigned()` for ones no shelf holds. The two refusals say
+different things, because one has an upgrade to offer and the other does not.

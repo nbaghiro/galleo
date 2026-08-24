@@ -66,6 +66,19 @@ export function findElement(root: ElementInstance, type: string, nth = 0): Locat
     return found[nth] ?? null;
 }
 
+// The element at an exact index path, for a caller that already has one (the editor points with a
+// selection). Walks childrenRaw like every other locator here, so a container that holds its
+// children under some other key resolves the same way it does everywhere else.
+export function elementAt(root: ElementInstance, path: readonly number[]): ElementInstance | null {
+    let node: ElementInstance | null = root;
+    for (const i of path) {
+        const kids: ElementInstance[] | undefined = node ? childrenRaw(node) : undefined;
+        node = kids?.[i] ?? null;
+        if (!node) return null;
+    }
+    return node;
+}
+
 // what the section actually contains, so a miss can tell the model what it could have aimed at
 export function elementTypes(root: ElementInstance): string[] {
     const seen: string[] = [];

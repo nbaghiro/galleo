@@ -29,6 +29,11 @@ function hmac(value: string): string {
     return createHmac("sha256", SECRET).update(value).digest("base64url");
 }
 
+// Keyed digest for a credential looked up on every request. Deliberately not scryptSync: that is
+// correct for a password a person chose and wrong for a 32-byte random token, where the only threat
+// is a stolen database and a keyed hash already answers it.
+export const digest = (value: string): string => hmac(value);
+
 // `<value>.<hmac>` — base64url never contains ".", so the last dot always splits value from signature.
 function sign(value: string): string {
     return `${value}.${hmac(value)}`;

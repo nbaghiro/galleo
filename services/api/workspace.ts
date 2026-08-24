@@ -21,6 +21,7 @@ import {
     switchWorkspace,
     transferOwnership,
 } from "@services/core/workspaces";
+import { syncWorkspaceAccess } from "@services/core/collab";
 import { requireRole, requireUser, requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 export const workspace = new Hono<WorkspaceEnv>();
@@ -101,10 +102,11 @@ workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) 
     if (!Object.keys(patch).length) return c.json({ error: "nothing to update" }, 400);
     const ws = c.get("ws");
     await updateWorkspace(ws.id, patch);
+    // every artifact that inherits the default just changed level, so open rooms re-resolve
+    if (patch.defaultArtifactAccess !== undefined) await syncWorkspaceAccess(ws.id);
     const who = { userId: c.get("user").id, workspaceId: ws.id };
-    // A rename is its own event; the policies are one event with the setting as a property, so a
-    // policy added later needs no new name. The value never travels, only its kind.
-    if (patch.name !== undefined) capture(who, "workspace_renamed", {});
+    // The policies are one event with the setting as a property, so a policy added later needs no
+    // new name. The value never travels, only its kind. A rename carries nothing queryable.
     for (const setting of Object.keys(patch).filter((k) => k !== "name"))
         capture(who, "workspace_setting_changed", {
             setting,
@@ -182,6 +184,8 @@ workspace.delete(
         if (targetRole === "admin" && ws.ownerId !== user.id)
             return c.json({ error: "only the workspace owner can remove an admin" }, 403);
         await removeMember(ws.id, target);
+        // they are out of the workspace, so any room they are sitting in closes on them
+        await syncWorkspaceAccess(ws.id);
         capture({ userId: user.id, workspaceId: ws.id }, "member_removed", {
             role: asRole(targetRole ?? "member"),
             member_count_after: (await liveMembers(ws.id)).length,
@@ -204,6 +208,8 @@ workspace.patch("/workspace/members/:userId", requireWorkspace, requireRole("own
     if (!grantable(role)) return c.json({ error: "role must be admin or member" }, 400);
     const before = await roleOf(ws, target);
     const ok = await setMemberRole(ws.id, target, role);
+    // an admin holds edit on every artifact by role alone, so demoting one changes what they may do
+    if (ok) await syncWorkspaceAccess(ws.id);
     if (ok)
         capture({ userId: c.get("user").id, workspaceId: ws.id }, "member_role_changed", {
             from_role: asRole(before ?? "member"),
@@ -222,6 +228,7 @@ workspace.post("/workspace/leave", requireWorkspace, async (c) => {
     if (result === "not-member") return c.json({ error: "not a member of that workspace" }, 403);
     if (result === "owner")
         return c.json({ error: "the owner can't leave, transfer ownership first" }, 400);
+    await syncWorkspaceAccess(workspaceId ?? ws.id);
     return c.json({ ok: true });
 });
 
@@ -231,12 +238,6 @@ workspace.post("/workspace/transfer", requireWorkspace, requireRole("owner"), as
     const { userId } = body;
     if (!userId) return c.json({ error: "userId required" }, 400);
     const ok = await transferOwnership(c.get("ws"), userId);
-    if (ok)
-        capture(
-            { userId: c.get("user").id, workspaceId: c.get("ws").id },
-            "ownership_transferred",
-            {},
-        );
     return ok
         ? c.json({ ok: true })
         : c.json({ error: "the new owner must already be a member" }, 400);

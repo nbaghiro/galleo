@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent } from "@model/artifact";
 import { mapMediaRefs, mediaRefs } from "@model/artifact";
-import { assetIdFromUrl, assetUrl, isEmbedVideoUrl } from "@model/media";
+import { assetIdFromUrl, assetUrl, embedFor, isEmbedVideoUrl } from "@model/media";
 
 const ASSET = "00000000-0000-4000-8000-000000000001";
 
@@ -169,5 +169,36 @@ describe("isEmbedVideoUrl", () => {
             expect(isEmbedVideoUrl(u)).toBe(true);
         for (const u of ["https://cdn.example/clip.mp4", assetUrl(ASSET), "https://vimeo.com/help"])
             expect(isEmbedVideoUrl(u)).toBe(false);
+    });
+});
+
+describe("embedFor", () => {
+    it("turns a YouTube url into a nocookie iframe with the player options baked in", () => {
+        const e = embedFor("https://youtu.be/dQw4w9WgXcQ", { autoplay: true, loop: true });
+        expect(e!.kind).toBe("iframe");
+        expect(e!.src).toContain("youtube-nocookie.com/embed/dQw4w9WgXcQ");
+        expect(e!.src).toContain("autoplay=1");
+        expect(e!.src).toContain("mute=1"); // autoplay implies muted, or the browser refuses
+        expect(e!.src).toContain("playlist=dQw4w9WgXcQ"); // yt loops only against a playlist
+        expect(e!.opts.muted).toBe(true);
+    });
+
+    it("turns a Vimeo url into its player iframe", () => {
+        const e = embedFor("https://vimeo.com/76979871", { controls: false });
+        expect(e!.kind).toBe("iframe");
+        expect(e!.src).toContain("player.vimeo.com/video/76979871");
+        expect(e!.src).toContain("controls=0");
+    });
+
+    it("plays a file url and a stored asset through the video element", () => {
+        expect(embedFor("https://cdn.example/clip.mp4")!.kind).toBe("file");
+        expect(embedFor(assetUrl(ASSET))!.kind).toBe("file");
+    });
+
+    it("refuses anything outside the whitelist, which is what keeps a page from framing it", () => {
+        expect(embedFor("")).toBeNull();
+        expect(embedFor("   ")).toBeNull();
+        expect(embedFor("https://example.com/watch")).toBeNull();
+        expect(embedFor("javascript:alert(1)")).toBeNull();
     });
 });

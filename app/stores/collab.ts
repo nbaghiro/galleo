@@ -1,4 +1,4 @@
-import type { SectionOp } from "@model/artifact";
+import type { ArtifactAccess, SectionOp } from "@model/artifact";
 import type {
     ClientMessage,
     ElementRef,
@@ -10,6 +10,7 @@ import type {
 } from "@model/collab";
 import { HEARTBEAT_MS, readServerMessage } from "@model/collab";
 import {
+    collabAccess,
     collabClosed,
     collabDenied,
     collabLease,
@@ -23,7 +24,14 @@ import {
     samePresence,
     selfConnId,
 } from "@editor/core/collab";
-import { applyRemoteOps, clearEmitOps, onEmitOps, opsAcked, opsRejected } from "@editor/core/store";
+import {
+    applyRemoteOps,
+    clearEmitOps,
+    onEmitOps,
+    opsAcked,
+    opsDropped,
+    opsRejected,
+} from "@editor/core/store";
 import { flushAutosave, noteSavedContent, onCollabDriving } from "./save";
 
 // The wire half of collaboration: one socket per open artifact, owned here so the editor never
@@ -46,7 +54,7 @@ const OPEN = 1;
 
 /** Where the room's frames go. Injected, so the client is testable without the editor. */
 export interface CollabSink {
-    welcome(connId: string, seq: number, roster: Peer[], leases: Lease[]): void;
+    welcome(self: Peer, seq: number, roster: Peer[], leases: Lease[]): void;
     peer(connId: string, peer: Peer | null): void;
     ops(seq: number, author: OpAuthor, ops: SectionOp[]): void;
     ack(tag: string, seq: number): void;
@@ -54,6 +62,8 @@ export interface CollabSink {
     granted(element: ElementRef): void;
     denied(element: ElementRef, holder: Lease | null): void;
     lease(element: ElementRef, holder: Lease | null): void;
+    /** What this connection may do here, re-resolved after someone changed it. */
+    access(access: ArtifactAccess): void;
     resync(seq: number): void;
     /** The socket went away; the editor falls back to solo editing until it returns. */
     down(): void;
@@ -242,7 +252,7 @@ export class CollabClient {
         const sink = this.opts.sink;
         switch (msg.t) {
             case "welcome":
-                return sink.welcome(msg.connId, msg.seq, msg.roster, msg.leases);
+                return sink.welcome(msg.self, msg.seq, msg.roster, msg.leases);
             case "peer":
                 return sink.peer(msg.connId, msg.peer);
             case "ops":
@@ -257,6 +267,8 @@ export class CollabClient {
                 return sink.denied(msg.element, msg.holder);
             case "lease":
                 return sink.lease(msg.element, msg.holder);
+            case "access":
+                return sink.access(msg.access);
             case "resync":
                 return sink.resync(msg.seq);
         }
@@ -287,9 +299,9 @@ const socketUrl = (artifactId: string): string => {
 const resync = (): void => resyncing?.();
 
 const sink: CollabSink = {
-    welcome: (connId, seq, roster, leases) => {
+    welcome: (self, seq, roster, leases) => {
         baseline = seq;
-        collabWelcome(connId, roster, leases);
+        collabWelcome(self, roster, leases);
     },
     peer: (connId, peer) => collabPeer(connId, peer),
     ops: (seq, _author, ops) => {
@@ -310,11 +322,16 @@ const sink: CollabSink = {
     granted: () => undefined,
     denied: (element, holder) => collabDenied(element, holder),
     lease: (element, holder) => collabLease(element, holder),
+    access: (level) => collabAccess(level),
     resync: (seq) => {
         baseline = Math.max(baseline, seq);
         resync();
     },
-    down: () => collabClosed(),
+    down: () => {
+        // nothing we sent is in flight any more, so stop holding its keys against remote values
+        opsDropped();
+        collabClosed();
+    },
 };
 
 export function openCollab(artifactId: string, seq: number, onResync: () => void): void {

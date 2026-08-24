@@ -1,8 +1,11 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import type { ArtifactAccess } from "@model/artifact";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
+import type { ServerMessage } from "@model/collab";
+import type { RoomConnection } from "@services/core/collab";
+import { closeIfEmpty, roomFor } from "@services/core/collab";
 import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 
 // Two separate workspaces: the host owns the artifact, the guest is a complete outsider whose only
@@ -475,5 +478,101 @@ describe("grants follow the artifact", () => {
             .from(schema.artifactGrants)
             .where(eq(schema.artifactGrants.artifactId, artifactId));
         expect(rows).toHaveLength(0);
+    });
+});
+
+// A socket is authorized once, at the upgrade, and then holds that level for as long as it stays
+// open. These are about the other half: the routes that change someone's standing telling the room,
+// so a revoked collaborator stops receiving the document rather than keeping it until they reload.
+describe("an open room follows a change of standing", () => {
+    class Recorder implements RoomConnection {
+        readonly sent: ServerMessage[] = [];
+        closed = false;
+        send(msg: ServerMessage): void {
+            this.sent.push(msg);
+        }
+        close(): void {
+            this.closed = true;
+        }
+        last<T extends ServerMessage["t"]>(t: T): Extract<ServerMessage, { t: T }> | undefined {
+            const hit = [...this.sent].reverse().find((m) => m.t === t);
+            return hit as Extract<ServerMessage, { t: T }> | undefined;
+        }
+    }
+
+    const sit = (userId: string, access: ArtifactAccess): Recorder => {
+        const conn = new Recorder();
+        roomFor({ artifactId, workspaceId: cast.host.workspaceId }, 0).join({
+            connId: `c-${userId}`,
+            user: { id: userId, name: null, avatarUrl: null },
+            access,
+            conn,
+        });
+        return conn;
+    };
+
+    const grantIdFor = async (email: string): Promise<string> =>
+        (await collaborators(cast.host.userId)).find((g) => g.email === email)!.id;
+
+    afterEach(() => {
+        const room = roomFor({ artifactId, workspaceId: cast.host.workspaceId }, 0);
+        for (const userId of room.userIds) room.applyAccess(userId, "none");
+        closeIfEmpty(artifactId);
+    });
+
+    it("tells a connection its level when the grant behind it changes", async () => {
+        await invite(cast.host.userId, cast.guest.email, "edit");
+        const guest = sit(cast.guest.userId, "edit");
+        const res = await authed(
+            cast.host.userId,
+            `/artifacts/${artifactId}/collaborators/${await grantIdFor(cast.guest.email)}`,
+            jsonInit("PATCH", { access: "view" }),
+        );
+        expect(res.status).toBe(200);
+        expect(guest.last("access")).toEqual({ t: "access", access: "view" });
+        expect(guest.closed).toBe(false);
+    });
+
+    it("closes the connection when the grant is revoked outright", async () => {
+        await invite(cast.host.userId, cast.guest.email, "edit");
+        const guest = sit(cast.guest.userId, "edit");
+        const res = await authed(
+            cast.host.userId,
+            `/artifacts/${artifactId}/collaborators/${await grantIdFor(cast.guest.email)}`,
+            { method: "DELETE" },
+        );
+        expect(res.status).toBe(200);
+        expect(guest.closed).toBe(true);
+    });
+
+    it("re-resolves everyone in the room when the artifact itself is locked", async () => {
+        const member = sit(cast.member, "edit");
+        const res = await authed(
+            cast.host.userId,
+            `/artifacts/${artifactId}/access`,
+            jsonInit("PUT", { access: "view" }),
+        );
+        expect(res.status).toBe(200);
+        expect(member.last("access")).toEqual({ t: "access", access: "view" });
+    });
+
+    it("leaves the owner alone, since no artifact level can lower them", async () => {
+        const host = sit(cast.host.userId, "edit");
+        await authed(
+            cast.host.userId,
+            `/artifacts/${artifactId}/access`,
+            jsonInit("PUT", { access: "view" }),
+        );
+        expect(host.last("access")).toBeUndefined();
+        expect(host.closed).toBe(false);
+    });
+
+    it("closes the connection of someone removed from the workspace", async () => {
+        const member = sit(cast.member, "edit");
+        const res = await authed(cast.host.userId, `/workspace/members/${cast.member}`, {
+            method: "DELETE",
+        });
+        expect(res.status).toBe(200);
+        expect(member.closed).toBe(true);
     });
 });

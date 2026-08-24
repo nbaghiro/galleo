@@ -62,17 +62,30 @@ async function chatEditSection(
     return resolveImages(section, ctx.image);
 }
 
-export const addSectionTool = implement("add-section", async function* (input, ctx) {
-    if (!ctx.artifact) throw new Error("no artifact is open");
-    return await chatAddSection(ctx.artifact, input.afterId, input.instruction, ctx);
-});
+export const addSectionTool = implement(
+    "add-section",
+    async function* (input, ctx) {
+        if (!ctx.artifact) throw new Error("no artifact is open");
+        return await chatAddSection(ctx.artifact, input.afterId, input.instruction, ctx);
+    },
+    (section, input) => [{ op: "addSection", afterId: input.afterId, section }],
+);
 
-export const rewriteSectionTool = implement("rewrite-section", async function* (input, ctx) {
-    if (!ctx.artifact) throw new Error("no artifact is open");
-    const section = await chatEditSection(ctx.artifact, input.sectionId, input.instruction, ctx);
-    if (!section) throw new Error(`there is no section "${input.sectionId}"`);
-    return section;
-});
+export const rewriteSectionTool = implement(
+    "rewrite-section",
+    async function* (input, ctx) {
+        if (!ctx.artifact) throw new Error("no artifact is open");
+        const section = await chatEditSection(
+            ctx.artifact,
+            input.sectionId,
+            input.instruction,
+            ctx,
+        );
+        if (!section) throw new Error(`there is no section "${input.sectionId}"`);
+        return section;
+    },
+    (section, input) => [{ op: "replaceSection", id: input.sectionId, section }],
+);
 
 export const editArtifactTool = implement(
     "edit-artifact",
@@ -100,4 +113,5 @@ export const editArtifactTool = implement(
             format: found.content.format,
         };
     },
+    (res, input) => [{ op: "replaceSection", id: input.sectionId, section: res.section }],
 );

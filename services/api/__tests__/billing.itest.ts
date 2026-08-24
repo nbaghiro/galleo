@@ -835,7 +835,10 @@ describe("owner-only billing mutations", () => {
     async function seedMember(workspaceId: string): Promise<string> {
         const [member] = await db
             .insert(schema.users)
-            .values({ email: `member-${workspaceId.slice(0, 8)}@test.local` })
+            .values({
+                email: `member-${workspaceId.slice(0, 8)}@test.local`,
+                emailVerifiedAt: new Date(),
+            })
             .returning();
         await db.insert(schema.members).values({ workspaceId, userId: member!.id });
         return member!.id;

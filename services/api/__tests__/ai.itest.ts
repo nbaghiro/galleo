@@ -28,7 +28,7 @@ describe("AI routes — unconfigured provider", () => {
         // no membership → currentWorkspace() returns null before the aiReady() guard
         const [u] = await db
             .insert(schema.users)
-            .values({ email: "no-ws@test.local", passwordHash: "x:y" })
+            .values({ email: "no-ws@test.local", passwordHash: "x:y", emailVerifiedAt: new Date() })
             .returning({ id: schema.users.id });
         const res = await authed(u!.id, "/ai/turn", generateBody);
         expect(res.status).toBe(400);
@@ -106,5 +106,69 @@ describe("AI routes — unconfigured provider", () => {
     it("POST /ai/suggest 401s without a session", async () => {
         const res = await request("/ai/suggest", jsonInit("POST", {}));
         expect(res.status).toBe(401);
+    });
+
+    // The gate runs before the provider check, so who may act on an artifact is answered the same
+    // way whether or not this server has a model configured. It also means a caller who cannot see
+    // the artifact is not told what the server is running.
+    describe("POST /ai/notes decides access before it decides configuration", () => {
+        const notesFor = (artifactId: string) =>
+            jsonInit("POST", {
+                artifactId,
+                content: {
+                    format: "deck",
+                    theme: "studio",
+                    sections: [{ id: "s1", root: { type: "container", data: { children: [] } } }],
+                },
+            });
+
+        it("404s an artifact the caller has no standing on, rather than 503ing", async () => {
+            const owner = await seedUser();
+            const stranger = await seedUser();
+            const [a] = await db
+                .insert(schema.artifacts)
+                .values({ workspaceId: owner.workspaceId, formatId: "deck", themeId: "studio" })
+                .returning({ id: schema.artifacts.id });
+            const res = await authed(stranger.userId, "/ai/notes", notesFor(a!.id));
+            expect(res.status).toBe(404);
+        });
+
+        // An invited outsider gets through the gate; what stops them here is only the missing
+        // provider, which is the same 503 a member would get.
+        it("admits a collaborator granted edit from outside the workspace", async () => {
+            const owner = await seedUser();
+            const guest = await seedUser();
+            const [a] = await db
+                .insert(schema.artifacts)
+                .values({ workspaceId: owner.workspaceId, formatId: "deck", themeId: "studio" })
+                .returning({ id: schema.artifacts.id });
+            await db.insert(schema.artifactGrants).values({
+                artifactId: a!.id,
+                workspaceId: owner.workspaceId,
+                email: "notes-guest@test.local",
+                userId: guest.userId,
+                access: "edit",
+            });
+            const res = await authed(guest.userId, "/ai/notes", notesFor(a!.id));
+            expect(res.status).toBe(503);
+        });
+
+        it("refuses a collaborator who may only comment", async () => {
+            const owner = await seedUser();
+            const guest = await seedUser();
+            const [a] = await db
+                .insert(schema.artifacts)
+                .values({ workspaceId: owner.workspaceId, formatId: "deck", themeId: "studio" })
+                .returning({ id: schema.artifacts.id });
+            await db.insert(schema.artifactGrants).values({
+                artifactId: a!.id,
+                workspaceId: owner.workspaceId,
+                email: "notes-reader@test.local",
+                userId: guest.userId,
+                access: "comment",
+            });
+            const res = await authed(guest.userId, "/ai/notes", notesFor(a!.id));
+            expect(res.status).toBe(403);
+        });
     });
 });

@@ -32,6 +32,7 @@ export interface User {
     name: string | null;
     avatarUrl: string | null;
     emailVerified: boolean; // email/password accounts start false; OAuth accounts land verified
+    createdAt: string; // ISO; the verification gate applies from its own date forward
     hasPassword: boolean; // false on an OAuth-only account, which may set one instead of changing it
     prefs: UserPrefs;
 }
@@ -112,6 +113,18 @@ export type OnboardingStep = "make" | "ai" | "theme" | "send";
 
 export const ONBOARDING_STEPS: readonly OnboardingStep[] = ["make", "ai", "theme", "send"];
 
+/**
+ * The steps that crossed between two reads of the checklist.
+ *
+ * A first read has no baseline and so reports nothing: the steps it comes back with were already
+ * done, often in an earlier session, and treating "we have not loaded yet" as "nothing was done"
+ * re-reports every finished step on every page load.
+ */
+export const newlyDone = (
+    before: readonly OnboardingStep[] | undefined,
+    now: readonly OnboardingStep[],
+): OnboardingStep[] => (before ? now.filter((s) => !before.includes(s)) : []);
+
 export interface OnboardingState {
     needed: boolean; // no format answer recorded and nothing in the workspace yet
     done: OnboardingStep[];
@@ -132,6 +145,20 @@ export function cleanDisplayName(raw: unknown): string | null {
 export interface AccountConnection {
     provider: AuthProvider;
     linkedAt: string;
+}
+
+/**
+ * An app the person connected over MCP. A credential this account handed out rather than an
+ * identity it signs in with, which is why it sits beside AccountConnection rather than inside it.
+ * One row per client however many times its token has rotated since.
+ */
+export interface ConnectedApp {
+    clientId: string;
+    name: string;
+    scopes: string[]; // ToolScope values; @model/tools owns the vocabulary and its labels
+    workspaceIds: string[];
+    lastUsedAt: string | null;
+    connectedAt: string;
 }
 
 // One workspace the account belongs to; `active` is set only where the reader knows the live tenant.
@@ -167,6 +194,38 @@ export function emailError(raw: string): string | null {
 }
 
 export const isEmail = (v: string): boolean => emailError(v) === null;
+
+// The confirmation code, shared so the field and the route agree on what one looks like. Digits only:
+// it is typed on a phone as often as a keyboard, and a code that mixes cases invites O/0 and I/l.
+export const VERIFY_CODE_LENGTH = 6;
+const CODE_RE = /^[0-9]{6}$/;
+
+export function verifyCodeError(raw: string): string | null {
+    const code = raw.replace(/\s+/g, "");
+    if (!code) return "Enter the code from your email.";
+    if (!CODE_RE.test(code)) return `The code is ${VERIFY_CODE_LENGTH} digits.`;
+    return null;
+}
+
+export interface ConfirmBody {
+    code?: string;
+}
+
+// The fixed code every account accepts outside production, so trying the flow by hand needs no
+// mailbox. The server decides whether it is live (accounts.ts); this constant only names it, so the
+// dev hint under the field and the route cannot drift apart.
+export const DEV_CONFIRM_CODE = "123456";
+
+// Confirmation became a gate on 2026-08-22. Accounts opened before it keep the access they already
+// had, so the rule applies forward rather than locking out people who signed up under the old
+// contract. A date rather than a per-account flag: no migration, and it says when the rule changed.
+//
+// Here rather than beside the routes because both sides need the same answer: the API refuses the
+// guarded routes, and the app has to show the confirm step instead of a screen full of failed reads.
+const CONFIRM_GATE_FROM = Date.parse("2026-08-22T00:00:00Z");
+
+export const mustConfirmEmail = (u: { emailVerified: boolean; createdAt: string }): boolean =>
+    !u.emailVerified && Date.parse(u.createdAt) >= CONFIRM_GATE_FROM;
 
 export interface LoginBody {
     email?: string;

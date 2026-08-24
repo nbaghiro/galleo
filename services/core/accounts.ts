@@ -1,4 +1,4 @@
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, randomInt, createHash } from "node:crypto";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { Google } from "arctic";
 
@@ -9,14 +9,21 @@ import type {
     UserPrefs,
     WorkspaceRole,
 } from "@model/workspace";
-import { asRole, mergeUserPrefs, readUserPrefs, isEmail } from "@model/workspace";
+import {
+    asRole,
+    DEV_CONFIRM_CODE,
+    mergeUserPrefs,
+    readUserPrefs,
+    isEmail,
+    VERIFY_CODE_LENGTH,
+} from "@model/workspace";
 import { db } from "@services/db/client";
 import { freshCreditWindow, rollCreditWindow } from "./ledger";
 import { schema } from "@services/db/schema";
 import { hashPassword, readSessionPayload, verifyPassword } from "@services/utils/auth";
 import { capture, identify } from "@services/utils/analytics";
-import { appUrl } from "@services/utils/env";
-import { sendEmail } from "./mail";
+import { appUrl, warn } from "@services/utils/env";
+import { mailReady, sendEmail } from "./mail";
 
 // Users, sessions, provisioning, and the OAuth link. Nothing here knows about HTTP: the routes in
 // api/session.ts and api/oauth.ts turn these into responses.
@@ -30,6 +37,7 @@ export function toUser(u: {
     email: string;
     name: string | null;
     avatarUrl: string | null;
+    createdAt: Date;
     emailVerifiedAt: Date | null;
     passwordHash: string | null;
     prefs: unknown;
@@ -40,6 +48,7 @@ export function toUser(u: {
         name: u.name,
         avatarUrl: u.avatarUrl,
         emailVerified: u.emailVerifiedAt !== null,
+        createdAt: u.createdAt.toISOString(),
         hasPassword: u.passwordHash !== null,
         prefs: readUserPrefs(u.prefs),
     };
@@ -54,6 +63,7 @@ export async function currentUser(token: string | undefined): Promise<User | nul
             email: schema.users.email,
             name: schema.users.name,
             avatarUrl: schema.users.avatarUrl,
+            createdAt: schema.users.createdAt,
             emailVerifiedAt: schema.users.emailVerifiedAt,
             passwordChangedAt: schema.users.passwordChangedAt,
             passwordHash: schema.users.passwordHash,
@@ -136,6 +146,7 @@ export interface ProvisionedUser {
     email: string;
     name: string | null;
     avatarUrl: string | null;
+    createdAt: Date;
     emailVerifiedAt: Date | null;
     passwordHash: string | null;
     prefs: UserPrefs | null;
@@ -217,6 +228,7 @@ export async function provisionUser(input: ProvisionInput): Promise<ProvisionedU
             email: schema.users.email,
             name: schema.users.name,
             avatarUrl: schema.users.avatarUrl,
+            createdAt: schema.users.createdAt,
             emailVerifiedAt: schema.users.emailVerifiedAt,
             passwordHash: schema.users.passwordHash,
             prefs: schema.users.prefs,
@@ -408,7 +420,6 @@ export async function authenticate(
 // Bumps passwordChangedAt so sessions minted before now are rejected: a stolen cookie dies here.
 // Consuming the reset token also proves inbox control, so the email is confirmed at the same time.
 export async function resetPassword(userId: string, password: string): Promise<User | null> {
-    capture({ userId }, "password_changed", {});
     await db
         .update(schema.users)
         .set({
@@ -444,6 +455,7 @@ const USER_COLS = {
     email: schema.users.email,
     name: schema.users.name,
     avatarUrl: schema.users.avatarUrl,
+    createdAt: schema.users.createdAt,
     emailVerifiedAt: schema.users.emailVerifiedAt,
     passwordHash: schema.users.passwordHash,
     prefs: schema.users.prefs,
@@ -486,7 +498,6 @@ export async function changePassword(
         .set({ passwordHash: hashPassword(next), passwordChangedAt: new Date() })
         .where(eq(schema.users.id, userId))
         .returning(USER_COLS);
-    if (u) capture({ userId }, "password_changed", {});
     return u ? { user: toUser(u) } : { error: "no-account" };
 }
 
@@ -576,21 +587,96 @@ export async function signUp(
     return provisionUser({ email, name, passwordHash: hashPassword(password) });
 }
 
-const VERIFY_TTL = 60 * 60 * 24; // 24h
+// Short, because the code is typed rather than clicked: nobody leaves a signup half-finished for a
+// day, and a narrow window is most of what makes a 6-digit secret defensible.
+const VERIFY_TTL = 15 * 60; // 15m
 const RESET_TTL = 60 * 60; // 1h
 
-// Best-effort: callers don't block signup on delivery, and the user can re-request from the banner.
-/** True when the provider accepted it. The caller reports that honestly rather than guessing. */
+// A code rather than a link, so confirming happens in the tab the person is already in. The tradeoff
+// is that 6 digits is guessable where a 32-byte token is not, and the hash in the row does not change
+// that (10^6 SHA-256s is seconds). What defends it is the rest of the shape: one live code per
+// account, a 15-minute window, an attempt limit on the route, and a code that is only accepted for
+// the account whose session presents it.
+export async function createVerifyCode(userId: string): Promise<string> {
+    // supersede rather than accumulate: "send it again" must not leave five working codes behind
+    await supersedeVerifyCodes(userId);
+    const code = randomInt(0, 1_000_000).toString().padStart(VERIFY_CODE_LENGTH, "0");
+    await db.insert(schema.authTokens).values({
+        userId,
+        purpose: "verify",
+        tokenHash: codeHash(userId, code),
+        expiresAt: new Date(Date.now() + VERIFY_TTL * 1000),
+    });
+    return code;
+}
+
+const supersedeVerifyCodes = (userId: string): Promise<unknown> =>
+    db
+        .update(schema.authTokens)
+        .set({ consumedAt: new Date() })
+        .where(
+            and(
+                eq(schema.authTokens.userId, userId),
+                eq(schema.authTokens.purpose, "verify"),
+                isNull(schema.authTokens.consumedAt),
+            ),
+        );
+
+// Salted with the user id: tokenHash is unique, and two accounts holding the same 6 digits at once is
+// ordinary rather than rare, so an unsalted hash would collide and fail the insert.
+const codeHash = (userId: string, code: string): string => hashToken(`verify:${userId}:${code}`);
+
+// The bypass, and the one thing that decides whether it exists. NODE_ENV is what Render sets and
+// what playwright.config.ts sets for the e2e server, so both run without it; anywhere else (a dev
+// server, a unit or integration run) it is live. Keyed on production being present rather than on dev
+// being present, so an environment that forgets to say what it is gets the safe answer.
+export const devConfirmCodeLive = (): boolean => process.env.NODE_ENV !== "production";
+
+// Said at boot, because the failure that matters is this shipping enabled. A deploy that loses
+// NODE_ENV would otherwise accept 123456 for every account and look completely normal doing it.
+export function checkAuthConfig(): void {
+    if (devConfirmCodeLive())
+        warn(`NODE_ENV is not production: ${DEV_CONFIRM_CODE} confirms any account`);
+}
+
+/** True when the code was live for this account; consumes it either way it is spent. */
+export async function confirmEmailWithCode(userId: string, code: string): Promise<boolean> {
+    if (code === DEV_CONFIRM_CODE && devConfirmCodeLive()) {
+        await supersedeVerifyCodes(userId);
+        await markEmailVerified(userId);
+        return true;
+    }
+    const [consumed] = await db
+        .update(schema.authTokens)
+        .set({ consumedAt: new Date() })
+        .where(
+            and(
+                eq(schema.authTokens.tokenHash, codeHash(userId, code)),
+                eq(schema.authTokens.userId, userId),
+                eq(schema.authTokens.purpose, "verify"),
+                isNull(schema.authTokens.consumedAt),
+                gt(schema.authTokens.expiresAt, new Date()),
+            ),
+        )
+        .returning({ id: schema.authTokens.id });
+    if (!consumed) return false;
+    await markEmailVerified(userId);
+    return true;
+}
+
+/**
+ * True when a provider actually took it. With no key the message is written to the log instead, and
+ * saying "sent" then would be a lie the confirm step repeats to the person waiting for it.
+ */
 export async function sendVerifyEmail(userId: string, email: string): Promise<boolean> {
-    const raw = await createAuthToken(userId, "verify", VERIFY_TTL);
-    const url = appUrl(`/api/auth/verify?token=${raw}`);
+    const code = await createVerifyCode(userId);
     await sendEmail({
         to: email,
-        subject: "Confirm your email for Galleo",
-        text: `Confirm your email to finish setting up Galleo:\n\n${url}\n\nThis link expires in 24 hours.`,
-        html: `<p>Confirm your email to finish setting up Galleo:</p>\n<p><a href="${url}">Verify email</a></p>\n<p>This link expires in 24 hours.</p>`,
+        subject: `${code} is your Galleo confirmation code`,
+        text: `Your Galleo confirmation code is ${code}\n\nEnter it on the screen you left open. It expires in 15 minutes.\n\nIf you did not sign up for Galleo, you can ignore this.`,
+        html: `<p>Your Galleo confirmation code is</p>\n<p style="font-size:30px;font-weight:600;letter-spacing:0.12em;margin:16px 0">${code}</p>\n<p>Enter it on the screen you left open. It expires in 15 minutes.</p>\n<p style="color:#6b7280;font-size:13px">If you did not sign up for Galleo, you can ignore this.</p>`,
     });
-    return true;
+    return mailReady();
 }
 
 // Silent when the address is unknown, so the caller can always answer ok without revealing it.

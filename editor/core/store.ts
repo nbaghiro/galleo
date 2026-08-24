@@ -6,6 +6,7 @@ import type {
     ArtifactShell,
     ElementInstance,
     Section,
+    SectionNotes,
     SectionOp,
     SectionSummary,
 } from "@model/artifact";
@@ -34,6 +35,7 @@ import {
     targetsEqual,
 } from "@model/artifact";
 import { isDesktop } from "@ui/viewport";
+import type { NarrationSource, SoundtrackSource } from "@ui/narration";
 import { capture } from "@ui/analytics";
 import { asFormat, charsBucket, type ElementCategory } from "@model/analytics";
 import { getElement } from "@elements/spec";
@@ -74,8 +76,34 @@ export { canvasEl, setCanvasEl };
 const [canvasContentWidth, setCanvasContentWidth] = createSignal(1120);
 export { canvasContentWidth, setCanvasContentWidth };
 
-// view-only: author a paged artifact at its slide shape instead of at each section's natural height
-export const [slideFrame, setSlideFrame] = createSignal(false);
+// How far outside an element its margin handles sit. The drag grip hangs off the left edge and the
+// comment chip off the right, and the two are read as a pair, so the distance is one number rather
+// than one per panel: they drifted 2px apart the first time each owned its own.
+export const HANDLE_GAP = 10;
+
+// View-only: author a paged artifact at its slide shape instead of at each section's natural height.
+// Persisted, because it is how someone wants to see every deck rather than a per-visit choice, and
+// losing it on refresh means re-framing the canvas after each reload. localStorage rather than the
+// account row, for the same reason the library layout lives there: it is a per-device view.
+const SLIDE_FRAME_KEY = "galleo:slide-frame";
+let storedSlideFrame = false;
+try {
+    storedSlideFrame = localStorage.getItem(SLIDE_FRAME_KEY) === "1";
+} catch {
+    /* storage unavailable — use the default */
+}
+const [slideFrame, setSlideFrameSignal] = createSignal(storedSlideFrame);
+export { slideFrame };
+
+export function setSlideFrame(v: boolean | ((prev: boolean) => boolean)): void {
+    const next = typeof v === "function" ? v(slideFrame()) : v;
+    setSlideFrameSignal(next);
+    try {
+        localStorage.setItem(SLIDE_FRAME_KEY, next ? "1" : "0");
+    } catch {
+        /* storage unavailable */
+    }
+}
 
 // painted stage element, in content coords
 const [stageEl, setStageEl] = createSignal<HTMLElement | null>(null);
@@ -207,43 +235,78 @@ export const canComment = (): boolean => atLeast(editAccess(), "comment");
 
 // Every local write funnels through here: the ops are derived once, narrowed to the finest unit
 // that expresses them, recorded with their inverse for undo, and sent to the room.
+//
+// The access gate lives here rather than on each caller. A text session records straight through
+// this rather than through `commit`, so a gate on `commit` alone let a viewer type into a document
+// they may not change: the batch reached the room, came back rejected, and took their window with
+// it on the resync.
+//
+// `emitFrom` is what the room has already been told. It differs from `base` only for a text
+// session, which checkpoints as it goes: the undo entry still spans the whole session, while what
+// goes out is the remainder since the last checkpoint.
 function record(
     base: ArtifactContent,
     next: ArtifactContent,
-    opts?: { coalesce?: string; title?: { before: string; after: string } },
+    opts?: {
+        coalesce?: string;
+        title?: { before: string; after: string };
+        emitFrom?: ArtifactContent;
+    },
 ): void {
+    if (!canEdit()) return;
     const forward = narrowOps(base, diffSections(base, next));
-    if (!forward.length && !opts?.title) return; // nothing changed by value; keep the painted objects
-    const key = opts?.coalesce;
-    const folding = !!key && key === coalesceKey;
-    if (!folding) editCount += 1;
-    pushEntry(
-        {
-            forward,
-            inverse: invertOps(base, forward),
-            marks: marksFor(forward),
-            ...(opts?.title ? { title: opts.title } : {}),
-        },
-        folding,
-    );
-    if (key) armCoalesce(key);
-    else coalesceKey = null;
+    const from = opts?.emitFrom ?? base;
+    // typing a word and deleting it again is nothing to undo, but the room saw the word: the two
+    // baselines disagree, and the batch that puts it back has to go out even so
+    const outgoing = from === base ? forward : narrowOps(from, diffSections(from, next));
+    if (!forward.length && !outgoing.length && !opts?.title) return; // keep the painted objects
+    if (forward.length || opts?.title) {
+        const key = opts?.coalesce;
+        const folding = !!key && key === coalesceKey;
+        if (!folding) editCount += 1;
+        pushEntry(
+            {
+                forward,
+                inverse: invertOps(base, forward),
+                marks: marksFor(forward),
+                ...(opts?.title ? { title: opts.title } : {}),
+            },
+            folding,
+        );
+        if (key) armCoalesce(key);
+        else coalesceKey = null;
+    }
     setContent(next);
-    if (!forward.length) return; // a rename carries no content, so it costs no repaint or write
+    if (!forward.length && !outgoing.length) return; // a rename costs no repaint or write
     bumpSeq();
-    emitOps(forward);
+    if (outgoing.length) emitOps(outgoing);
 }
 
 export function commit(next: ArtifactContent, opts?: { coalesce?: string }): void {
-    if (!canEdit()) return;
     record(content(), next, opts);
 }
 
 // baselines the undo step on `base`, for when the live tree holds a transient value (a skeleton)
 export function commitOver(base: ArtifactContent, next: ArtifactContent): void {
-    if (!canEdit()) return;
     coalesceKey = null;
     record(base, next);
+}
+
+/**
+ * A write that has to reach the server but is not an edit anyone made. Minting an element id so a
+ * comment can anchor to it is the only caller: the id is metadata about the element rather than a
+ * change to it, so it records no undo step, but it has to travel like any other batch. Left local,
+ * it produced an anchor addressing an id no other reader had, and every op aimed at that element
+ * afterwards named something the server did not hold.
+ */
+export function commitMeta(next: ArtifactContent): void {
+    if (!canEdit()) return;
+    const base = content();
+    const ops = narrowOps(base, diffSections(base, next));
+    if (!ops.length) return;
+    setContent(next);
+    bumpSeq();
+    emitOps(ops);
 }
 
 // previewing swaps the rendered theme but not the saved one, and skips editSeq, so it never autosaves
@@ -327,6 +390,7 @@ function replay(
 }
 
 export function undo(): void {
+    capture("edit_undone", {});
     replay(
         past,
         future,
@@ -336,6 +400,7 @@ export function undo(): void {
 }
 
 export function redo(): void {
+    capture("edit_redone", {});
     replay(
         future,
         past,
@@ -355,10 +420,14 @@ export { editCaret };
 let editBefore: ArtifactContent | null = null;
 
 export function startEditing(addr: ElementAddress, caret?: { x: number; y: number }): void {
+    // Nothing to type into without edit access: the keystrokes would land in this tab's tree, be
+    // refused by the room, and vanish on the resync that followed.
+    if (!canEdit()) return;
     // The presence gate: someone else is already in this element, so entering would be co-typing.
     // Zero latency and it covers every entry point, since they all funnel through here.
     if (enterEditHandler && !enterEditHandler(addr)) return;
     editBefore = editor.artifact;
+    liveBase = editor.artifact;
     editingElementId = getElementIdAt(editor.artifact, addr);
     setEditCaret(caret ?? null);
     // hover updates are suppressed while editing, so a stale value would strand the hover chrome
@@ -390,9 +459,11 @@ function textLength(el: ElementInstance | undefined): number {
 
 export function stopEditing(): void {
     const addr = editing();
+    window.clearTimeout(checkpointTimer);
+    checkpointTimer = 0;
     // one entry per session: the keystrokes updated the tree live, this is where they become an edit
     if (editBefore && editBefore !== editor.artifact) {
-        record(editBefore, editor.artifact);
+        record(editBefore, editor.artifact, { emitFrom: liveBase ?? editBefore });
         // Debounced by construction: a whole typing session is one event, not one per keystroke.
         if (addr) {
             const el = getElementAt(editor.artifact, addr);
@@ -405,6 +476,7 @@ export function stopEditing(): void {
         }
     }
     editBefore = null;
+    liveBase = null;
     editingElementId = undefined;
     setEditing(null);
     if (addr) leaveEditHandler?.(addr);
@@ -418,7 +490,37 @@ export function remountEditing(): void {
 export function setArtifactLive(next: ArtifactContent): void {
     setContent(next);
     bumpSeq();
+    scheduleCheckpoint();
 }
+
+// A text session updates the tree on every keystroke and only becomes ops when it ends, so while
+// the room is the persistence path a long paragraph would sit in one tab, unsent and unsaved, until
+// the writer clicked away: a tab closed mid-sentence lost it, and peers saw the whole paragraph
+// arrive in one lump. The session checkpoints as it goes instead. The undo entry still lands once,
+// at the end, because `record` takes the emit baseline separately from the history one.
+//
+// The timer is not reset by later keystrokes, so a continuous typist checkpoints on a cadence
+// rather than never.
+const CHECKPOINT_MS = 900;
+let liveBase: ArtifactContent | null = null; // what the room has been told of the open session
+let checkpointTimer = 0;
+
+/** Sends what the open session has produced since the last checkpoint; nothing if none is open. */
+export function checkpointLiveEdit(): void {
+    window.clearTimeout(checkpointTimer);
+    checkpointTimer = 0;
+    const base = liveBase;
+    if (!base || base === content() || !canEdit()) return;
+    const ops = narrowOps(base, diffSections(base, content()));
+    // nothing went out (no room open), so the baseline stays put: the HTTP save is carrying this
+    // session instead, and the next checkpoint has to still describe the whole of it
+    if (!ops.length || emitOps(ops)) liveBase = content();
+}
+
+const scheduleCheckpoint = (): void => {
+    if (!liveBase || checkpointTimer) return;
+    checkpointTimer = window.setTimeout(checkpointLiveEdit, CHECKPOINT_MS);
+};
 
 // ---- collaboration: ops out, ops in ---------------------------------------------------------
 //
@@ -447,12 +549,24 @@ export function clearEmitOps(): void {
     pendingContent.clear();
 }
 
-function emitOps(ops: SectionOp[]): void {
-    if (!ops.length) return;
+/** False when nothing went out (no room, or the socket is down), so the caller can keep its baseline. */
+function emitOps(ops: SectionOp[]): boolean {
+    if (!ops.length) return false;
     const tag = opsEmitter?.(ops);
-    if (!tag) return;
+    if (!tag) return false;
     pendingContent.set(tag, content());
     for (const key of writeKeys(ops)) pendingByKey.set(key, tag);
+    return true;
+}
+
+/**
+ * The socket went away, so nothing we sent is in flight any more: whatever was unacked is now the
+ * HTTP save's problem, and holding those keys pending would go on discarding every remote value for
+ * them long after the room came back, on exactly the elements this tab was last editing.
+ */
+export function opsDropped(): void {
+    pendingByKey.clear();
+    pendingContent.clear();
 }
 
 const clearPending = (tag: string): void => {
@@ -523,13 +637,21 @@ export function applyRemoteOps(ops: SectionOp[]): boolean {
 
 // A batch that resolves to the document already on screen must not repaint: the paint cache and the
 // autosave diff both key on identity, so a needless new tree invalidates both for nothing.
+//
+// The shell is compared generically, for the reason diffSections is: a hand-listed version ignores
+// every field added to ArtifactShell after it was written, and ignoring one here meant a remote
+// change to it was applied and then dropped, with the next local shell write reverting it.
 const unchanged = (a: ArtifactContent, b: ArtifactContent): boolean =>
     a.sections.length === b.sections.length &&
     a.sections.every((s, i) => s === b.sections[i]) &&
-    a.format === b.format &&
-    a.theme === b.theme &&
-    a.background === b.background &&
-    a.page === b.page;
+    sameShell(a, b);
+
+function sameShell(a: ArtifactContent, b: ArtifactContent): boolean {
+    const { sections: _aSections, ...av } = a;
+    const { sections: _bSections, ...bv } = b;
+    const keys = new Set([...Object.keys(av), ...Object.keys(bv)]);
+    return [...keys].every((k) => av[k as keyof ArtifactShell] === bv[k as keyof ArtifactShell]);
+}
 
 // Deletion wins: if a remote batch removed the element or section someone is typing in, their
 // session ends rather than writing into a hole.
@@ -573,23 +695,33 @@ function endSessionIfGone(): void {
     const here = now ? getAtPath(now.root, addr.path) : undefined;
     if (here && (editingElementId === undefined || here.id === editingElementId)) return;
     editBefore = null; // the keystrokes had nowhere to land, so they are not an edit to record
+    liveBase = null;
+    window.clearTimeout(checkpointTimer);
+    checkpointTimer = 0;
     editingElementId = undefined;
     setEditing(null);
     setSelection(null);
-    if (sessionStartedAt) {
-        // Depends on a page-hide handler and will under-report, so no funnel should use it as a
-        // denominator; it is still the only view of a session that was only a glance.
-        capture("editor_session_ended", {
-            ms: Date.now() - sessionStartedAt,
-            format: asFormat(editor.artifact.format),
-            section_count: editor.artifact.sections.length,
-            edit_count: editCount,
-            ai_action_count: aiActionCount,
-            saved: savedCleanly,
-        });
-        sessionStartedAt = 0;
-    }
     sessionEndedHandler?.();
+}
+
+/**
+ * The whole editing session is over: the tab is going away, or another artifact is taking its place.
+ * Idempotent and only reports when one was open, so a page hide followed by the route unmounting
+ * counts once. It rides a page-hide handler and will under-report (a killed tab reports nothing),
+ * so no funnel should use it as a denominator; it is still the only view of a session that was only
+ * a glance.
+ */
+export function endEditorSession(): void {
+    if (!sessionStartedAt) return;
+    capture("editor_session_ended", {
+        ms: Date.now() - sessionStartedAt,
+        format: asFormat(editor.artifact.format),
+        section_count: editor.artifact.sections.length,
+        edit_count: editCount,
+        ai_action_count: aiActionCount,
+        saved: savedCleanly,
+    });
+    sessionStartedAt = 0;
 }
 
 function getAtPath(root: ElementInstance, path: number[]): ElementInstance | undefined {
@@ -645,6 +777,9 @@ function restoreTitle(title: string): void {
 }
 
 export function renameArtifact(title: string): void {
+    // The title is content the same way the tree is: without edit access the PATCH is refused, and
+    // the name would sit renamed in this tab alone until the next load put it back.
+    if (!canEdit()) return;
     const t = title.trim();
     if (!t || t === currentTitle()) return;
     const before = currentTitle();
@@ -751,11 +886,108 @@ export function getSuggestSections(): SectionSuggester | null {
     return sectionSuggester;
 }
 
+// app registers the speaker-notes writer (POST /ai/notes, SSE); no host → the Write actions stay hidden
+export interface WrittenNote {
+    sectionId: string;
+    notes: SectionNotes;
+}
+export type NotesWriter = (
+    content: ArtifactContent,
+    sectionIds: string[] | undefined,
+    onNote: (note: WrittenNote) => void,
+    signal?: AbortSignal,
+) => Promise<void>;
+let notesWriter: NotesWriter | null = null;
+export function onWriteNotes(fn: NotesWriter): void {
+    notesWriter = fn;
+}
+export function getWriteNotes(): NotesWriter | null {
+    return notesWriter;
+}
+
+// app registers the workspace's voice shelf; no host → no voice control on the artifact
+export interface ShelfVoice {
+    id: string;
+    name: string;
+    isDefault: boolean;
+}
+let voiceShelf: (() => ShelfVoice[]) | null = null;
+export function onVoiceShelf(fn: () => ShelfVoice[]): void {
+    voiceShelf = fn;
+}
+export const shelfVoices = (): ShelfVoice[] => voiceShelf?.() ?? [];
+
+// app registers the narration builder (POST /artifacts/:id/narration, SSE); no host → no Prepare
+export interface NarratedSection {
+    sectionId: string;
+    ms: number;
+    cached: boolean;
+}
+export type NarrationBuilder = (
+    content: ArtifactContent,
+    sectionIds: string[] | undefined,
+    onSection: (s: NarratedSection) => void,
+    signal?: AbortSignal,
+) => Promise<void>;
+let narrationBuilder: NarrationBuilder | null = null;
+export function onPrepareNarration(fn: NarrationBuilder): void {
+    narrationBuilder = fn;
+}
+export function getPrepareNarration(): NarrationBuilder | null {
+    return narrationBuilder;
+}
+
+// app registers bed composition (POST /artifacts/:id/soundtrack); no host → no picker
+export type BedComposer = (opts: {
+    preset?: string;
+    custom?: boolean;
+    lengthMs?: number;
+}) => Promise<string>;
+let bedComposer: BedComposer | null = null;
+export function onComposeBed(fn: BedComposer): void {
+    bedComposer = fn;
+}
+export const getComposeBed = (): BedComposer | null => bedComposer;
+
+let musicPresets:
+    | (() => { id: string; name: string; description: string; ready: boolean }[])
+    | null = null;
+export function onMusicPresets(
+    fn: () => { id: string; name: string; description: string; ready: boolean }[],
+): void {
+    musicPresets = fn;
+}
+export const getMusicPresets = (): {
+    id: string;
+    name: string;
+    description: string;
+    ready: boolean;
+}[] => musicPresets?.() ?? [];
+
+// app registers the bed (GET /artifacts/:id/soundtrack); no host → no music control
+let soundtrackSource: SoundtrackSource | undefined;
+export function onSoundtrack(fn: SoundtrackSource | undefined): void {
+    soundtrackSource = fn;
+}
+export function getSoundtrack(): SoundtrackSource | undefined {
+    return soundtrackSource;
+}
+
+// app registers the narration source (GET /artifacts/:id/narration); no host → no play control
+let narrationSource: NarrationSource | undefined;
+export function onNarration(fn: NarrationSource | undefined): void {
+    narrationSource = fn;
+}
+export function getNarration(): NarrationSource | undefined {
+    return narrationSource;
+}
+
 // app registers element regeneration (POST /ai/element); no host → the Regenerate action stays hidden
+// Addressed by path, not by node: the host posts an address the server resolves against the tree it
+// was given, which is the same way the agent's own tool names an element.
 export type ElementReviser = (
     content: ArtifactContent,
-    sectionId: string,
-    element: ElementInstance,
+    address: ElementAddress,
     instruction?: string,
 ) => Promise<ElementInstance>;
 let elementReviser: ElementReviser | null = null;
@@ -785,6 +1017,10 @@ export function getTextAssist(): TextAssistant | null {
 
 // no editSeq bump, so loading never autosaves; the canvas redraws off currentArtifactId
 export function loadArtifactContent(id: string, art: ArtifactContent): void {
+    endEditorSession(); // a switch ends the session on the artifact being left, counters and all
+    window.clearTimeout(checkpointTimer);
+    checkpointTimer = 0;
+    liveBase = null;
     sessionStartedAt = Date.now();
     editCount = 0;
     aiActionCount = 0;
@@ -977,7 +1213,6 @@ export function addSectionAfter(afterId: string | null): void {
 
 export function duplicateSectionAt(id: string): void {
     commit(duplicateSection(editor.artifact, id, newSectionId()));
-    capture("section_duplicated", {});
 }
 
 export function removeSectionAt(id: string): void {
@@ -1010,17 +1245,24 @@ export function moveSectionTo(id: string, index: number): void {
 }
 
 export const [presenting, setPresenting] = createSignal(false);
-export const [slideIndex, setSlideIndex] = createSignal(0);
 
-// Presenting is an output, so it counts toward activation the same way an export does.
+// Presenting is an output, so it counts toward activation the same way an export does. The surface
+// owns the index and reports how far it got, since paged and continuous count different things.
 let presentStartedAt = 0;
 let slidesAdvanced = 0;
 
-export function present(): void {
-    setSlideIndex(0);
+// Whether this run was asked to narrate itself. Read once by the surface as it opens, so "Play with
+// voice" and "Present" are the same entry with a different intent rather than two code paths.
+export const [presentWithVoice, setPresentWithVoice] = createSignal(false);
+
+export function present(opts: { withVoice?: boolean } = {}): void {
     presentStartedAt = Date.now();
     slidesAdvanced = 0;
+    setPresentWithVoice(!!opts.withVoice);
     setPresenting(true);
+}
+export function notePresentProgress(reached: number): void {
+    slidesAdvanced = Math.max(slidesAdvanced, reached);
 }
 export function exitPresent(): void {
     if (presentStartedAt)
@@ -1031,17 +1273,8 @@ export function exitPresent(): void {
             ms: Date.now() - presentStartedAt,
         });
     presentStartedAt = 0;
+    setPresentWithVoice(false);
     setPresenting(false);
-}
-export function nextSlide(): void {
-    setSlideIndex((i) => {
-        const next = Math.min(editor.artifact.sections.length - 1, i + 1);
-        if (next !== i) slidesAdvanced += 1;
-        return next;
-    });
-}
-export function prevSlide(): void {
-    setSlideIndex((i) => Math.max(0, i - 1));
 }
 
 // collapsed by default below desktop, where the minimap costs too much canvas

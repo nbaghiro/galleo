@@ -228,11 +228,15 @@ export async function inviteCollaborator(
     return { collaborator, url: token ? url : null, sent };
 }
 
+// Both of these answer with the account the grant was bound to (null while it is still an unopened
+// invitation), because the caller has to push the new standing into any room that person is in.
+export type GrantChange = { userId: string | null } | null; // null = no such grant
+
 export async function setGrantAccess(
     artifactId: string,
     grantId: string,
     access: ArtifactAccess,
-): Promise<boolean> {
+): Promise<GrantChange> {
     const [row] = await db
         .update(schema.artifactGrants)
         .set({ access })
@@ -242,11 +246,11 @@ export async function setGrantAccess(
                 eq(schema.artifactGrants.artifactId, artifactId),
             ),
         )
-        .returning({ id: schema.artifactGrants.id });
-    return !!row;
+        .returning({ userId: schema.artifactGrants.userId });
+    return row ? { userId: row.userId } : null;
 }
 
-export async function revokeGrant(artifactId: string, grantId: string): Promise<boolean> {
+export async function revokeGrant(artifactId: string, grantId: string): Promise<GrantChange> {
     const [row] = await db
         .delete(schema.artifactGrants)
         .where(
@@ -255,8 +259,8 @@ export async function revokeGrant(artifactId: string, grantId: string): Promise<
                 eq(schema.artifactGrants.artifactId, artifactId),
             ),
         )
-        .returning({ id: schema.artifactGrants.id });
-    return !!row;
+        .returning({ userId: schema.artifactGrants.userId });
+    return row ? { userId: row.userId } : null;
 }
 
 export interface GrantPeek {

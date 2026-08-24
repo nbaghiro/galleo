@@ -83,7 +83,7 @@ export async function regenerateElement(addr: ElementAddress, instruction?: stri
     setSelection({ kind: "element", address: target });
 
     try {
-        const next = await reviser(base, target.section, current, instruction);
+        const next = await reviser(base, target, instruction);
         if (getElementAt(content(), target)) {
             // stop editing before commit: the browser won't repaint an in-place change to a live contenteditable
             const ed = editing();

@@ -97,12 +97,14 @@ export interface TextLeaf {
     color?: string;
     align?: Align;
     wrap: "words" | "none";
+    level?: 1 | 2 | 3; // heading rank (h1/h2/h3); absent = not a heading
     // Invariant: the concatenation of `runs[].text` equals `text`; absent → the plain `text` path.
     runs?: Run[];
 }
 
 export interface ImageLeaf {
     src: string;
+    alt?: string;
     fit: "cover" | "contain";
     radius?: number;
     scrim?: number; // 0..1 dark overlay
@@ -141,6 +143,8 @@ export interface EngineNode {
     // the flow (decoration), non-negative above it (overlays), ascending within each side.
     float?: { x?: Align; y?: Align; dx?: number; dy?: number; z?: number };
     opacity?: number; // 0..1, multiplied down the subtree
+    // href for the whole box; inherited by the subtree so a click anywhere inside it navigates
+    link?: string;
     text?: TextLeaf;
     image?: ImageLeaf;
     fill?: FillLeaf;
@@ -150,9 +154,33 @@ export interface EngineNode {
 
 // `clip` is the ancestor-intersected rect the backends honor; absent = no clip.
 export type RenderCommand =
-    | { kind: "rect"; box: Rect; fill?: FillLeaf; id?: string; opacity?: number; clip?: Rect }
-    | { kind: "text"; box: Rect; text: TextLeaf; id?: string; opacity?: number; clip?: Rect }
-    | { kind: "image"; box: Rect; image: ImageLeaf; id?: string; opacity?: number; clip?: Rect }
+    | {
+          kind: "rect";
+          box: Rect;
+          fill?: FillLeaf;
+          id?: string;
+          opacity?: number;
+          clip?: Rect;
+          link?: string;
+      }
+    | {
+          kind: "text";
+          box: Rect;
+          text: TextLeaf;
+          id?: string;
+          opacity?: number;
+          clip?: Rect;
+          link?: string;
+      }
+    | {
+          kind: "image";
+          box: Rect;
+          image: ImageLeaf;
+          id?: string;
+          opacity?: number;
+          clip?: Rect;
+          link?: string;
+      }
     | {
           kind: "surface";
           box: Rect;
@@ -160,6 +188,7 @@ export type RenderCommand =
           id?: string;
           opacity?: number;
           clip?: Rect;
+          link?: string;
       };
 
 // Separate from paint so selection and hit-testing don't depend on what was drawn.

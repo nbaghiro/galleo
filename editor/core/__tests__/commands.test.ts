@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import "@elements/register"; // the predicate reads element specs, so the registry has to be up
 import "@editor/core/commands"; // side-effect: register editor commands + keymap
 import { beforeEach, describe, expect, it } from "vitest";

@@ -4,20 +4,31 @@ import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from
 import { useParams, useSearchParams } from "@solidjs/router";
 import { registerThemes, resolveTheme, themeCssVars } from "@themes";
 import { PresentSurface } from "@ui/present";
+import type { NarrationSource, SoundtrackSource } from "@ui/narration";
 import { UiThemeProvider } from "@ui/icons";
 import { MediaCredits } from "@ui/status";
-import { api, type PublicContent } from "@app/api";
-import { setFavicon } from "@app/stores/theme";
+import { publicApi, type PublicContent } from "./api";
+import { setFavicon } from "@ui/brand";
 
 const Surface: Component<{
     artifact: ArtifactContent;
     branded: boolean;
+    narration?: NarrationSource;
+    soundtrack?: SoundtrackSource;
     onProgress: (reached: number, total: number) => void;
 }> = (props) => {
     const tokens = createMemo(() => resolveTheme(props.artifact.theme).tokens);
     return (
         <UiThemeProvider tokens={tokens}>
-            <PresentSurface artifact={props.artifact} z={0} onProgress={props.onProgress}>
+            {/* no `notes`: cues are the speaker's alone, and the public payload carries none anyway */}
+            <PresentSurface
+                artifact={props.artifact}
+                z={0}
+                where="publish"
+                narration={props.narration}
+                soundtrack={props.soundtrack}
+                onProgress={props.onProgress}
+            >
                 <Show when={props.branded}>
                     <a
                         href="https://galleo.app"
@@ -100,6 +111,8 @@ export const PublicView: Component = () => {
     const [pwTheme, setPwTheme] = createSignal("studio");
     const [pwFormat, setPwFormat] = createSignal<string | undefined>();
     const [busy, setBusy] = createSignal(false);
+    // the password that actually worked, kept so the narration request can reuse it
+    const [accepted, setAccepted] = createSignal<string | undefined>(undefined);
 
     const token = (): string | undefined => (typeof search.k === "string" ? search.k : undefined);
 
@@ -110,7 +123,7 @@ export const PublicView: Component = () => {
         }
         setBusy(true);
         try {
-            const res = await api.getPublicContent(params.slug, {
+            const res = await publicApi.getPublicContent(params.slug, {
                 k: token(),
                 pw: password,
                 ref: document.referrer || undefined,
@@ -118,6 +131,7 @@ export const PublicView: Component = () => {
             if (res.ok) {
                 if (res.content.customTheme) registerThemes([res.content.customTheme]);
                 setContent(res.content);
+                setAccepted(password);
                 setState("ok");
             } else if (res.status === 401 || res.status === 429) {
                 if (res.customTheme) registerThemes([res.customTheme]);
@@ -158,6 +172,24 @@ export const PublicView: Component = () => {
         document.title = c.title;
         // custom theme (if any) is registered in load() first
         setFavicon(resolveTheme(c.content.theme).tokens);
+    });
+
+    // The manifest goes through the same gate the content did, so the password the viewer just
+    // entered has to ride along; without it every track would 404 on a protected link.
+    const narrationSource = createMemo((): NarrationSource | undefined => {
+        const slug = params.slug;
+        if (!slug || state() !== "ok") return undefined;
+        const pw = accepted();
+        return { load: () => publicApi.getPublicNarration(slug, { k: token(), pw }) };
+    });
+
+    // read-only on purpose: a link viewer plays the bed the presenter chose and never starts one,
+    // which would write to someone else's piece and spend their credits
+    const soundtrackSource = createMemo((): SoundtrackSource | undefined => {
+        const slug = params.slug;
+        if (!slug || state() !== "ok") return undefined;
+        const pw = accepted();
+        return { load: () => publicApi.getPublicSoundtrack(slug, { k: token(), pw }) };
     });
 
     const submitPassword = (e: Event): void => {
@@ -234,7 +266,13 @@ export const PublicView: Component = () => {
         >
             {(c) => (
                 <>
-                    <Surface artifact={c().content} branded={c().branded} onProgress={onProgress} />
+                    <Surface
+                        artifact={c().content}
+                        branded={c().branded}
+                        narration={narrationSource()}
+                        soundtrack={soundtrackSource()}
+                        onProgress={onProgress}
+                    />
                     <MediaCredits credits={c().credits} />
                 </>
             )}

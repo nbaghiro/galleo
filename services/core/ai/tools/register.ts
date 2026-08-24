@@ -8,6 +8,7 @@ import "./text";
 import "./refine";
 import "./relayout";
 import "./suggest";
+import "./notes";
 import "./inspect";
 import "./library";
 import "./manage";

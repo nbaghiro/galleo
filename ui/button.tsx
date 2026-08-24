@@ -19,7 +19,8 @@ const SPINNER_TONE: Record<SpinnerTone, string> = {
 
 export const Spinner: Component<{ size?: number; tone?: SpinnerTone }> = (props) => (
     <span
-        class={`inline-block animate-spin rounded-full border-2 ${SPINNER_TONE[props.tone ?? "accent"]}`}
+        // self-center: an icon-row (baseline) parent would otherwise sit this text-free box on the baseline
+        class={`inline-block animate-spin self-center rounded-full border-2 ${SPINNER_TONE[props.tone ?? "accent"]}`}
         style={{ width: `${props.size ?? 16}px`, height: `${props.size ?? 16}px` }}
     />
 );
@@ -62,7 +63,7 @@ export const Button: Component<
     const link = (): boolean => local.variant === "link";
     const cls = (): string =>
         [
-            "inline-flex items-center justify-center gap-1.5 font-semibold transition-colors disabled:pointer-events-none disabled:opacity-60",
+            "inline-flex icon-row justify-center gap-1.5 font-semibold transition-colors disabled:pointer-events-none disabled:opacity-60",
             // link is boxless — no padding/rounding
             link() ? "" : BTN_SIZE[local.size ?? "md"],
             link() ? "" : ROUNDED[local.rounded ?? "lg"],
@@ -180,7 +181,7 @@ export const Chip: Component<
     ]);
     const cls = (): string => {
         // a <button> centres its text by default, which only shows once a label wraps; nothing chose that
-        const base = `inline-flex items-center gap-1 text-left ${local.rounded === "md" ? "rounded-md" : "rounded-full"} ${CHIP_SIZE[local.size ?? "sm"]} transition-colors disabled:pointer-events-none disabled:opacity-40`;
+        const base = `inline-flex icon-row gap-1 text-left ${local.rounded === "md" ? "rounded-md" : "rounded-full"} ${CHIP_SIZE[local.size ?? "sm"]} transition-colors disabled:pointer-events-none disabled:opacity-40`;
         const tone =
             local.variant === "solid"
                 ? `font-semibold ${local.selected ? "bg-accent text-onaccent" : "bg-canvas text-soft hover:text-ink"}`

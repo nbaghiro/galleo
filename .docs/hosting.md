@@ -356,3 +356,23 @@ Render targets); Render issues TLS.
 - Structured request logging + error tracking (e.g. Sentry/Rollbar).
 - Redis/queue for background generation + export jobs.
 - Custom domains for artifacts/publish; multi-region.
+
+## Narration, music, and storage
+
+`ELEVENLABS_API_KEY` now serves three features rather than one: dictation (browser-to-provider,
+nothing stored), narration (server-side, cached), and background music. Without it all three are
+absent rather than broken, which is the same rule the rest of the optional providers follow. Music
+additionally needs a paid ElevenLabs plan: the API answers a free account with `limited_access`, which
+`providerBlocked` reports as a 503 naming the plan rather than as an outage.
+
+Narration audio is the first thing in the product that grows without anyone uploading, so the Neon
+storage line moves with use. It is a derived cache: `narrations` rows are rebuildable from the notes
+at any time, never count against a workspace's storage cap, and the whole table can be dropped to
+reclaim space. At `mp3_44100_64` a thirty-second section is roughly 240 KB, so a twelve-section deck
+holds a few MB. That is fine at this scale and is the strongest argument yet for the object-storage
+move in `prompts/08-object-storage.md`; the read path is one function (`audioFor`) so moving the bytes
+later is contained. `soundtracks` is the same kind of cache and is much smaller: a preset is one
+row for the whole deployment, and a custom bed is one row per artifact, both at the same bitrate.
+
+Synthesis is slow, roughly a second of wall clock per ten seconds of audio, which is why preparing a
+deck streams progress rather than blocking on a single request.

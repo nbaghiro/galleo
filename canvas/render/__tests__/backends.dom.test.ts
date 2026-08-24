@@ -21,6 +21,18 @@ import { inst, installCanvas2D, sectionOf, textMetricsCtx, tokens } from "@canva
 beforeAll(() => installCanvas2D());
 
 describe("paint / applyCommand", () => {
+    it("returns the nodes it created, index-parallel to the commands", () => {
+        const host = document.createElement("div");
+        const commands: RenderCommand[] = [
+            { kind: "rect", box: { x: 0, y: 0, w: 10, h: 10 }, fill: { color: "#000" } },
+            { kind: "rect", box: { x: 0, y: 10, w: 10, h: 10 }, fill: { color: "#fff" } },
+        ];
+        const nodes = paint(commands, host);
+        expect(nodes).toHaveLength(2);
+        expect(nodes.map((n) => n.style.top)).toEqual(["0px", "10px"]);
+        expect([...host.children]).toEqual(nodes);
+    });
+
     it("paints one absolutely-positioned div per command with its box + fill", () => {
         const host = document.createElement("div");
         paint(
@@ -312,13 +324,13 @@ describe("paintSectionStack — windowing", () => {
 
 describe("fitSlideContent", () => {
     it("scales content to fit the slide height, centered", () => {
-        const div = fitSlideContent(
+        const { el } = fitSlideContent(
             [{ kind: "rect", box: { x: 0, y: 0, w: 1280, h: 1440 }, fill: { color: "#000" } }],
             1440,
             1280,
             720,
         );
-        expect(div.style.transform).toBe("scale(0.5)"); // 720 / 1440
+        expect(el.style.transform).toBe("scale(0.5)"); // 720 / 1440
     });
 });
 

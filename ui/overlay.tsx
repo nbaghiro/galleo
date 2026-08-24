@@ -77,6 +77,7 @@ export const Popover: Component<{
     fixedWidth?: number; // panel is exactly this wide, left clamped into the viewport
     align?: "start" | "end" | "center"; // edge/center aligned to the anchor (default start = left; center needs fixedWidth)
     panelClass?: string;
+    bare?: boolean; // the consumer paints its own surface, so drop the panel chrome
     toolbar?: boolean;
     children: JSX.Element;
 }> = (props) => {
@@ -130,7 +131,7 @@ export const Popover: Component<{
                     />
                     <div
                         {...stamp()}
-                        class={`fixed z-popover overflow-y-auto rounded-lg border border-line bg-panel font-body text-ink shadow-2xl ${props.panelClass ?? ""}`}
+                        class={`fixed z-popover overflow-y-auto font-body text-ink ${props.bare ? "" : "rounded-lg border border-line bg-panel shadow-2xl"} ${props.panelClass ?? ""}`}
                         style={{
                             ...vars(),
                             // end = right-edge aligned; center (needs fixedWidth) = anchor midpoint; else left, all clamped.
@@ -324,13 +325,13 @@ const BAR_ROUNDED: Record<BarRounded, string> = {
 type BarShadow = "none" | "lg" | "2xl";
 const BAR_SHADOW: Record<BarShadow, string> = { none: "", lg: "shadow-lg", "2xl": "shadow-2xl" };
 // Content tokens for a FloatingBar's own row: shared by the editor's section pill and the generation
-// studio's outline pill, so the two read as one control surface. The svg nudge drops icons onto the
-// label's optical center — geometric flex centring leaves them ~0.5px high against the x-height band.
+// studio's outline pill, so the two read as one control surface. icon-row (ui/styles.css) drops the
+// icon onto the label's optical center in whatever body font the active theme sets.
 export const barAction =
-    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas disabled:pointer-events-none disabled:opacity-40 [&_svg]:translate-y-[0.5px]";
+    "inline-flex icon-row gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-semibold text-ink hover:bg-canvas disabled:pointer-events-none disabled:opacity-40";
 // the bar's one call to action; same metrics as barAction so it sits level with its neighbours
 export const barPrimaryAction =
-    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-onaccent hover:opacity-90 disabled:pointer-events-none disabled:opacity-40 [&_svg]:translate-y-[0.5px]";
+    "inline-flex icon-row gap-1.5 whitespace-nowrap rounded-full bg-accent px-2.5 py-1 text-[11px] font-semibold text-onaccent hover:opacity-90 disabled:pointer-events-none disabled:opacity-40";
 export const barIconAction = "inline-flex items-center rounded-full p-1.5 text-ink hover:bg-canvas";
 // stacked chevrons share one slot, so this stays tight rather than a full icon button
 export const barStepAction =

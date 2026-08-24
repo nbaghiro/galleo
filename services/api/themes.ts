@@ -70,6 +70,5 @@ themes.patch("/themes/:id", requireWorkspace, async (c) => {
 
 themes.delete("/themes/:id", requireWorkspace, async (c) => {
     await deleteTheme(c.get("ws").id, c.req.param("id"));
-    capture({ userId: c.get("user").id, workspaceId: c.get("ws").id }, "custom_theme_deleted", {});
     return c.json({ ok: true });
 });

@@ -153,15 +153,15 @@ describe("server analytics", () => {
 
     it("keeps two overlapping requests apart", async () => {
         initAnalytics({ key: "phc_test", fetch: recorder(sent) });
-        const emit = async (id: string, event: "logged_out" | "password_changed"): Promise<void> =>
+        const emit = async (id: string, event: "logged_out" | "logged_in"): Promise<void> =>
             withRequestId(id, async () => {
                 await new Promise((r) => setTimeout(r, id === "req_slow" ? 5 : 1));
-                capture(ctx, event, {});
+                capture(ctx, event, event === "logged_in" ? { method: "password" } : {});
             });
-        await Promise.all([emit("req_slow", "logged_out"), emit("req_fast", "password_changed")]);
+        await Promise.all([emit("req_slow", "logged_out"), emit("req_fast", "logged_in")]);
         await shutdownAnalytics();
         expect(named(sent, "logged_out")?.properties.request_id).toBe("req_slow");
-        expect(named(sent, "password_changed")?.properties.request_id).toBe("req_fast");
+        expect(named(sent, "logged_in")?.properties.request_id).toBe("req_fast");
     });
 
     it("says nothing about a request when there is none", async () => {

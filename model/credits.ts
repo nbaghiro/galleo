@@ -10,6 +10,12 @@ export const COST_UNITS = {
     text: 1, // one text run rewritten/translated
     theme: 4, // one theme designed
     reply: 2, // one chat/summary reply
+    // one thousand characters synthesized to speech. Derived, not chosen: eleven_multilingual_v2 is
+    // $0.10 per 1000 characters, and $0.10 / CREDIT_USD = 7.04.
+    speech: 7,
+    // one minute of generated music. Derived: ~900 ElevenLabs credits a minute is about $0.15, and
+    // $0.15 / CREDIT_USD = 10.6.
+    music: 11,
 } as const;
 
 export type CostUnit = keyof typeof COST_UNITS;
@@ -38,11 +44,28 @@ export function costOf(usage: Usage, rates: UnitRates = {}): number {
     return Math.max(1, Math.round(sum));
 }
 
+// What a unit is called in the ledger, where the plural of the key is not a word: "9 speechs".
+const UNIT_NOUN: Record<CostUnit, [one: string, many: string]> = {
+    plan: ["plan", "plans"],
+    section: ["section", "sections"],
+    image: ["image", "images"],
+    video: ["video", "videos"],
+    text: ["text run", "text runs"],
+    theme: ["theme", "themes"],
+    reply: ["reply", "replies"],
+    speech: ["1k characters spoken", "k characters spoken"],
+    music: ["minute of music", "minutes of music"],
+};
+
 // human-readable breakdown for the credit ledger
 export function describeUsage(usage: Usage): string {
     const parts = (Object.keys(COST_UNITS) as CostUnit[])
         .filter((u) => usage[u])
-        .map((u) => `${usage[u]} ${u}${usage[u]! > 1 ? "s" : ""}`);
+        .map((u) => {
+            const n = usage[u]!;
+            const [one, many] = UNIT_NOUN[u];
+            return u === "speech" ? (n === 1 ? one : `${n}${many}`) : `${n} ${n > 1 ? many : one}`;
+        });
     return parts.join(" · ") || "—";
 }
 
@@ -84,6 +107,11 @@ const UNIT_TASK: Record<CostUnit, AiTask | null> = {
     reply: "chat",
     image: null,
     video: null,
+    // synthesis runs on a voice model with its own flat price, so like image and video it has no
+    // text task and no per-token rate to scale by
+    speech: null,
+    // composed on a music model with its own flat price, so no text task to scale by
+    music: null,
 };
 
 /**

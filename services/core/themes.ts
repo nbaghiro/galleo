@@ -15,6 +15,17 @@ const themeCols = {
 
 export type CustomTheme = { [K in keyof typeof themeCols]: (typeof schema.themes.$inferSelect)[K] };
 
+// artifacts.theme_id holds either a built-in's slug or a custom row's uuid, and themes.id is a uuid
+// column, so asking it about "studio" is a Postgres error rather than an empty result
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The custom theme an artifact's `themeId` names, or null when it names a built-in. */
+export async function themeById(themeId: string): Promise<CustomTheme | null> {
+    if (!UUID_RE.test(themeId)) return null;
+    const [t] = await db.select(themeCols).from(schema.themes).where(eq(schema.themes.id, themeId));
+    return t ?? null;
+}
+
 export function listThemes(workspaceId: string): Promise<CustomTheme[]> {
     return db
         .select(themeCols)
