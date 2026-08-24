@@ -1,6 +1,6 @@
 // The "grown" demo context: a whole company knowledge base, so the demo workspace has one context
 // with many sources and a hundred-plus chunks. Everything stays consistent with the Lumen facts
-// in seed-contexts.ts (prices, specs, dates), so cross-source retrieval demos hold together.
+// in contexts.ts (prices, specs, dates), so cross-source retrieval demos hold together.
 
 const section = (title: string, lines: string[]): string => `## ${title}\n\n${lines.join("\n")}`;
 

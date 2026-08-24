@@ -2,7 +2,8 @@ import "dotenv/config";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { ArtifactContent, GenMeta } from "@model/artifact";
-import { monthlyGrantFor, packFor, planFor } from "@model/billing";
+import type { PlanId } from "@model/billing";
+import { monthlyGrantFor, packFor, planFor, resolveFeatures } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { assertDatabaseUrl, db } from "./client";
@@ -16,9 +17,20 @@ import { addArtifactItem, addTextItem, createContext } from "@services/core/cont
 import { embeddingReady } from "@services/core/ai/provider";
 import { modelFor } from "@services/core/models";
 import { templateBody } from "@services/core/templates";
-import { DEMO_CONTEXTS } from "./seed-contexts";
-import type { DocEntry, DocRef, Person, WorkspaceSpec } from "./seed-workspaces";
-import { DEMO_EMAIL, DEMO_PASSWORD, PEOPLE, WORKSPACES, refKey } from "./seed-workspaces";
+import { seedShelf } from "@services/core/voices";
+import { CORPUS_TITLES } from "./seed/artifacts";
+import { DEMO_ASSETS } from "./seed/assets";
+import { DEMO_CONTEXTS } from "./seed/contexts";
+import type { DocEntry, DocRef, Person, WorkspaceSpec } from "./seed/workspaces";
+import {
+    COUNTRIES,
+    DEMO_EMAIL,
+    DEMO_PASSWORD,
+    PEOPLE,
+    REFERRERS,
+    WORKSPACES,
+    refKey,
+} from "./seed/workspaces";
 import { aria } from "@services/core/ai/corpus/aria";
 import { fieldnotes } from "@services/core/ai/corpus/fieldnotes";
 import { galleo } from "@services/core/ai/corpus/galleo";
@@ -44,14 +56,15 @@ const sha256 = (raw: string): string => createHash("sha256").update(raw).digest(
 // derived, not random, so the accept URL survives a reseed and can be pasted into /invite/:token
 const inviteToken = (slug: string, email: string): string => `${slug}-${handle(email)}-demo`;
 
-const CORPUS: Record<string, { title: string; artifact: ArtifactContent }> = {
-    galleo: { title: "Galleo — Seed deck", artifact: galleo },
-    aria: { title: "Aria — Album launch", artifact: aria },
-    terra: { title: "Terra — Brand site", artifact: terra },
-    lumen: { title: "Lumen — Product launch", artifact: lumen },
-    slowweb: { title: "The Slow Web — Essay", artifact: slowweb },
-    helios: { title: "Helios — Climate report", artifact: helios },
-    fieldnotes: { title: "Field Notes — Faroe Islands", artifact: fieldnotes },
+// The bodies only; their titles are seed data and live in seed/artifacts.ts beside the rest of it.
+const CORPUS: Record<string, ArtifactContent> = {
+    galleo,
+    aria,
+    terra,
+    lumen,
+    slowweb,
+    helios,
+    fieldnotes,
 };
 
 interface Doc {
@@ -61,9 +74,10 @@ interface Doc {
 
 function docFor(ref: DocRef): Doc {
     if ("corpus" in ref) {
-        const d = CORPUS[ref.corpus];
-        if (!d) throw new Error(`no corpus artifact "${ref.corpus}"`);
-        return d;
+        const artifact = CORPUS[ref.corpus];
+        const title = CORPUS_TITLES[ref.corpus];
+        if (!artifact || !title) throw new Error(`no corpus artifact "${ref.corpus}"`);
+        return { title, artifact };
     }
     const t = TEMPLATE_INDEX.find((x) => x.id === ref.template);
     const artifact = templateBody(ref.template);
@@ -306,9 +320,6 @@ async function seedArtifacts(
     return { byRef, byTitle };
 }
 
-const REFERRERS = ["direct", "mail.google.com", "www.linkedin.com", "t.co", "www.notion.so"];
-const COUNTRIES = ["US", "GB", "DE", "SE", "NL"];
-
 // Deterministic (index arithmetic, no RNG), so a reseed doesn't reshuffle the analytics chart.
 function viewRows(
     linkId: string,
@@ -494,53 +505,6 @@ async function seedVisits(
     }
 }
 
-// re-ingested through the real path (chunk → embed → pgvector), so demo retrieval behaves like
-// user-fed material
-// A few pieces of media the demo workspace "chose": what the picker's Library shows. Template
-// placeholders are adopted as `link` and filtered out there, so without these it reads empty.
-const DEMO_ASSETS: {
-    source: "stock" | "upload";
-    seed: string;
-    w: number;
-    h: number;
-    alt: string;
-    author?: string;
-}[] = [
-    {
-        source: "stock",
-        seed: "galleo-ridge",
-        w: 1600,
-        h: 1000,
-        alt: "A ridge line at dawn",
-        author: "Mara Vance",
-    },
-    {
-        source: "stock",
-        seed: "galleo-studio",
-        w: 1600,
-        h: 1100,
-        alt: "An empty studio",
-        author: "Ines Bahri",
-    },
-    { source: "upload", seed: "galleo-flatlay", w: 1200, h: 1200, alt: "Product flat lay" },
-    {
-        source: "stock",
-        seed: "galleo-city",
-        w: 1600,
-        h: 1000,
-        alt: "City skyline at dusk",
-        author: "Lena Osei",
-    },
-    {
-        source: "stock",
-        seed: "galleo-lake",
-        w: 1600,
-        h: 1000,
-        alt: "Mountain lake, still water",
-        author: "Kamil Poremba",
-    },
-];
-
 async function seedAssets(wsId: string): Promise<void> {
     const now = Date.now();
     for (const [i, a] of DEMO_ASSETS.entries())
@@ -571,6 +535,8 @@ async function seedAssets(wsId: string): Promise<void> {
             .onConflictDoNothing();
 }
 
+// re-ingested through the real path (chunk → embed → pgvector), so demo retrieval behaves like
+// user-fed material
 async function seedContexts(wsId: string, userId: string, docs: SeededDocs): Promise<number> {
     let sources = 0;
     for (const plan of DEMO_CONTEXTS) {
@@ -646,6 +612,28 @@ async function seed(): Promise<void> {
                 .update(schema.users)
                 .set({ activeWorkspaceId: ws.id })
                 .where(eq(schema.users.id, userId));
+    }
+
+    // Adopted from the live library, not from a hardcoded list: the provider's Default voices expire
+    // at the end of 2026. Without a key this is a no-op and narration simply stays unavailable.
+    const allWorkspaces = await db
+        .select({
+            id: schema.workspaces.id,
+            plan: schema.workspaces.plan,
+            featureOverrides: schema.workspaces.featureOverrides,
+        })
+        .from(schema.workspaces);
+    try {
+        const adopted = await seedShelf(
+            allWorkspaces.map((w) => ({
+                id: w.id,
+                cap: resolveFeatures(w.plan as PlanId, w.featureOverrides ?? undefined)
+                    .maxWorkspaceVoices,
+            })),
+        );
+        if (adopted) log(`• ${adopted} narration voices adopted and shelved`);
+    } catch (e) {
+        warn(`voices not seeded: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     log(`\nLog in with:  ${DEMO_EMAIL}  /  ${DEMO_PASSWORD}`);

@@ -2,8 +2,8 @@ import { inArray } from "drizzle-orm";
 import type { CreditPackId, FeatureOverrides, PlanId, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { ToolId } from "@model/tools";
-import { db } from "./client";
-import { schema } from "./schema";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 
 // The demo universe as data: who exists, which workspaces they hold, and in what state. Separate
 // from seed.ts so the specs can be read without importing an entry point that would run the seed on
@@ -83,6 +83,11 @@ export interface LinkSpec {
     views?: number; // anonymous sessions to synthesize
     createdDaysAgo: number;
 }
+
+// What a synthesized view looks like it came from; seed.ts walks both in order, so the analytics
+// chart is the same shape on every reseed.
+export const REFERRERS = ["direct", "mail.google.com", "www.linkedin.com", "t.co", "www.notion.so"];
+export const COUNTRIES = ["US", "GB", "DE", "SE", "NL"];
 
 export interface ThemeSpec {
     from: string; // a built-in theme id to derive from

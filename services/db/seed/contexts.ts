@@ -1,7 +1,7 @@
 // Demo material for the context library: hand-written sources that match the seeded artifacts'
 // universe, so a demo generate against them quotes facts that visibly line up with the library.
 
-import { LUMEN_KNOWLEDGE } from "./seed-knowledge";
+import { LUMEN_KNOWLEDGE } from "./knowledge";
 
 export interface SeedContextItem {
     kind: "file" | "text";
