@@ -57,12 +57,16 @@ const inScope = (f) =>
 
 // Block and line comments both go; the `[^:"'\`]` guard keeps `https://` and a `//` inside a
 // string from being mistaken for the start of a comment.
+//
+// Line comments go FIRST. A `/*` inside one (`see services/api/*`) would otherwise open a block that
+// runs to the next `*/` or to the end of the file, and every string in between stops being scanned:
+// the guard goes quiet instead of going red, which is the one failure a guard must not have.
 function stripComments(src) {
     return src
-        .replace(/\/\*[\s\S]*?\*\//g, "")
         .split("\n")
         .map((l) => l.replace(/(^|[^:"'`])\/\/.*$/, "$1"))
-        .join("\n");
+        .join("\n")
+        .replace(/\/\*[\s\S]*?\*\//g, "");
 }
 
 // `"—"` alone is the empty-value glyph, not a sentence; prose is the case we are after.
@@ -93,9 +97,17 @@ function selfCheck() {
     const dir = mkdtempSync(join(process.cwd(), "app", "copy-check-"));
     const file = join(dir, "probe.tsx");
     try {
-        writeFileSync(file, 'export const probe = "Saved your work — you can close this now.";\n');
+        // The second line is the shape that once blinded the whole scan: a `/*` inside a line comment
+        // opened a block that swallowed every string after it. A plain planted dash would not catch it.
+        writeFileSync(
+            file,
+            'export const probe = "Saved your work — you can close this now.";\n' +
+                "// see services/api/*\n" +
+                'export const after = "Renamed the folder — everything inside moved with it.";\n' +
+                "const el = <p>{/* a note */}</p>;\n",
+        );
         const rel = file.slice(process.cwd().length + 1);
-        return scan([rel]).length > 0;
+        return scan([rel]).length === 2;
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
