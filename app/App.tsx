@@ -17,6 +17,7 @@ import { LibraryView } from "./views/LibraryView";
 import { OnboardingView } from "@app/views/OnboardingView";
 import { PresentView } from "./views/PresentView";
 import { PricingView } from "./views/PricingView";
+import { CreditActivityView } from "./views/CreditActivityView";
 import { SharedView } from "./views/SharedView";
 import { TemplatesView } from "./views/TemplatesView";
 import { MediaPicker } from "./components/MediaPicker";
@@ -177,6 +178,8 @@ export const App: Component = () => {
                             <Route path="/shared" component={SharedView} />
                             <Route path="/trash" component={TrashView} />
                             <Route path="/pricing" component={PricingView} />
+                            {/* the full credit ledger; /pricing keeps a short preview of it */}
+                            <Route path="/pricing/activity" component={CreditActivityView} />
                             <Route path="/settings" component={WorkspaceSettingsView} />
                             <Route path="/account" component={AccountSettingsView} />
                             <Route path="/eval" component={EvalView} />

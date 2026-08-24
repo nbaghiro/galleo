@@ -252,7 +252,7 @@ export const PLANS: Record<PlanId, Plan> = {
             "Everything in Pro",
             "Admin controls + shared brand kit",
             "Link analytics: views, referrers, engagement",
-            "SSO · API (coming soon)",
+            "API access",
             "Priority support",
         ],
         order: 2,
@@ -492,8 +492,8 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
     },
     apiAccess: {
         label: "API access",
-        status: "planned",
-        description: "Programmatic generation.",
+        status: "live",
+        description: "Programmatic access with workspace API credentials.",
     },
     sso: { label: "SSO", status: "planned", description: "SAML / OIDC single sign-on." },
     prioritySupport: {

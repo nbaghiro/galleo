@@ -511,6 +511,7 @@ export interface Events {
     topup_purchased: { pack_id: CreditPackId; credits: number; usd: number };
     seats_changed: { from: number; to: number; direction: "up" | "down" };
     billing_portal_opened: { from: string };
+    credit_activity_viewed: { plan_id: PlanId };
 
     // Collaboration and teams.
     member_invited: {

@@ -1,11 +1,60 @@
 import { createSignal } from "solid-js";
 import type { CreditPackId, Interval, PlanId } from "@model/billing";
-import type { BillingState } from "@app/api";
+import type { BillingState, LedgerEntry } from "@app/api";
 import { api } from "@app/api";
 import { capture, register } from "@ui/analytics";
 
 const [billing, setBilling] = createSignal<BillingState | null>(null);
 export { billing };
+
+// The credit ledger, paged keyset-style by the server (30 rows a page). The pricing page shows the
+// head as a preview; the activity page appends the rest through the scroll sentinel.
+const [ledgerEntries, setLedgerEntries] = createSignal<LedgerEntry[]>([]);
+const [ledgerLoaded, setLedgerLoaded] = createSignal(false);
+// null once the history is exhausted; the sentinel reads it to know when to stop
+const [ledgerCursor, setLedgerCursor] = createSignal<string | null>(null);
+const [ledgerLoadingMore, setLedgerLoadingMore] = createSignal(false);
+export { ledgerCursor, ledgerEntries, ledgerLoaded, ledgerLoadingMore };
+
+// "generate-artifact:settle" → "generate artifact (adjusted)"
+export const ledgerReasonLabel = (r: string): string =>
+    r.replace(":settle", " (adjusted)").replace(/-/g, " ");
+
+// a page fetched before a reload finished must not be appended; each fetch carries its epoch
+let ledgerEpoch = 0;
+
+/** Fetch page one, replacing the list. */
+export async function loadLedger(): Promise<void> {
+    const mine = ++ledgerEpoch;
+    try {
+        const page = await api.getLedger();
+        if (mine !== ledgerEpoch) return;
+        setLedgerEntries(page.entries);
+        setLedgerCursor(page.nextCursor);
+    } catch {
+        /* keep whatever we have */
+    } finally {
+        if (mine === ledgerEpoch) setLedgerLoaded(true);
+    }
+}
+
+/** Append the next page. No-op while one is in flight or once the history is exhausted. */
+export async function loadMoreLedger(): Promise<void> {
+    const cursor = ledgerCursor();
+    if (!cursor || ledgerLoadingMore()) return;
+    const mine = ledgerEpoch;
+    setLedgerLoadingMore(true);
+    try {
+        const page = await api.getLedger(cursor);
+        if (mine !== ledgerEpoch) return;
+        setLedgerEntries([...ledgerEntries(), ...page.entries]);
+        setLedgerCursor(page.nextCursor);
+    } catch {
+        /* leave the cursor in place so the sentinel can retry */
+    } finally {
+        setLedgerLoadingMore(false);
+    }
+}
 
 // Two generations' worth. Below this the next thing the user tries is likely to be refused, which
 // is the moment worth knowing about; the wall itself is credits_exhausted.

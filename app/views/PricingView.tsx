@@ -1,6 +1,6 @@
 import type { Component } from "solid-js";
-import { createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from "solid-js";
-import { useSearchParams } from "@solidjs/router";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { useNavigate, useSearchParams } from "@solidjs/router";
 import type { PlanId } from "@model/billing";
 import { PRICED_TOOLS, costRange, isMetered, typicalCost } from "@model/tools";
 import { asOrigin } from "@model/analytics";
@@ -9,12 +9,14 @@ import { Badge, Button, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { Meter } from "@ui/status";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 import { UpgradePageContent } from "@app/components/UpgradePlans";
-import { api } from "@app/api";
 import {
     billing,
     changePlan,
     checkoutStarted,
+    ledgerEntries,
+    ledgerReasonLabel,
     loadBilling,
+    loadLedger,
     openPortal,
     resumePlan,
     startTopUp,
@@ -23,8 +25,10 @@ import {
 export const PricingView: Component = () => {
     let openedAt = 0;
     const [params] = useSearchParams();
+    const navigate = useNavigate();
     onMount(() => {
         void loadBilling();
+        void loadLedger();
         openedAt = Date.now();
         capture("pricing_viewed", {
             from: asOrigin(params.from),
@@ -40,16 +44,6 @@ export const PricingView: Component = () => {
                 { beacon: true },
             );
     });
-
-    const [ledger] = createResource(() =>
-        api
-            .getLedger()
-            .then((r) => r.entries)
-            .catch(() => []),
-    );
-    // "generate-artifact:settle" → "generate artifact (adjusted)"
-    const reasonLabel = (r: string): string =>
-        r.replace(":settle", " (adjusted)").replace(/-/g, " ");
 
     const b = billing;
     const current = (): PlanId => b()?.plan ?? "free";
@@ -411,15 +405,23 @@ export const PricingView: Component = () => {
                         </div>
                     </section>
 
-                    <Show when={(ledger() ?? []).length > 0}>
+                    <Show when={ledgerEntries().length > 0}>
                         <div class="mt-12 rounded-xl border border-line bg-panel px-4 py-3">
-                            <Eyebrow as="div">Recent AI activity</Eyebrow>
+                            <div class="flex items-center justify-between gap-3">
+                                <Eyebrow as="div">Recent AI activity</Eyebrow>
+                                <button
+                                    class="text-[12px] font-medium text-soft underline hover:text-ink"
+                                    onClick={() => navigate("/pricing/activity")}
+                                >
+                                    View all
+                                </button>
+                            </div>
                             <ul class="mt-1 divide-y divide-line text-[12.5px]">
-                                <For each={(ledger() ?? []).slice(0, 8)}>
+                                <For each={ledgerEntries().slice(0, 8)}>
                                     {(e) => (
                                         <li class="flex items-center justify-between gap-3 py-1.5 tabular-nums">
                                             <span class="min-w-0 truncate capitalize text-ink">
-                                                {reasonLabel(e.reason)}
+                                                {ledgerReasonLabel(e.reason)}
                                             </span>
                                             <span class="flex-none text-muted">
                                                 {new Date(e.at).toLocaleDateString()}
