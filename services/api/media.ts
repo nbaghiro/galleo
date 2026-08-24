@@ -4,7 +4,7 @@ import type { MediaItem, MediaKind, MediaProvider, MediaSource } from "@model/me
 import { featuresFor } from "@model/billing";
 import { z } from "zod";
 import { assetUrl } from "@model/media";
-import { BAD_BODY, OUT_OF_CREDITS, readJson } from "@services/utils/http";
+import { BAD_BODY, creditRefusal, readJson } from "@services/utils/http";
 import { reserve } from "@services/core/spend";
 import {
     generateVideo,
@@ -33,7 +33,8 @@ import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 
 export const media = new Hono<WorkspaceEnv>();
 
-const STORAGE_FULL = { error: "storage limit reached", upgrade: true } as const;
+const STORAGE_FULL = { error: "storage limit reached", reason: "storage", upgrade: true } as const;
+
 media.get("/media/providers", requireWorkspace, (c) =>
     c.json({ stock: stockReady(), generate: imageGenReady(), generateVideo: videoGenReady() }),
 );
@@ -121,8 +122,12 @@ media.post("/media/generate", requireWorkspace, async (c) => {
 
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
     const want = Math.max(1, Math.min(4, n ?? 1));
-    const held = await reserve(ws, c.get("user").id, "generate-image", { variations: want });
-    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
+    const held = await reserve(ws, c.get("user").id, "generate-image", {
+        size: { variations: want },
+        role: c.get("role"),
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
     return streamSSE(c, (stream) =>
         held.settle(async (billed) => {
@@ -166,8 +171,11 @@ media.post("/media/generate-video", requireWorkspace, async (c) => {
     const ar = aspect === "9:16" ? "9:16" : "16:9";
 
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
-    const held = await reserve(ws, c.get("user").id, "generate-video");
-    if (!held.ok) return c.json(OUT_OF_CREDITS(ws, held.remaining), 402);
+    const held = await reserve(ws, c.get("user").id, "generate-video", {
+        role: c.get("role"),
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
     return streamSSE(c, (stream) =>
         held.settle(async (billed) => {

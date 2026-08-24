@@ -22,9 +22,18 @@ import type {
 } from "@model/media";
 import { KIND_PROVIDERS, MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
 import { editorTokens } from "@editor/core/store";
-import { api, streamGenerateMedia, streamGenerateVideo, type MediaProvidersState } from "@app/api";
+import {
+    api,
+    ApiError,
+    streamGenerateMedia,
+    streamGenerateVideo,
+    type MediaProvidersState,
+} from "@app/api";
 import { queryBucket } from "@model/analytics";
+import { estimateCost } from "@model/tools";
 import { capture } from "@ui/analytics";
+import { Credits } from "@app/components/Credits";
+import { reportError } from "@app/stores/errors";
 import {
     closeMediaPicker,
     mediaRequest,
@@ -34,12 +43,16 @@ import {
 } from "@app/stores/media";
 import { overlayThemeVars } from "@app/stores/theme";
 import { CloseIcon, SparkleIcon, TrashIcon } from "@ui/icons";
-import { Modal } from "@ui/overlay";
+import { ConfirmModal, Modal } from "@ui/overlay";
 import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { TextArea, TextField } from "@ui/inputs";
 import { createSentinel } from "@ui/scroll";
 
 type Source = "library" | "upload" | MediaProvider | "generate" | "icons";
+
+// flat catalog prices, shown before a tap spends them; video is heavy enough to ask first
+const IMAGE_COST = estimateCost("generate-image");
+const VIDEO_COST = estimateCost("generate-video");
 const STOCK: MediaProvider[] = ["openverse", "unsplash", "pexels", "pixabay"];
 
 const KIND_TITLE: Record<MediaKind, string> = {
@@ -188,6 +201,8 @@ export const MediaPicker: Component = () => {
     const [hasMore, setHasMore] = createSignal(false);
     const [prompt, setPrompt] = createSignal("");
     const [polishing, setPolishing] = createSignal(false);
+    // one clip is a hundred credits, so a single tap must not be the whole decision
+    const [confirmingVideo, setConfirmingVideo] = createSignal(false);
 
     // user-triggered: spends one credit, writes the fuller prompt back into the box so it stays
     // editable, and leaves generation itself alone — a refined prompt is just a prompt
@@ -497,7 +512,9 @@ export const MediaPicker: Component = () => {
                 },
             );
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Generation failed");
+            // a paywall carries remedies only the error modal knows how to offer
+            if (e instanceof ApiError && e.status === 402) reportError(e, "Generating the image");
+            else setError(e instanceof Error ? e.message : "Generation failed");
         }
         setGenerating(0);
         setLoading(false);
@@ -524,7 +541,8 @@ export const MediaPicker: Component = () => {
                 }
             });
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Generation failed");
+            if (e instanceof ApiError && e.status === 402) reportError(e, "Generating the video");
+            else setError(e instanceof Error ? e.message : "Generation failed");
         }
         setGenerating(0);
         setLoading(false);
@@ -558,7 +576,9 @@ export const MediaPicker: Component = () => {
             capture("media_upload_failed", {
                 reason: e instanceof Error ? e.name : "unknown",
             });
-            setError(e instanceof Error ? e.message : "Upload failed");
+            // the storage wall's remedy is a plan, which the error modal can actually offer
+            if (e instanceof ApiError && e.status === 402) reportError(e, "Uploading the file");
+            else setError(e instanceof Error ? e.message : "Upload failed");
             setLoading(false);
         }
     }
@@ -1042,8 +1062,8 @@ export const MediaPicker: Component = () => {
                                             disabled={!prompt().trim()}
                                             onClick={() =>
                                                 kind() === "video"
-                                                    ? generateVideoClip()
-                                                    : generate()
+                                                    ? setConfirmingVideo(true)
+                                                    : void generate()
                                             }
                                         >
                                             <SparkleIcon size={13} />
@@ -1056,13 +1076,19 @@ export const MediaPicker: Component = () => {
                                                   : items().some((it) => it.source === "generated")
                                                     ? "Generate another"
                                                     : "Generate"}
+                                            <Show when={!loading()}>
+                                                {" · "}
+                                                <Credits
+                                                    n={kind() === "video" ? VIDEO_COST : IMAGE_COST}
+                                                />
+                                            </Show>
                                         </Button>
                                     </span>
                                 </div>
                                 <Show when={kind() === "video"}>
                                     <div class="mt-1.5 text-[11px] text-muted">
-                                        8-second clip with audio · 720p · takes about a minute or
-                                        two
+                                        8-second clip with audio · 720p · {VIDEO_COST} credits ·
+                                        takes about a minute or two
                                     </div>
                                 </Show>
                             </div>
@@ -1102,6 +1128,18 @@ export const MediaPicker: Component = () => {
                     class="hidden"
                     onChange={(e) => onFiles(e.currentTarget.files)}
                 />
+                <Show when={confirmingVideo()}>
+                    <ConfirmModal
+                        title="Generate a video?"
+                        body={`An 8 second clip costs ${VIDEO_COST} credits and takes a minute or two to make.`}
+                        confirmLabel={`Generate for ${VIDEO_COST} credits`}
+                        onConfirm={() => {
+                            setConfirmingVideo(false);
+                            void generateVideoClip();
+                        }}
+                        onCancel={() => setConfirmingVideo(false)}
+                    />
+                </Show>
             </Modal>
         </Show>
     );
