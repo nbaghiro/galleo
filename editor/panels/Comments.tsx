@@ -50,25 +50,23 @@ import {
     editComment,
     expandThread,
     replyToThread,
-    resolvedRevealed,
     setActiveThreadId,
     setHeldSection,
     setHoveredSection,
     setThreadResolved,
-    toggleResolvedRevealed,
     heldSection,
     hoveredSection,
     markersRevealed,
     sectionAtY,
-    sectionChips,
     CHIP_GAP,
     CHIP_REQUEST_ID,
+    RANK_LIVE,
+    RANK_NEW,
+    RANK_RESOLVED,
     CHIP_W,
     lineOfOffset,
     lineTop,
     markerX,
-    MARKER_SPACING,
-    MARKER_SPACING_TOUCH,
     panelAt,
     placeMarkers,
     rangeRects,
@@ -119,17 +117,12 @@ export const CommentLayer: Component = () => {
         return (editor.sectionTops[i] ?? 0) + MARKER_INSET;
     };
 
-    // Where a thread's chrome belongs: the section its element sits in now, or the one it was
-    // written in once that element is gone. The markers, the chips and the reveal all key on this,
-    // which is what makes the chip that hides a resolved thread the chip that brings it back.
-    const sectionOf = (thread: CommentThread): string =>
-        ids().get(anchorElementId(thread.root.anchor))?.section ?? thread.root.sectionId;
-
-    // What is on the canvas: every unresolved thread, plus the resolved ones whose section has been
-    // asked for. A resolved thread is otherwise reachable only through that section's chip.
-    const shown = createMemo(() =>
-        threads().filter((t) => !isResolved(t) || resolvedRevealed(sectionOf(t))),
-    );
+    // Every thread is on the canvas, resolved or not. A resolved one used to be hidden until its
+    // section's chip asked for it, which meant a second affordance to explain and a count to keep in
+    // step; it now stays at its own anchor, dimmed and marked, which is the same information without
+    // the toggle. What keeps that from crowding the rail is the rank: a live thread holds its place
+    // and a resolved one gives way.
+    const shown = createMemo(() => threads());
 
     // Threads whose element is gone, by the section they were written in. They have no anchor to sit
     // beside, so the section's border carries one stacked marker for the lot: the data stays reachable.
@@ -144,34 +137,15 @@ export const CommentLayer: Component = () => {
         return out;
     });
 
-    // Counted off every thread, not the shown ones: the chip is what says a section has history at
-    // all, so it has to survive that history being hidden.
-    const resolvedCounts = createMemo((): Map<string, number> => {
-        const out = new Map<string, number>();
-        for (const thread of threads())
-            if (isResolved(thread)) {
-                const section = sectionOf(thread);
-                out.set(section, (out.get(section) ?? 0) + 1);
-            }
-        return out;
-    });
-
-    // one row per section carrying either chip, so the two stack instead of landing on each other
-    const chipRows = createMemo(() => {
-        const sections = new Set([...orphans().keys(), ...resolvedCounts().keys()]);
-        return [...sections].map((sectionId) => ({
+    // One stack per section, for the orphans alone: threads whose element is gone have nowhere of
+    // their own to sit, which is the only reason a section's border still carries anything.
+    const chipRows = createMemo(() =>
+        [...orphans()].map(([sectionId, list]) => ({
             sectionId,
-            list: orphans().get(sectionId) ?? [],
-            chips: sectionChips(
-                {
-                    orphans: orphans().get(sectionId)?.length ?? 0,
-                    resolved: resolvedCounts().get(sectionId) ?? 0,
-                },
-                sectionTop(sectionId),
-                isPhone() ? MARKER_SPACING_TOUCH : MARKER_SPACING,
-            ),
-        }));
-    });
+            list,
+            y: sectionTop(sectionId),
+        })),
+    );
 
     const spots = createMemo((): ThreadSpot[] => {
         const out: ThreadSpot[] = [];
@@ -275,6 +249,7 @@ export const CommentLayer: Component = () => {
             rightOf: box ? box.x + box.w : sectionRight(target.section),
             gap: CHIP_GAP,
             size: CHIP_W,
+            rank: RANK_NEW,
         };
     });
 
@@ -288,6 +263,7 @@ export const CommentLayer: Component = () => {
                 id: s.thread.root.id,
                 y: s.y,
                 rightOf: s.sectionRight,
+                rank: isResolved(s.thread) ? RANK_RESOLVED : RANK_LIVE,
             }));
         const chip = chipRequest();
         if (chip) requests.push(chip);
@@ -361,28 +337,12 @@ export const CommentLayer: Component = () => {
             <For each={chipRows()}>
                 {(row) => (
                     <Show when={revealed(row.sectionId)}>
-                        <For each={row.chips}>
-                            {(chip) => (
-                                <Show
-                                    when={chip.kind === "orphans"}
-                                    fallback={
-                                        <ResolvedChip
-                                            count={chip.count}
-                                            x={markerX(sectionRight(row.sectionId), stageW())}
-                                            y={chip.y}
-                                            sectionId={row.sectionId}
-                                        />
-                                    }
-                                >
-                                    <OrphanStack
-                                        list={row.list}
-                                        x={markerX(sectionRight(row.sectionId), stageW())}
-                                        y={chip.y}
-                                        sectionId={row.sectionId}
-                                    />
-                                </Show>
-                            )}
-                        </For>
+                        <OrphanStack
+                            list={row.list}
+                            x={markerX(sectionRight(row.sectionId), stageW())}
+                            y={row.y}
+                            sectionId={row.sectionId}
+                        />
                     </Show>
                 )}
             </For>
@@ -568,42 +528,6 @@ const OrphanStack: Component<{
     );
 };
 
-// The archive, as one chip in the same family as the orphan stack: resolved threads are off the
-// canvas until this asks for them back, and it is the only way to reach one, so it counts every
-// resolved thread in the section whether or not any of them is currently drawn.
-const ResolvedChip: Component<{
-    count: number;
-    x: number;
-    y: number;
-    sectionId: string;
-}> = (props) => {
-    const open = (): boolean => resolvedRevealed(props.sectionId);
-    return (
-        <button
-            data-galleo-comment="true"
-            data-testid="resolved-chip"
-            class="absolute z-panel grid place-items-center rounded-full border border-line bg-panel/95 text-muted opacity-70 shadow-sm backdrop-blur-md transition-colors hover:border-accent hover:text-accent hover:opacity-100"
-            classList={{
-                "size-11": isPhone(),
-                "size-7": !isPhone(),
-                "border-accent text-accent opacity-100": open(),
-            }}
-            style={{ left: `${props.x}px`, top: `${props.y}px` }}
-            title={open() ? "Hide resolved" : `Show ${props.count} resolved`}
-            onPointerDown={(e) => e.stopPropagation()}
-            onPointerMove={(e) => e.stopPropagation()}
-            onPointerEnter={() => setHeldSection(props.sectionId)}
-            onPointerLeave={() => setHeldSection((s) => (s === props.sectionId ? null : s))}
-            onClick={() => toggleResolvedRevealed(props.sectionId)}
-        >
-            <Icon name="check" size={14} />
-            <Badge tone="muted" size="xs" class="absolute -right-1.5 -top-1.5 tabular-nums">
-                {props.count}
-            </Badge>
-        </button>
-    );
-};
-
 /**
  * The creation surface: a pill just outside the element's right edge, mirroring the grip on its
  * left. The press keeps the canvas out of it (preventDefault holds the contenteditable's focus and
@@ -672,7 +596,11 @@ const Marker: Component<{
             "opacity-60": isResolved(props.thread),
         }}
         style={{ left: `${props.x}px`, top: `${props.y}px` }}
-        title={`${authorName(props.thread.root)}: ${props.thread.root.body}`}
+        title={
+            isResolved(props.thread)
+                ? `Resolved. ${authorName(props.thread.root)}: ${props.thread.root.body}`
+                : `${authorName(props.thread.root)}: ${props.thread.root.body}`
+        }
         onPointerDown={(e) => e.stopPropagation()}
         onPointerMove={(e) => e.stopPropagation()}
         // the pointer is off the section band once it is on the marker, so the marker holds its own
@@ -682,16 +610,31 @@ const Marker: Component<{
         onClick={() => (props.active ? setActiveThreadId(null) : expandThread(props.thread))}
     >
         <Icon name="comment" size={14} />
-        <Show when={props.thread.replies.length}>
-            {(n) => (
+        {/* One badge slot, and resolved wins it: a closed thread's reply count is the least useful
+            thing about it, and the panel behind the marker still lists them. */}
+        <Show
+            when={!isResolved(props.thread)}
+            fallback={
                 <Badge
-                    tone="accentSolid"
+                    tone="muted"
                     size="xs"
-                    class="absolute -right-1.5 -top-1.5 tabular-nums"
+                    class="absolute -right-1.5 -top-1.5 grid place-items-center"
                 >
-                    {n()}
+                    <Icon name="check" size={9} />
                 </Badge>
-            )}
+            }
+        >
+            <Show when={props.thread.replies.length}>
+                {(n) => (
+                    <Badge
+                        tone="accentSolid"
+                        size="xs"
+                        class="absolute -right-1.5 -top-1.5 tabular-nums"
+                    >
+                        {n()}
+                    </Badge>
+                )}
+            </Show>
         </Show>
     </button>
 );

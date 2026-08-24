@@ -215,28 +215,29 @@ place the reader already found it in. The composer then opens beside the chip, o
 at the same height, flipping leftward when there is no room, which is what `panelAt` already decides
 for every marker.
 
-Two kinds of thread have no marker of their own, and each collapses into one chip in the section's
-border: the orphans, whose element is gone, and the resolved ones, which are hidden. `sectionChips`
-stacks the pair in a fixed order so they never land on each other, at a step that clears the 44px
-tap target on a hoverless tier. Which section a thread's chrome belongs to is one rule, the section
-its element sits in now or the one it was written in once that element is gone, and markers, chips
-and the reveal all key on it, which is what makes the chip that hides a resolved thread the chip
-that brings it back.
+One kind of thread has no marker of its own and collapses into a chip in the section's border: the
+orphans, whose element is gone and which therefore have nowhere to sit. Resolved threads used to
+need the same treatment, and no longer do.
 
 ## Resolving
 
 Resolving is an event rather than a state change to go looking for. The thread panel closes, the
-marker leaves the margin (resolved threads are not drawn at all until asked for), and the editor's
-transient line says so and carries a `Reopen` that puts the thread and its panel back. That line is
-the notice in `editor/core/collab.ts` (`say`, rendered by `EditorNotice` in `editor/panels/Collab.tsx`),
-which is the editor's one message surface rather than a comment-specific toast; it is not peer chrome,
-so it renders outside the `collabActive` gate.
+editor's transient line says so and carries a `Reopen` that puts the thread and its panel back. That
+line is the notice in `editor/core/collab.ts` (`say`, rendered by `EditorNotice` in
+`editor/panels/Collab.tsx`), which is the editor's one message surface rather than a
+comment-specific toast; it is not peer chrome, so it renders outside the `collabActive` gate.
 
-The reveal is per section and opt-in: `resolvedRevealed`/`toggleResolvedRevealed` hold the sections
-whose archive is open, and a revealed thread paints dimmed. Per section rather than per document
-because reading one section's history should not dim markers all the way down the stack. A resolved
-thread whose element is also gone joins the section's orphan stack while the archive is open, so the
-two chips together always reach everything.
+**A resolved thread keeps its place.** It stays in the lane at its own anchor, dimmed, with a check
+where its reply count would be, and it opens like any other. It used to be hidden outright behind a
+per-section toggle chip that counted what it was concealing. That chip was a second affordance to
+learn, a count to keep in step, and a click between a reader and something they could already see
+the position of, all to hide markers that only appear on hover in the first place. Marking one is
+the same information without any of it.
+
+What keeps that from crowding the rail is the rank in `placeMarkers`: on a tie, a live thread holds
+the place a reader found it in, a resolved one gives way, and the offer to start a new one goes
+last. A resolved thread whose element is also gone joins the section's orphan stack exactly as an
+unresolved one does, since being resolved is no longer what decides whether it is drawn.
 
 ## The client
 
@@ -269,16 +270,16 @@ run: the action silently did nothing. See `.docs/frontend.md` for the ownership 
 Six unit and integration suites of its own totalling 104 assertions, the shared dismissal test one
 layer down, and twelve browser flows:
 
-| Suite                                             | Covers                                                                                                                             |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `model/__tests__/comments.test.ts`                | Thread grouping, anchor validation, `anchorStateOf` and degradation                                                                |
-| `editor/core/__tests__/comment-anchors.test.ts`   | Capture, id minting (and its write), `commentableAt`, mark ranges                                                                  |
-| `editor/core/__tests__/comment-layout.test.ts`    | `markerX` clamping, `placeMarkers` spacing + the creation chip's tie-break, `sectionChips` stacking, hover + resolved reveal rules |
-| `app/stores/__tests__/comments.test.ts`           | Refetch-on-mutate, the autosave checkpoint, polling                                                                                |
-| `services/api/__tests__/comments.itest.ts`        | The six routes, the three 409s, tenant scoping                                                                                     |
-| `services/api/__tests__/comment-anchors.itest.ts` | Anchor round-trips and per-reader `mine`/`canDelete`                                                                               |
-| `e2e/editor/comments.spec.ts`                     | Twelve browser flows, including resolve-then-reveal, delete through the portaled menu, and dismissal                               |
-| `ui/__tests__/gesture.test.ts`                    | `pressInside`: the surface, its opener, a portaled node it owns, and another surface's                                             |
+| Suite                                             | Covers                                                                                                               |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `model/__tests__/comments.test.ts`                | Thread grouping, anchor validation, `anchorStateOf` and degradation                                                  |
+| `editor/core/__tests__/comment-anchors.test.ts`   | Capture, id minting (and its write), `commentableAt`, mark ranges                                                    |
+| `editor/core/__tests__/comment-layout.test.ts`    | `markerX` clamping, `placeMarkers` spacing and its rank tie-break, the creation chip's lane, hover reveal rules      |
+| `app/stores/__tests__/comments.test.ts`           | Refetch-on-mutate, the autosave checkpoint, polling                                                                  |
+| `services/api/__tests__/comments.itest.ts`        | The six routes, the three 409s, tenant scoping                                                                       |
+| `services/api/__tests__/comment-anchors.itest.ts` | Anchor round-trips and per-reader `mine`/`canDelete`                                                                 |
+| `e2e/editor/comments.spec.ts`                     | Twelve browser flows, including a resolved thread keeping its place, delete through the portaled menu, and dismissal |
+| `ui/__tests__/gesture.test.ts`                    | `pressInside`: the surface, its opener, a portaled node it owns, and another surface's                               |
 
 ## Planned / deferred
 

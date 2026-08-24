@@ -1,13 +1,15 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { MarkerRequest } from "@editor/core/comments";
 import { HANDLE_GAP } from "@editor/core/store";
 import {
     CHIP_GAP,
     CHIP_W,
+    RANK_LIVE,
+    RANK_NEW,
+    RANK_RESOLVED,
     MARKER_GAP,
     MARKER_SIZE,
     MARKER_SPACING,
-    MARKER_SPACING_TOUCH,
     CHIP_REQUEST_ID,
     lineOfOffset,
     lineTop,
@@ -18,10 +20,7 @@ import {
     PANEL_GAP,
     placeMarkers,
     rangeRects,
-    resolvedRevealed,
     sectionAtY,
-    sectionChips,
-    toggleResolvedRevealed,
 } from "@editor/core/comments";
 import type { RunLayout } from "@canvas/render/commands";
 
@@ -343,60 +342,50 @@ describe("markersRevealed", () => {
     });
 });
 
-// Two collapsed chips can share a section's border: the orphans whose element is gone, and the
-// resolved threads that are hidden. They sit at the same top edge, so the stack is what keeps them
-// off each other.
-describe("sectionChips", () => {
-    it("puts a lone chip at the section's top edge whichever kind it is", () => {
-        expect(sectionChips({ orphans: 2 }, 100, MARKER_SPACING)).toEqual([
-            { kind: "orphans", count: 2, y: 100 },
-        ]);
-        expect(sectionChips({ resolved: 3 }, 100, MARKER_SPACING)).toEqual([
-            { kind: "resolved", count: 3, y: 100 },
-        ]);
+// A resolved thread keeps its own place in the lane now, dimmed and marked, instead of being hidden
+// behind a per-section toggle. What stops that crowding the rail is the rank: whoever a reader is
+// most likely to be looking at holds the spot they found it in, and the rest give way.
+describe("rank on a tie", () => {
+    const at = (id: string, rank: number): MarkerRequest => ({
+        id,
+        y: 200,
+        rightOf: 800,
+        rank,
     });
 
-    it("stacks the two in a fixed order, clear of each other", () => {
-        const chips = sectionChips({ orphans: 1, resolved: 4 }, 100, MARKER_SPACING);
-        expect(chips.map((c) => c.kind)).toEqual(["orphans", "resolved"]);
-        expect(chips[1]!.y - chips[0]!.y).toBe(MARKER_SPACING);
-        expect(chips[1]!.y - chips[0]!.y).toBeGreaterThanOrEqual(MARKER_SIZE);
+    it("lets a live thread hold its place against a resolved one", () => {
+        const placed = placeMarkers([at("resolved", RANK_RESOLVED), at("live", RANK_LIVE)], 1200);
+        expect(placed.map((m) => m.id)).toEqual(["live", "resolved"]);
+        expect(placed[0]!.y).toBe(200);
+        expect(placed[1]!.y).toBe(200 + MARKER_SPACING);
     });
 
-    it("clears the tap target on a tier that draws the bigger chip", () => {
-        const chips = sectionChips({ orphans: 1, resolved: 1 }, 0, MARKER_SPACING_TOUCH);
-        expect(chips[1]!.y - chips[0]!.y).toBe(MARKER_SPACING_TOUCH);
-        expect(MARKER_SPACING_TOUCH).toBeGreaterThanOrEqual(44); // size-11
+    it("puts the offer to start a new one last of all", () => {
+        const placed = placeMarkers(
+            [at("new", RANK_NEW), at("resolved", RANK_RESOLVED), at("live", RANK_LIVE)],
+            1200,
+        );
+        expect(placed.map((m) => m.id)).toEqual(["live", "resolved", "new"]);
     });
 
-    it("has nothing to draw for a section with neither", () => {
-        expect(sectionChips({}, 100, MARKER_SPACING)).toEqual([]);
-        expect(sectionChips({ orphans: 0, resolved: 0 }, 100, MARKER_SPACING)).toEqual([]);
-    });
-});
-
-// Resolving takes a thread off the margin, so the chip above is the only way back to it. The reveal
-// is per section: reading one section's history must not dim markers all down the stack.
-describe("resolvedRevealed", () => {
-    beforeEach(() => {
-        for (const s of ["s1", "s2"]) if (resolvedRevealed(s)) toggleResolvedRevealed(s);
-    });
-
-    it("hides resolved threads until the section asks for them", () => {
-        expect(resolvedRevealed("s1")).toBe(false);
-        toggleResolvedRevealed("s1");
-        expect(resolvedRevealed("s1")).toBe(true);
+    // y still comes first: a rank only settles a tie, it does not reorder the rail.
+    it("never reorders threads that are not tied", () => {
+        const placed = placeMarkers(
+            [
+                { id: "new", y: 100, rightOf: 800, rank: RANK_NEW },
+                { id: "live", y: 400, rightOf: 800, rank: RANK_LIVE },
+            ],
+            1200,
+        );
+        expect(placed.map((m) => m.id)).toEqual(["new", "live"]);
     });
 
-    it("toggles back off, so the archive does not stay open by accident", () => {
-        toggleResolvedRevealed("s1");
-        toggleResolvedRevealed("s1");
-        expect(resolvedRevealed("s1")).toBe(false);
-    });
-
-    it("keeps one section's answer to itself", () => {
-        toggleResolvedRevealed("s1");
-        expect(resolvedRevealed("s2")).toBe(false);
+    it("defaults an unranked request to the live rank", () => {
+        const placed = placeMarkers(
+            [{ id: "plain", y: 200, rightOf: 800 }, at("resolved", RANK_RESOLVED)],
+            1200,
+        );
+        expect(placed.map((m) => m.id)).toEqual(["plain", "resolved"]);
     });
 });
 

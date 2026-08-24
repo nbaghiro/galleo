@@ -223,7 +223,7 @@ async function leaveComment(page: Page, on: Locator, body: string): Promise<void
     await expect(page.getByText(body)).toBeVisible();
 }
 
-test("resolving clears the margin, and the section's chip is the way back", async ({ page }) => {
+test("a resolved thread stays where it was, marked rather than hidden", async ({ page }) => {
     const id = await makeArtifact(page.request, "e2e resolve", [
         sec("s1", colOf([txt("Resolve me headline", "h2"), txt("Another line")])),
     ]);
@@ -233,28 +233,21 @@ test("resolving clears the margin, and the section's chip is the way back", asyn
 
     await page.getByTestId("comment-thread").getByTitle("Resolve this thread").click();
 
-    // the panel closes, the marker leaves the border, and a line says what happened
+    // the panel closes and a line says what happened
     await expect(page.getByPlaceholder("Reply")).toHaveCount(0);
     await expect(page.getByTestId("collab-notice")).toContainText("Thread resolved");
-    const marker = page.getByRole("button", { name: /Resolve this one/ });
-    await head.hover();
-    await expect(marker).toHaveCount(0);
 
-    // nothing is unreachable: the chip counts what is hidden and puts it back in place
-    const chip = page.getByTestId("resolved-chip");
-    await expect(chip).toBeVisible();
-    await chip.click();
+    // the marker keeps its place beside the element it was left on, and says it is resolved rather
+    // than retreating into a per-section archive the reader has to know to open
+    await head.hover();
+    const marker = page.getByRole("button", { name: /Resolve this one/ });
     await expect(marker).toBeVisible();
+    await expect(marker).toHaveAttribute("title", /^Resolved\./);
+
+    // and it still opens, which is what makes it the way back
     await marker.click();
     await expect(page.getByText("Resolve this one")).toBeVisible();
     await expect(page.getByPlaceholder("Reply")).toBeVisible();
-
-    // and it toggles back off, so the archive does not stay open behind you
-    await page.keyboard.press("Escape");
-    await chip.click();
-    await head.hover();
-    await expect(marker).toHaveCount(0);
-    await expect(chip).toBeVisible();
 });
 
 test("the resolve notice reopens the thread it just closed", async ({ page }) => {
@@ -268,12 +261,13 @@ test("the resolve notice reopens the thread it just closed", async ({ page }) =>
     await page.getByTestId("comment-thread").getByTitle("Resolve this thread").click();
     await page.getByRole("button", { name: "Reopen" }).click();
 
-    // back where it was: the thread is open again and the section carries no archive
+    // back where it was: the thread is open again and its marker no longer reads as resolved
     await expect(page.getByPlaceholder("Reply")).toBeVisible();
     await page.keyboard.press("Escape");
     await head.hover();
-    await expect(page.getByRole("button", { name: /Undo this resolve/ })).toBeVisible();
-    await expect(page.getByTestId("resolved-chip")).toHaveCount(0);
+    const marker = page.getByRole("button", { name: /Undo this resolve/ });
+    await expect(marker).toBeVisible();
+    await expect(marker).not.toHaveAttribute("title", /^Resolved\./);
 });
 
 // The regression this pins: the overflow menu portals out of the panel, so its item was read as an

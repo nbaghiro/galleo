@@ -40,19 +40,6 @@ export const [activeThreadId, setActiveThreadId] = createSignal<string | null>(n
 export const [hoveredSection, setHoveredSection] = createSignal<Id | null>(null);
 export const [heldSection, setHeldSection] = createSignal<Id | null>(null);
 
-// Resolving is meant to take a thread off the margin, so a resolved one is not drawn at all until
-// its section's chip asks for it. Per section, not per document: reading one section's history
-// should not fill the rest of the stack with dimmed markers.
-const [resolvedSections, setResolvedSections] = createSignal<readonly Id[]>([]);
-
-export const resolvedRevealed = (sectionId: Id): boolean => resolvedSections().includes(sectionId);
-
-export function toggleResolvedRevealed(sectionId: Id): void {
-    setResolvedSections((open) =>
-        open.includes(sectionId) ? open.filter((s) => s !== sectionId) : [...open, sectionId],
-    );
-}
-
 /**
  * Whether this section's markers are on screen. `held` is every section something is keeping open
  * (a hovered marker, an open thread), so the reveal survives the pointer leaving the section on its
@@ -303,7 +290,6 @@ export function clearCommentHandlers(): void {
     setComments([]);
     setActiveThreadId(null);
     setCommentDraft(null);
-    setResolvedSections([]);
 }
 
 /** No host (the studio alone) → no comment chrome at all. */
@@ -347,8 +333,7 @@ export const MARKER_GAP = 12; // between a section's right edge and the chip
 export const CHIP_GAP = HANDLE_GAP;
 export const CHIP_W = 20; // w-5; the one measurement that is the chip's own rather than shared
 export const MARKER_SPACING = 32; // the least vertical distance two chips may sit at
-// a hoverless tier draws the chip at the 44px tap target (size-11), which the desktop step overlaps
-export const MARKER_SPACING_TOUCH = 48;
+
 export const PANEL_EDGE = 6; // keep a clamped chip or panel this far inside the stage
 
 /**
@@ -372,6 +357,15 @@ export function markerX(
 }
 
 /**
+ * Ties in the lane break by rank before they break by id, so what a reader is looking at keeps the
+ * place they found it in and everything else gives way: a live thread first, then a resolved one
+ * kept for reference, then the offer to start a new one, which is the least settled thing there.
+ */
+export const RANK_LIVE = 0;
+export const RANK_RESOLVED = 1;
+export const RANK_NEW = 2;
+
+/**
  * The creation chip goes through the same placement pass the thread markers do, under this reserved
  * id, rather than by a rule of its own.
  *
@@ -382,8 +376,8 @@ export function markerX(
  * stops it landing under a marker when the element runs the full width of its section and the two
  * edges coincide.
  *
- * The id sorts after a uuid so the chip loses a tie: selecting an element must not shove an
- * existing thread's marker out of the place the reader already found it in.
+ * It carries `RANK_NEW`, so it loses every tie: selecting an element must not shove an existing
+ * thread's marker out of the place the reader already found it in.
  */
 export const CHIP_REQUEST_ID = "~new";
 
@@ -409,31 +403,10 @@ export function panelAt(
     };
 }
 
-// The collapsed chips a section's border can carry, both of them stand-ins for threads that have no
-// marker of their own: the orphans whose element is gone, and the resolved ones that are hidden.
-export type ChipKind = "orphans" | "resolved";
-const CHIP_ORDER: readonly ChipKind[] = ["orphans", "resolved"];
-
-export interface SectionChip {
-    kind: ChipKind;
-    count: number;
-    y: number;
-}
-
-// Both sit at the section's top edge, so they stack in a fixed order and pack: an absent kind
-// leaves no gap, and the one that is there never sits lower than it has to.
-export function sectionChips(
-    counts: Partial<Record<ChipKind, number>>,
-    top: number,
-    step: number,
-): SectionChip[] {
-    const out: SectionChip[] = [];
-    for (const kind of CHIP_ORDER) {
-        const count = counts[kind] ?? 0;
-        if (count > 0) out.push({ kind, count, y: top + out.length * step });
-    }
-    return out;
-}
+// One collapsed chip is left at a section's border, for the orphans: threads whose element is gone
+// and which therefore have nowhere of their own to sit. Resolved threads used to need one too,
+// since they were hidden until it asked for them; they now stay in the lane at their own anchor,
+// dimmed and marked, so the only stack left is the one for content that no longer exists.
 
 export interface MarkerRequest {
     id: string;
@@ -443,6 +416,7 @@ export interface MarkerRequest {
     // the two handles on an element sit the same distance out on either side of it.
     gap?: number;
     size?: number;
+    rank?: number; // who gives way on a tie; see RANK_LIVE and its neighbours
 }
 
 export interface PlacedMarker {
@@ -455,7 +429,10 @@ export interface PlacedMarker {
 // comments on the same line stack instead of hiding one another. Ties break on id, so the order
 // does not shuffle between paints.
 export function placeMarkers(requests: MarkerRequest[], stageWidth: number): PlacedMarker[] {
-    const sorted = [...requests].sort((a, b) => a.y - b.y || (a.id < b.id ? -1 : 1));
+    const sorted = [...requests].sort(
+        (a, b) =>
+            a.y - b.y || (a.rank ?? RANK_LIVE) - (b.rank ?? RANK_LIVE) || (a.id < b.id ? -1 : 1),
+    );
     const out: PlacedMarker[] = [];
     let floor = -Infinity;
     for (const r of sorted) {
