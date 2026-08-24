@@ -47,6 +47,16 @@ describe("container — bare stack (what `group` was)", () => {
     it("paints no surface without one, so a bare stack stays bare", () => {
         expect(nodeOf("container").fill).toBeUndefined();
     });
+    it("justify maps onto the node's main-axis distribution, surfaced or not", () => {
+        const row = { direction: "row", justify: "between", children: [text("a")] };
+        expect(spec("container").layout(row, ctx).distribute).toBe("between");
+        expect(spec("container").layout({ ...row, surface: "plain" }, ctx).distribute).toBe(
+            "between",
+        );
+    });
+    it("no justify leaves the node without a distribution", () => {
+        expect(nodeOf("container", { direction: "row" }).distribute).toBeUndefined();
+    });
 });
 
 describe("container — surfaced (what `card` was)", () => {

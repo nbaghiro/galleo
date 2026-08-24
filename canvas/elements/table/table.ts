@@ -3,7 +3,7 @@ import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import { register, getElement } from "@elements/spec";
 import type { BoxInsets } from "@model/geometry";
-import { fit, fixed, grow, percent } from "@model/geometry";
+import { fit, fixed, grow } from "@model/geometry";
 import { hexA } from "@themes";
 
 type Lines = "rows" | "grid" | "none";
@@ -81,14 +81,22 @@ const PAD: Record<Density, BoxInsets> = {
     roomy: { top: 13, bottom: 13, left: 18, right: 18 },
 };
 const MIN_CELL_TEXT_H = 20; // keep empty cell's text region clickable
+const MIN_COL = 56; // a long column may not crush its neighbours out of existence
 
-// padding on the wrapper, not the leaf (a leaf drops its own), so inline-edit stays aligned
+// One grid of cells rather than a stack of rows, so a column is as wide as its own content across
+// every row. That leaves the row chrome per cell: the zebra band is the cell's fill, and a row rule
+// is a hairline at the top of each cell in the row (the cells tile, so the rules join up).
+// Padding sits on the cell's inner box, not the leaf (a leaf drops its own), so inline-edit stays aligned.
 function arrangeTable(g: Grid, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
     const pad = PAD[g.density];
     const line = ctx.theme.line;
     const gridLines = g.lines === "grid";
+    const band = hexA(ctx.theme.ink, 0.05);
+    // never floor a column above its even share, or a wide table overflows a phone instead of squeezing
+    const minCol = Math.max(1, Math.min(MIN_COL, Math.floor(ctx.availWidth / g.cols)));
     const cell = (k: EngineNode, row: number): EngineNode => {
-        k.w = grow();
+        // a text cell sizes its column; anything else takes whatever width the column gets
+        k.w = k.text ? fit() : grow();
         k.h = fit(MIN_CELL_TEXT_H);
         // table owns row weight/tone so cells read uniformly
         if (k.text) {
@@ -96,37 +104,38 @@ function arrangeTable(g: Grid, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
             k.text.weight = head ? 700 : 400;
             k.text.color = head ? ctx.theme.ink : ctx.theme.soft;
         }
+        const zebra = g.zebra && row % 2 === 1;
+        const inner: EngineNode = { w: k.w, h: fit(), padding: pad, children: [k] };
         return {
-            w: percent(1 / g.cols),
-            h: fit(),
-            padding: pad,
-            ...(gridLines ? { fill: { border: { color: line, width: 1 } } } : {}),
-            children: [k],
+            w: grow(minCol),
+            h: grow(), // every cell takes the row's height, so its band fills the row
+            direction: "col",
+            alignX: k.text?.align,
+            ...(zebra || gridLines
+                ? {
+                      fill: {
+                          ...(zebra ? { color: band } : {}),
+                          ...(gridLines ? { border: { color: line, width: 1 } } : {}),
+                      },
+                  }
+                : {}),
+            children:
+                row > 0 && g.lines === "rows"
+                    ? [{ w: grow(), h: fixed(1), fill: { color: line } }, inner]
+                    : [inner],
         };
     };
-    const children: EngineNode[] = [];
-    for (let r = 0; r < g.rows; r++) {
-        if (r > 0 && g.lines === "rows")
-            children.push({ w: grow(), h: fixed(1), fill: { color: line } });
-        const rowCells = kids.slice(r * g.cols, r * g.cols + g.cols).map((k) => cell(k, r));
-        children.push({
-            w: grow(),
-            h: fit(),
-            direction: "row",
-            ...(g.zebra && r % 2 === 1 ? { fill: { color: hexA(ctx.theme.ink, 0.05) } } : {}),
-            children: rowCells,
-        });
-    }
     return {
         w: grow(),
         h: fit(),
-        direction: "col",
+        direction: "grid",
+        columns: g.cols,
         fill: {
             color: ctx.theme.surface,
             radius: Math.round(ctx.theme.radius / 2),
             ...(g.lines === "none" ? {} : { border: { color: line, width: 1 } }),
         },
-        children,
+        children: kids.map((k, i) => cell(k, Math.floor(i / g.cols))),
     };
 }
 

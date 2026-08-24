@@ -1,7 +1,6 @@
-import type { EngineNode } from "@engine/node";
-import { register, bar, dot } from "@elements/spec";
+import { register } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
-import { composite, t, avatar, at, gbar } from "@elements/composite/shared";
+import { composite, t, avatar, at } from "@elements/composite/shared";
 
 export const testimonialElement = composite(
     "testimonial",
@@ -38,33 +37,6 @@ export const testimonialElement = composite(
                         direction: "col",
                         gap: 2,
                         children: [at(kids, 2), at(kids, 3)],
-                    },
-                ],
-            },
-        ],
-    }),
-    (): EngineNode => ({
-        w: grow(),
-        h: fit(),
-        direction: "col",
-        gap: 14,
-        children: [
-            bar(1, 9),
-            bar(0.9, 9),
-            {
-                w: fit(),
-                h: fit(),
-                direction: "row",
-                gap: 12,
-                alignY: "center",
-                children: [
-                    dot(48),
-                    {
-                        w: fit(),
-                        h: fit(),
-                        direction: "col",
-                        gap: 5,
-                        children: [gbar(100, 9), gbar(70, 7)],
                     },
                 ],
             },

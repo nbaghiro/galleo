@@ -1,8 +1,8 @@
 import type { ControlField, ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
-import { getElement, GHOST } from "@elements/spec";
-import { fit, fixed, grow } from "@model/geometry";
+import { getElement } from "@elements/spec";
+import { fit, grow } from "@model/geometry";
 import { FLEX_DIRECTION } from "@model/elements";
 import type { FlexDirection } from "@model/elements";
 
@@ -32,19 +32,12 @@ export const pad = (n: number): { top: number; right: number; bottom: number; le
     bottom: n,
     left: n,
 });
-// fixed-width ghost bar for skeletons where percent can't resolve
-export const gbar = (w: number, h: number): EngineNode => ({
-    w: fixed(w),
-    h: fixed(h),
-    fill: { color: GHOST, radius: Math.min(4, h / 2) },
-});
 
 export function composite(
     type: string,
     label: string,
     create: () => CompositeData,
     arrange: (d: CompositeData, ctx: LayoutCtx, kids: EngineNode[]) => EngineNode,
-    skeleton?: (ctx: LayoutCtx) => EngineNode,
 ): ElementSpec<CompositeData> {
     return {
         type,
@@ -62,7 +55,6 @@ export function composite(
             closed: true,
         },
         controls: [],
-        ...(skeleton ? { skeleton } : {}),
     };
 }
 

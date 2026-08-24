@@ -5,7 +5,7 @@ import { getElement, register } from "@elements/spec";
 import { stacksAtWidth } from "@engine/profile";
 import { fit, fixed, grow } from "@model/geometry";
 import { CARD_SHAPES, CARD_STYLES } from "@model/elements";
-import type { CardShape, CardStyle, FlexDirection } from "@model/elements";
+import type { CardShape, CardStyle, FlexDirection, FlexJustify } from "@model/elements";
 import { DIRECTION_OPTIONS } from "@elements/composite/shared";
 
 // The one layout container: everything that holds arbitrary children in a row or a column. It
@@ -23,6 +23,7 @@ export interface ContainerData {
     children: ElementInstance[];
     direction?: FlexDirection;
     align?: Align; // cross-axis
+    justify?: FlexJustify; // main-axis: spread the leftover space instead of packing
     // absent = a bare stack (what `group` was). Any style = a surface (what `card` was). Flat rather
     // than nested because the control system reads and writes data keys directly.
     surface?: CardStyle;
@@ -67,6 +68,7 @@ const bare = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode 
         gap: 14,
         alignX: dir === "row" ? undefined : cross,
         alignY: dir === "row" ? cross : undefined,
+        ...(d.justify ? { distribute: d.justify } : {}),
         children: stacked ? kids.map(unfraction) : kids,
     };
 };
@@ -83,6 +85,7 @@ const surfaced = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineN
         direction: d.direction ?? "col",
         gap: 12,
         padding,
+        ...(d.justify ? { distribute: d.justify } : {}),
         children: kids,
     });
     const style = d.surface ?? "solid";
@@ -154,6 +157,19 @@ export const containerElement: ElementSpec<ContainerData> = {
                 { label: "Align start", value: "start", icon: "alignItemsStart" },
                 { label: "Align center", value: "center", icon: "alignItemsCenter" },
                 { label: "Align end", value: "end", icon: "alignItemsEnd" },
+            ],
+        },
+        {
+            key: "justify",
+            label: "Distribute",
+            control: "segmented",
+            // a column is fit-height, so it never has leftover space to spread
+            visibleWhen: (d) => d.direction === "row",
+            options: [
+                { label: "Off", value: "" },
+                { label: "Between", value: "between" },
+                { label: "Around", value: "around" },
+                { label: "Evenly", value: "evenly" },
             ],
         },
         {

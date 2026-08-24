@@ -1,7 +1,6 @@
-import type { EngineNode } from "@engine/node";
-import { register, dot } from "@elements/spec";
+import { register } from "@elements/spec";
 import { fit } from "@model/geometry";
-import { composite, t, avatar, gbar } from "@elements/composite/shared";
+import { composite, t, avatar } from "@elements/composite/shared";
 
 export const profileElement = composite(
     "profile",
@@ -20,14 +19,6 @@ export const profileElement = composite(
         gap: 8,
         alignX: "center",
         children: kids,
-    }),
-    (): EngineNode => ({
-        w: fit(),
-        h: fit(),
-        direction: "col",
-        gap: 8,
-        alignX: "center",
-        children: [dot(72), gbar(110, 12), gbar(78, 8)],
     }),
 );
 register(profileElement);

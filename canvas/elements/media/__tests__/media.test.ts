@@ -30,6 +30,30 @@ describe("image / imageLike", () => {
     it("zoom is a percent converted to a fraction", () => {
         expect(nodeOf("image", { src: SRC, zoom: 150 }).image?.zoom).toBe(1.5);
     });
+    it("a fresh element stores no aspect, so a picked source can shape the frame", () => {
+        expect((spec("image").create() as { aspect?: number }).aspect).toBeUndefined();
+    });
+    it("derives the frame ratio from the picked source's pixel size", () => {
+        const n = nodeOf("image", { src: SRC, dims: { w: 1600, h: 900 } });
+        expect(n.aspect).toBeCloseTo(16 / 9, 5);
+        expect(n.image?.natural).toEqual({ w: 1600, h: 900 });
+    });
+    it("an authored aspect still wins over the source's own", () => {
+        expect(nodeOf("image", { src: SRC, aspect: 1.2, dims: { w: 1600, h: 900 } }).aspect).toBe(
+            1.2,
+        );
+    });
+    it("absurd dims are ignored, frame and leaf alike", () => {
+        for (const dims of [
+            { w: 0, h: 900 },
+            { w: 1600, h: 0 },
+            { w: 4000, h: 1 },
+        ]) {
+            const n = nodeOf("image", { src: SRC, dims });
+            expect(n.aspect).toBe(1.5);
+            expect(n.image?.natural).toBeUndefined();
+        }
+    });
     it("sticker + illustration default to contain fit", () => {
         expect(nodeOf("sticker", { src: SRC }).image?.fit).toBe("contain");
         expect(nodeOf("sticker", { src: SRC }).aspect).toBe(1);

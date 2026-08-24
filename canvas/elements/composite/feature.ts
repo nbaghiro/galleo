@@ -1,5 +1,4 @@
-import type { EngineNode } from "@engine/node";
-import { register, bar, dot } from "@elements/spec";
+import { register } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
 import { composite, t } from "@elements/composite/shared";
 
@@ -13,12 +12,5 @@ export const featureElement = composite(
         ],
     }),
     (_d, _ctx, kids) => ({ w: grow(), h: fit(), direction: "col", gap: 10, children: kids }),
-    (): EngineNode => ({
-        w: grow(),
-        h: fit(),
-        direction: "col",
-        gap: 10,
-        children: [dot(40), bar(0.6, 13), bar(1, 8), bar(0.85, 8)],
-    }),
 );
 register(featureElement);

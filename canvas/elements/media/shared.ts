@@ -10,9 +10,19 @@ export interface ImageData {
     src: string;
     alt?: string;
     aspect?: number;
+    dims?: { w: number; h: number }; // the picked source's pixel size, written by the media control
     radius?: number;
     fit?: ImageFit;
     zoom?: number; // percent, 100 = fit frame, higher crops in
+}
+
+// The source's own ratio, when it is one a frame can sanely take; the author's `aspect` still wins.
+function naturalAspect(d: ImageData): number | undefined {
+    const w = d.dims?.w ?? 0;
+    const h = d.dims?.h ?? 0;
+    if (!Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) return undefined;
+    const a = w / h;
+    return a >= 0.05 && a <= 20 ? a : undefined;
 }
 
 export interface MediaConfig {
@@ -82,16 +92,18 @@ export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
         label: cfg.label,
         category: "media",
         tier: "primitive",
-        create: () => ({ src: cfg.src, aspect: cfg.aspect, radius: 14, fit: cfg.fit }),
+        // no `aspect`: an unset one is what lets a picked source's own ratio shape the frame
+        create: () => ({ src: cfg.src, radius: 14, fit: cfg.fit }),
         layout: (data: ImageData, ctx: LayoutCtx): EngineNode =>
             data.src
                 ? {
                       w: grow(),
                       h: fit(),
-                      aspect: data.aspect ?? cfg.aspect,
+                      aspect: data.aspect ?? naturalAspect(data) ?? cfg.aspect,
                       image: {
                           src: data.src,
                           alt: data.alt?.trim() || undefined,
+                          natural: naturalAspect(data) ? data.dims : undefined,
                           fit: data.fit ?? cfg.fit,
                           radius: data.radius ?? 14,
                           zoom: (data.zoom ?? 100) / 100,
@@ -101,7 +113,13 @@ export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
         resize: { aspect: { min: 0.4, max: 2.6 } },
         bar: ["src", "fit"],
         controls: [
-            { key: "src", label: cfg.label, control: "media", mediaKind: cfg.kind },
+            {
+                key: "src",
+                label: cfg.label,
+                control: "media",
+                mediaKind: cfg.kind,
+                dimsKey: "dims",
+            },
             {
                 key: "fit",
                 label: "Fit",
