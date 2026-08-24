@@ -2,15 +2,25 @@ import type { Component, JSX } from "solid-js";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate, useSearchParams } from "@solidjs/router";
 import type { WorkspaceRole } from "@model/workspace";
+import { isToolScope, SCOPE_LABEL } from "@model/tools";
 import { resolveTheme } from "@themes";
 import { Avatar } from "@ui/avatar";
 import { Badge, Button, Eyebrow } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { ConfirmModal } from "@ui/overlay";
+import { ConfirmCodeField } from "@app/components/ConfirmCode";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
-import { ApiError, api, type AccountConnection, type Membership } from "@app/api";
+import {
+    ApiError,
+    api,
+    type AccountConnection,
+    type ConnectedApp,
+    type Membership,
+} from "@app/api";
 import {
     changePassword,
+    disconnectApp,
+    loadConnectedApps,
     loadConnections,
     unlinkConnection,
     updateProfile,
@@ -46,6 +56,19 @@ const Row: Component<{ label: string; hint?: string; children: JSX.Element }> = 
         <div class="flex flex-none items-center gap-2">{props.children}</div>
     </div>
 );
+
+// What the app may do and when it last did anything, as one line. Scope ids are a wire format, so
+// the catalog's labels are what a person reads.
+const appHint = (app: ConnectedApp): string => {
+    const can = app.scopes
+        .filter(isToolScope)
+        .map((s) => SCOPE_LABEL[s])
+        .join(", ");
+    const used = app.lastUsedAt
+        ? `last used ${new Date(app.lastUsedAt).toLocaleDateString()}`
+        : "not used yet";
+    return can ? `Can ${can} · ${used}` : used;
+};
 
 const roleLabel: Record<WorkspaceRole, string> = {
     owner: "Owner",
@@ -177,6 +200,31 @@ export const AccountSettingsView: Component = () => {
         }
     };
 
+    // connected apps: MCP clients holding a token this account granted
+    const [apps, setApps] = createSignal<ConnectedApp[]>([]);
+    const [appError, setAppError] = createSignal<string | null>(null);
+    const refreshApps = async (): Promise<void> => {
+        try {
+            setApps(await loadConnectedApps());
+        } catch {
+            // signed out; the route guard handles it
+        }
+    };
+    onMount(() => void refreshApps());
+    const [disconnecting, setDisconnecting] = createSignal<ConnectedApp | null>(null);
+    const confirmDisconnect = async (): Promise<void> => {
+        const app = disconnecting();
+        if (!app) return;
+        setAppError(null);
+        setDisconnecting(null);
+        try {
+            await disconnectApp(app.clientId);
+            await refreshApps();
+        } catch (err) {
+            setAppError(err instanceof ApiError ? err.message : "Could not disconnect that app.");
+        }
+    };
+
     // preferences
     const themeName = createMemo(() => {
         customThemes(); // re-resolve once the workspace's own themes load
@@ -294,20 +342,16 @@ export const AccountSettingsView: Component = () => {
                                 >
                                     <Show
                                         when={!resent()}
-                                        fallback={
-                                            <span class="text-[12px] text-muted">
-                                                Check your inbox.
-                                            </span>
-                                        }
+                                        fallback={<ConfirmCodeField layout="inline" />}
                                     >
-                                        <Badge tone="muted">Unverified</Badge>
+                                        <Badge tone="muted">Unconfirmed</Badge>
                                         <Button
                                             variant="ghost"
                                             size="sm"
                                             loading={resending()}
                                             onClick={() => void resend()}
                                         >
-                                            Resend link
+                                            Send a code
                                         </Button>
                                     </Show>
                                 </Show>
@@ -444,6 +488,37 @@ export const AccountSettingsView: Component = () => {
                         </Card>
                     </Section>
 
+                    <Section title="Connected apps">
+                        <Card>
+                            <Show
+                                when={apps().length}
+                                fallback={
+                                    <p class="py-1 text-[12.5px] text-muted">
+                                        Nothing is connected. Apps you link to Galleo through MCP
+                                        show up here.
+                                    </p>
+                                }
+                            >
+                                <For each={apps()}>
+                                    {(app) => (
+                                        <Row label={app.name} hint={appHint(app)}>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => setDisconnecting(app)}
+                                            >
+                                                Disconnect
+                                            </Button>
+                                        </Row>
+                                    )}
+                                </For>
+                            </Show>
+                            <Show when={appError()}>
+                                {(t) => <p class="mt-2 text-[12.5px] text-accent">{t()}</p>}
+                            </Show>
+                        </Card>
+                    </Section>
+
                     <Section title="Preferences">
                         <Card>
                             <Row label="App theme" hint={`Currently ${themeName()}`}>
@@ -528,6 +603,24 @@ export const AccountSettingsView: Component = () => {
                     </Section>
                 </div>
             </main>
+
+            <Show when={disconnecting()}>
+                {(app) => (
+                    <ConfirmModal
+                        title="Disconnect this app?"
+                        body={
+                            <>
+                                <span class="font-semibold">{app().name}</span> loses access right
+                                away. It can ask again the next time you connect it.
+                            </>
+                        }
+                        confirmLabel="Disconnect"
+                        danger
+                        onConfirm={() => void confirmDisconnect()}
+                        onCancel={() => setDisconnecting(null)}
+                    />
+                )}
+            </Show>
 
             <Show when={leaving()}>
                 {(ws) => (

@@ -41,6 +41,7 @@ function appSpaFallback(): Plugin {
                 const isHtmlNav =
                     (req.headers.accept ?? "").includes("text/html") &&
                     !url.startsWith("/api/") &&
+                    !/^\/(mcp|oauth|\.well-known)/.test(url) &&
                     !/\.\w+(\?|$)/.test(url);
                 if (isHtmlNav) {
                     const path = url.split("?")[0] ?? url;
@@ -60,16 +61,26 @@ function appSpaFallback(): Plugin {
 export default defineConfig({
     root: ".",
     define: { "import.meta.env.VITE_APP_BUILD": JSON.stringify(appBuild()) },
-    publicDir: false, // favicon set dynamically by setFavicon(); no static assets
+    publicDir: "public", // the vendored fonts; the favicon is still set by setFavicon()
     server: {
         port: 8600,
         strictPort: true,
+        // A tunnelled dev server is how an external MCP client (Claude, ChatGPT) reaches this
+        // machine, and Vite refuses an unknown Host by default. Named suffixes rather than `true`,
+        // so this stays a hole only the tunnels we actually use can come through.
+        allowedHosts: [".trycloudflare.com", ".ngrok-free.app", ".ngrok.io", ".loca.lt"],
         // Regex key, not "/api": a bare prefix would also swallow the /api.ts module request.
         proxy: {
             "^/api/": {
                 target: "http://localhost:8601",
                 changeOrigin: true,
                 ws: true, // the collaboration socket upgrades on /api/artifacts/:id/collab
+            },
+            // root-mounted in prod because their paths are fixed by spec, so dev proxies them too
+            // rather than letting the SPA fallback answer an MCP client with HTML
+            "^/(mcp|oauth|\\.well-known)": {
+                target: "http://localhost:8601",
+                changeOrigin: true,
             },
         },
     },
@@ -96,6 +107,7 @@ export default defineConfig({
                 website: abs("./index.html"),
                 app: abs("./app/index.html"),
                 publish: abs("./publish/index.html"),
+                widget: abs("./widget/index.html"),
             },
         },
     },

@@ -1,4 +1,4 @@
-import { DEMO_EMAIL } from "@services/db/seed-workspaces";
+import { DEMO_EMAIL } from "@services/db/seed/workspaces";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { ChatBlock, ChatContext, ChatInput, ChatLibrary, ChatTurnRef } from "@model/ai";

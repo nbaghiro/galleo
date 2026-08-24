@@ -80,13 +80,15 @@ export type ToolId =
     | "propose-generation"
     | "check-section"
     | "pick-arc"
-    | "apply-patch";
+    | "apply-patch"
+    | "list-workspaces"
+    | "create-artifact";
 
 type ToolTier = "composite" | "action" | "primitive";
 export type ToolEffect = "read" | "write" | "destructive";
 
 // where a tool is exposed; internal = composition-only (never called directly)
-export type ToolSurface = "agent" | "direct" | "mcp" | "internal";
+export type ToolSurface = "agent" | "direct" | "mcp" | "api" | "internal";
 
 // What a caller has to have been granted before a tool will run for them. In the product a session
 // already carries it, so this only bites where permission was delegated: an OAuth token minted for
@@ -197,7 +199,10 @@ const meta = (
 const AGENT_DIRECT: ToolSurface[] = ["agent", "direct"];
 // Reachable over MCP today. A tool joins this list once it can take effect with no client to apply
 // its result, which the read tools already can and the rest wait on (see `.docs/mcp.md`).
-const OVER_MCP: ToolSurface[] = ["agent", "direct", "mcp"];
+// The delegated surfaces move together. What an external AI client may do and what an integration
+// may do are the same list, because the difference between them is how they authenticated, not what
+// they are allowed to reach.
+const OVER_MCP: ToolSurface[] = ["agent", "direct", "mcp", "api"];
 const INTERNAL: ToolSurface[] = ["internal"];
 
 // length chip → expected section count
@@ -214,8 +219,9 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Generate artifact",
         "Build a whole deck, doc, or site from a brief",
         "composite",
-        AGENT_DIRECT,
+        OVER_MCP,
         {
+            effect: "write",
             category: "create",
             live: true,
             usage: { plan: 1, section: 12, image: 3 },
@@ -606,6 +612,22 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         ["agent", "direct"],
     ),
+    "create-artifact": meta(
+        "create-artifact",
+        "Create artifact",
+        "Store a piece whose content is already known, with no generation",
+        "action",
+        OVER_MCP,
+        { effect: "write", live: true },
+    ),
+    "list-workspaces": meta(
+        "list-workspaces",
+        "List workspaces",
+        "The workspaces this account can reach, and which one is used by default",
+        "action",
+        OVER_MCP,
+        { effect: "read", live: true },
+    ),
     "find-templates": meta(
         "find-templates",
         "Find templates",
@@ -800,17 +822,30 @@ export function costRange(id: ToolId): { min: number; max: number } {
 }
 
 // shared input fragments, used by more than one tool
+// Defaulted rather than required, because a delegated caller has no way to know Galleo's theme ids
+// and should not have to ask: the brief is the only thing it genuinely has to supply.
 const zBrief = z.object({
-    prompt: z.string(),
-    surface: z.enum(["deck", "doc", "web"]),
-    theme: z.string(),
-    goal: z.string().optional(),
-    audience: z.string().optional(),
-    tone: z.string().optional(),
-    length: z.string().optional(),
+    prompt: z
+        .string()
+        .describe("one line saying what to build, e.g. 'a pitch deck for a solar startup'"),
+    surface: z
+        .enum(["deck", "doc", "web"])
+        .default("deck")
+        .describe("what to render it as; the same content works as any of the three"),
+    theme: z.string().default("studio").describe("a Galleo theme id; omit for the default"),
+    goal: z.string().optional().describe("what the piece is for"),
+    audience: z.string().optional().describe("who will read it"),
+    tone: z.string().optional().describe("how it should read, e.g. 'plain and technical'"),
+    length: z
+        .string()
+        .optional()
+        .describe("Short, Standard, or In-depth; longer costs more credits"),
     contextIds: z.array(z.string()).optional(),
-    source: z.string().optional(),
-    sourceArtifactId: z.string().optional(),
+    source: z.string().optional().describe("material to build from, pasted in"),
+    sourceArtifactId: z
+        .string()
+        .optional()
+        .describe("repurpose an existing artifact, by id, into this new one"),
 });
 
 // What the agent is told about a tool and what it accepts. Server-only and bulky (long prose,
@@ -1055,6 +1090,29 @@ export const TOOL_SPEC = {
                 .optional()
                 .describe("url of an image to refine rather than replace; usually left unset"),
         }),
+    },
+    "create-artifact": {
+        describe:
+            "Store a deck, doc or site whose content you already have, exactly as given. Nothing is generated and nothing is charged, so this is the one to use when the content comes from somewhere else. To make something from a brief instead, use generate-artifact.",
+        input: z.object({
+            title: z.string().describe("what to call it"),
+            // looseObject, not object: this schema carries stored content, and a plain object would
+            // strip every field the api layer does not happen to enumerate on the way to the row
+            content: z
+                .looseObject({
+                    format: z.enum(["deck", "doc", "web"]).describe("how it renders"),
+                    theme: z.string().describe("a Galleo theme id"),
+                    sections: z
+                        .array(z.looseObject({ id: z.string(), root: z.looseObject({}) }))
+                        .min(1),
+                })
+                .describe("the artifact tree: { format, theme, sections }"),
+        }),
+    },
+    "list-workspaces": {
+        describe:
+            "List the workspaces this connection can act in, with the role held in each and which one is used when a call does not name one. Call it when the person asks where something lives, or before acting somewhere other than the default.",
+        input: z.object({}),
     },
     "find-templates": {
         describe:

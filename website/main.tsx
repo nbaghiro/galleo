@@ -3,7 +3,7 @@ import "@ui/styles.css";
 import "./website.css";
 import { render } from "solid-js/web";
 import { registerThemes, resolveTheme, themeCssVars, type Theme } from "@themes";
-import { setFavicon } from "@app/stores/theme";
+import { setFavicon } from "@ui/brand";
 import { initAnalytics } from "@ui/analytics";
 import { WebsitePage } from "./WebsitePage";
 

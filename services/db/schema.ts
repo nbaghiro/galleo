@@ -623,7 +623,16 @@ export const oauthClients = pgTable("oauth_clients", {
     name: text("name").notNull(),
     redirectUris: jsonb("redirect_uris").$type<string[]>().notNull(),
     // dynamic (RFC 7591) | metadata (client id metadata document) | static (pre-registered)
+    // | machine (an integration credential, which authenticates with a secret and has no browser)
     source: text("source").notNull(),
+    // Machine clients only. A browser flow learns who the person is by asking them; a machine has
+    // nobody to ask, so the workspace it acts in and the member it acts as are fixed at issue and
+    // the ledger has a real user to attribute to rather than a synthetic one.
+    secretHash: text("secret_hash"),
+    workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+    actorId: uuid("actor_id").references(() => users.id),
+    revokedAt: timestamp("revoked_at"),
+    lastUsedAt: timestamp("last_used_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

@@ -1,4 +1,4 @@
-import { DEMO_EMAIL } from "@services/db/seed-workspaces";
+import { DEMO_EMAIL } from "@services/db/seed/workspaces";
 import { z } from "zod";
 import type { GenerateInput } from "@model/ai";
 import { applyPatch } from "@model/ai";

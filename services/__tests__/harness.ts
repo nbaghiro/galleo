@@ -24,6 +24,8 @@ import { voices } from "@services/api/voices";
 import { search } from "@services/api/search";
 import { context } from "@services/api/context";
 import { onboarding } from "@services/api/onboarding";
+import { authorize } from "@services/api/authorize";
+import { mcp } from "@services/api/mcp";
 
 // Kept in sync with server.ts's router list by hand.
 export const app = new Hono();
@@ -47,6 +49,8 @@ app.route("/", voices);
 app.route("/", search);
 app.route("/", context);
 app.route("/", onboarding);
+app.route("/", authorize);
+app.route("/", mcp);
 
 export const request = (path: string, init?: RequestInit): Promise<Response> =>
     Promise.resolve(app.request(path, init));

@@ -307,6 +307,9 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                     models: overrides,
                     signal: ctrl.signal,
                     workspace,
+                    // no `scopes`: a session-authenticated person holds the whole surface, which is
+                    // the difference between them and a delegated token
+                    principal: { userId: c.get("user").id, ws, role: c.get("role") },
                     image,
                     tier: feats.textModelTier,
                     maxSections: feats.maxSectionsPerGeneration,

@@ -253,6 +253,13 @@
       "when": 1787517006894,
       "tag": "0035_jittery_the_fallen",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787545243648,
+      "tag": "0036_known_scarecrow",
+      "breakpoints": true
     }
   ]
 }

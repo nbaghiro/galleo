@@ -210,9 +210,12 @@ async function mint(row: {
     scopes: Scope[];
     resource: string;
     familyId?: string;
+    // A machine credential is itself the durable secret, so rotating a refresh token beside it would
+    // be a second thing to look after for no gain.
+    refresh?: boolean;
 }): Promise<IssuedTokens> {
     const accessToken = token();
-    const refreshToken = token();
+    const refreshToken = row.refresh === false ? "" : token();
     await db.insert(schema.oauthTokens).values({
         clientId: row.clientId,
         userId: row.userId,
@@ -223,7 +226,7 @@ async function mint(row: {
         // absent on a first mint, so the column default opens a new family
         ...(row.familyId ? { familyId: row.familyId } : {}),
         accessHash: digest(accessToken),
-        refreshHash: digest(refreshToken),
+        refreshHash: refreshToken ? digest(refreshToken) : null,
         expiresAt: new Date(Date.now() + ACCESS_TTL_MS),
     });
     return { accessToken, refreshToken, expiresIn: ACCESS_TTL_MS / 1000, scopes: row.scopes };
@@ -451,4 +454,113 @@ export async function purgeSpent(): Promise<void> {
     await db
         .delete(schema.oauthTokens)
         .where(lt(schema.oauthTokens.createdAt, new Date(now.getTime() - REFRESH_TTL_MS)));
+}
+
+// ---- machine credentials ----------------------------------------------------------------------
+//
+// The browser flow cannot serve an integration: there is nobody at a consent screen. A machine
+// credential is issued once by a workspace admin and authenticates with a secret, which is the
+// `client_credentials` grant. Fixing the workspace and the actor at issue is what makes it safe:
+// the token that comes out has exactly the shape a browser grant produces, so nothing downstream
+// has to know which door it came through, and the ledger attributes to a real member.
+
+export interface MachineCredential {
+    clientId: string;
+    secret: string; // returned once, at creation, and never again
+    name: string;
+}
+
+export async function createMachineClient(input: {
+    name: string;
+    workspaceId: string;
+    actorId: string;
+}): Promise<MachineCredential> {
+    const clientId = `galleo-api-${randomBytes(12).toString("hex")}`;
+    const secret = token();
+    await db.insert(schema.oauthClients).values({
+        clientId,
+        name: input.name.slice(0, 80),
+        redirectUris: [], // never redirects: there is no browser in this flow
+        source: "machine",
+        secretHash: digest(secret),
+        workspaceId: input.workspaceId,
+        actorId: input.actorId,
+    });
+    return { clientId, secret, name: input.name };
+}
+
+export interface MachineSummary {
+    clientId: string;
+    name: string;
+    createdAt: Date;
+    lastUsedAt: Date | null;
+}
+
+export async function machineClientsFor(workspaceId: string): Promise<MachineSummary[]> {
+    const rows = await db
+        .select()
+        .from(schema.oauthClients)
+        .where(
+            and(
+                eq(schema.oauthClients.workspaceId, workspaceId),
+                eq(schema.oauthClients.source, "machine"),
+                isNull(schema.oauthClients.revokedAt),
+            ),
+        );
+    return rows.map((r) => ({
+        clientId: r.clientId,
+        name: r.name,
+        createdAt: r.createdAt,
+        lastUsedAt: r.lastUsedAt,
+    }));
+}
+
+export async function revokeMachineClient(workspaceId: string, clientId: string): Promise<boolean> {
+    const [row] = await db
+        .update(schema.oauthClients)
+        .set({ revokedAt: new Date() })
+        .where(
+            and(
+                eq(schema.oauthClients.clientId, clientId),
+                eq(schema.oauthClients.workspaceId, workspaceId),
+            ),
+        )
+        .returning({ id: schema.oauthClients.id });
+    // its live tokens die with it, or a revoked credential would keep working for an hour
+    if (row)
+        await db
+            .update(schema.oauthTokens)
+            .set({ revokedAt: new Date() })
+            .where(eq(schema.oauthTokens.clientId, clientId));
+    return !!row;
+}
+
+/** The `client_credentials` grant: a secret in, a token out, no person in the middle. */
+export async function machineGrant(
+    clientId: string,
+    secret: string,
+    wanted: Scope[],
+): Promise<IssuedTokens | ExchangeError> {
+    const [row] = await db
+        .select()
+        .from(schema.oauthClients)
+        .where(eq(schema.oauthClients.clientId, clientId));
+    if (!row || row.source !== "machine" || row.revokedAt) return "invalid_client";
+    if (!row.secretHash || !row.workspaceId || !row.actorId) return "invalid_client";
+    if (!sameString(digest(secret), row.secretHash)) return "invalid_client";
+    await db
+        .update(schema.oauthClients)
+        .set({ lastUsedAt: new Date() })
+        .where(eq(schema.oauthClients.id, row.id));
+    // no refresh token: the credential itself is the durable thing, so a rotation would be a second
+    // secret to look after for no gain
+    return mint({
+        clientId,
+        userId: row.actorId,
+        workspaceIds: [row.workspaceId],
+        defaultWorkspaceId: row.workspaceId,
+        scopes: wanted.length ? wanted : [...SCOPES],
+        resource: "",
+        refresh: false,
+    });
 }

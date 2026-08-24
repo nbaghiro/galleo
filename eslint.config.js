@@ -4,6 +4,14 @@ import importPlugin from "eslint-plugin-import";
 // Boundary law (model · canvas · ui · editor · app): each layer may only reach the ones beneath it.
 // model (pure contract) ← canvas (render) ← ui (shared Solid) ← editor (edit) ← app (shell); services sees only model.
 //
+// The spine is not the whole map. publish, website and widget are their own builds, siblings of app
+// rather than layers above it, and each is capped at what it actually is: the two Solid viewers stop
+// at ui, and the MCP widget stops at canvas, since admitting ui would admit Solid and the point of
+// that bundle is that the layout solver ships without a framework. scripts and e2e are tooling that
+// composes across the layers, so they are capped only where a dependency would be a mistake: build
+// tooling must not reach the product shells, and a browser spec must drive the real thing over HTTP
+// and the DOM rather than calling a store or a query directly.
+//
 // Enforced twice on purpose. `import/no-restricted-paths` is the semantic check: it resolves each
 // specifier to a real file, so it follows tsconfig `paths` and catches dynamic `import()`. It is also
 // the one that failed silently for months when no TS-aware resolver was installed — an unresolvable
@@ -41,13 +49,53 @@ const LAYERS = {
         dirs: ["canvas", "ui", "editor", "app"],
         message: "services (backend) may depend on model only, not canvas, ui, editor, or app",
     },
+    publish: {
+        aliases: ["@editor", "@app", "@services"],
+        dirs: ["editor", "services", "app"],
+        message:
+            "publish is its own build for a customer's audience: model, canvas and ui only. Its client is publish/api.ts, not @app/api",
+    },
+    website: {
+        aliases: ["@editor", "@app", "@services"],
+        dirs: ["editor", "services", "app"],
+        message: "website is its own build: model, canvas and ui only, never the app SPA",
+    },
+    widget: {
+        aliases: ["@ui", "@editor", "@app", "@services"],
+        dirs: ["ui", "editor", "services", "app"],
+        message:
+            "the MCP widget is framework-free by design: model and canvas only, since @ui would pull Solid into a bundle that travels in someone else's chat",
+    },
+    scripts: {
+        aliases: ["@editor", "@app"],
+        dirs: ["editor", "app"],
+        message:
+            "scripts is build tooling: it may compose model, canvas and services, never a shell",
+    },
 };
 
-const zones = Object.entries(LAYERS).map(([target, { dirs, message }]) => ({
-    target: `./${target}`,
-    from: dirs.map((d) => `./${d}`),
-    message,
-}));
+// e2e drives a real browser against a real server, so a spec that imports the product can cheat:
+// call a store instead of clicking, or query the database instead of the API. Bound to specs alone,
+// since setup/ legitimately shells out to `pnpm seed`.
+const E2E_SPECS = {
+    aliases: ["@canvas", "@engine", "@elements", "@ui", "@editor", "@app", "@services"],
+    dirs: ["canvas", "ui", "editor", "app", "services"],
+    message:
+        "an e2e spec drives the app over HTTP and the DOM: @model for shared types, never the product's own modules",
+};
+
+const zones = [
+    ...Object.entries(LAYERS).map(([target, { dirs, message }]) => ({
+        target: `./${target}`,
+        from: dirs.map((d) => `./${d}`),
+        message,
+    })),
+    {
+        target: "./e2e/**/*.spec.ts",
+        from: E2E_SPECS.dirs.map((d) => `./${d}`),
+        message: E2E_SPECS.message,
+    },
+];
 
 // Layer law inside services/, the same shape as the outer one one level down:
 //
@@ -140,30 +188,38 @@ const importGuard = ({ aliases, dirs, message }) => ({
 });
 
 // Extra selectors folded into a layer's own no-restricted-syntax, since a second config block for the
-// same rule would replace the layer's entry rather than add to it.
-const EXTRA_SYNTAX = { services: derivedGuard };
+// same rule would replace the layer's entry rather than add to it. scripts is here for that reason:
+// it writes the same derived columns, and before it had a layer entry it carried its own block.
+const EXTRA_SYNTAX = { services: derivedGuard, scripts: derivedGuard };
+
+// scripts holds .mjs guards alongside its .ts, and they are bound by the same law.
+const FILES = { scripts: ["scripts/**/*.{ts,tsx,mjs}"] };
+
+const restrictedImports = ({ aliases, dirs, message }) => [
+    "error",
+    {
+        patterns: [
+            { group: [...aliases.map((a) => `${a}/*`), ...dirs.map((d) => `**/${d}/**`)], message },
+        ],
+    },
+];
 
 // Same law, resolver-free: match the specifier text itself (alias form and relative form).
 const boundaryConfigs = Object.entries(LAYERS).map(([target, layer]) => ({
-    files: [`${target}/**/*.{ts,tsx}`],
+    files: FILES[target] ?? [`${target}/**/*.{ts,tsx}`],
     rules: {
-        "no-restricted-imports": [
-            "error",
-            {
-                patterns: [
-                    {
-                        group: [
-                            ...layer.aliases.map((a) => `${a}/*`),
-                            ...layer.dirs.map((d) => `**/${d}/**`),
-                        ],
-                        message: layer.message,
-                    },
-                ],
-            },
-        ],
+        "no-restricted-imports": restrictedImports(layer),
         "no-restricted-syntax": ["error", importGuard(layer), ...(EXTRA_SYNTAX[target] ?? [])],
     },
 }));
+
+const e2eSpecConfig = {
+    files: ["e2e/**/*.spec.ts"],
+    rules: {
+        "no-restricted-imports": restrictedImports(E2E_SPECS),
+        "no-restricted-syntax": ["error", importGuard(E2E_SPECS)],
+    },
+};
 
 export default tseslint.config(
     {
@@ -219,27 +275,22 @@ export default tseslint.config(
             "import/no-relative-parent-imports": ["error", { ignore: ["^@"] }],
         },
     },
-    // scripts/ has no alias, so its tests reach their subjects by relative path.
+    // scripts/ and publish/ have no alias, so their tests reach their subjects by relative path.
     {
-        files: ["scripts/**/__tests__/**"],
+        files: ["scripts/**/__tests__/**", "publish/**/__tests__/**"],
         rules: { "import/no-relative-parent-imports": "off" },
     },
     ...boundaryConfigs,
     ...serviceLayerConfigs,
-    // scripts/ sits outside the layer law but writes the same columns.
-    {
-        files: ["scripts/**/*.{ts,mjs}"],
-        rules: { "no-restricted-syntax": ["error", ...derivedGuard] },
-    },
+    e2eSpecConfig,
     // The helper itself, and tests that deliberately seed partial or stale rows to exercise recovery.
-    // Restates the layer's import guard, which this block would otherwise replace.
+    // Restates each side's own import guard, which this block would otherwise replace.
     {
-        files: [
-            "services/db/derived.ts",
-            "services/core/artifacts.ts",
-            "services/**/__tests__/**",
-            "scripts/**/__tests__/**",
-        ],
+        files: ["services/db/derived.ts", "services/core/artifacts.ts", "services/**/__tests__/**"],
         rules: { "no-restricted-syntax": ["error", importGuard(LAYERS.services)] },
+    },
+    {
+        files: ["scripts/**/__tests__/**"],
+        rules: { "no-restricted-syntax": ["error", importGuard(LAYERS.scripts)] },
     },
 );

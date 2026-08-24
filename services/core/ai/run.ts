@@ -15,6 +15,7 @@ import { modelNote, type AiTask, type ModelOverrides } from "@services/core/mode
 import { insertSectionParts, sectionParts, sectionPlanParts, surfaceOf } from "./prompts/generate";
 import { runChat } from "./chat";
 import type { ImageOptions } from "./images";
+import type { ToolPrincipal } from "./execute";
 import { resolveImage, resolveImages } from "./images";
 import "./tools/register"; // side-effect: register the whole tool catalog
 import { generateArtifactTool } from "./tools/generate";
@@ -31,6 +32,10 @@ const clip = (s: string, n: number): string =>
 
 export interface RunOpts {
     signal?: AbortSignal;
+    // Who the turn is for. The agent's tool calls run through the same executor every other surface
+    // uses, and it needs a principal to gate and meter against; `holds: "caller"` keeps the turn's
+    // single reservation the thing that pays, so nothing is billed twice.
+    principal?: ToolPrincipal;
     image?: ImageOptions;
     workspace?: WorkspaceReader;
     models?: ModelOverrides; // debug: per-task model choice (see models.ts)

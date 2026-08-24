@@ -41,6 +41,7 @@
         "app",
         "publish",
         "website",
+        "widget",
         "e2e",
         "scripts",
         "*.ts"

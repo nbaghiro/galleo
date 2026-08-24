@@ -1,4 +1,4 @@
-import { DEMO_EMAIL } from "@services/db/seed-workspaces";
+import { DEMO_EMAIL } from "@services/db/seed/workspaces";
 import type { ModelSpan } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
 import type { EvalJudgement } from "@model/eval";

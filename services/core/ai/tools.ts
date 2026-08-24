@@ -18,10 +18,16 @@ export interface WorkspaceReader {
     read(id: string): Promise<{ ref: ArtifactRef; content: ArtifactContent } | null>;
 }
 
+/** Account-level reach, for the one tool that is about the person rather than one workspace. */
+export interface AccountReader {
+    workspaces(): Promise<{ id: string; name: string; role: string; isDefault: boolean }[]>;
+}
+
 export interface ToolContext {
     artifact?: ArtifactContent;
     image: ImageOptions;
     workspace?: WorkspaceReader;
+    account?: AccountReader;
     signal?: AbortSignal;
     tier?: ModelTier; // threaded to every model call in the turn
     models?: ModelOverrides; // per-step model choice (see ../models.ts)
@@ -105,6 +111,7 @@ export function makeContext(base: Omit<ToolContext, "use">): ToolContext {
         artifact: base.artifact,
         image: base.image,
         workspace: base.workspace,
+        account: base.account,
         signal: base.signal,
         tier: base.tier,
         models: base.models,

@@ -55,3 +55,21 @@ services:
             sync: false
           - key: STRIPE_PORTAL_CONFIG
             sync: false
+          # --- product analytics (PostHog) ---
+          # Both keys are the same public `phc_` project key: it is write-only and ships in the
+          # browser bundle by design. Unset = disabled, silently, with no network calls.
+          #
+          # VITE_POSTHOG_KEY is read at BUILD time, not at run time: Vite inlines
+          # `import.meta.env.VITE_*` as a literal, so the key has to exist before `pnpm build` runs
+          # in buildCommand above. Setting it only in the runtime environment ships a bundle with
+          # analytics compiled out, no events, and nothing in the logs saying why.
+          - key: POSTHOG_KEY
+            sync: false
+          - key: VITE_POSTHOG_KEY
+            sync: false
+          # Optional. Defaults: https://us.i.posthog.com for ingest, https://us.posthog.com for the
+          # app links the proxy would otherwise hide. Set only to move region.
+          - key: POSTHOG_HOST
+            sync: false
+          - key: VITE_POSTHOG_HOST
+            sync: false

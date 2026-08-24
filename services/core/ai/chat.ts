@@ -9,6 +9,7 @@ import { heading, retrievedContext, stack } from "./prompts/system";
 import { thinkingSteps } from "./thinking";
 import type { RunOpts } from "./run";
 import { makeContext, spec } from "./tools";
+import { runTool } from "./execute";
 import type { Tool } from "./tools";
 import { showSectionsTool } from "./tools/inspect";
 import { findArtifactsTool, findTemplatesTool, readArtifactTool } from "./tools/library";
@@ -78,6 +79,16 @@ function firstText(section: Section): string {
 const clip = (s: string, n: number): string =>
     s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
 
+// What the model is told when the executor turns a call away. It reads this and explains it, so it
+// is a sentence rather than a code.
+const refusalNote = (out: { ok: false } & Record<string, unknown>, id: string): string => {
+    if (out.reason === "entitlement") return `That needs a higher plan on this workspace.`;
+    if (out.reason === "credits") return `There are not enough credits left for that.`;
+    if (out.reason === "bad-input")
+        return `Those arguments were not valid: ${(out.issues as string[]).join("; ")}`;
+    return `“${id}” is not available here.`;
+};
+
 export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
     yield { type: "turn.start", kind: "chat" };
     const override = modelNote(opts.models, ["chat"]);
@@ -107,17 +118,39 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
             execute: async (input: I, { toolCallId }: { toolCallId: string }) => {
                 ch.push({ type: "chat.tool", blockId: toolCallId, tool: t.id, title });
                 try {
-                    const gen = t.run(input, ctx);
-                    let step = await gen.next();
-                    while (!step.done) {
-                        ch.push({ type: "chat.nested", blockId: toolCallId, event: step.value });
-                        step = await gen.next();
+                    // Through the executor, like every other surface: the surface check, the tool's
+                    // own schema and the entitlement gate all apply here too. `holds: "caller"`
+                    // because the turn already reserved once and settles for the whole thing.
+                    const ran = opts.principal
+                        ? await runTool<R>({ id: t.id, surface: "agent", input }, opts.principal, {
+                              ctx,
+                              holds: "caller",
+                              onEvent: (event) =>
+                                  ch.push({ type: "chat.nested", blockId: toolCallId, event }),
+                          })
+                        : null;
+                    if (ran && !ran.ok) return refusalNote(ran, t.id);
+                    let result: R;
+                    if (ran) result = ran.result;
+                    else {
+                        // no principal (the eval harness): the body still runs, unmetered
+                        const gen = t.run(input, ctx);
+                        let step = await gen.next();
+                        while (!step.done) {
+                            ch.push({
+                                type: "chat.nested",
+                                blockId: toolCallId,
+                                event: step.value,
+                            });
+                            step = await gen.next();
+                        }
+                        result = step.value;
                     }
-                    const out = present(step.value, input);
+                    const out = present(result, input);
                     const blocks = Array.isArray(out) ? out : out ? [out] : [];
                     for (const block of blocks)
                         ch.push({ type: "chat.block", blockId: toolCallId, block });
-                    return note(step.value, input);
+                    return note(result, input);
                 } catch (e) {
                     ch.push({
                         type: "chat.text",

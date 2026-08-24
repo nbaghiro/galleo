@@ -94,6 +94,8 @@ export interface ChatFocus {
     path?: number[];
     elementType?: string;
     headline?: string; // first text, for grounding
+    // the whole multi-selection, anchor first; absent when only one thing is selected
+    elements?: { sectionId: string; path: number[] }[];
 }
 
 // sent when no artifact is open

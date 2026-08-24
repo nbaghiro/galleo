@@ -3,6 +3,12 @@ import { asRole, isPublishPolicy } from "@model/workspace";
 import { isAccess } from "@model/artifact";
 import { z } from "zod";
 import { BAD_BODY, readJson } from "@services/utils/http";
+import { featuresFor } from "@model/billing";
+import {
+    createMachineClient,
+    machineClientsFor,
+    revokeMachineClient,
+} from "@services/core/authorization";
 import { capture } from "@services/utils/analytics";
 import {
     acceptInvite,
@@ -251,3 +257,37 @@ workspace.post("/workspace/switch", requireUser, async (c) => {
     const ok = await switchWorkspace(c.get("user").id, workspaceId);
     return ok ? c.json({ ok: true }) : c.json({ error: "not a member of that workspace" }, 403);
 });
+
+// API credentials: a workspace's own integrations, which authenticate with a secret rather than a
+// browser. Administrative, so admin-gated, and entitled like every other paid capability. The
+// secret is shown once and never stored in the clear, so a lost one is replaced rather than looked up.
+const zCredential = z.object({ name: z.string().min(1).max(80) });
+
+workspace.get("/workspace/credentials", requireWorkspace, requireRole("admin"), async (c) =>
+    c.json({ credentials: await machineClientsFor(c.get("ws").id) }),
+);
+
+workspace.post("/workspace/credentials", requireWorkspace, requireRole("admin"), async (c) => {
+    const ws = c.get("ws");
+    if (!featuresFor(ws).apiAccess)
+        return c.json({ error: "API access is not on this plan", upgrade: true }, 402);
+    const body = await readJson(c, zCredential);
+    if (!body) return c.json({ error: BAD_BODY }, 400);
+    const made = await createMachineClient({
+        name: body.name,
+        workspaceId: ws.id,
+        actorId: c.get("user").id,
+    });
+    // the only time the secret exists outside the caller's hands
+    return c.json(made, 201);
+});
+
+workspace.delete(
+    "/workspace/credentials/:clientId",
+    requireWorkspace,
+    requireRole("admin"),
+    async (c) => {
+        const gone = await revokeMachineClient(c.get("ws").id, c.req.param("clientId"));
+        return gone ? c.json({ ok: true }) : c.json({ error: "no such credential" }, 404);
+    },
+);

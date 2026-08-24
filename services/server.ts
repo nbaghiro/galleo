@@ -35,6 +35,9 @@ import { context } from "./api/context";
 import { evals } from "./api/eval";
 import { onboarding } from "./api/onboarding";
 import { ingest } from "./api/ingest";
+import { authorize } from "./api/authorize";
+import { mcp } from "./api/mcp";
+import { v1 } from "./api/v1";
 
 assertDatabaseUrl();
 initAnalytics();
@@ -86,6 +89,13 @@ app.route("/api", evals);
 app.route("/api", onboarding);
 app.route("/api", ingest);
 
+// Root-mounted on purpose: the two .well-known paths are fixed by RFC 9728 and RFC 8414, and /mcp
+// is the resource identifier a client sends back as the OAuth `resource` parameter. All three have to
+// match before the SPA catch-all below, which would otherwise answer them with HTML.
+app.route("/", authorize);
+app.route("/", mcp);
+app.route("/", v1);
+
 // an unknown /api path is a 404, never the SPA fallback below
 app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 
@@ -94,6 +104,9 @@ app.all("/api/*", (c) => c.json({ error: "not found" }, 404));
 // run from the repo root
 if (process.env.NODE_ENV === "production") {
     app.use("/assets/*", serveStatic({ root: "./dist" })); // hashed static assets (host-agnostic)
+    // the vendored faces, which every surface (and the MCP component in someone else's chat) links
+    app.use("/fonts/*", serveStatic({ root: "./dist" }));
+    app.get("/fonts.css", serveStatic({ path: "./dist/fonts.css" }));
     app.get("/p/*", serveStatic({ path: "./dist/publish/index.html" })); // public read-only viewer
     app.get("/home", serveStatic({ path: "./dist/index.html" })); // marketing, always (signed-in "view the site")
     // contextual root: the app for a valid session, the marketing site otherwise
