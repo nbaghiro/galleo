@@ -4,9 +4,8 @@ import { isCommentAnchor } from "@model/comments";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import type { WorkspaceRow } from "./accounts";
-import { roleOf } from "./workspaces";
 import { capture } from "@services/utils/analytics";
-import { asRole } from "@model/workspace";
+import { asRole, type WorkspaceRole } from "@model/workspace";
 
 // Every decision about a comment lives here: who may write it, what it may point at, and how a
 // thread reads back. Rows are workspace-scoped on their own column, so a comment id from another
@@ -16,16 +15,15 @@ export type CommentFailure = { status: 403 | 404 | 409; error: string };
 export type CommentResult = { status: 200; comment: CommentDto } | CommentFailure;
 export type CommentDeletion = { status: 200 } | CommentFailure;
 
-// who is reading, so each row can carry what this person may do with it
-interface Viewer {
+// Who is reading, so each row can carry what this person may do with it. The role comes from the
+// gate, which resolved it on the way in: re-reading it here would be a second query per call, and a
+// second answer to a question the artifact gate has already settled.
+export interface Viewer {
     userId: string;
-    moderator: boolean;
+    role: WorkspaceRole | null; // null = not a member of the artifact's workspace, e.g. a grantee
 }
 
-const viewerOf = async (ws: WorkspaceRow, userId: string): Promise<Viewer> => {
-    const role = await roleOf(ws, userId);
-    return { userId, moderator: role === "owner" || role === "admin" };
-};
+const moderates = (viewer: Viewer): boolean => viewer.role === "owner" || viewer.role === "admin";
 
 const owned = (id: string, workspaceId: string): SQL | undefined =>
     and(eq(schema.comments.id, id), eq(schema.comments.workspaceId, workspaceId));
@@ -72,7 +70,7 @@ async function read(where: SQL | undefined, viewer: Viewer): Promise<CommentDto[
                 ? { id: r.authorId, name: r.authorName, avatarUrl: r.authorAvatarUrl }
                 : null,
             mine,
-            canDelete: mine || viewer.moderator,
+            canDelete: mine || moderates(viewer),
         };
     });
 }
@@ -86,22 +84,23 @@ const one = async (id: string, ws: WorkspaceRow, viewer: Viewer): Promise<Commen
 export async function listComments(
     ws: WorkspaceRow,
     artifactId: string,
-    userId: string,
+    viewer: Viewer,
 ): Promise<CommentDto[] | null> {
     const [a] = await db
         .select({ id: schema.artifacts.id })
         .from(schema.artifacts)
         .where(ownedArtifact(artifactId, ws.id));
     if (!a) return null;
-    return read(eq(schema.comments.artifactId, artifactId), await viewerOf(ws, userId));
+    return read(eq(schema.comments.artifactId, artifactId), viewer);
 }
 
 export async function createComment(
     ws: WorkspaceRow,
     artifactId: string,
-    userId: string,
+    viewer: Viewer,
     body: CommentCreateBody,
 ): Promise<CommentResult> {
+    const userId = viewer.userId;
     const [a] = await db
         .select({ digest: schema.artifacts.digest, createdBy: schema.artifacts.createdBy })
         .from(schema.artifacts)
@@ -144,11 +143,11 @@ export async function createComment(
     if (!made) return { status: 409, error: "could not post that comment" };
     // The body never travels; who left it and on whose work is the whole question here.
     capture({ userId, workspaceId: ws.id }, "comment_created", {
-        by_role: asRole((await roleOf(ws, userId)) ?? "member"),
+        by_role: asRole(viewer.role ?? "member"),
         on_own_artifact: a.createdBy === userId,
         is_reply: !!body.parentId,
     });
-    return one(made.id, ws, await viewerOf(ws, userId));
+    return one(made.id, ws, viewer);
 }
 
 // The artifact a comment hangs on, so a route can resolve the caller's access before acting. Not
@@ -165,9 +164,10 @@ export async function artifactOfCommentAnywhere(id: string): Promise<string | nu
 export async function editComment(
     ws: WorkspaceRow,
     id: string,
-    userId: string,
+    viewer: Viewer,
     body: string,
 ): Promise<CommentResult> {
+    const userId = viewer.userId;
     const [row] = await db
         .select({ authorId: schema.comments.authorId })
         .from(schema.comments)
@@ -176,16 +176,17 @@ export async function editComment(
     if (row.authorId !== userId)
         return { status: 403, error: "only the author can edit a comment" };
     await db.update(schema.comments).set({ body, updatedAt: new Date() }).where(owned(id, ws.id));
-    return one(id, ws, await viewerOf(ws, userId));
+    return one(id, ws, viewer);
 }
 
 /** Resolution is a property of the thread, so only its root carries it; any member may set it. */
 export async function setResolved(
     ws: WorkspaceRow,
     id: string,
-    userId: string,
+    viewer: Viewer,
     resolved: boolean,
 ): Promise<CommentResult> {
+    const userId = viewer.userId;
     const [row] = await db
         .select({ parentId: schema.comments.parentId, createdAt: schema.comments.createdAt })
         .from(schema.comments)
@@ -204,21 +205,21 @@ export async function setResolved(
             updatedAt: new Date(),
         })
         .where(owned(id, ws.id));
-    return one(id, ws, await viewerOf(ws, userId));
+    return one(id, ws, viewer);
 }
 
 /** The author, or someone who can already administer the workspace. Replies cascade with their root. */
 export async function deleteComment(
     ws: WorkspaceRow,
     id: string,
-    userId: string,
+    viewer: Viewer,
 ): Promise<CommentDeletion> {
     const [row] = await db
         .select({ authorId: schema.comments.authorId })
         .from(schema.comments)
         .where(owned(id, ws.id));
     if (!row) return { status: 404, error: "not found" };
-    if (row.authorId !== userId && !(await viewerOf(ws, userId)).moderator)
+    if (row.authorId !== viewer.userId && !moderates(viewer))
         return { status: 403, error: "only the author or a workspace admin can delete this" };
     await db.delete(schema.comments).where(owned(id, ws.id));
     return { status: 200 };
