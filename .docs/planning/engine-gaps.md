@@ -5,7 +5,15 @@
 > nothing here is designed, sized properly, or scheduled. Every claim is anchored to the file and
 > line that shows it, so an entry that has quietly been fixed is cheap to disprove.
 
-Status: inventory only. Read `rendering.md` first for the engine as built; this document assumes it.
+Status: inventory, re-verified against the tree on 2026-08-24. Since first written, three
+initiatives landed on top of the engine without changing its mechanics: motion
+([`motion-build.md`](motion-build.md), item 1 built), interactivity
+([`interactivity.md`](interactivity.md): `link`/`level`/`alt` on the command, the `hit:` affordance
+system generalized, live overlays, viewer patches), and editor multi-select
+([`multi-select.md`](multi-select.md)). The engine's public surface grew — painters return their
+nodes, `paintSectionStack` returns `SectionLayer[]`, commands carry semantic fields — but the
+solver, the measurement path and every gap below are exactly as they were. Items 17 and 18 were
+discovered during the interactivity investigation and added after the fact.
 
 Companion docs: `rendering.md` (the engine, the element system, the render bridge), `ai.md`
 (generation is the largest consumer of layout quality, so several of these are really generation
@@ -42,9 +50,10 @@ of them is not ready to be designed.
    the PDF path, the PNG path, PPTX and the 16:9 thumbnails, which is why all of them break a tall
    section in the same place. A new render mode that computes its own geometry forfeits this.
 3. **Regions are the only bridge from pixels back to the tree.** `el:<section>:<path>` ids
-   (`model/artifact.ts:295`) carry selection, hit-testing, drop-slot enumeration, resize dividers,
-   comment anchors and collab element refs. Anything that changes how nodes are identified or
-   addressed touches all six.
+   (`model/artifact.ts:318`) carry selection, hit-testing, drop-slot enumeration, resize dividers,
+   comment anchors and collab element refs — and, since the interactivity work, playback affordance
+   dispatch, live-overlay anchoring and multi-select rings. Anything that changes how nodes are
+   identified or addressed now touches nine consumers, not six.
 4. **`profileFor` returns the base profile by identity** (`canvas/engine/profile.ts:62`) when there
    is nothing to overlay, and the section paint cache keys on resolved page dimensions rather than
    `profile.id` (`canvas/render/backends.ts:805`). New profile fields must not break either.
@@ -66,8 +75,10 @@ of them is not ready to be designed.
 
 ## 1. Layout diffing and tweening
 
-**Designed. See [`motion.md`](motion.md) for the rationale and [`motion-build.md`](motion-build.md)
-for the plan; this entry is the summary, and it was wrong about the cost.**
+**Built** (transitions, structural build-in, theme motion, continuous reveals). What remains of
+this item: cross-slide morph (content-based correspondence, deliberately unscheduled), chart and
+diagram draw-on (blocked on item 16), and live drag reflow (wants item 15). See
+[`motion-build.md`](motion-build.md); the rest of this entry is the original summary.\*\*
 
 Missing: nothing in `canvas/` refers to animation, tween, keyframes or easing. `layout()` emits a
 static `RenderCommand[]` and there is no mechanism to interpolate between two of them. Present's
@@ -101,7 +112,7 @@ Missing: a text leaf becomes exactly one `RenderCommand` (`canvas/engine/layout.
 geometry is recomputed inside the backend by `layoutRuns` (`commands.ts:353`) and never returned to
 the engine or to the caller.
 
-Cost today: `fragment` (`layout.ts:366`) breaks only where no command splits, so a paragraph taller
+Cost today: `fragment` (`layout.ts:396`) breaks only where no command splits, so a paragraph taller
 than a page falls through to the hard-limit fallback and is cut mid-line. The inline text editor,
 comment range anchors and remote collab selections each re-derive run layout to find coordinates the
 engine already computed and discarded, which is three places that can drift from the paint.
@@ -216,7 +227,7 @@ layout; whether this changes the placeholder and skeleton geometry (`elements/sp
 
 Missing: `ElementLayout` (`model/geometry.ts`) is `width | height | align | radius`. No offset, no
 rotation, no z, no explicit pixel size. `RenderCommand` has no transform field at all
-(`canvas/engine/node.ts:152`). The engine's `float` primitive (`node.ts:142`) does most of the work
+(`canvas/engine/node.ts:156`). The engine's `float` primitive (`node.ts:142`) does most of the work
 already, but it is reachable only from element internals (`canvas/elements/diagram/utils.ts:686`
 and `:744`), never from authored data.
 
@@ -332,8 +343,8 @@ Open: none worth blocking on.
 
 ## 11. Script-aware line breaking
 
-Missing: `measureUncached` splits on `/\s+/` (`canvas/render/commands.ts:441`) and `tokenize` matches
-`[^\s]+` (`:319`). Chinese, Japanese, Korean, Thai, Khmer and Lao do not put spaces between words, so
+Missing: `measureUncached` splits on `/\s+/` (`canvas/render/commands.ts:443`) and `tokenize` matches
+`[^\s]+` (`:320`). Chinese, Japanese, Korean, Thai, Khmer and Lao do not put spaces between words, so
 text in those scripts produces a single unbreakable line that overflows its box or gets clipped by
 the section's `clip.x`. There is also no hyphenation, and no break-anywhere fallback for long URLs
 and identifiers.
@@ -374,7 +385,7 @@ the segments we are likely to enter first).
 
 ## 13. Real font metrics
 
-Missing: `Measured` is `{ width, height }` (`canvas/engine/node.ts:80`). The `baseline` field on
+Missing: `Measured` is `{ width, height }` (`canvas/engine/node.ts:80`, unchanged). The `baseline` field on
 `DrawTextStyle` (`:36`) is a draw hint for surfaces and is never a layout input. Canvas
 `TextMetrics` already exposes `actualBoundingBoxAscent` and `actualBoundingBoxDescent`, so this costs
 no new dependency.
@@ -442,15 +453,17 @@ covers the common editing case; what the real ceiling is today, which nobody has
 
 ## 16. Non-rectangular hit geometry
 
-Missing: `Region` is an axis-aligned rect plus a radius (`canvas/engine/node.ts:166`). Anything
+Missing: `Region` is an axis-aligned rect plus a radius (`canvas/engine/node.ts:195`). Anything
 painted into a single `surface` is not individually addressable.
 
 Cost today: a pie wedge, a diagram node drawn on a surface, and an arrow cannot be selected, hovered
 or commented on.
 
 Unlocks: selecting parts of a chart or diagram; per-point comments; hover affordances inside
-generated visuals. It also becomes a prerequisite the moment item 6 introduces rotation, since a
-rotated element's rect region would mis-hit.
+generated visuals. Its stock has risen since first written: it now blocks chart/diagram draw-on
+(the one motion feature left unscheduled), per-datum playback affordances (the `hit:` system built
+for interactivity is region-based and stops at the surface boundary), and it remains the
+prerequisite for item 6's rotation. Three separate initiatives now queue behind it.
 
 Shape: an optional path or shape on `Region`, and a hit test in `editor/Canvas.tsx` that falls back
 to the rect when there is none.
@@ -459,6 +472,59 @@ Size: M. Risk: low, additive.
 
 Open: whether surfaces report their own regions (which means every chart and diagram renderer gains a
 responsibility) or whether the engine derives them, which it cannot do for arbitrary paint.
+
+## 17. Viewport-anchored (sticky) positioning
+
+Found during the interactivity investigation; recorded here because it is a layout-contract gap,
+not an element.
+
+Missing: every box resolves to absolute stage coordinates once, at paint time
+(`paintSectionStack` sets `layer.style.top` per section; commands are stage-absolute). Nothing can
+say "pin to the viewport while the page scrolls" or "stick below the top edge until my section
+ends".
+
+Cost today: a published site cannot have a nav bar, a sticky table header, or a persistent CTA —
+the single most-requested website furniture. The interactivity plan explicitly deferred it.
+
+Unlocks: nav bars with the popup/menu element that now exists; sticky section headers in long
+docs; a persistent footer CTA on published sites.
+
+Shape: a coordinate-semantics extension, not an element: a node flag whose command carries a
+sticky range, honored by the DOM backend as `position: sticky` on a wrapper (continuous formats
+only; paged output ignores it, matching how `link` degrades on PNG). The hard part is that the
+painter's flat absolute positioning has no containing-block nesting for `sticky` to work against,
+so the section layer structure has to cooperate.
+
+Size: M. Risk: medium — it bends the "commands are absolute boxes" invariant for one declared
+case.
+
+Open: whether it is a section property (a "pinned" section) or an element property; what the
+editor shows, since the canvas is one continuous stack that does not scroll the way publish does.
+
+## 18. Reading order as an output
+
+Also from the interactivity investigation, which gave published pages their first real semantics
+(`link`, heading levels, alt) and exposed the next layer down.
+
+Missing: `emit` (`canvas/engine/layout.ts:302`) orders commands by paint order — negative floats,
+flow, positive floats — and the DOM backend appends in that order. A screen reader linearizes by
+DOM order, so any multi-column or overlapping layout reads in an order no one designed.
+
+Cost today: published docs and sites are now keyboard-reachable and semantically labeled but can
+still read wrong: a two-column section reads column-interleaved or column-sequential by accident
+of tree shape, not by decision.
+
+Unlocks: a published page a screen reader traverses in the intended order; a correct tab sequence
+across the links and interactive elements the pipeline now emits.
+
+Shape: either the engine emits a reading-order index on commands (tree order is usually right, so
+this may be nearly free) and the DOM backend orders or `aria-flowto`s by it, or the backend sorts
+text/interactive nodes into a parallel semantic layer. The first is cheaper and likely correct.
+
+Size: S to M. Risk: low structurally; the risk is subtle regressions in tab order, which needs a
+manual audit per format.
+
+Open: whether floats (decoration vs overlay) should be in the reading order at all.
 
 ---
 
@@ -479,18 +545,20 @@ solver would give, and should stay bounded.
 
 # Sequencing
 
-The order I would take, and why.
+Re-ranked 2026-08-24, with item 1 built.
 
-1. **Item 3, autofit.** We already measure the failure it causes, it is the largest visible quality
-   gap in generated decks, and it needs nothing else first.
-2. **Item 1, motion.** The transition and build-in half is cheap and unlocks the player, publish and
-   the narration path at once. The cross-slide morph half is not cheap and should wait. See
-   `motion.md`.
-3. **Item 5, image intrinsics.** Small, and it removes a class of layout failure that no amount of
-   prompt work can fix.
-4. **Item 10, distribution modes.** Trivial, high frequency, worth slotting in beside anything.
-5. **Item 4, grid.** The largest of the structural changes, and everything above makes its payoff
-   clearer.
+1. **Item 3, autofit.** Fully designed ([`autofit.md`](autofit.md)) and waiting; still the largest
+   visible quality gap in generated decks.
+2. **Item 16, hit geometry.** Promoted: three initiatives now queue behind it (chart/diagram
+   draw-on, per-datum affordances, item 6's rotation), and the interactivity work built the
+   consumer side it used to lack.
+3. **Item 5, image intrinsics** and **item 10, distribution modes.** Small, independent, worth
+   slotting beside anything.
+4. **Item 18, reading order.** Cheap, and it completes what the semantics work started: a published
+   page that is labeled but reads in the wrong order is half-finished accessibility.
+5. **Item 17, sticky positioning.** The gating gap for real website furniture now that popups and
+   menus exist.
+6. **Item 4, grid.** Still the largest structural change; everything above sharpens its payoff.
 
 Items 11 and 12 jump to the front the moment a non-Latin market is real. Item 2 becomes urgent if
 long-form documents or text-range collaboration become a priority, since three subsystems are
@@ -514,18 +582,22 @@ Dependencies worth knowing:
 
 These affect several items and are worth settling once rather than per item.
 
-Where new shared concepts live. A timeline (item 1), a focal point (item 9) and a direction (item 12)
-all want a home in `model/`, which is at eighteen files under an explicit instruction to resist a
-nineteenth. Deciding the rule once (extend `geometry`, extend `artifact`, or accept a nineteenth
-concept with a stated reason) avoids three separate arguments.
+Where new shared concepts live: answered in practice. Motion tokens went into `model/theme.ts` as
+part of the theme contract, viewer-state machinery into `canvas/elements/ops.ts` beside its
+siblings, and no nineteenth `model/` file was needed across three initiatives. The working rule:
+extend the concept that owns the contract, and treat a new file as evidence the concept analysis is
+wrong. A focal point (item 9) belongs to `media`, a direction (item 12) to `geometry` or
+`artifact`; neither needs a new file either.
 
 How we re-baseline the corpus. Items 3, 11 and 13 each move every number in `pnpm eval:shots` at
-once. We need an agreed process for distinguishing "this change made things worse" from "this change
-moved the baseline", or the gate stops being useful the first time we use it.
+once. Three shipped initiatives leaned on "corpus unchanged" as their proof, which worked precisely
+because none touched geometry; autofit is the first that cannot make that claim, so this process is
+now the blocking prerequisite for the top item in the sequence, not a background question.
 
-What the PPTX and PDF paths are allowed to lose. Items 1, 6 and 8 all produce things those formats
-cannot express. Deciding upfront whether the fallback is a raster, a static approximation, or a
-refusal keeps the decision out of each implementation.
+What the PPTX and PDF paths are allowed to lose: a working precedent now exists. The semantics
+work honored `link` as real PDF annotations and PPTX hyperlinks while PNG ignores it by decision,
+and motion exports the animation's end state. The pattern (shared field, per-backend
+interpretation, explicit ignore where meaningless) is what items 6 and 8 should follow.
 
 Whether any of this changes the AI element catalog. Items 4, 6 and 8 add authoring surface, and every
 one of them is something the model will use badly by default. The catalog and prompts
