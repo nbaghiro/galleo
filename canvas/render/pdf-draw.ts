@@ -1,6 +1,6 @@
 import type { DrawContext, DrawStyle, DrawTextStyle, RenderCommand } from "@engine/node";
 import type { PDFDocument, PDFFont, PDFPage, PDFPageDrawSVGOptions } from "pdf-lib";
-import { LineCapStyle, StandardFonts, rgb } from "pdf-lib";
+import { LineCapStyle, PDFString, StandardFonts, rgb } from "pdf-lib";
 import { buildPathData } from "./svg-emit";
 import { CODE_BG, layoutRuns } from "./commands";
 import { fetchFontTtf, familyFromFont, italicFromFont, slotFor, weightFromFont } from "./fonts";
@@ -79,6 +79,28 @@ export interface Ctx {
     page: PDFPage;
     pageH: number; // page height in pt, for the y-flip
     fonts: FontResolver;
+}
+
+/**
+ * A clickable URI annotation over `box` (top-left origin, in pt; the y-flip happens here). pdf-lib
+ * 1.17 ships no link helper, so the annotation dict is built by hand and pushed onto the page.
+ */
+export function addLinkAnnot(
+    c: Ctx,
+    box: { x: number; y: number; w: number; h: number },
+    url: string,
+): void {
+    if (!url || box.w < 0.5 || box.h < 0.5) return;
+    const ref = c.doc.context.register(
+        c.doc.context.obj({
+            Type: "Annot",
+            Subtype: "Link",
+            Rect: [box.x, c.pageH - (box.y + box.h), box.x + box.w, c.pageH - box.y],
+            Border: [0, 0, 0],
+            A: { Type: "Action", S: "URI", URI: PDFString.of(url) },
+        }),
+    );
+    c.page.node.addAnnot(ref);
 }
 
 // `d` is in absolute page coords; svgOpts does the y-flip
@@ -269,6 +291,7 @@ export function emitText(
                     );
                 if (f.strike) drawPathAbs(c, `M${x} ${midY}L${x + f.width} ${midY}`, style);
             }
+            if (f.link) addLinkAnnot(c, { x, y: midY - lh / 2, w: f.width, h: lh }, f.link);
         }
     });
 }

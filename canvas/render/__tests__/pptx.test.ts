@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RenderCommand, TextLeaf } from "@engine/node";
 import type { ArtifactContent } from "@model/artifact";
 import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
+import { fontFileUrl } from "@canvas/render/fonts";
 import type { RunLine } from "@canvas/render/commands";
 import {
     SLIDE_IN_H,
@@ -13,13 +14,11 @@ import {
     embeddedFontListXml,
     familyFromFont,
     frameCommand,
-    googleCssUrl,
     hasText,
     inch,
     italicFromFont,
     leafForRuns,
     localize,
-    parseFontUrl,
     patchContentTypes,
     patchPresentationRels,
     patchPresentationXml,
@@ -234,6 +233,15 @@ describe("rectShapeSpec", () => {
     it("returns null when there is nothing to paint", () => {
         expect(rectShapeSpec({ kind: "rect", box: { x: 0, y: 0, w: 1, h: 1 } })).toBeNull();
     });
+    it("carries a link through as a shape hyperlink", () => {
+        const spec = rectShapeSpec({
+            kind: "rect",
+            box: { x: 0, y: 0, w: 96, h: 48 },
+            fill: { color: "#000" },
+            link: "https://galleo.app",
+        });
+        expect(spec!.options.hyperlink).toEqual({ url: "https://galleo.app" });
+    });
 });
 
 describe("leafForRuns / hasText", () => {
@@ -326,6 +334,20 @@ describe("textSpec", () => {
         expect(runs[4]!.options!.highlight).toBe("FFFF00");
     });
 
+    it("hyperlinks a run from its own mark, and the whole box from a command-level link", () => {
+        const lines: RunLine[] = [
+            {
+                frags: [frag("plain"), frag("linked", { link: "https://galleo.app/docs" })],
+                width: 20,
+            },
+        ];
+        const { runs } = textSpec(leaf, { x: 0, y: 0, w: 480, h: 54 }, lines);
+        expect(runs[0]!.options!.hyperlink).toBeUndefined();
+        expect(runs[1]!.options!.hyperlink).toEqual({ url: "https://galleo.app/docs" });
+        const covered = textSpec(leaf, { x: 0, y: 0, w: 480, h: 54 }, lines, "https://galleo.app");
+        expect(covered.runs[0]!.options!.hyperlink).toEqual({ url: "https://galleo.app" });
+    });
+
     it("emits a blank breaking run for an empty (blank) line", () => {
         const lines: RunLine[] = [
             { frags: [], width: 0 },
@@ -336,6 +358,13 @@ describe("textSpec", () => {
     });
 });
 
+describe("fontFileUrl", () => {
+    it("names the vendored face, so an export reads our origin rather than a font host", () => {
+        expect(fontFileUrl("Fraunces", 600, false)).toBe("/fonts/fraunces-600.woff2");
+        expect(fontFileUrl("Hanken Grotesk", 400, true)).toBe("/fonts/hanken-grotesk-400i.woff2");
+    });
+});
+
 describe("slotFor", () => {
     it("buckets weight (>=600 bold) × italic into the four PowerPoint slots", () => {
         expect(slotFor(400, false)).toBe("regular");
@@ -343,40 +372,6 @@ describe("slotFor", () => {
         expect(slotFor(700, false)).toBe("bold");
         expect(slotFor(400, true)).toBe("italic");
         expect(slotFor(800, true)).toBe("boldItalic");
-    });
-});
-
-describe("googleCssUrl", () => {
-    it("builds a css2 request with + for spaces and the ital,wght tuple", () => {
-        expect(googleCssUrl("Fraunces", 600, false)).toBe(
-            "https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,600&display=swap",
-        );
-        expect(googleCssUrl("Hanken Grotesk", 400, true)).toBe(
-            "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@1,400&display=swap",
-        );
-    });
-});
-
-describe("parseFontUrl", () => {
-    const css = `/* cyrillic */
-@font-face { font-family: 'X'; src: url(https://fonts.gstatic.com/s/x/cyr.woff2) format('woff2'); }
-/* latin */
-@font-face { font-family: 'X'; src: url(https://fonts.gstatic.com/s/x/latin.woff2) format('woff2'); }`;
-    it("prefers the latin subset block and flags woff2", () => {
-        expect(parseFontUrl(css)).toEqual({
-            url: "https://fonts.gstatic.com/s/x/latin.woff2",
-            woff2: true,
-        });
-    });
-    it("accepts a plain ttf (legacy-UA response) without the transcode flag", () => {
-        const ttf = `@font-face { src: url(https://fonts.gstatic.com/s/x/x.ttf) format('truetype'); }`;
-        expect(parseFontUrl(ttf)).toEqual({
-            url: "https://fonts.gstatic.com/s/x/x.ttf",
-            woff2: false,
-        });
-    });
-    it("returns null when there is no usable font url", () => {
-        expect(parseFontUrl("/* latin */ @font-face { src: local('X'); }")).toBeNull();
     });
 });
 

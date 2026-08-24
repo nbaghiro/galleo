@@ -5,8 +5,10 @@ import { PDFDocument, rgb } from "pdf-lib";
 import { profileFor, resolveProfile } from "@engine/profile";
 import { EXPORT_SCALE, loadImages, paint, renderSlidePage, renderToCanvas } from "./backends";
 import { measureText, layoutSection, sectionSlides } from "./commands";
+import { applyFallbacks } from "@elements/ops";
 import { frameCommand, localize, type Transform } from "./pptx";
 import {
+    addLinkAnnot,
     buildFontBook,
     drawTextAbs,
     emitRect,
@@ -152,6 +154,8 @@ async function emitCommand(
     c: RenderCommand,
     measureCx: CanvasRenderingContext2D,
 ): Promise<void> {
+    // A linked text box already annotates per run fragment; anything else annotates its whole box.
+    if (c.link && c.kind !== "text") addLinkAnnot(ctx, c.box, c.link);
     if (c.kind === "text") emitText(ctx, c, measureCx);
     else if (c.kind === "rect") {
         if (c.fill?.gradient || c.clip) await rasterEmbed(ctx, c);
@@ -288,9 +292,11 @@ export async function buildPdfAuto(
     opts?: ExportOptions,
 ): Promise<PdfBuild> {
     const brand = opts?.brand ?? false;
-    return profileFor(artifact).kind === "continuous"
-        ? { bytes: await buildDocPdf(artifact, tk, brand), filename: "galleo-doc.pdf" }
-        : { bytes: await buildSlidePdf(artifact, tk, brand), filename: "galleo.pdf" };
+    // paper has no live layer, so interactive elements export as whatever static form they declare
+    const art = applyFallbacks(artifact);
+    return profileFor(art).kind === "continuous"
+        ? { bytes: await buildDocPdf(art, tk, brand), filename: "galleo-doc.pdf" }
+        : { bytes: await buildSlidePdf(art, tk, brand), filename: "galleo.pdf" };
 }
 
 export async function exportPdfAuto(
@@ -316,7 +322,8 @@ export async function buildSectionPngs(
     tk: Tokens,
     opts?: ExportOptions & { compose?: PngCompose },
 ): Promise<SectionPng[]> {
-    const own = profileFor(artifact);
+    const art = applyFallbacks(artifact);
+    const own = profileFor(art);
     const mode = opts?.compose ?? "auto";
     const asDoc = mode === "doc" || (mode === "auto" && own.kind === "continuous");
     // only `own` carries the artifact's page size; an explicit mode re-renders at that format's
@@ -335,7 +342,7 @@ export async function buildSectionPngs(
         files.push({ name, bytes: await canvasPng(canvas) });
     };
 
-    for (const [ix, section] of artifact.sections.entries()) {
+    for (const [ix, section] of art.sections.entries()) {
         const stem = `${pad(ix + 1)}-${section.id}`;
         if (asDoc) {
             const { commands, height } = layoutSection(section, layoutW, measureText, tk, profile);
@@ -377,7 +384,7 @@ export async function exportPrint(artifact: ArtifactContent, theme: Tokens): Pro
     const all: RenderCommand[] = [];
     const flow = document.createElement("div");
     flow.style.cssText = `width:${width}px;background:${theme.bg}`;
-    for (const section of artifact.sections) {
+    for (const section of applyFallbacks(artifact).sections) {
         const { commands, height } = layoutSection(section, width, measureText, theme, profile);
         all.push(...commands);
         const seg = document.createElement("div");

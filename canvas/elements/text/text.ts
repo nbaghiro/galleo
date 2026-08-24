@@ -26,6 +26,8 @@ interface TextStyleSpec {
 
 const FALLBACK: TextStyleSpec = { size: 17, weight: 400, fontId: "ui", tone: "ink" };
 
+const HEADING_LEVEL: Partial<Record<TextStyle, 1 | 2 | 3>> = { h1: 1, h2: 2, h3: 3 };
+
 const STYLE: Record<TextStyle, TextStyleSpec> = {
     h1: { size: 44, weight: 600, fontId: "display", tone: "ink" },
     subtitle: { size: 22, weight: 400, fontId: "ui", tone: "soft" },
@@ -68,6 +70,8 @@ export const textElement: ElementSpec<TextData> = {
             align: data.align ?? "start",
             wrap: "words",
         };
+        const level = HEADING_LEVEL[data.style];
+        if (level) text.level = level;
         // only build runs when marks exist; plain text leaf stays unchanged.
         if (data.marks && data.marks.length > 0) {
             text.runs = toRuns(data.text, data.marks);

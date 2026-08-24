@@ -2,6 +2,7 @@ import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { DrawContext, DrawStyle, EngineNode, Rect } from "@engine/node";
 import { register } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
+import { isEmbedVideoUrl } from "@model/media";
 import { fontStack } from "@themes";
 
 const GLYPH = 20;
@@ -27,6 +28,34 @@ const linkGlyph =
 interface EmbedData {
     title?: string;
     url?: string;
+    aspect?: number; // player frame only; the link card sizes itself
+}
+
+// A provider url gets the player's shape, so the live overlay has a box worth mounting into and the
+// static render (export, print) shows a frame rather than a squashed row.
+function playerFrame(d: EmbedData, ctx: LayoutCtx): EngineNode {
+    return {
+        w: grow(),
+        h: fit(),
+        aspect: d.aspect ?? 16 / 9,
+        alignX: "center",
+        alignY: "center",
+        fill: { color: "#15171c", radius: Math.round(ctx.theme.radius / 1.5) },
+        children: [
+            {
+                w: fit(),
+                h: fit(),
+                text: {
+                    text: d.title ?? "Embedded link",
+                    fontId: fontStack("ui", ctx.theme),
+                    size: 14,
+                    color: "rgba(255,255,255,0.72)",
+                    align: "center",
+                    wrap: "none",
+                },
+            },
+        ],
+    };
 }
 
 export const embedElement: ElementSpec<EmbedData> = {
@@ -35,7 +64,18 @@ export const embedElement: ElementSpec<EmbedData> = {
     category: "basic",
     tier: "interactive",
     create: () => ({ title: "Embedded link", url: "https://galleo.app" }),
-    layout: (d: EmbedData, ctx: LayoutCtx): EngineNode => ({
+    layout: (d: EmbedData, ctx: LayoutCtx): EngineNode =>
+        isEmbedVideoUrl(d.url ?? "") ? playerFrame(d, ctx) : linkCard(d, ctx),
+    controls: [
+        { key: "title", label: "Title", control: "text" },
+        { key: "url", label: "URL", control: "text", placeholder: "https://…" },
+    ],
+    frame: true,
+    fallback: (d) => d,
+};
+
+function linkCard(d: EmbedData, ctx: LayoutCtx): EngineNode {
+    return {
         w: grow(),
         h: fit(),
         direction: "row",
@@ -87,13 +127,7 @@ export const embedElement: ElementSpec<EmbedData> = {
                 ],
             },
         ],
-    }),
-    controls: [
-        { key: "title", label: "Title", control: "text" },
-        { key: "url", label: "URL", control: "text", placeholder: "https://…" },
-    ],
-    frame: true,
-    fallback: (d) => d,
-};
+    };
+}
 
 register(embedElement);

@@ -8,6 +8,7 @@ import type { ImageFit } from "@model/elements";
 
 export interface ImageData {
     src: string;
+    alt?: string;
     aspect?: number;
     radius?: number;
     fit?: ImageFit;
@@ -90,6 +91,7 @@ export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
                       aspect: data.aspect ?? cfg.aspect,
                       image: {
                           src: data.src,
+                          alt: data.alt?.trim() || undefined,
                           fit: data.fit ?? cfg.fit,
                           radius: data.radius ?? 14,
                           zoom: (data.zoom ?? 100) / 100,
@@ -131,6 +133,13 @@ export function imageLike(cfg: MediaConfig): ElementSpec<ImageData> {
                 step: 1,
                 unit: "px",
                 group: "Frame",
+            },
+            {
+                key: "alt",
+                label: "Alt text",
+                control: "text",
+                placeholder: "What the picture shows",
+                group: "Accessibility",
             },
         ],
     };

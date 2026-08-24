@@ -5,6 +5,7 @@ import type { Tokens } from "@themes";
 import type PptxGenJS from "pptxgenjs";
 import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
 import { layoutRuns, sectionSlides } from "./commands";
+import { applyFallbacks } from "@elements/ops";
 import { EXPORT_SCALE, renderToCanvas } from "./backends";
 import { svgStringContext } from "./svg-emit";
 import type { ExportOptions } from "./export";
@@ -19,14 +20,7 @@ import {
 } from "./fonts";
 
 // re-exported so existing importers (and pptx.test.ts) keep resolving them from ./pptx
-export {
-    familyFromFont,
-    weightFromFont,
-    italicFromFont,
-    slotFor,
-    googleCssUrl,
-    parseFontUrl,
-} from "./fonts";
+export { familyFromFont, weightFromFont, italicFromFont, slotFor } from "./fonts";
 
 // wawoff2 is untyped — ambient types live in wawoff2.d.ts (must be a standalone .d.ts)
 
@@ -206,6 +200,7 @@ export function rectShapeSpec(c: RenderCommand): ShapeSpec | null {
     };
     if (c.opacity !== undefined && options.fill && "transparency" in options.fill)
         options.fill.transparency = Math.round((1 - c.opacity) * 100);
+    if (c.link) options.hyperlink = { url: c.link };
     if (radius > 0) options.rectRadius = inch(radius);
     return { round: radius > 0, options };
 }
@@ -228,7 +223,7 @@ export const hasText = (lines: RunLine[]): boolean =>
     lines.some((l) => l.frags.some((f) => f.text.length > 0));
 
 // lines arrive pre-wrapped (breaks match screen), so wrap/autoFit stay off and PowerPoint never re-flows
-export function textSpec(text: TextLeaf, box: Rect, lines: RunLine[]): TextSpec {
+export function textSpec(text: TextLeaf, box: Rect, lines: RunLine[], link?: string): TextSpec {
     const baseColor = cssColor(text.color)?.color ?? DEFAULT_INK;
     const runs: PptxGenJS.TextProps[] = [];
     lines.forEach((line, li) => {
@@ -239,6 +234,7 @@ export function textSpec(text: TextLeaf, box: Rect, lines: RunLine[]): TextSpec 
         }
         line.frags.forEach((f, fi) => {
             const endOfLine = fi === line.frags.length - 1;
+            const href = f.link ?? link;
             runs.push({
                 text: f.text,
                 options: {
@@ -249,6 +245,7 @@ export function textSpec(text: TextLeaf, box: Rect, lines: RunLine[]): TextSpec 
                     color: cssColor(f.color)?.color ?? baseColor,
                     fontFace: f.code ? PPTX_MONO : familyFromFont(f.font),
                     highlight: f.highlight ? cssColor(f.highlight)?.color : undefined,
+                    hyperlink: href ? { url: href } : undefined,
                     breakLine: endOfLine && !lastLine ? true : undefined,
                 },
             });
@@ -460,7 +457,8 @@ export async function buildPptx(
     if (typeof document !== "undefined" && document.fonts?.ready) await document.fonts.ready;
 
     // every artifact exports as a deck, but a paged one keeps its own page size
-    const own = profileFor(artifact);
+    const art = applyFallbacks(artifact);
+    const own = profileFor(art);
     const profile = own.kind === "paged" ? own : resolveProfile("deck");
     const slideBox = pagedSize(profile);
 
@@ -477,7 +475,7 @@ export async function buildPptx(
     const cx = measureCtx();
     const usedFonts: UsedFonts = new Map();
 
-    for (const section of artifact.sections) {
+    for (const section of art.sections) {
         for (const page of sectionSlides(section, tk, profile)) {
             const slide = pptx.addSlide();
             slide.background = { color: bgHex };
@@ -499,7 +497,7 @@ export async function buildPptx(
                     for (const line of lines)
                         for (const f of line.frags)
                             if (f.text) recordFont(usedFonts, f.font, f.code);
-                    const { runs, options } = textSpec(framed.text, framed.box, lines);
+                    const { runs, options } = textSpec(framed.text, framed.box, lines, framed.link);
                     slide.addText(runs, options);
                 } else {
                     // surfaces embed as vector SVG; other rasters stay PNG

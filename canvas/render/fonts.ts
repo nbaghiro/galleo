@@ -24,29 +24,14 @@ export function weightFromFont(font: string): number {
 
 export const italicFromFont = (font: string): boolean => font.trimStart().startsWith("italic");
 
-// a browser UA gets woff2 back from this
-export function googleCssUrl(family: string, weight: number, italic: boolean): string {
-    const fam = family.trim().replace(/\s+/g, "+");
-    return `https://fonts.googleapis.com/css2?family=${fam}:ital,wght@${italic ? 1 : 0},${weight}&display=swap`;
-}
+// The vendored face, served from our own origin. `pnpm fonts:vendor` writes these and
+// `pnpm check:fonts` proves every family a theme can name has one, so an export no longer reaches a
+// third party mid-render: it used to fetch each face from Google behind a 10 second deadline.
+export const fontSlug = (family: string): string =>
+    family.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-// Google serves woff2 to a modern UA, ttf/otf to legacy; `woff2` flags whether a transcode is needed
-export interface FontSrc {
-    url: string;
-    woff2: boolean;
-}
-
-export function parseFontUrl(css: string): FontSrc | null {
-    const pick = (block: string): FontSrc | null => {
-        const m = block.match(/url\((https:[^)]+\.(?:woff2|ttf|otf))\)/);
-        return m ? { url: m[1]!, woff2: m[1]!.endsWith(".woff2") } : null;
-    };
-    for (const block of css.split("/*"))
-        if (/^\s*latin\s*\*\//.test(block)) {
-            const hit = pick(block);
-            if (hit) return hit;
-        }
-    return pick(css);
+export function fontFileUrl(family: string, weight: number, italic: boolean): string {
+    return `/fonts/${fontSlug(family)}-${weight}${italic ? "i" : ""}.woff2`;
 }
 
 const FONT_FETCH_TIMEOUT_MS = 10_000;
@@ -61,12 +46,10 @@ async function fetchTtfOnce(
     weight: number,
     italic: boolean,
 ): Promise<Uint8Array | null> {
-    const res = await fetch(googleCssUrl(family, weight, italic));
-    if (!res.ok) return null; // css2 rejects weights the family lacks (e.g. Space Mono 600)
-    const src = parseFontUrl(await res.text());
-    if (!src) return null;
-    const bytes = new Uint8Array(await (await fetch(src.url)).arrayBuffer());
-    if (!src.woff2) return bytes; // already a usable sfnt (ttf/otf)
+    const res = await fetch(fontFileUrl(family, weight, italic));
+    if (!res.ok) return null; // a weight the family does not have was never vendored
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    // PDF and PPTX embed sfnt, so a woff2 still has to come apart; the network hop is what went away
     const { decompress } = await import("wawoff2");
     return await decompress(bytes);
 }

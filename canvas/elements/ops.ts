@@ -12,7 +12,10 @@ import type { ElementLayout } from "@model/geometry";
 import { getElement } from "@elements/spec";
 import {
     LAYOUT_PRESETS,
+    addressesEqual,
     colGroup,
+    comparePaths,
+    contentWithElementIds,
     elementRegionId,
     emptyRegion,
     parseTarget,
@@ -290,6 +293,148 @@ export function duplicatedAddr(addr: ElementAddress): ElementAddress {
     const path = [...addr.path];
     path[path.length - 1] = path[path.length - 1]! + 1;
     return { section: addr.section, path };
+}
+
+// Batch ops over a selection set. The subtle part is index-path invalidation between steps: a
+// removal sorts descending so nothing pending shifts, and anything that also inserts re-resolves
+// its remaining work through element ids instead of doing its own arithmetic.
+
+const byPathDesc = (a: ElementAddress, b: ElementAddress): number =>
+    a.section === b.section ? comparePaths(b.path, a.path) : a.section < b.section ? 1 : -1;
+
+export function removeMany(art: ArtifactContent, addrs: ElementAddress[]): ArtifactContent {
+    const targets = [...addrs].sort(byPathDesc);
+    let out = art;
+    for (const a of targets) out = removeAt(out, a);
+    const seen = new Set<string>();
+    const parents: ElementAddress[] = [];
+    for (const a of targets) {
+        const parent: ElementAddress = { section: a.section, path: a.path.slice(0, -1) };
+        const key = `${parent.section}:${parent.path.join(".")}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        parents.push(parent);
+    }
+    // deepest first, so a nested column folds before the row that holds it
+    parents.sort((a, b) => b.path.length - a.path.length || byPathDesc(a, b));
+    for (const p of parents) out = collapseSection(out, p.section, p.path);
+    return out;
+}
+
+export function duplicateMany(
+    art: ArtifactContent,
+    addrs: ElementAddress[],
+): { content: ArtifactContent; addresses: ElementAddress[] } {
+    let out = contentWithElementIds(art);
+    const sources = addrs
+        .map((a) => getElementAt(out, a)?.id)
+        .filter((id): id is Id => id !== undefined);
+    const copies: Id[] = [];
+    for (const id of sources) {
+        const at = elementIdMap(out).get(id);
+        if (!at) continue;
+        const next = duplicateAt(out, at);
+        if (next === out) continue;
+        out = next;
+        const copy = getElementAt(out, duplicatedAddr(at))?.id;
+        if (copy) copies.push(copy);
+    }
+    const map = elementIdMap(out);
+    return {
+        content: out,
+        addresses: copies
+            .map((id) => map.get(id))
+            .filter((a): a is ElementAddress => a !== undefined),
+    };
+}
+
+/** null when the set does not sit under one parent, which grouping and multi-drag both require. */
+export function sharedParent(addrs: ElementAddress[]): ElementAddress | null {
+    const first = addrs[0];
+    if (!first || first.path.length === 0) return null;
+    const parent: ElementAddress = { section: first.section, path: first.path.slice(0, -1) };
+    for (const a of addrs) {
+        if (a.path.length === 0) return null;
+        if (!addressesEqual({ section: a.section, path: a.path.slice(0, -1) }, parent)) return null;
+    }
+    return parent;
+}
+
+export function groupSelection(
+    art: ArtifactContent,
+    addrs: ElementAddress[],
+    direction?: "row" | "col",
+): { content: ArtifactContent; address: ElementAddress | null } {
+    const none = { content: art, address: null };
+    const parent = sharedParent(addrs);
+    if (!parent || addrs.length < 2) return none;
+    const parentInst = getElementAt(art, parent);
+    const kids = parentInst ? childrenOf(parentInst) : null;
+    if (!parentInst || !kids) return none;
+    const indices = [...new Set(addrs.map((a) => a.path[a.path.length - 1]!))].sort(
+        (x, y) => x - y,
+    );
+    const members = indices.map((i) => kids[i]);
+    if (members.some((m) => m === undefined)) return none;
+    // the parent's own axis by default, so grouping never rearranges what is on screen
+    const dir = direction ?? (isRow(parentInst) ? "row" : "col");
+    const picked = members.map((m) => stripWidth(m!));
+    const at = indices[0]!;
+    const next = kids.filter((_, i) => !indices.includes(i));
+    next.splice(at, 0, dir === "row" ? rowGroup(picked) : colGroup(picked));
+    return {
+        content: updateElementAt(art, parent, (p) =>
+            withChildren(p, isRow(p) ? renormalizeWidths(next) : next),
+        ),
+        address: { section: parent.section, path: [...parent.path, at] },
+    };
+}
+
+/** Splices a layout container's children back into its parent: the inverse of grouping. */
+export function ungroupAt(
+    art: ArtifactContent,
+    addr: ElementAddress,
+): { content: ArtifactContent; addresses: ElementAddress[] } {
+    const none = { content: art, addresses: [] };
+    if (addr.path.length === 0) return none;
+    const inst = getElementAt(art, addr);
+    if (!inst || getElement(inst.type)?.tier !== "container") return none;
+    const kids = childrenOf(inst);
+    if (!kids?.length) return none;
+    const parent: ElementAddress = { section: addr.section, path: addr.path.slice(0, -1) };
+    const parentInst = getElementAt(art, parent);
+    if (!parentInst || !childrenOf(parentInst)) return none;
+    const at = addr.path[addr.path.length - 1]!;
+    const content = updateElementAt(art, parent, (p) => {
+        const siblings = childrenOf(p);
+        if (!siblings) return p;
+        const next = [...siblings];
+        next.splice(at, 1, ...kids.map(stripWidth));
+        return withChildren(p, isRow(p) ? renormalizeWidths(next) : next);
+    });
+    return {
+        content,
+        addresses: kids.map((_, k) => ({ section: addr.section, path: [...parent.path, at + k] })),
+    };
+}
+
+/** Block reorder inside one parent: the children at `indices` land together at gap `index`. */
+export function moveChildrenTo(
+    art: ArtifactContent,
+    parent: ElementAddress,
+    indices: number[],
+    index: number,
+): { content: ArtifactContent; at: number } {
+    const inst = getElementAt(art, parent);
+    const kids = inst ? childrenOf(inst) : null;
+    if (!inst || !kids) return { content: art, at: 0 };
+    const sorted = [...new Set(indices)].sort((a, b) => a - b);
+    const block = sorted.map((i) => kids[i]).filter((k): k is ElementInstance => k !== undefined);
+    if (block.length !== sorted.length) return { content: art, at: 0 };
+    const rest = kids.filter((_, i) => !sorted.includes(i));
+    const at = clamp(index - sorted.filter((i) => i < index).length, rest.length);
+    rest.splice(at, 0, ...block);
+    return { content: updateElementAt(art, parent, (p) => withChildren(p, rest)), at };
 }
 
 function currentColumns(root: ElementInstance): ElementInstance[] {

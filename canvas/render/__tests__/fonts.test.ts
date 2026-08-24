@@ -1,30 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchFontTtf } from "@canvas/render/fonts";
 
-const cssWithTtf = "/* latin */ @font-face { src: url(https://fonts.gstatic.com/f.ttf); }";
-
 afterEach(() => {
     vi.unstubAllGlobals();
     vi.useRealTimers();
 });
 
 describe("fetchFontTtf", () => {
-    it("snaps an off-menu bold weight to 700 when css2 rejects it", async () => {
+    it("snaps an off-menu bold weight to 700, which is the one that was vendored", async () => {
         const calls: string[] = [];
         vi.stubGlobal(
             "fetch",
             vi.fn(async (url: string) => {
                 calls.push(String(url));
-                if (String(url).includes("css2")) {
-                    if (String(url).includes("0,600")) return { ok: false, status: 400 };
-                    return { ok: true, text: async () => cssWithTtf };
-                }
+                // Space Mono has no 600, so no face was vendored at that weight
+                if (String(url).includes("-600")) return { ok: false, status: 404 };
                 return { ok: true, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer };
             }),
         );
-        const ttf = await fetchFontTtf("Space Mono", 600, false);
-        expect(ttf).toEqual(new Uint8Array([1, 2, 3]));
-        expect(calls.some((u) => u.includes("0,700"))).toBe(true);
+        await fetchFontTtf("Space Mono", 600, false);
+        expect(calls.some((u) => u === "/fonts/space-mono-700.woff2")).toBe(true);
+        expect(calls.every((u) => u.startsWith("/fonts/"))).toBe(true);
     });
 
     it("returns null when the family fails at every weight", async () => {

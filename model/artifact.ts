@@ -369,6 +369,28 @@ export function parentTarget(t: Target): Target | null {
     return { kind: "section", section: a.section };
 }
 
+export const addressesEqual = (a: ElementAddress, b: ElementAddress): boolean =>
+    a.section === b.section &&
+    a.path.length === b.path.length &&
+    a.path.every((v, i) => v === b.path[i]);
+
+/** `a` strictly contains `b`. A selection set never holds both. */
+export const isAncestorAddress = (a: ElementAddress, b: ElementAddress): boolean =>
+    a.section === b.section &&
+    a.path.length < b.path.length &&
+    a.path.every((v, i) => v === b.path[i]);
+
+/** Paint order for two paths in one section: earlier sibling first, parent before child. */
+export function comparePaths(a: number[], b: number[]): number {
+    const n = Math.max(a.length, b.length);
+    for (let i = 0; i < n; i++) {
+        const x = a[i] ?? -1;
+        const y = b[i] ?? -1;
+        if (x !== y) return x - y;
+    }
+    return 0;
+}
+
 // a cover snippet from the first section, for library preview
 export interface Cover {
     eyebrow?: string;

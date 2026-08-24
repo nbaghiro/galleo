@@ -2,13 +2,17 @@ import { describe, expect, it } from "vitest";
 import { inflateSync } from "node:zlib";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import {
+    addLinkAnnot,
     drawTextAbs,
     emitRect,
+    emitText,
     pdfColor,
     pdfDrawContext,
     roundRectPath,
     type Ctx,
 } from "@canvas/render/pdf-draw";
+import { toRuns } from "@model/text";
+import { textMetricsCtx } from "@canvas/testkit";
 
 describe("pdfColor", () => {
     it("parses hex, shorthand, and #rrggbbaa", () => {
@@ -107,5 +111,72 @@ describe("native PDF emission", () => {
         });
         expect(s).toContain("0 0 1 rg"); // blue fill
         expect(s).toMatch(/\bc\b/); // cubic bezier (circle)
+    });
+});
+
+// pdf-lib 1.17 has no link helper, so the annotation is built by hand; assert it reaches the file.
+async function annotated(draw: (ctx: Ctx) => void): Promise<{ count: number; bytes: string }> {
+    const pdf = await PDFDocument.create();
+    const page = pdf.addPage([200, 200]);
+    const helv = await pdf.embedFont(StandardFonts.Helvetica);
+    draw({ doc: pdf, page, pageH: 200, fonts: () => helv });
+    const count = page.node.Annots()?.size() ?? 0;
+    const bytes = Buffer.from(await pdf.save({ useObjectStreams: false })).toString("latin1");
+    return { count, bytes };
+}
+
+describe("PDF link annotations", () => {
+    it("registers a URI link over the box, y-flipped onto the page", async () => {
+        const { count, bytes } = await annotated((ctx) =>
+            addLinkAnnot(ctx, { x: 10, y: 20, w: 80, h: 30 }, "https://galleo.app"),
+        );
+        expect(count).toBe(1);
+        expect(bytes).toContain("/Link");
+        expect(bytes).toContain("https://galleo.app");
+        // top-left (10, 20) with height 30 on a 200pt page → bottom-left y of 150
+        expect(bytes).toMatch(/\/Rect \[ ?10 150 90 180/);
+    });
+
+    it("skips a degenerate box and an empty url, so an export cannot grow dead annotations", async () => {
+        const { count } = await annotated((ctx) => {
+            addLinkAnnot(ctx, { x: 0, y: 0, w: 0, h: 10 }, "https://galleo.app");
+            addLinkAnnot(ctx, { x: 0, y: 0, w: 10, h: 10 }, "");
+        });
+        expect(count).toBe(0);
+    });
+
+    // wrapping splits a run into per-word fragments, and each one gets its own rect
+    it("annotates the linked fragments of a text command and leaves the rest alone", async () => {
+        const text = "read the docs today";
+        const linked = async (from: number, to: number): Promise<number> =>
+            (
+                await annotated((ctx) =>
+                    emitText(
+                        ctx,
+                        {
+                            kind: "text",
+                            box: { x: 0, y: 0, w: 400, h: 20 },
+                            text: {
+                                text,
+                                fontId: "Helvetica",
+                                size: 12,
+                                wrap: "none",
+                                runs: toRuns(text, [
+                                    {
+                                        from,
+                                        to,
+                                        type: "link",
+                                        value: "https://galleo.app/docs",
+                                    },
+                                ]),
+                            },
+                        },
+                        textMetricsCtx(),
+                    ),
+                )
+            ).count;
+        expect(await linked(9, 13)).toBe(1); // "docs"
+        expect(await linked(5, 13)).toBe(3); // "the", the space, "docs"
+        expect(await linked(0, 0)).toBe(0);
     });
 });

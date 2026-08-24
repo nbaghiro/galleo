@@ -5,6 +5,12 @@ import { childrenRaw, colGroup, rowGroup, withWidth } from "@model/artifact";
 import {
     addColumn,
     affordanceEdit,
+    duplicateMany,
+    groupSelection,
+    moveChildrenTo,
+    removeMany,
+    sharedParent,
+    ungroupAt,
     applyAffordance,
     applyLayoutPreset,
     columnFractions,
@@ -331,5 +337,116 @@ describe("affordances", () => {
         expect(affordanceEdit(list(), "checkbox", at([9]))).toBeNull();
         expect(affordanceEdit(list(), "tab", at([]))).toBeNull();
         expect(applyAffordance(list(), "nope", at([0]))).toEqual(list());
+    });
+});
+
+describe("batch ops", () => {
+    const collectText = (el: ElementInstance, out: string[] = []): string[] => {
+        const t = textOf(el);
+        if (t !== undefined) out.push(t);
+        for (const kid of childrenRaw(el) ?? []) collectText(kid, out);
+        return out;
+    };
+    const widthsOf = (root: ElementInstance): (number | undefined)[] =>
+        (childrenRaw(root) ?? []).map((c) => {
+            const w = c.layout?.width;
+            return w && typeof w === "object" ? w.pct : undefined;
+        });
+
+    it("removeMany deletes every address, whatever order it is handed them", () => {
+        const art = artOf(colGroup([txt("a"), txt("b"), txt("c"), txt("d")]));
+        const out = removeMany(art, [at([2]), at([0])]);
+        expect((childrenRaw(rootOf(out)) ?? []).map(textOf)).toEqual(["b", "d"]);
+    });
+
+    it("removeMany empties two shared parents and collapses each one once", () => {
+        const art = artOf(rowGroup([colGroup([txt("a")]), colGroup([txt("b")]), txt("keep")]));
+        const out = removeMany(art, [at([0, 0]), at([1, 0])]);
+        expect(textOf(rootOf(out))).toBe("keep");
+    });
+
+    it("removeMany takes siblings of one parent without losing the later ones", () => {
+        const art = artOf(colGroup([colGroup([txt("a"), txt("b"), txt("c")]), txt("z")]));
+        const out = removeMany(art, [at([0, 0]), at([0, 1])]);
+        expect(collectText(rootOf(out))).toEqual(["c", "z"]);
+    });
+
+    it("duplicateMany copies every source, re-resolving the addresses the earlier copies moved", () => {
+        const art = artOf(colGroup([txt("a"), txt("b")]));
+        const res = duplicateMany(art, [at([0]), at([1])]);
+        expect((childrenRaw(rootOf(res.content)) ?? []).map(textOf)).toEqual(["a", "a", "b", "b"]);
+        expect(res.addresses).toEqual([at([1]), at([3])]);
+    });
+
+    it("duplicateMany mints fresh ids, so a copy never answers to its source's anchor", () => {
+        const art = artOf(colGroup([txt("a"), txt("b")]));
+        const res = duplicateMany(art, [at([0]), at([1])]);
+        const ids = (childrenRaw(rootOf(res.content)) ?? []).map((c) => c.id);
+        expect(new Set(ids).size).toBe(4);
+    });
+
+    it("sharedParent answers only for a set that sits under one parent", () => {
+        expect(sharedParent([at([0, 1]), at([0, 2])])).toEqual(at([0]));
+        expect(sharedParent([at([0, 1]), at([1, 0])])).toBeNull();
+        expect(sharedParent([at([0]), at([])])).toBeNull();
+        expect(sharedParent([])).toBeNull();
+    });
+
+    it("groupSelection wraps the members in place, along the parent's own axis", () => {
+        const art = artOf(colGroup([txt("a"), txt("b"), txt("c")]));
+        const res = groupSelection(art, [at([1]), at([2])]);
+        expect(res.address).toEqual(at([1]));
+        const root = rootOf(res.content);
+        expect((childrenRaw(root) ?? []).map(textOf)).toEqual(["a", undefined]);
+        expect(collectText(childrenRaw(root)![1]!)).toEqual(["b", "c"]);
+    });
+
+    it("groupSelection renormalizes the row it took columns out of", () => {
+        const art = artOf(
+            rowGroup([withWidth(txt("a"), 50), withWidth(txt("b"), 25), withWidth(txt("c"), 25)]),
+        );
+        const res = groupSelection(art, [at([1]), at([2])]);
+        const widths = widthsOf(rootOf(res.content));
+        expect(widths.reduce((n: number, w) => n + (w ?? 0), 0)).toBe(100);
+        expect(widths.length).toBe(2);
+    });
+
+    it("groupSelection refuses a set with no shared parent or fewer than two members", () => {
+        const art = artOf(colGroup([txt("a"), colGroup([txt("b")])]));
+        expect(groupSelection(art, [at([0]), at([1, 0])]).address).toBeNull();
+        expect(groupSelection(art, [at([0])]).address).toBeNull();
+    });
+
+    it("ungroupAt splices a group's children back where the group stood", () => {
+        const art = artOf(colGroup([txt("a"), colGroup([txt("b"), txt("c")]), txt("d")]));
+        const res = ungroupAt(art, at([1]));
+        expect((childrenRaw(rootOf(res.content)) ?? []).map(textOf)).toEqual(["a", "b", "c", "d"]);
+        expect(res.addresses).toEqual([at([1]), at([2])]);
+    });
+
+    it("ungroupAt is inert on the root, a leaf, and an empty group", () => {
+        const art = artOf(colGroup([txt("a"), colGroup([])]));
+        expect(ungroupAt(art, at([])).content).toBe(art);
+        expect(ungroupAt(art, at([0])).content).toBe(art);
+        expect(ungroupAt(art, at([1])).content).toBe(art);
+    });
+
+    it("moveChildrenTo shifts the gap by the sources removed before it", () => {
+        const art = artOf(colGroup([txt("a"), txt("b"), txt("c"), txt("d")]));
+        // [a, c] to the gap after d: two sources sit before index 4, so the block lands at 2
+        const res = moveChildrenTo(art, at([]), [0, 2], 4);
+        expect(res.at).toBe(2);
+        expect((childrenRaw(rootOf(res.content)) ?? []).map(textOf)).toEqual(["b", "d", "a", "c"]);
+    });
+
+    it("moveChildrenTo keeps the block in its original order, whatever order it is given", () => {
+        const art = artOf(colGroup([txt("a"), txt("b"), txt("c")]));
+        const res = moveChildrenTo(art, at([]), [2, 0], 1);
+        expect((childrenRaw(rootOf(res.content)) ?? []).map(textOf)).toEqual(["a", "c", "b"]);
+    });
+
+    it("moveChildrenTo is inert for an index that names no child", () => {
+        const art = artOf(colGroup([txt("a"), txt("b")]));
+        expect(moveChildrenTo(art, at([]), [0, 9], 2).content).toBe(art);
     });
 });

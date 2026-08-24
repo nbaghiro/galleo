@@ -18,7 +18,7 @@ interface ButtonData {
     variant?: ButtonVariant;
     size?: ButtonSize;
     shape?: ButtonShape;
-    href?: string; // click-through wired per surface
+    href?: string;
     icon?: IconGlyph;
 }
 
@@ -93,6 +93,7 @@ export const buttonElement: ElementSpec<ButtonData> = {
             },
         });
 
+        const href = d.href?.trim();
         return {
             w: fit(),
             h: fixed(sz.h),
@@ -102,6 +103,7 @@ export const buttonElement: ElementSpec<ButtonData> = {
             alignY: "center",
             padding: { top: 0, bottom: 0, left: sz.padX, right: sz.padX },
             fill: { color: fillColor, radius, border },
+            link: href || undefined,
             children,
         };
     },
