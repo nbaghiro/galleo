@@ -391,7 +391,7 @@ const PeerStack: Component = () => (
                     return (
                         <button
                             data-testid="peer-avatar"
-                            class="cursor-pointer rounded-full transition-transform hover:-translate-y-0.5"
+                            class="cursor-pointer rounded-full transition-[filter] hover:brightness-110"
                             classList={{ "ring-2": !followed(), "ring-3": followed() }}
                             style={{ "--tw-ring-color": peer.color }}
                             title={

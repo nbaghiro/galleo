@@ -1,6 +1,6 @@
 import { createMemo, createSignal } from "solid-js";
 import type { OnboardingState, OnboardingStep } from "@model/workspace";
-import { ONBOARDING_STEPS } from "@model/workspace";
+import { newlyDone, ONBOARDING_STEPS } from "@model/workspace";
 import type { Surface } from "@model/ai";
 import { api } from "@app/api";
 import type { Template } from "@model/templates";
@@ -41,14 +41,13 @@ export const checklistVisible = createMemo(() => {
 export const stepDone = (step: OnboardingStep): boolean => state()?.done.includes(step) === true;
 
 export async function loadOnboarding(): Promise<void> {
-    const before = state()?.done ?? [];
+    const before = state()?.done;
     const got = await api.getOnboarding().catch(() => null);
     if (!got) return;
     // The steps are derived from rows server-side, so a step lands when a re-read says so rather
     // than when the client thinks it did.
-    for (const step of got.onboarding.done)
-        if (!before.includes(step))
-            capture("onboarding_checklist_step_done", { step, ...elapsed() });
+    for (const step of newlyDone(before, got.onboarding.done))
+        capture("onboarding_checklist_step_done", { step, ...elapsed() });
     setState(got.onboarding);
 }
 

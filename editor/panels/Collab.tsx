@@ -1,17 +1,22 @@
 import type { Component } from "solid-js";
-import { createMemo, For, Show } from "solid-js";
+import { createEffect, createMemo, For, on, onCleanup, Show } from "solid-js";
 import type { CursorBox, Lease, Peer } from "@model/collab";
 import { drag } from "@editor/core/dnd";
 import {
     boxOfElement,
     clearNotice,
     collabActive,
+    followedPeer,
     leases,
     notice,
     otherPeers,
+    peerFocus,
     remoteCursors,
+    scrollFollowing,
     selfConnId,
+    unfollow,
 } from "@editor/core/collab";
+import { canvasEl } from "@editor/core/store";
 
 // Overlay chrome, never render commands. Everything here is an absolutely-positioned sibling in the
 // canvas stage, placed from THIS client's engine output, so Present, publish, thumbnails, and export
@@ -66,12 +71,44 @@ export const CollabLayer: Component = () => {
         return out;
     });
 
+    // Follow mode: the viewport is tied to where one peer is working until the reader takes it back.
+    // `on` the peer rather than the whole memo so a scroll is a reaction to THEM moving; reading
+    // peerFocus inside would also re-run this every time the reader's own paint shifts a box.
+    createEffect(
+        on(followedPeer, (peer) => {
+            if (!peer) return;
+            const focus = peerFocus(peer);
+            if (focus) scrollFollowing(focus);
+        }),
+    );
+
+    // Anything that reads as the reader taking the viewport back ends the follow. Listening for the
+    // intent (a wheel, a drag of the bar, a key) rather than for `scroll` is what lets following do
+    // its own scrolling without immediately cancelling itself.
+    createEffect(() => {
+        if (!followedPeer()) return;
+        const el = canvasEl();
+        const stop = (): void => unfollow();
+        const onKey = (e: KeyboardEvent): void => {
+            if (e.key === "Escape" || e.key.startsWith("Arrow") || e.key.startsWith("Page")) stop();
+        };
+        el?.addEventListener("wheel", stop, { passive: true });
+        el?.addEventListener("touchmove", stop, { passive: true });
+        window.addEventListener("keydown", onKey);
+        onCleanup(() => {
+            el?.removeEventListener("wheel", stop);
+            el?.removeEventListener("touchmove", stop);
+            window.removeEventListener("keydown", onKey);
+        });
+    });
+
     // peer chrome is hidden during a drag, like every other overlay: the stack is frozen and the
     // boxes are stale. The notice is not peer chrome and not placed against the stack, so it sits
     // outside both gates: a solo session says things too ("this edits in place", "thread resolved").
     return (
         <>
             <EditorNotice />
+            <FollowBanner />
             <Show when={collabActive() && !drag()}>
                 <For each={[...held(), ...selected()]}>{(o) => <PeerOutline outline={o} />}</For>
                 <For each={remoteCursors()}>
@@ -99,6 +136,39 @@ export const CollabLayer: Component = () => {
         </>
     );
 };
+
+// Following says so at the edge of the viewport rather than over the content, the way a mode should:
+// a frame in the followed person's colour, and one line naming them with the way out. Fixed to the
+// viewport, not the stack, because what is being followed is the viewport itself.
+const FollowBanner: Component = () => (
+    <Show when={followedPeer()}>
+        {(peer) => (
+            <>
+                <div
+                    data-testid="following-frame"
+                    class="pointer-events-none fixed inset-0 z-overlay border-2"
+                    style={{ "border-color": peer().color }}
+                />
+                <div class="fixed left-1/2 top-3 z-overlay -translate-x-1/2">
+                    <span class="flex items-center gap-2.5 rounded-full bg-panel px-3 py-1.5 text-[12.5px] text-ink shadow-lg">
+                        <span
+                            class="size-2 rounded-full"
+                            style={{ background: peer().color }}
+                            aria-hidden="true"
+                        />
+                        Following {peer().user.name || "Someone"}
+                        <button
+                            class="font-semibold text-accent hover:underline"
+                            onClick={unfollow}
+                        >
+                            Stop
+                        </button>
+                    </span>
+                </div>
+            </>
+        )}
+    </Show>
+);
 
 // The editor's one transient line. Fixed to the viewport rather than the stack, so it reads the
 // same whatever is scrolled into view, and it only takes the pointer when it carries a way back.

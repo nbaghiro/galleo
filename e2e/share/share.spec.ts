@@ -22,7 +22,7 @@ test("a protected seeded link wants its password, then renders", async ({ browse
     await pw.fill("not-the-password");
     await page.getByRole("button", { name: /^View/ }).click();
     await expect(page.getByText(/password|protected/i).first()).toBeVisible();
-    // the seed pins the protected password (see seed-workspaces LinkSpec)
+    // the seed pins the protected password (see seed/workspaces.ts LinkSpec)
     await pw.fill("terra");
     await page.getByRole("button", { name: /^View/ }).click();
     await expect(page.getByText(/Terra/i).first()).toBeVisible();
