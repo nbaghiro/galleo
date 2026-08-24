@@ -12,3 +12,9 @@ interface ImportMetaEnv {
 interface ImportMeta {
     readonly env: ImportMetaEnv;
 }
+
+// Vite's `?url` asset import for the pdf.js worker, typed exactly for the one specifier used.
+declare module "pdfjs-dist/build/pdf.worker.min.mjs?url" {
+    const url: string;
+    export default url;
+}

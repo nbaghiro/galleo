@@ -251,7 +251,9 @@ api/           HTTP only; `requireUser`/`requireWorkspace` in middleware.ts repl
                /p/:slug reader) · comments · collaborators · collab (the WebSocket upgrade) ·
                session · account · oauth · authorize (the OAuth authorization server) · mcp ·
                workspace · billing · features · media · ai · narration · voices ·
-               context (the context library CRUD + item ingestion) · eval · onboarding · ingest ·
+               context (the context library CRUD + item ingestion) · import (file → artifact
+               content: .pptx upload + public Google Slides links) · google (the Drive upload behind
+               the Google Slides export) · eval · onboarding · ingest ·
                middleware.ts (the layer's only non-resource file)
 
 core/          one file per functionality; no hono, no Response, no Context
@@ -275,6 +277,11 @@ core/          one file per functionality; no hono, no Response, no Context
                              retrieval · conversation memory (see ai.md §10.5)
                extract.ts    upload extraction decisions: format dispatch + size caps + the
                              Gemini read of images/scanned PDFs (ImageReader seam)
+               import.ts     PowerPoint → artifact content: flow inference over slide geometry
+                             (bands → rows → columns), element mapping, picture adoption
+                             (MediaStore seam), nearest-theme match, the Google Slides public
+                             export fetch. PDF import stays client-side (app/stores/import.ts
+                             renders pages with pdf.js), since the server has no canvas.
                models.ts     the model registry: tier defaults, cost multipliers, override parsing
                media.ts      stock + icon proxies · AI image/video generation · the asset library
                mail.ts       transactional email
@@ -299,7 +306,10 @@ db/            schema.ts (the tables — see Data model below) · client.ts (the
 utils/         http.ts (readJson · cookies · rateLimit · the 402 feature guards) · auth.ts (scrypt +
                signed-cookie session) · env.ts (out/warn/appUrl) · webpage.ts (the SSRF-vetted
                link fetcher + HTML→text) · extract.ts (pure byte→text parsers for uploads:
-               PDF text layers · docx/xlsx OOXML walking · format sniffing). Database-free by rule.
+               PDF text layers · docx/xlsx OOXML walking · format sniffing) · pptx.ts (pure
+               .pptx → slide IR: shape boxes + placeholder inheritance · text runs/bullets ·
+               pictures · tables · charts · backgrounds · notes · the theme color scheme).
+               Database-free by rule.
 ```
 
 Generation is a **real backend** now: the client speaks the `@model/ai` turn protocol over SSE and the
@@ -407,7 +417,7 @@ embedded in the artifact's `draft_content` JSON.
 | **workspaces**     | the tenant that owns content + billing entity | `name`, `slug` (unique), `owner_id→users`, `plan` (text, default `free`), `seats` (int, default 1), `stripe_customer_id`, `stripe_subscription_id`, `plan_status`, `plan_period_end`, `cancel_at_period_end`, `ai_credits_balance` (the only credit counter, a balance that carries), `credits_reset_at`, `feature_overrides` (jsonb), `default_artifact_access` · `publish_policy` · `member_credit_cap` (the workspace's own policy settings) |
 | **members**        | user ↔ workspace + role (join, composite pk)  | `workspace_id`, `user_id`, `role`                                                                                                                                                                                                                                                                                                                                                                                                               |
 | **invites**        | pending workspace invitations                 | `workspace_id`, `email` (unique per workspace), `role`, `token_hash` (raw token only in the emailed link), `invited_by`, `expires_at`, `accepted_at`                                                                                                                                                                                                                                                                                            |
-| **oauth_accounts** | provider identity links (Google)              | `user_id`, `provider` + `provider_account_id` (unique pair; the provider's stable subject id)                                                                                                                                                                                                                                                                                                                                                   |
+| **oauth_accounts** | provider identity links (Google)              | `user_id`, `provider` + `provider_account_id` (unique pair; the provider's stable subject id), `access_token` + `access_token_expires_at` + `scopes` (the connect-intent Drive grant; null on sign-in-only rows)                                                                                                                                                                                                                                |
 | **auth_tokens**    | consumable emailed verify/reset tokens        | `user_id`, `purpose` (`verify`\|`reset`), `token_hash` (SHA-256 only, raw token only in the email), `expires_at`, `consumed_at`                                                                                                                                                                                                                                                                                                                 |
 
 **Content**
@@ -707,8 +717,9 @@ effective(feature) = feature.status !== "planned"      // global launch gate
 - **`FEATURES` registry** — the canonical list of every capability with `{ label, status: "live" | "beta"
 | "planned", description }`. `status` is the honesty layer: `planned` features are off for everyone (but
   the pricing card can show "coming soon"); `live`/`beta` can be granted. **This registry is the source of
-  truth for what exists.** (Today `workspaceThemes`, `customDomains`, `analytics`, `apiAccess`, `sso`,
-  `prioritySupport`, `earlyAccess` are `planned`; the AI tier/section caps are `beta`.)
+  truth for what exists.** (Today `workspaceThemes`, `customDomains`, `sso`, `prioritySupport` and
+  `earlyAccess` are `planned`; the AI tier/section caps are `beta`; `analytics` and `apiAccess` are
+  `live` and Premium-only.)
 - **Plan grants** — from `plan.features` / `plan.account` / `plan.ai`.
 - **Overrides** — a per-workspace `feature_overrides` jsonb (comps, grandfathering, beta access, admin
   grants) that can turn a feature on/off _independent of plan_ (but can't grant a `planned` one).

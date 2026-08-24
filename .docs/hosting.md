@@ -81,30 +81,32 @@ Everything the backend reads from `process.env` (verified against `services/`). 
 Render dashboard (never in `render.yaml`, never committed). Optional keys are safe to omit — the feature
 degrades gracefully (billing/media/mail report "not configured").
 
-| Var                                                              | Req? | Secret | Source / value                                                                        |
-| ---------------------------------------------------------------- | ---- | ------ | ------------------------------------------------------------------------------------- |
-| `NODE_ENV`                                                       | ✅   | no     | `production` — gates static serving + `secure` cookie                                 |
-| `PORT`                                                           | ✅   | —      | **Injected by Render**; the server must bind it (repo change)                         |
-| `DATABASE_URL`                                                   | ✅   | ✅     | Neon **direct** connection string (see pooler note below)                             |
-| `SESSION_SECRET`                                                 | ✅   | ✅     | strong random — Render `generateValue: true`, or `openssl rand -base64 32`            |
-| `APP_URL`                                                        | ✅   | no     | public origin, e.g. `https://galleo.onrender.com` (later the custom domain)           |
-| `ANTHROPIC_API_KEY`                                              | ✅¹  | ✅     | console.anthropic.com — the primary AI provider                                       |
-| `GOOGLE_API_KEY`                                                 | ⬜   | ✅     | Gemini text + **AI image generation** in the media picker                             |
-| `XAI_API_KEY`, `COHERE_API_KEY`                                  | ⬜   | ✅     | extra model tiers                                                                     |
-| `GEMINI_IMAGE_MODEL`                                             | ⬜   | no     | override default image model                                                          |
-| `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY`       | ⬜   | ✅     | stock-photo providers in the media picker                                             |
-| `RESEND_API_KEY`                                                 | ⬜   | ✅     | transactional email; the sender and reply-to are constants in `services/core/mail.ts` |
-| `STRIPE_SECRET_KEY`                                              | ⬜²  | ✅     | live/test secret key                                                                  |
-| `STRIPE_WEBHOOK_SECRET`                                          | ⬜²  | ✅     | from the webhook endpoint → `https://<origin>/api/billing/webhook`                    |
-| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring per-seat price ids                                                 |
-| `STRIPE_PORTAL_CONFIG`                                           | ⬜   | no     | Customer Portal config id (optional)                                                  |
-| `POSTHOG_KEY`                                                    | ⬜³  | no     | PostHog project key (`phc_…`) — write-only, also shipped to the browser               |
-| `POSTHOG_HOST`                                                   | ⬜   | no     | ingest host; defaults to `https://us.i.posthog.com` (US Cloud, project 567553)        |
-| `VITE_POSTHOG_KEY`                                               | ⬜³  | no     | the same project key, read at build time by the browser bundle                        |
-| `VITE_POSTHOG_HOST`                                              | ⬜   | no     | the PostHog app origin for links past the proxy (default `https://us.posthog.com`)    |
+| Var                                                              | Req? | Secret | Source / value                                                                               |
+| ---------------------------------------------------------------- | ---- | ------ | -------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                                       | ✅   | no     | `production` — gates static serving + `secure` cookie                                        |
+| `PORT`                                                           | ✅   | —      | **Injected by Render**; the server must bind it (repo change)                                |
+| `DATABASE_URL`                                                   | ✅   | ✅     | Neon **direct** connection string (see pooler note below)                                    |
+| `SESSION_SECRET`                                                 | ✅   | ✅     | strong random — Render `generateValue: true`, or `openssl rand -base64 32`                   |
+| `APP_URL`                                                        | ✅   | no     | public origin, e.g. `https://galleo.onrender.com` (later the custom domain)                  |
+| `GOOGLE_API_KEY`                                                 | ✅¹  | ✅     | aistudio.google.com — the default provider for every task, plus images, video and embeddings |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `XAI_API_KEY`             | ⬜   | ✅     | the providers a task can be pinned onto; the registry serves no others                       |
+| `ELEVENLABS_API_KEY`                                             | ⬜   | ✅     | narration, dictation, voice design and music beds                                            |
+| `GEMINI_IMAGE_MODEL`, `GEMINI_VIDEO_MODEL`                       | ⬜   | no     | override either generation model if Google moves it                                          |
+| `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY`       | ⬜   | ✅     | stock-photo providers in the media picker                                                    |
+| `RESEND_API_KEY`                                                 | ⬜   | ✅     | transactional email; the sender and reply-to are constants in `services/core/mail.ts`        |
+| `STRIPE_SECRET_KEY`                                              | ⬜²  | ✅     | live/test secret key                                                                         |
+| `STRIPE_WEBHOOK_SECRET`                                          | ⬜²  | ✅     | from the webhook endpoint → `https://<origin>/api/billing/webhook`                           |
+| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring per-seat price ids                                                        |
+| `STRIPE_PORTAL_CONFIG`                                           | ⬜   | no     | Customer Portal config id (optional)                                                         |
+| `POSTHOG_KEY`                                                    | ⬜³  | no     | PostHog project key (`phc_…`) — write-only, also shipped to the browser                      |
+| `POSTHOG_HOST`                                                   | ⬜   | no     | ingest host; defaults to `https://us.i.posthog.com` (US Cloud, project 567553)               |
+| `VITE_POSTHOG_KEY`                                               | ⬜³  | no     | the same project key, read at build time by the browser bundle                               |
+| `VITE_POSTHOG_HOST`                                              | ⬜   | no     | the PostHog app origin for links past the proxy (default `https://us.posthog.com`)           |
 
-¹ Required for any AI feature (generation, chat, element/text edits) — the core of the product. The
-`@ai-sdk/anthropic` provider auto-reads `ANTHROPIC_API_KEY` from env. ² Stripe is **optional for the
+¹ Required for any AI feature (generation, chat, element/text edits), the core of the product. Every
+entry in `DEFAULT_MODELS` (`services/core/models.ts`) is `google:gemini-3.5-flash`, and Google also
+carries image and video generation and the embeddings behind context and chat memory, so this is the
+one key to set first. The other three providers are optional and only reachable as per-task pins. ² Stripe is **optional for the
 initial release**: without it, paid upgrades are disabled and everyone stays on Free. Wire it when you
 turn on paid plans. ³ Product analytics is off when the key is absent: both wrappers make no network
 calls and print nothing, which is what keeps dev, CI and the test suite silent. Events reach PostHog
@@ -309,16 +311,21 @@ first real bottleneck is media storage, not compute (below).
   Watch the deploy log in the Render dashboard.
 - **Logs / metrics:** Render dashboard per service (stdout + CPU/mem). The app obeys the repo's no-`console`
   rule, so app logging is intentionally quiet — add a structured logger when we need request traces.
-- **Secrets rotation:** rotate `SESSION_SECRET` invalidates all sessions (the token is `HMAC(userId)`);
+- **Secrets rotation:** rotating `SESSION_SECRET` invalidates all sessions, and every OAuth code,
+  token and machine secret with them, since all of those are stored as HMACs keyed on it;
   rotate provider keys in the dashboard, no redeploy needed (env change triggers a restart).
 - **DB backups:** Neon retains history for point-in-time restore per its plan; branch before risky
   migrations.
 
 ## Security notes (carried from the audit)
 
-- Add `secure` to the session cookie in prod (repo change #4).
-- The session token is an **unexpiring `HMAC(userId)`** with no rotation/revocation and no per-session
-  entropy — acceptable for launch, but track hardening (expiry claim + rotation) as a follow-up issue.
+- The session cookie carries a signed `{uid, iat, exp}` with a 30 day life, and is `HttpOnly`,
+  `SameSite=Lax` and `Secure` in production. It is signed rather than encrypted, so the user id and
+  the timestamps are readable by anyone holding the cookie; the HMAC only prevents forgery.
+- There is still no per-session entropy, so a session cannot be revoked on its own. What revokes them
+  is a password change: `resetPassword` and `changePassword` stamp `password_changed_at`, and
+  `currentUser` rejects any cookie issued before it, which kills every outstanding session at once.
+  A password change does not revoke OAuth or MCP tokens, which are revoked only explicitly.
 - `SESSION_SECRET` must be a real random value in prod (Render `generateValue`), never the dev default.
 - Stripe webhook signature is verified (`services/core/billing.ts`); ensure `STRIPE_WEBHOOK_SECRET`
   matches the prod endpoint.

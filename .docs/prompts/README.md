@@ -9,7 +9,7 @@ stale.
 | ----------------------- | ------------------------------- | ------------------------------- | ----------------------------------------------------------------------- |
 | `03-brand-kit.md`       | Shared workspace theme          | `workspaceThemes`               | not started                                                             |
 | `05-custom-domains.md`  | Custom domains                  | `customDomains`                 | not started; the publishing layer it sits on is in                      |
-| `06-public-api.md`      | Public API + API keys           | `apiAccess`                     | not started                                                             |
+| `06-public-api.md`      | Public API + API keys           | `apiAccess`                     | built as part of the MCP work, not from this prompt; see `../mcp.md`    |
 | `07-sso.md`             | Workspace SSO                   | `sso`                           | partially built (Google OIDC sign-in ships)                             |
 | `08-object-storage.md`  | Source files to R2 + MinIO      | (infra)                         | not started                                                             |
 | `10-voice-narration.md` | Speaker notes + voice narration | `voiceNarration`, `voiceDesign` | built, pending manual QA; rationale in `../planning/voice-narration.md` |

@@ -150,35 +150,29 @@ instead: those need a hono `Context`, which `@model` must not know about.
 
 ### Which limits are real gates
 
-| Key                                                                     | Enforced at                                                                                                                                                        | Effect                                                                |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| `maxArtifacts`                                                          | `POST /artifacts` **and** `POST /artifacts/:id/restore`, both through `overArtifactCap`; `liveArtifactCount` filters `trashed_at IS NULL`, so Trash does not count | 402 with `upgrade: true`                                              |
-| `storageMb`                                                             | `storageFull()` (`services/core/media.ts`), called from three `services/api/media.ts` routes                                                                       | 402; only stored bytes count, stock URLs are free                     |
-| `customThemes`                                                          | `requireFeature` on `POST /themes`                                                                                                                                 | 402                                                                   |
-| `publicLinks`                                                           | `requireFeature` on `POST /artifacts/:id/links`, **and** re-resolved from the owner workspace on every public read (`services/core/links.ts`)                      | 402 on create, 404 on read, so a downgrade deactivates existing links |
-| `analytics`                                                             | `requireFeature` on the two analytics routes in `services/api/links.ts`                                                                                            | 402                                                                   |
-| `removeBranding`                                                        | server-side for published links (`branded: !owner.removeBranding`); client-side in the editor's export modal                                                       | watermark on or off                                                   |
-| `exportFormats`                                                         | client-side only (`editor/panels/ExportModal.tsx`), because rendering happens in the browser and there is no server export route                                   | destinations greyed out                                               |
-| `includedCredits`                                                       | `monthlyGrantFor` (with the seat add-on) → `chargeCredits`                                                                                                         | 402 `OUT_OF_CREDITS`                                                  |
-| `maxSectionsPerGeneration`                                              | `services/api/ai.ts` (both the meter and the run context), then the prompt's hard limit and a slice in `tools/plan.ts`                                             | outline truncated, and billed at the truncated size                   |
-| `textModelTier` / `imageModelTier`                                      | `modelFor` / `tierAllows` (`services/core/models.ts`); `modelCatalogue` marks locked ids                                                                           | an out-of-tier override falls back to the default                     |
-| `customDomains`                                                         | nowhere (`planned`, so it resolves to `0` on every plan)                                                                                                           | none                                                                  |
-| `workspaceThemes`, `apiAccess`, `sso`, `prioritySupport`, `earlyAccess` | nowhere (`planned`)                                                                                                                                                | always false                                                          |
+| Key                                                        | Enforced at                                                                                                                                                        | Effect                                                                |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| `maxArtifacts`                                             | `POST /artifacts` **and** `POST /artifacts/:id/restore`, both through `overArtifactCap`; `liveArtifactCount` filters `trashed_at IS NULL`, so Trash does not count | 402 with `upgrade: true`                                              |
+| `storageMb`                                                | `storageFull()` (`services/core/media.ts`), called from three `services/api/media.ts` routes                                                                       | 402; only stored bytes count, stock URLs are free                     |
+| `customThemes`                                             | `requireFeature` on `POST /themes`                                                                                                                                 | 402                                                                   |
+| `publicLinks`                                              | `requireFeature` on `POST /artifacts/:id/links`, **and** re-resolved from the owner workspace on every public read (`services/core/links.ts`)                      | 402 on create, 404 on read, so a downgrade deactivates existing links |
+| `analytics`                                                | `requireFeature` on the two analytics routes in `services/api/links.ts`                                                                                            | 402                                                                   |
+| `removeBranding`                                           | server-side for published links (`branded: !owner.removeBranding`); client-side in the editor's export modal                                                       | watermark on or off                                                   |
+| `exportFormats`                                            | client-side only (`editor/panels/ExportModal.tsx`), because rendering happens in the browser and there is no server export route                                   | destinations greyed out                                               |
+| `includedCredits`                                          | `monthlyGrantFor` (with the seat add-on) → `chargeCredits`                                                                                                         | 402 `OUT_OF_CREDITS`                                                  |
+| `maxSectionsPerGeneration`                                 | `services/api/ai.ts` (both the meter and the run context), then the prompt's hard limit and a slice in `tools/plan.ts`                                             | outline truncated, and billed at the truncated size                   |
+| `textModelTier` / `imageModelTier`                         | `modelFor` / `tierAllows` (`services/core/models.ts`); `modelCatalogue` marks locked ids                                                                           | an out-of-tier override falls back to the default                     |
+| `customDomains`                                            | nowhere (`planned`, so it resolves to `0` on every plan)                                                                                                           | none                                                                  |
+| `analytics`                                                | client-side in the shared-link view (`app/views/SharedView.tsx`), which is the only surface that reads it                                                          | the per-link audience panel stays closed                              |
+| `apiAccess`                                                | `services/api/workspace.ts` on the credential routes, so it gates minting a machine key rather than the delegated surface itself                                   | 402, and the settings section shows the upgrade wall                  |
+| `workspaceThemes`, `sso`, `prioritySupport`, `earlyAccess` | nowhere (`planned`)                                                                                                                                                | always false                                                          |
 
-Two things in that table are easy to misread.
-
-`account.maxMembers` is `1` on **every** plan, including Premium, and nothing enforces it. The real
-member cap is `workspaces.seats`. The comment in `PlanAccount` says so ("base seats included; real cap =
-workspace.seats"), but the field is still projected through `limitsFor` and `resolveFeatures`, so a
-caller who reasons from `Features.maxMembers` will conclude that Premium is solo. `checkLimit` in
-`services/utils/http.ts` is written and unit-tested but is not called by any route today; the artifact
-cap open-codes the same shape inline instead.
-
-`exportFormats` and `removeBranding` reach the editor through `limitsFor(billing()?.plan)` in
-`app/views/EditorView.tsx`, which is the plan-only projection. A `feature_overrides` entry widening
-either one therefore does not affect export in the editor, while an override on `publicLinks` does,
-because that line reads the resolved features store. This is inconsistent and probably wants fixing,
-but it is what ships.
+One thing the table cannot show: nothing in the resolved set caps membership. The member cap is
+`workspaces.seats`, the cached Stripe quantity, enforced at the invite and accept paths; the plan
+catalog carries no member field at all, so a caller looking for one in `Features` is looking in the
+wrong place. On the client, every feature read goes through the resolved set
+(`app/stores/features.ts`, `EditorView`'s export config included), so a `feature_overrides` patch
+reaches every surface.
 
 `plan_status` is written by the webhook and surfaced by `GET /billing`, and no gate reads it. A
 `past_due` workspace keeps every entitlement of its plan; the status drives a dunning banner in
@@ -313,9 +307,23 @@ happens.
 keeps its `seats` count until the `customer.subscription.deleted` webhook resets it, and must not
 draw seat credits it has stopped paying for.
 
-Nothing caps the accumulation today. A workspace that never spends will bank its grant indefinitely,
-which is a real liability at `CREDIT_USD` per credit; if that needs bounding, the cap belongs in
-`rollCreditWindow` and must not clip credits that were bought rather than granted.
+Accumulation is capped. Every grant path clips through `clipGrant` (`@model/billing`): what a grant
+may add is `min(grant, cap + protected − balance)` floored at zero, where the cap is
+`ROLLOVER_CAP_MONTHS` (2) times the monthly grant and `protected` is the pack credits still banked
+(`workspaces.purchased_credits`, incremented by the pack webhook and re-clamped to the balance at
+each grant, since spends draw granted credits first). Clipping the grant rather than the balance is
+what keeps a purchase untouchable by construction: nothing is ever deducted, and the `protected`
+floor stops a large pack from eating the monthly grant. A grant clipped to zero still re-anchors
+the window and still writes its ledger row, so a short month is visible in history rather than
+mysterious. `GET /billing` exposes `credits.rolloverCap` and `credits.capped` (whether the next
+grant will land short) so the meters can say so.
+
+Which path grants depends on the subscription. A live **monthly** subscription is granted only by
+its `subscription_cycle` invoice, because the flat 30-day window outruns Stripe's month and rolling
+lazily as well would double the grant. A live **annual** subscription is the opposite: the lazy
+roll is its only monthly granter, and the yearly renewal invoice clears dunning without granting.
+A workspace with no subscription rolls lazily, as always. The rule lives in `rollCreditWindow` and
+the webhook's `invoice.paid` branch, keyed on `workspaces.plan_interval`.
 
 ### Add-ons and packs
 
@@ -448,8 +456,8 @@ those routes compare `ws.ownerId` inline.
 
 ### The seat cap
 
-The cap is `workspaces.seats`, the cached Stripe quantity. It is **not** `account.maxMembers`, which is
-`1` on every plan and enforced nowhere.
+The cap is `workspaces.seats`, the cached Stripe quantity; the plan catalog carries no member field,
+so the row is the only cap.
 
 Three places count it, and they count slightly different things, deliberately:
 
@@ -642,6 +650,19 @@ expired mid-consent degrades to a plain sign-in rather than silently attaching t
 email resolves to. Link outcomes report back to `/account?linked=…` or `/account?authError=…`, sign-in
 outcomes to `/login?authError=…`.
 
+The third intent is **connect**: `/auth/google/connect` (opened as a popup by the Google Slides export) runs
+the link path plus a Drive grant, asking for the identity scopes and `drive.file` with
+`include_granted_scopes`, and the callback stores the access token, its expiry, and the granted scopes on
+the user's `oauth_accounts` row (`saveGoogleTokens`). Access token only, by design: expiry re-runs the
+consent popup (Google auto-approves already-granted scopes) instead of the row holding a refresh token;
+that custody question is deliberately deferred until a server-side consumer (the Slides import) needs it.
+Every terminal state of the connect flow answers with a small page that posts
+`{type:"galleo:google-connect", ok}` to its opener and closes, never a redirect, since the popup has no
+page to land on. A session that expired mid-consent fails the connect rather than degrading to sign-in.
+`/api/google/slides` (`services/api/google.ts`) is the consumer: it answers 428 when there is no live
+Drive-scoped token, which the client reads as "run the popup and retry once", and 402 when the plan lacks
+the `slides` export format.
+
 `unlinkProvider` refuses the unlink that would lock the account out: with no password and no second
 provider, the link being dropped is the only way back in. The account page disables the button in that case
 and says why, so the 409 is an invariant rather than the user's first hint.
@@ -738,13 +759,13 @@ which sees only the plan and would silently ignore a workspace's `featureOverrid
 
 ## Known gaps
 
-- Unused credits are dropped at the roll; there is no rollover, and no field claiming otherwise.
-- `plan_status` gates nothing: a `past_due` workspace keeps full entitlements until Stripe deletes the
-  subscription. That reads as a deliberate dunning grace period, but nothing records the decision.
-- Unknown price ids in webhooks are claimed and skipped silently, since there is no ops or logging story
-  yet and `console` is banned in app code.
-- `POST /billing/portal` does not check `stripeReady()`, so it can reach `stripe()` and throw where its
-  siblings 503.
+- Rollover is capped at `ROLLOVER_CAP_MONTHS` of the grant (see The pool above); the cap clips
+  grants only, so a banked purchase can exceed it and simply pauses further granted accumulation.
+- `plan_status` gates nothing, and that is the decision: `past_due` is a dunning grace period, so a
+  workspace keeps its entitlements while Stripe retries the card, and the plan moves only when the
+  deletion webhook lands.
+- Unknown price ids in webhooks are skipped after a `warn`, so a misconfigured env shows up in the
+  server log rather than silently keeping the old plan.
 - Per-artifact permissions exist per artifact only. There are no per-user grants ("locked, except
   Sam") and no folder-level inheritance; both are described under Artifact access above.
 - The credit ledger is still readable by every member, names included. Capping spend made that more

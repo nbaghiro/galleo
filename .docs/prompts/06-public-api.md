@@ -1,5 +1,12 @@
 # Build: Public API + API keys
 
+> **Superseded.** This shipped as part of the MCP work rather than from this prompt, and the design
+> differs in the part that mattered: a delegated call runs through the one executor
+> (`services/core/delegated.ts`), and the REST routes in `services/api/v1.ts` are a vocabulary over it
+> rather than a second implementation. Workspace API keys are `client_credentials` machine clients on
+> the same authorization server, not a separate key table. Read `.docs/mcp.md` for what was built.
+> What follows is the original plan, kept for the reasoning it records.
+
 ## Shared context
 
 You are working in **Galleo**, a TypeScript AI content tool where one engine renders the same block tree
