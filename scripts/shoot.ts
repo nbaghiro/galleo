@@ -12,16 +12,22 @@ import type { SectionShape } from "@canvas/render/archetype";
 // the same layout the user sees. That makes this the only place the height-derived checks
 // (fits-frame, fills-frame) can be measured honestly outside a browser tab.
 
-const FONT_LINK = (() => {
-    // reuse the app's own font list rather than a second copy that can drift out of step
-    const html = readFileSync(join(process.cwd(), "app/index.html"), "utf8");
-    return /<link[^>]+fonts\.googleapis\.com\/css2[^>]*>/.exec(html)?.[0] ?? "";
-})();
+// The vendored faces, inlined rather than linked. The capture page is a file:// URL, so the
+// stylesheet's root-relative `/fonts/...` srcs would resolve against the filesystem root and load
+// nothing. Read from the generated CSS the app itself serves, so this cannot drift from what a real
+// page paints with; `pnpm fonts:vendor` writes it and `pnpm check:fonts` keeps it complete.
+const fontCss = (): string => {
+    if (process.env.GALLEO_BLOCK_FONTS) return ""; // proves the guard in openPage actually fires
+    const dir = join(process.cwd(), "public");
+    return readFileSync(join(dir, "fonts.css"), "utf8").replaceAll(
+        "url('/fonts/",
+        `url('file://${dir}/fonts/`,
+    );
+};
 
-const PAGE = (bundle: string): string => `<!doctype html>
+const PAGE = (bundle: string, css: string): string => `<!doctype html>
 <html><head><meta charset="utf-8"/>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-${FONT_LINK}
+<style>${css}</style>
 <style>html,body{margin:0;padding:0}#stage{margin:0}</style>
 </head><body><div id="stage"></div><script>${bundle}</script></body></html>`;
 
@@ -65,15 +71,12 @@ async function bundleEntry(): Promise<string> {
 async function openPage(browser: Browser, bundle: string): Promise<{ page: Page; dir: string }> {
     const dir = mkdtempSync(join(tmpdir(), "galleo-shot-"));
     const file = join(dir, "shot.html");
-    writeFileSync(file, PAGE(bundle));
+    writeFileSync(file, PAGE(bundle, fontCss()));
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
-    // proves the font guard below actually fires; see scripts/__tests__/shoot.test.ts
-    if (process.env.GALLEO_BLOCK_FONTS)
-        await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
     await page.goto(`file://${file}`);
     // Without this every metric is a fallback font's, and the whole capture is quietly wrong. It is
-    // raced against a timeout because a blocked CDN leaves `fonts.ready` pending forever, which
-    // would hang a CI job instead of failing it; the probe below is what actually decides.
+    // raced against a timeout because a face that never arrives leaves `fonts.ready` pending forever,
+    // which would hang a CI job instead of failing it; the probe below is what actually decides.
     await page.evaluate(
         (ms) =>
             Promise.race([
@@ -89,7 +92,7 @@ async function openPage(browser: Browser, bundle: string): Promise<{ page: Page;
     if (missing.length)
         throw new Error(
             `fonts did not load: ${missing.join(", ")}. Every height-derived check would be ` +
-                `measured against a fallback face. Check network access to fonts.googleapis.com.`,
+                `measured against a fallback face. Run \`pnpm fonts:vendor\` to write public/fonts.css.`,
         );
     return { page, dir };
 }
