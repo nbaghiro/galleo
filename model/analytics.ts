@@ -396,6 +396,12 @@ export interface Events {
         branded: boolean;
     };
     export_failed: { export_format: ExportFormat; reason: string; section_count: number };
+    // the modal's preview builds only on click, so this marks intent one step before `exported`
+    export_previewed: {
+        export_format: ExportFormat;
+        artifact_format: Surface;
+        section_count: number;
+    };
     presented: {
         artifact_format: Surface;
         section_count: number;

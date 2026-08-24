@@ -97,6 +97,21 @@ const CTA: Record<Dest, string> = {
 
 const PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
 
+const DestMark: Component<{ dest: (typeof DESTS)[number]; size?: "lg" }> = (p) => (
+    <span
+        class="grid place-items-center font-mono font-bold text-white"
+        classList={{
+            "h-4.5 w-4.5 rounded text-[6.5px]": p.size !== "lg",
+            "h-10 w-10 rounded-md text-[11px]": p.size === "lg",
+        }}
+        style={{ background: p.dest.markBg }}
+    >
+        <Show when={p.dest.icon} fallback={p.dest.mark}>
+            {(name) => <Icon name={name()} size={p.size === "lg" ? 22 : 11} />}
+        </Show>
+    </span>
+);
+
 type Preview =
     | { kind: "pdf"; url: string }
     | { kind: "pages"; pages: { url: string; caption: string }[] };
@@ -117,6 +132,7 @@ const disposePreview = (p: Preview): void => {
 const Body: Component = () => {
     const [dest, setDest] = createSignal<Dest>("pdf");
     const [busy, setBusy] = createSignal(false);
+    const destMeta = createMemo(() => DESTS.find((d) => d.id === dest())!);
 
     const profile = createMemo(() => profileFor(editor.artifact));
     const continuous = createMemo(() => profile().kind === "continuous");
@@ -189,8 +205,21 @@ const Body: Component = () => {
             disposePreview,
         );
 
+    // A preview builds only on request: opening a tab is free, the click pays. Keyed per
+    // destination and artifact state, so an edit or a brand flip reverts the tab to the CTA.
+    const [requested, setRequested] = createSignal<Set<string>>(new Set());
+    const previewRequested = (): boolean => requested().has(`${dest()}:${fp()}`);
+    const requestPreview = (): void => {
+        capture("export_previewed", {
+            export_format: dest(),
+            artifact_format: asFormat(editor.artifact.format),
+            section_count: editor.artifact.sections.length,
+        });
+        setRequested((s) => new Set(s).add(`${dest()}:${fp()}`));
+    };
+
     const [preview, { refetch }] = createResource(
-        () => ({ d: dest(), fp: fp() }),
+        () => (previewRequested() ? { d: dest(), fp: fp() } : null),
         async ({ d }): Promise<Preview> => {
             if (d === "pdf") return { kind: "pdf", url: (await pdfBuild()).url };
             if (d === "pptx") return pptxPreview();
@@ -283,14 +312,7 @@ const Body: Component = () => {
                             }}
                             onClick={() => setDest(d.id)}
                         >
-                            <span
-                                class="grid h-4.5 w-4.5 place-items-center rounded font-mono text-[6.5px] font-bold text-white"
-                                style={{ background: d.markBg }}
-                            >
-                                <Show when={d.icon} fallback={d.mark}>
-                                    {(name) => <Icon name={name()} size={11} />}
-                                </Show>
-                            </span>
+                            <DestMark dest={d} />
                             {d.label}
                             <Show when={!allowed(d.id)}>
                                 <Icon name="lock" size={11} />
@@ -302,12 +324,19 @@ const Body: Component = () => {
 
             <div class="min-h-0 flex-1 overflow-hidden bg-ink/90">
                 <Switch>
+                    <Match when={!previewRequested()}>
+                        <div class="flex h-full flex-col items-center justify-center gap-3 text-canvas/80">
+                            <DestMark dest={destMeta()} size="lg" />
+                            <span class="text-[13px]">{destMeta().label} preview</span>
+                            <Button variant="primary" size="md" onClick={requestPreview}>
+                                Render preview
+                            </Button>
+                        </div>
+                    </Match>
                     <Match when={preview.loading}>
                         <div class="flex h-full flex-col items-center justify-center gap-3 text-canvas/80">
                             <Spinner size={20} tone="accent" />
-                            <span class="text-[13px]">
-                                Rendering {DESTS.find((d) => d.id === dest())?.label}…
-                            </span>
+                            <span class="text-[13px]">Rendering {destMeta().label}…</span>
                         </div>
                     </Match>
                     <Match when={preview.error}>
