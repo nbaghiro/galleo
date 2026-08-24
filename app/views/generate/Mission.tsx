@@ -5,7 +5,7 @@ import { resolveTheme, themeCssVars } from "@themes";
 import { Button, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { FormatSwitcher } from "@ui/inputs";
 import { Icon } from "@ui/icons";
-import { Modal } from "@ui/overlay";
+import { Modal, ModalClose } from "@ui/overlay";
 import { viewportTier } from "@ui/viewport";
 import { Credits } from "@app/components/Credits";
 import { thread } from "@app/stores/chat";
@@ -102,6 +102,7 @@ export const Studio: Component = () => {
         <Modal
             size={intake() ? (intakeExpanded() ? "full" : "lg") : "screen"}
             scrim={intake() ? "blur" : "light"}
+            close={intake() ? "floating" : "inline"}
             vars={panelVars()}
             class={`flex flex-col overflow-hidden ${intake() ? "md:max-h-[88vh]" : ""}`}
             onClose={requestClose}
@@ -135,7 +136,7 @@ export const Studio: Component = () => {
                         />
                     </span>
                 </Show>
-                <span class="w-9 flex-none" aria-hidden="true" />
+                <ModalClose />
             </header>
 
             <div class="flex min-h-0 flex-1">

@@ -218,9 +218,12 @@ const Frame: Component<{
     const working = (): boolean => slot()?.working ?? false;
     const versions = (): number => slot()?.versions.length ?? 0;
     const activeVersion = (): number => slot()?.active ?? 0;
-    const layout = (): string => slot()?.layout ?? beat()?.layout ?? "full";
-    const image = (): boolean => slot()?.image ?? beat()?.image ?? false;
-    const blocks = (): string[] => slot()?.blocks ?? beat()?.blocks ?? [];
+    // The beat wins on shape, the slot on build state. A slot is a snapshot taken when the build
+    // starts, so letting it shadow the beat meant an outline change (from the console, or from the
+    // card's own controls) moved the beat and left the picture showing the shape it used to have.
+    const layout = (): string => beat()?.layout ?? slot()?.layout ?? "full";
+    const image = (): boolean => beat()?.image ?? slot()?.image ?? false;
+    const blocks = (): string[] => beat()?.blocks ?? slot()?.blocks ?? [];
     const doneReady = (): boolean => !!section();
     const active = (): boolean => ["active", "writing", "image"].includes(status()) || working();
     const themeBg = (): string => resolveTheme(gen.content.theme).tokens.bg;

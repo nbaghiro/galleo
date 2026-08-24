@@ -17,7 +17,7 @@ import { createStore, produce } from "solid-js/store";
 import { applyPatch } from "@model/ai";
 import { api, setTraceSession, streamTurn } from "@app/api";
 import { loadBilling } from "./billing";
-import { bindChatTarget } from "./chat";
+import { bindChatTarget, resetThread } from "./chat";
 import { appTheme } from "./theme";
 import { preferredFormat } from "@app/stores/onboarding";
 import { reportError } from "./errors";
@@ -47,6 +47,7 @@ import {
     reorderBeat,
     sectionCost as rawSectionCost,
     updateBeat,
+    withDerivedBlocks,
 } from "./generate-plan";
 
 export type Surface = "deck" | "doc" | "web";
@@ -205,6 +206,10 @@ export { generateOpen };
 // `prompt` seeds the intake, for entry points that already carry an intent (the ⌘K query)
 export function openGenerate(prompt?: string, from = "library"): void {
     resetSession();
+    // The console is the one chat thread, so without this a new run opens holding the last one:
+    // the library's conversation, or the previous generation's, neither of which is about this
+    // piece. It aborts an in-flight turn too, which is the right end for a run being abandoned.
+    resetThread();
     // the studio is stamped with the session's theme, so the intake starts in the user's, not the default
     // the format the first session asked for, so the studio opens on what they said they were making
     setGen({
@@ -397,11 +402,16 @@ function chatGeneration(): ChatGeneration {
 export function applyBeatOps(ops: OutlinePatch): void {
     for (const op of ops) {
         if (op.op === "addBeat") {
-            const beat = { ...op.beat, id: newBeatId(gen.beats) };
+            const beat = {
+                ...op.beat,
+                ...withDerivedBlocks(op.beat, op.beat.blocks),
+                id: newBeatId(gen.beats),
+            };
             setGen("beats", insertBeatAfter(gen.beats, op.afterId, beat));
         } else if (op.op === "updateBeat") {
             // the beat changes; a written section's prose doesn't
-            setGen("beats", updateBeat(gen.beats, op.id, op.patch));
+            const prev = gen.beats.find((b) => b.id === op.id)?.blocks;
+            setGen("beats", updateBeat(gen.beats, op.id, withDerivedBlocks(op.patch, prev)));
         } else if (op.op === "removeBeat") {
             if (isWritten(op.id)) continue; // written work is only removed deliberately, by hand
             removeBeatById(op.id);
@@ -695,11 +705,23 @@ const afterIdFor = (index: number): string | null => {
     return null;
 };
 
-// slots mirror the beats; one added after the build starts gets a slot on demand
+// Slots mirror the beats: one added after the build starts gets a slot on demand, and one whose
+// beat has since changed shape follows it. Only the shape is copied. `status`, `versions`, `active`
+// and `working` belong to the slot, and rebuilding those would throw away written sections.
 function ensureSlots(): void {
     const known = new Set(gen.slots.map((s) => s.id));
     const added = gen.beats.filter((b) => !known.has(b.id)).map(slotFromBeat);
     if (added.length) setGen("slots", [...gen.slots, ...added]);
+    for (const b of gen.beats) {
+        const i = gen.slots.findIndex((s) => s.id === b.id);
+        if (i < 0) continue;
+        const shape = slotFromBeat(b);
+        const slot = gen.slots[i]!;
+        if (slot.layout !== shape.layout) setGen("slots", i, "layout", shape.layout);
+        if (slot.image !== shape.image) setGen("slots", i, "image", shape.image);
+        if (slot.blocks.join("|") !== shape.blocks.join("|"))
+            setGen("slots", i, "blocks", shape.blocks);
+    }
 }
 
 export function startBuild(): void {

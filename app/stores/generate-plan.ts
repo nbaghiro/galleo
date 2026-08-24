@@ -17,6 +17,17 @@ export function blocksForLayout(layout: string, prev?: string[]): string[] {
     return kept;
 }
 
+/**
+ * A layout change carries a column count, so the blocks leading those columns have to move with it.
+ * Here rather than at each call site because there are two writers, the outline card and the agent's
+ * revise-outline, and only one of them used to remember: the agent set `layout` alone, which left a
+ * section that became a split still carrying one column's worth of blocks.
+ */
+export function withDerivedBlocks(patch: Partial<Beat>, prev?: string[]): Partial<Beat> {
+    if (patch.layout === undefined || patch.blocks !== undefined) return patch;
+    return { ...patch, blocks: blocksForLayout(patch.layout, prev) };
+}
+
 export function moveBeat(beats: Beat[], id: string, dir: -1 | 1): Beat[] {
     const i = beats.findIndex((b) => b.id === id);
     const j = i + dir;

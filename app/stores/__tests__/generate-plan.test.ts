@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Beat } from "@model/ai";
 import {
     blocksForLayout,
+    withDerivedBlocks,
     buildCost,
     columnsFor,
     coverageMap,
@@ -87,5 +88,27 @@ describe("pointFromQuestion", () => {
                 `Should it include ${"a very detailed breakdown of every regional business unit ".repeat(3)}?`,
             ),
         ).toBeNull();
+    });
+});
+
+// The agent's revise-outline sets `layout` on its own, while the outline card always set `blocks`
+// beside it. One writer remembering and the other not is how a section became a split and kept a
+// single column's worth of blocks.
+describe("withDerivedBlocks", () => {
+    it("brings the columns along when a layout changes", () => {
+        expect(withDerivedBlocks({ layout: "three-up" }, ["chart"])).toEqual({
+            layout: "three-up",
+            blocks: ["chart", "text", "text"],
+        });
+    });
+
+    it("leaves a patch that already decided alone", () => {
+        const decided = { layout: "two-col", blocks: ["image"] };
+        expect(withDerivedBlocks(decided, ["chart"])).toBe(decided);
+    });
+
+    it("touches nothing when the layout is not what changed", () => {
+        const patch = { takeaway: "a sharper line" };
+        expect(withDerivedBlocks(patch, ["chart"])).toBe(patch);
     });
 });
