@@ -101,6 +101,7 @@ function refused(
     id: ToolId,
     title: string,
     wsName: string,
+    surface: Call["surface"],
 ): Outcome {
     if (out.reason === "scope")
         return { ok: false, kind: "scope", needs: out.needs as ToolScope, message: "not granted" };
@@ -109,7 +110,13 @@ function refused(
     if (out.reason === "bad-input") return no("refused", (out.issues as string[]).join("; "));
     if (out.reason === "credits")
         return no("refused", `Not enough credits in ${wsName}: ${String(out.remaining)} left.`);
-    if (out.reason === "wrong-surface") return no("refused", `“${id}” is not available here.`);
+    // Name the surface rather than saying "here": the caller is a program on the other side of MCP or
+    // the v1 API, and "here" is the one thing it cannot see.
+    if (out.reason === "wrong-surface")
+        return no(
+            "refused",
+            `“${id}” is not available over ${surface === "mcp" ? "MCP" : "the API"}.`,
+        );
     return no("refused", `“${id}” is not available.`);
 }
 
@@ -134,7 +141,7 @@ export async function callDelegated(call: Call, grant: Grant | null): Promise<Ou
         const anon = await runTool({ id, surface, input: open }, null, { ctx: { image: {} } });
         return anon.ok
             ? { ok: true, result: anon.result }
-            : refused(anon, id, def.title, "this account");
+            : refused(anon, id, def.title, "this account", call.surface);
     }
     if (!grant) return no("needs-auth", "Sign in to Galleo to use this.");
 
@@ -160,7 +167,7 @@ export async function callDelegated(call: Call, grant: Grant | null): Promise<Ou
         });
         return listed.ok
             ? { ok: true, result: listed.result }
-            : refused(listed, id, def.title, "this account");
+            : refused(listed, id, def.title, "this account", call.surface);
     }
 
     const { workspace: named, artifact: target, ...input } = call.input;
@@ -211,7 +218,7 @@ export async function callDelegated(call: Call, grant: Grant | null): Promise<Ou
             ctx: { image: {}, workspace: reader },
             onEvent: built.watch,
         });
-        if (!made.ok) return refused(made, id, def.title, ws.name);
+        if (!made.ok) return refused(made, id, def.title, ws.name, call.surface);
         const newId = await commitNew(ws.id, grant.userId, built);
         if (!newId) return no("refused", "The piece was built but could not be saved.");
         const made_content = built.content();
@@ -237,7 +244,7 @@ export async function callDelegated(call: Call, grant: Grant | null): Promise<Ou
             ctx: { image: {}, workspace: reader, ...(content ? { artifact: content } : {}) },
         },
     );
-    if (!out.ok) return refused(out, id, def.title, ws.name);
+    if (!out.ok) return refused(out, id, def.title, ws.name, call.surface);
 
     let note: string | undefined;
     if (changes && content && artifactId) {
