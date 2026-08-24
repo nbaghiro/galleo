@@ -503,7 +503,7 @@ const ThemeEditorPanel: Component = () => {
                             }}
                         />
                     </div>
-                    <span class="w-9 flex-none" aria-hidden="true" />
+                    <span class="w-9 flex-none md:hidden" aria-hidden="true" />
                 </header>
 
                 <div class="min-h-0 flex-1 overflow-y-auto">

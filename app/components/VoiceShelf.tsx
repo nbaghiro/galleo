@@ -176,13 +176,13 @@ export const VoiceShelf: Component<{ canDesign?: boolean }> = (props) => {
 
     return (
         <>
-            <div class="rounded-xl border border-line p-4">
+            <div class="rounded-xl border border-line bg-panel p-4">
                 <p class="mb-3 text-[12px] leading-snug text-muted">
                     The voice that reads a piece aloud when it narrates itself. Any artifact can use
                     a different one.
                 </p>
                 <Show when={error()}>
-                    <p class="mb-2 text-[12px] text-[#e5484d]">{error()}</p>
+                    <p class="mb-2 text-[12px] text-fail">{error()}</p>
                 </Show>
                 <Show
                     when={list().length}

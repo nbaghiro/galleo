@@ -847,7 +847,7 @@ export const MediaPicker: Component = () => {
                     <Show when={error()}>
                         <span class="truncate text-[12px] text-red-500">{error()}</span>
                     </Show>
-                    <div class="ml-auto flex items-center gap-2 pr-9">
+                    <div class="ml-auto flex items-center gap-2 max-md:pr-9">
                         <Show when={mediaRequest()?.onRemove}>
                             <Button variant="dangerGhost" size="sm" onClick={removeMedia}>
                                 <TrashIcon size={13} />

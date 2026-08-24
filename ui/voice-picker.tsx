@@ -164,7 +164,7 @@ export const VoicePicker: Component<{
                         Play a sample to hear one. Saving adds it to this workspace.
                     </p>
                 </div>
-                <div class="flex items-center gap-2 pr-9">
+                <div class="flex items-center gap-2 max-md:pr-9">
                     <Show when={props.browser.design}>
                         <div class="flex gap-1 rounded-lg bg-surface p-0.5">
                             <Chip

@@ -130,7 +130,7 @@ export const ModelPickerModal: Component = () => {
                 class="p-5"
                 onClose={() => setOpen(false)}
             >
-                <div class="mb-3 pr-9">
+                <div class="mb-3 max-md:pr-9">
                     <h2 class="text-[16px] font-semibold text-ink">Models</h2>
                     <p class="mt-0.5 text-[12px] text-soft">
                         Pick the model each step runs on, and see what recent runs used. Kept in

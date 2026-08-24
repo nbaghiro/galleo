@@ -704,7 +704,7 @@ const InsightsModal: Component<{
                         {relativeTime(p.it.links[0]!.publishedAt)}
                     </div>
                 </div>
-                <span class="mr-9 flex-none">
+                <span class="flex-none max-md:mr-9">
                     <Badge tone="outline" size="sm" uppercase>
                         {formatLabel(p.it.art.formatId)}
                     </Badge>

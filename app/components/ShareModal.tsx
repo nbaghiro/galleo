@@ -147,7 +147,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
             vars={vars}
             class="flex max-h-[90vh] flex-col overflow-hidden"
         >
-            <header class="flex flex-none items-center justify-between border-b border-line py-3.5 pl-5 pr-12">
+            <header class="flex flex-none items-center justify-between border-b border-line px-5 py-3.5 max-md:pr-12">
                 <div class="min-w-0">
                     <div class="text-[13px] font-semibold">Share</div>
                     <div class="truncate text-[11.5px] text-muted">{props.req.title}</div>

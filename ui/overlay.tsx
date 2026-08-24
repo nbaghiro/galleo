@@ -202,11 +202,15 @@ const SCRIM: Record<Scrim, string> = {
 type Surface = "panel" | "canvas";
 const SURFACE: Record<Surface, string> = { panel: "bg-panel", canvas: "bg-canvas" };
 
+const ModalCloseCtx = createContext<() => void>();
+
 export const Modal: Component<{
     onClose: () => void;
     size?: ModalSize;
     scrim?: Scrim;
     surface?: Surface;
+    /** "inline": the consumer places <ModalClose /> in its own topbar row instead of the floating X */
+    close?: "floating" | "inline";
     z?: number;
     animate?: boolean;
     vars?: JSX.CSSProperties;
@@ -258,21 +262,44 @@ export const Modal: Component<{
                         props.size !== SCREEN && !phoneFull(),
                 }}
             >
-                {props.children}
-                {/* every modal closes the same way, on every device; consumers never add their own */}
-                <IconButton
-                    size={isCoarsePointer() ? "touch" : "lg"}
-                    tone="soft"
-                    bordered
-                    rounded="lg"
-                    class="absolute right-2 top-2 z-20"
-                    title="Close"
-                    onClick={() => props.onClose()}
-                >
-                    <CloseIcon size={isCoarsePointer() ? 13 : 11} />
-                </IconButton>
+                <ModalCloseCtx.Provider value={() => props.onClose()}>
+                    {props.children}
+                </ModalCloseCtx.Provider>
+                {/* phone chrome, kept everywhere on the scrimless "screen" size; desktop cards
+                    close by Escape or the scrim. Consumers never add their own — a surface with
+                    its own topbar places this same button in the row via <ModalClose />. */}
+                <Show when={props.close !== "inline" && (isPhone() || props.size === SCREEN)}>
+                    <IconButton
+                        size={isCoarsePointer() ? "touch" : "lg"}
+                        tone="muted"
+                        rounded="md"
+                        class="absolute right-2 top-2 z-20"
+                        title="Close"
+                        onClick={() => props.onClose()}
+                    >
+                        <CloseIcon size={15} />
+                    </IconButton>
+                </Show>
             </div>
         </div>
+    );
+};
+
+// The Modal-owned close, for close="inline": sits in the consumer's topbar row so it centers and
+// sizes with the row's other controls instead of floating over them.
+export const ModalClose: Component = () => {
+    const close = useContext(ModalCloseCtx);
+    return (
+        <IconButton
+            size={isCoarsePointer() ? "touch" : "lg"}
+            tone="muted"
+            rounded="md"
+            class="flex-none"
+            title="Close"
+            onClick={() => close?.()}
+        >
+            <CloseIcon size={15} />
+        </IconButton>
     );
 };
 

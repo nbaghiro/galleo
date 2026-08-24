@@ -222,7 +222,7 @@ export const TemplateGallery: Component<{ onCreated?: () => void; from?: string 
                                         onChange={setPreviewFmt}
                                     />
                                 </div>
-                                <div class="ml-auto flex items-center gap-2 pr-10">
+                                <div class="ml-auto flex items-center gap-2 max-md:pr-10">
                                     <Button
                                         variant="primary"
                                         disabled={using() !== null}
