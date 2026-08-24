@@ -7,6 +7,7 @@ import { asOrigin } from "@model/analytics";
 import { capture } from "@ui/analytics";
 import { Badge, Button, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { Meter } from "@ui/status";
+import { ACTIVITY_PREVIEW_ROWS, CreditActivity } from "@app/components/CreditActivity";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 import { UpgradePageContent } from "@app/components/UpgradePlans";
 import {
@@ -14,7 +15,6 @@ import {
     changePlan,
     checkoutStarted,
     ledgerEntries,
-    ledgerReasonLabel,
     loadBilling,
     loadLedger,
     openPortal,
@@ -406,7 +406,7 @@ export const PricingView: Component = () => {
                     </section>
 
                     <Show when={ledgerEntries().length > 0}>
-                        <div class="mt-12 rounded-xl border border-line bg-panel px-4 py-3">
+                        <section class="mt-12">
                             <div class="flex items-center justify-between gap-3">
                                 <Eyebrow as="div">Recent AI activity</Eyebrow>
                                 <button
@@ -416,26 +416,12 @@ export const PricingView: Component = () => {
                                     View all
                                 </button>
                             </div>
-                            <ul class="mt-1 divide-y divide-line text-[12.5px]">
-                                <For each={ledgerEntries().slice(0, 8)}>
-                                    {(e) => (
-                                        <li class="flex items-center justify-between gap-3 py-1.5 tabular-nums">
-                                            <span class="min-w-0 truncate capitalize text-ink">
-                                                {ledgerReasonLabel(e.reason)}
-                                            </span>
-                                            <span class="flex-none text-muted">
-                                                {new Date(e.at).toLocaleDateString()}
-                                            </span>
-                                            <span
-                                                class={`w-14 flex-none text-right font-semibold ${e.delta > 0 ? "text-accent" : "text-ink"}`}
-                                            >
-                                                {e.delta > 0 ? `+${e.delta}` : e.delta}
-                                            </span>
-                                        </li>
-                                    )}
-                                </For>
-                            </ul>
-                        </div>
+                            <CreditActivity
+                                entries={ledgerEntries().slice(0, ACTIVITY_PREVIEW_ROWS)}
+                                variant="preview"
+                                class="mt-2"
+                            />
+                        </section>
                     </Show>
 
                     <Show when={current() !== "free"}>

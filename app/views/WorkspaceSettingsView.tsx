@@ -3,8 +3,8 @@ import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import type { PublishPolicy, WorkspaceRole } from "@model/workspace";
 import type { ArtifactAccess } from "@model/artifact";
-import { describeUsage } from "@model/credits";
 import { Avatar } from "@ui/avatar";
+import { ACTIVITY_PREVIEW_ROWS, CreditActivity } from "@app/components/CreditActivity";
 import { VoiceShelf } from "@app/components/VoiceShelf";
 import { can } from "@app/stores/features";
 import { Button, Eyebrow, Spinner } from "@ui/button";
@@ -13,8 +13,8 @@ import { Dropdown } from "@ui/select";
 import { Meter } from "@ui/status";
 import { ConfirmModal } from "@ui/overlay";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
-import { ApiError, api, type LedgerEntry, type WorkspaceMember } from "@app/api";
-import { billing, loadBilling, openPortal } from "@app/stores/billing";
+import { ApiError, type WorkspaceMember } from "@app/api";
+import { billing, ledgerEntries, loadBilling, loadLedger, openPortal } from "@app/stores/billing";
 import {
     inviteMember,
     leaveWorkspace,
@@ -194,29 +194,7 @@ export const WorkspaceSettingsView: Component = () => {
         }
     };
 
-    // ledger, first page eagerly + load-more
-    const [ledger, setLedger] = createSignal<LedgerEntry[]>([]);
-    const [ledgerCursor, setLedgerCursor] = createSignal<string | null>(null);
-    const [ledgerLoading, setLedgerLoading] = createSignal(false);
-    const loadLedger = async (cursor?: string | null): Promise<void> => {
-        if (ledgerLoading()) return;
-        setLedgerLoading(true);
-        try {
-            const page = await api.getLedger(cursor);
-            setLedger(cursor ? [...ledger(), ...page.entries] : page.entries);
-            setLedgerCursor(page.nextCursor);
-        } catch {
-            /* the section just stays empty */
-        } finally {
-            setLedgerLoading(false);
-        }
-    };
     onMount(() => void loadLedger());
-
-    // a settle now rewrites the charge's own row, so the suffixes only appear on rows written
-    // before that change
-    const reasonLabel = (r: string): string =>
-        r.replace(":settle", " (adjusted)").replace(":refund", " (refunded)").replace(/-/g, " ");
 
     return (
         <div class="flex h-dvh bg-canvas text-ink">
@@ -634,56 +612,26 @@ export const WorkspaceSettingsView: Component = () => {
 
                                 <Section title="Credit activity">
                                     <Show
-                                        when={ledger().length}
+                                        when={ledgerEntries().length}
                                         fallback={
                                             <p class="text-[12.5px] text-muted">
                                                 No credit activity yet.
                                             </p>
                                         }
                                     >
-                                        <ul class="divide-y divide-line rounded-xl border border-line bg-panel">
-                                            <For each={ledger()}>
-                                                {(e) => (
-                                                    <li class="flex items-center gap-3 px-4 py-2.5 text-[12.5px]">
-                                                        <span class="min-w-0 flex-1">
-                                                            <span class="block truncate font-medium">
-                                                                {reasonLabel(e.reason)}
-                                                            </span>
-                                                            <span class="block text-[11px] text-muted">
-                                                                {e.user?.name ??
-                                                                    e.user?.email ??
-                                                                    "System"}{" "}
-                                                                · {new Date(e.at).toLocaleString()}
-                                                                <Show when={e.usage}>
-                                                                    {(u) => (
-                                                                        <> · {describeUsage(u())}</>
-                                                                    )}
-                                                                </Show>
-                                                            </span>
-                                                        </span>
-                                                        <span
-                                                            class={`flex-none font-mono tabular-nums ${e.delta > 0 ? "text-accent" : "text-soft"}`}
-                                                        >
-                                                            {e.delta > 0 ? "+" : ""}
-                                                            {e.delta.toLocaleString()}
-                                                        </span>
-                                                        <span class="w-16 flex-none text-right font-mono text-[11px] tabular-nums text-muted">
-                                                            {e.balanceAfter.toLocaleString()}
-                                                        </span>
-                                                    </li>
-                                                )}
-                                            </For>
-                                        </ul>
-                                        <Show when={ledgerCursor()}>
-                                            <Button
-                                                variant="ghost"
-                                                class="mt-2 text-[12px]"
-                                                disabled={ledgerLoading()}
-                                                onClick={() => void loadLedger(ledgerCursor())}
-                                            >
-                                                {ledgerLoading() ? "Loading…" : "Show older"}
-                                            </Button>
-                                        </Show>
+                                        <CreditActivity
+                                            entries={ledgerEntries().slice(
+                                                0,
+                                                ACTIVITY_PREVIEW_ROWS,
+                                            )}
+                                            variant="preview"
+                                        />
+                                        <button
+                                            class="mt-2 text-[12px] font-medium text-soft underline hover:text-ink"
+                                            onClick={() => navigate("/pricing/activity")}
+                                        >
+                                            View all
+                                        </button>
                                     </Show>
                                 </Section>
                             </>

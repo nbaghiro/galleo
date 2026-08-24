@@ -1,11 +1,11 @@
 import type { Component } from "solid-js";
-import { For, onMount, Show } from "solid-js";
+import { onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { describeUsage } from "@model/credits";
 import { capture } from "@ui/analytics";
 import { IconButton, Spinner } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { createSentinel } from "@ui/scroll";
+import { CreditActivity } from "@app/components/CreditActivity";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 import {
     billing,
@@ -13,7 +13,6 @@ import {
     ledgerEntries,
     ledgerLoaded,
     ledgerLoadingMore,
-    ledgerReasonLabel,
     loadLedger,
     loadMoreLedger,
 } from "@app/stores/billing";
@@ -28,9 +27,6 @@ export const CreditActivityView: Component = () => {
     });
 
     const observeSentinel = createSentinel(() => void loadMoreLedger(), { margin: "600px" });
-
-    const when = (at: string): string =>
-        new Date(at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
     return (
         <div class="flex h-dvh bg-canvas text-ink">
@@ -72,36 +68,7 @@ export const CreditActivityView: Component = () => {
                                 </div>
                             }
                         >
-                            <ul class="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel text-[12.5px]">
-                                <For each={ledgerEntries()}>
-                                    {(e) => (
-                                        <li class="flex items-center gap-3 px-4 py-2.5 tabular-nums">
-                                            <div class="min-w-0 flex-1">
-                                                <div class="truncate font-medium capitalize text-ink">
-                                                    {ledgerReasonLabel(e.reason)}
-                                                </div>
-                                                <div class="truncate text-[11.5px] text-muted">
-                                                    {when(e.at)}
-                                                    <Show when={e.user}>
-                                                        {(u) => <> · {u().name ?? u().email}</>}
-                                                    </Show>
-                                                    <Show when={e.usage}>
-                                                        {(u) => <> · {describeUsage(u())}</>}
-                                                    </Show>
-                                                </div>
-                                            </div>
-                                            <div class="hidden w-24 flex-none text-right text-[11.5px] text-muted sm:block">
-                                                {e.balanceAfter.toLocaleString()} left
-                                            </div>
-                                            <div
-                                                class={`w-14 flex-none text-right font-semibold ${e.delta > 0 ? "text-accent" : "text-ink"}`}
-                                            >
-                                                {e.delta > 0 ? `+${e.delta}` : e.delta}
-                                            </div>
-                                        </li>
-                                    )}
-                                </For>
-                            </ul>
+                            <CreditActivity entries={ledgerEntries()} variant="full" />
                             {/* sentinel: crossing it requests the next page */}
                             <Show when={ledgerCursor()}>
                                 <div

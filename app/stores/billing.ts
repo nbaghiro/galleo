@@ -16,9 +16,10 @@ const [ledgerCursor, setLedgerCursor] = createSignal<string | null>(null);
 const [ledgerLoadingMore, setLedgerLoadingMore] = createSignal(false);
 export { ledgerCursor, ledgerEntries, ledgerLoaded, ledgerLoadingMore };
 
-// "generate-artifact:settle" → "generate artifact (adjusted)"
+// "generate-artifact:settle" → "generate artifact (adjusted)". A settle now rewrites the charge's
+// own row, so the suffixes only appear on rows written before that change.
 export const ledgerReasonLabel = (r: string): string =>
-    r.replace(":settle", " (adjusted)").replace(/-/g, " ");
+    r.replace(":settle", " (adjusted)").replace(":refund", " (refunded)").replace(/-/g, " ");
 
 // a page fetched before a reload finished must not be appended; each fetch carries its epoch
 let ledgerEpoch = 0;
