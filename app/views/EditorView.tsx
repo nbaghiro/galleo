@@ -6,7 +6,7 @@ import { setArtifactMusic } from "@elements/ops";
 import { scriptRest, scriptSection } from "@editor/core/notes";
 import { Editor } from "@editor/Editor";
 import { Button } from "@ui/button";
-import { FloatingBar } from "@ui/overlay";
+import { ConfirmModal, FloatingBar } from "@ui/overlay";
 import { canEditHere } from "@ui/viewport";
 import {
     canEdit,
@@ -20,6 +20,7 @@ import {
     loadArtifactWindow,
     onAdoptLink,
     onArtifactCredits,
+    onSlidesExport,
     onHome,
     onLoadSections,
     onMediaPicker,
@@ -71,11 +72,13 @@ import {
     resolveComment,
 } from "@app/stores/comments";
 import { openMediaPicker } from "@app/stores/media";
+import { sendToGoogleSlides } from "@app/stores/google";
 import { openShare } from "@app/stores/share";
 import { can, exportFormatsOf, loadFeatures, MUSIC_SHIPPED } from "@app/stores/features";
 import { renameArtifactById } from "@app/stores/library";
 import { recordVisit } from "@app/stores/search";
 import { billing, loadBilling } from "@app/stores/billing";
+import { narrationAsk, narrationGate } from "@app/stores/narration";
 import { setEditorActive } from "@app/stores/chat";
 import { appTheme, loadCustomThemes, setFaviconOverride, openThemeEditor } from "@app/stores/theme";
 import { flushAutosave, installAutosave, noteSavedContent, onSaveConflict } from "@app/stores/save";
@@ -154,6 +157,9 @@ export const EditorView: Component = () => {
         onMediaPicker((req) => openMediaPicker(req));
         onAdoptLink(async (url) => (await api.adoptLink(url)).url);
         onArtifactCredits(async (id) => (await api.artifactCredits(id)).credits);
+        onSlidesExport((bytes) =>
+            sendToGoogleSlides(bytes, currentTitle().trim() || "Galleo deck"),
+        );
         onPersistTitle((id, title) => renameArtifactById(id, title));
         onUpgrade(() => navigate("/pricing"));
         onShare(() => {
@@ -310,6 +316,16 @@ export const EditorView: Component = () => {
             void loadBilling();
             return t;
         };
+        // the same spend gate present uses: the overlay's warm-up must not script and record a
+        // whole piece without the one-time ask
+        const gate = artifactId
+            ? narrationGate({
+                  artifactId: () => artifactId,
+                  content: () => editor.artifact,
+                  countUnscripted: true,
+                  record: makeSpeakable,
+              })
+            : null;
         onNarration(
             artifactId
                 ? {
@@ -324,7 +340,7 @@ export const EditorView: Component = () => {
                        * writes to their piece, so an invited viewer plays what is already there and
                        * never gets a button that can only answer 403.
                        */
-                      ...(canEdit() ? { ensure: makeSpeakable } : {}),
+                      ...(canEdit() && gate ? { ensure: gate.ensure } : {}),
                   }
                 : undefined,
         );
@@ -427,6 +443,17 @@ export const EditorView: Component = () => {
                             </Button>
                         </FloatingBar>
                     </div>
+                </Show>
+                <Show when={narrationAsk()}>
+                    {(ask) => (
+                        <ConfirmModal
+                            title="Record the narration?"
+                            body={`Recording this piece costs about ${ask().credits} credits. Sections already recorded replay free.`}
+                            confirmLabel="Start recording"
+                            onConfirm={() => ask().resolve(true)}
+                            onCancel={() => ask().resolve(false)}
+                        />
+                    )}
                 </Show>
             </div>
         </Show>

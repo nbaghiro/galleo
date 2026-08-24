@@ -77,7 +77,11 @@ export function createSoundtrackPlayer(opts: {
                 void src
                     .load()
                     .then(setTrack)
-                    .catch(() => setTrack(null));
+                    .catch(() => {
+                        setTrack(null);
+                        // the piece asked for music and none can play; say so once
+                        opts.onError?.("The soundtrack could not be loaded.");
+                    });
             },
         ),
     );

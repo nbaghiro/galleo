@@ -18,19 +18,13 @@ import {
 } from "@services/core/voices";
 import { SpeechError, synthesize } from "@services/core/ai/speech";
 import { ratesFor, reserve } from "@services/core/spend";
-import { OUT_OF_CREDITS, OVER_MEMBER_CAP, rateLimit, readJson } from "@services/utils/http";
-import type { WorkspaceRow } from "@services/core/accounts";
+import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
 
 // The voice surface: browsing the provider's community library, saving to a workspace's shelf, and
 // hearing a candidate read a real line. Adoption and the shelf rules are core/voices.ts; synthesis
 // is core/ai/speech.ts. This file is HTTP only.
 
 export const voices = new Hono<WorkspaceEnv>();
-
-const denied = (ws: WorkspaceRow, held: { remaining: number; capped?: number }) =>
-    held.capped == null
-        ? OUT_OF_CREDITS(ws, held.remaining)
-        : OVER_MEMBER_CAP(held.capped, held.remaining);
 
 /**
  * Auditioning a voice synthesizes, so this sees SpeechError as well as VoiceError. Flattening either
@@ -86,7 +80,11 @@ voices.post("/voices", requireWorkspace, async (c) => {
     const shelf = await shelfFor(c.get("ws").id);
     if (feats.maxWorkspaceVoices >= 0 && shelf.length >= feats.maxWorkspaceVoices)
         return c.json(
-            { error: "This workspace has as many voices as its plan allows.", upgrade: true },
+            {
+                error: "This workspace has as many voices as its plan allows.",
+                reason: "feature" as const,
+                upgrade: true,
+            },
             402,
         );
     try {
@@ -132,7 +130,14 @@ const DESC_MAX = 1000;
 voices.post("/voices/design", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!featuresFor(ws).voiceDesign)
-        return c.json({ error: "Designing a voice needs a higher plan.", upgrade: true }, 402);
+        return c.json(
+            {
+                error: "Designing a voice needs a higher plan.",
+                reason: "feature" as const,
+                upgrade: true,
+            },
+            402,
+        );
     const body = await readJson(c, zDesign);
     const description = body?.description?.trim() ?? "";
     if (description.length < DESC_MIN || description.length > DESC_MAX)
@@ -141,16 +146,12 @@ voices.post("/voices/design", requireWorkspace, async (c) => {
             400,
         );
 
-    const held = await reserve(
-        ws,
-        c.get("user").id,
-        "design-voice",
-        {},
-        ratesFor(ws, {}),
-        false,
-        c.get("role"),
-    );
-    if (!held.ok) return c.json(denied(ws, held), 402);
+    const held = await reserve(ws, c.get("user").id, "design-voice", {
+        rates: ratesFor(ws, {}),
+        role: c.get("role"),
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
     return held.settle(async (billed) => {
         try {
@@ -178,7 +179,14 @@ voices.post("/voices/design/keep", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     const feats = featuresFor(ws);
     if (!feats.voiceDesign)
-        return c.json({ error: "Designing a voice needs a higher plan.", upgrade: true }, 402);
+        return c.json(
+            {
+                error: "Designing a voice needs a higher plan.",
+                reason: "feature" as const,
+                upgrade: true,
+            },
+            402,
+        );
     const body = await readJson(c, zKeep);
     if (!body?.generatedVoiceId || !body.name.trim())
         return c.json({ error: "a candidate and a name are required" }, 400);
@@ -187,7 +195,11 @@ voices.post("/voices/design/keep", requireWorkspace, async (c) => {
     const shelf = await shelfFor(ws.id);
     if (feats.maxWorkspaceVoices >= 0 && shelf.length >= feats.maxWorkspaceVoices)
         return c.json(
-            { error: "This workspace has as many voices as its plan allows.", upgrade: true },
+            {
+                error: "This workspace has as many voices as its plan allows.",
+                reason: "feature" as const,
+                upgrade: true,
+            },
             402,
         );
 
@@ -223,20 +235,19 @@ voices.post("/voices/audition", requireWorkspace, async (c) => {
     const voice = await voiceFor(ws.id, body.voiceId);
     if (!voice) return c.json({ error: "this workspace has no voices yet" }, 404);
 
-    const held = await reserve(
-        ws,
-        c.get("user").id,
-        "audition-voice",
-        {},
-        ratesFor(ws, {}),
-        false,
-        c.get("role"),
-    );
-    if (!held.ok) return c.json(denied(ws, held), 402);
+    const held = await reserve(ws, c.get("user").id, "audition-voice", {
+        rates: ratesFor(ws, {}),
+        role: c.get("role"),
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
-    return held.settle(async () => {
+    return held.settle(async (billed) => {
         try {
             const out = await synthesize(text, voice.externalId);
+            // synthesis is flat-priced and invisible to the token meter; without this the settle
+            // sees nothing owed and refunds the hold, making every audition free
+            billed({ text: 1 });
             return c.json({
                 audio: `data:${out.mime};base64,${out.audio.toString("base64")}`,
                 ms: out.ms,

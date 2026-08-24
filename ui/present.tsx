@@ -272,7 +272,7 @@ export const PresentSurface: Component<{
             shownContent().sections,
             prof,
             tokens(),
-            { fullW, cache: stackCache, window: win },
+            { fullW, cache: stackCache, window: win, pinned: true },
         );
         observeReveals(layers);
         sectionTops = tops;

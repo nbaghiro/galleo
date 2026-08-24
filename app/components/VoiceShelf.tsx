@@ -1,12 +1,16 @@
 import type { Component } from "solid-js";
 import { createResource, createSignal, For, onCleanup, Show } from "solid-js";
+import { useNavigate } from "@solidjs/router";
 import type { LibraryVoice, WorkspaceVoice } from "@model/speech";
+import { upgradeFor } from "@model/billing";
 import { Button, IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { TextField } from "@ui/inputs";
 import { VoicePicker } from "@ui/voice-picker";
 import { capture } from "@ui/analytics";
 import { api } from "@app/api";
+import { billing } from "@app/stores/billing";
+import { reportPaywall } from "@app/stores/features";
 
 // The workspace's narration voices. Voice belongs to the workspace rather than to a person, for the
 // same reason a theme does: it is how a team's work sounds, and the next person to narrate a deck
@@ -134,6 +138,16 @@ export const VoiceShelf: Component<{ canDesign?: boolean }> = (props) => {
     const [shelf, { mutate, refetch }] = createResource(() => api.voices());
     const [picking, setPicking] = createSignal(false);
     const [error, setError] = createSignal<string | null>(null);
+    const navigate = useNavigate();
+
+    // the wall for a plan without designed voices: named target, never hidden
+    const designTarget = () => upgradeFor("voiceDesign", billing()?.plan);
+    const designHint = (): string => {
+        const target = designTarget();
+        return target
+            ? `Designing a voice from a description is available on ${target.name} and above.`
+            : "Designing a voice from a description is coming soon.";
+    };
 
     let audio: HTMLAudioElement | undefined;
     const play = (url: string): void => {
@@ -222,7 +236,7 @@ export const VoiceShelf: Component<{ canDesign?: boolean }> = (props) => {
                     browser={{
                         search: (q) => api.voiceLibrary(q),
                         save,
-                        // hidden rather than disabled when the plan does not include it
+                        // walled rather than hidden when the plan does not include it
                         ...(props.canDesign
                             ? {
                                   design: (d, t) => api.designVoice(d, t),
@@ -244,7 +258,15 @@ export const VoiceShelf: Component<{ canDesign?: boolean }> = (props) => {
                                       });
                                   },
                               }
-                            : {}),
+                            : {
+                                  designLocked: {
+                                      hint: designHint(),
+                                      onUpgrade: () => {
+                                          reportPaywall("voiceDesign", designTarget()?.id);
+                                          navigate("/pricing");
+                                      },
+                                  },
+                              }),
                     }}
                     onClose={() => {
                         setPicking(false);

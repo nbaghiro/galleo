@@ -20,8 +20,7 @@ import { SpeechError, speechReady } from "@services/core/ai/speech";
 import { VoiceError } from "@services/core/voices";
 import { publicRead } from "@services/core/links";
 import { ratesFor, reserve } from "@services/core/spend";
-import { OUT_OF_CREDITS, OVER_MEMBER_CAP, readJson } from "@services/utils/http";
-import type { WorkspaceRow } from "@services/core/accounts";
+import { creditRefusal, readJson } from "@services/utils/http";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { eq } from "drizzle-orm";
@@ -31,11 +30,6 @@ import { eq } from "drizzle-orm";
 // reimplemented here: one goes through gateShared, the other through publicRead.
 
 export const narration = new Hono<WorkspaceEnv>();
-
-const denied = (ws: WorkspaceRow, held: { remaining: number; capped?: number }) =>
-    held.capped == null
-        ? OUT_OF_CREDITS(ws, held.remaining)
-        : OVER_MEMBER_CAP(held.capped, held.remaining);
 
 // a guard rather than a shape: the content carries fields this layer does not enumerate, and a
 // plain z.object would strip them before the sections were read
@@ -112,7 +106,10 @@ narration.post("/artifacts/:id/narration", requireWorkspace, async (c) => {
     const ws = gate.ws;
     const role = gate.role ?? "member";
     if (!featuresFor(ws).voiceNarration)
-        return c.json({ error: "Narration needs a higher plan.", upgrade: true }, 402);
+        return c.json(
+            { error: "Narration needs a higher plan.", reason: "feature" as const, upgrade: true },
+            402,
+        );
     const body = await readJson(c, zPrepare);
     if (!body) return c.json({ error: "invalid body" }, 400);
     const content = body.content ?? (await contentOf(id));
@@ -122,16 +119,13 @@ narration.post("/artifacts/:id/narration", requireWorkspace, async (c) => {
     const pending = content.sections
         .filter((s) => !body.sectionIds?.length || body.sectionIds.includes(s.id))
         .reduce((n, s) => n + (s.notes?.spoken.trim().length ?? 0), 0);
-    const held = await reserve(
-        ws,
-        c.get("user").id,
-        "narrate-artifact",
-        { speechUnits: Math.max(1, unitsFor(pending)) },
-        ratesFor(ws, {}),
-        false,
+    const held = await reserve(ws, c.get("user").id, "narrate-artifact", {
+        size: { speechUnits: Math.max(1, unitsFor(pending)) },
+        rates: ratesFor(ws, {}),
         role,
-    );
-    if (!held.ok) return c.json(denied(ws, held), 402);
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
     return streamSSE(c, (stream) =>
         held.settle(async (billed) => {
@@ -171,23 +165,23 @@ narration.post("/artifacts/:id/narration/section/:sectionId", requireWorkspace, 
     const ws = gate.ws;
     const role = gate.role ?? "member";
     if (!featuresFor(ws).voiceNarration)
-        return c.json({ error: "Narration needs a higher plan.", upgrade: true }, 402);
+        return c.json(
+            { error: "Narration needs a higher plan.", reason: "feature" as const, upgrade: true },
+            402,
+        );
     const body = await readJson(c, zPrepare);
     const content = body?.content ?? (await contentOf(id));
     const sectionId = c.req.param("sectionId");
 
     const chars =
         content.sections.find((s) => s.id === sectionId)?.notes?.spoken.trim().length ?? 0;
-    const held = await reserve(
-        ws,
-        c.get("user").id,
-        "narrate-artifact",
-        { speechUnits: Math.max(1, unitsFor(chars)) },
-        ratesFor(ws, {}),
-        false,
+    const held = await reserve(ws, c.get("user").id, "narrate-artifact", {
+        size: { speechUnits: Math.max(1, unitsFor(chars)) },
+        rates: ratesFor(ws, {}),
         role,
-    );
-    if (!held.ok) return c.json(denied(ws, held), 402);
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
     return held.settle(async (billed) => {
         try {
@@ -249,21 +243,25 @@ narration.post("/artifacts/:id/soundtrack", requireWorkspace, async (c) => {
     if (isResponse(gate)) return gate;
     const ws = gate.ws; // the artifact's tenant pays, as narration already does
     if (!featuresFor(ws).backgroundMusic)
-        return c.json({ error: "Background music needs a higher plan.", upgrade: true }, 402);
+        return c.json(
+            {
+                error: "Background music needs a higher plan.",
+                reason: "feature" as const,
+                upgrade: true,
+            },
+            402,
+        );
     const body = await readJson(c, zBed);
     if (!body) return c.json({ error: "invalid body" }, 400);
 
     const minutes = Math.max(1, Math.ceil((body.lengthMs || DEFAULT_MS) / 60_000));
-    const held = await reserve(
-        ws,
-        c.get("user").id,
-        "compose-soundtrack",
-        { musicMinutes: minutes },
-        ratesFor(ws, {}),
-        false,
-        gate.role ?? "member",
-    );
-    if (!held.ok) return c.json(denied(ws, held), 402);
+    const held = await reserve(ws, c.get("user").id, "compose-soundtrack", {
+        size: { musicMinutes: minutes },
+        rates: ratesFor(ws, {}),
+        role: gate.role ?? "member",
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
     return held.settle(async (billed) => {
         try {

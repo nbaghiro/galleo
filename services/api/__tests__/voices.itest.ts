@@ -13,6 +13,10 @@ afterEach(() => {
     else process.env.ELEVENLABS_API_KEY = savedKey;
 });
 
+interface BillingBody {
+    credits: { balance: number };
+}
+
 let n = 0;
 // the provider hands back an account-local id per voice, so the fake has to vary it too
 const fake: typeof fetch = ((url: string) =>
@@ -97,6 +101,43 @@ describe("POST /voices/audition", () => {
         const { userId } = await seedUser({ plan: "pro" });
         const res = await authed(userId, "/voices/audition", jsonInit("POST", {}));
         expect(res.status).toBe(404);
+    });
+
+    /**
+     * Synthesis is flat-priced and invisible to the token meter, so the route has to report the
+     * unit itself; the regression this guards is the settle finding nothing owed and refunding the
+     * hold, which made every real audition free.
+     */
+    it("keeps the flat one-credit charge after a successful synthesis", async () => {
+        const { userId, voices } = await shelved();
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = ((url: string) => {
+            if (!String(url).includes("/text-to-speech/")) return realFetch(url);
+            return Promise.resolve(
+                new Response(
+                    JSON.stringify({ audio_base64: Buffer.from("mp3").toString("base64") }),
+                ),
+            );
+        }) as typeof fetch;
+        try {
+            const before = ((await (await authed(userId, "/billing")).json()) as BillingBody)
+                .credits.balance;
+            const res = await authed(
+                userId,
+                "/voices/audition",
+                jsonInit("POST", { voiceId: voices[0]!.id }),
+            );
+            expect(res.status).toBe(200);
+            const after = ((await (await authed(userId, "/billing")).json()) as BillingBody).credits
+                .balance;
+            expect(before - after).toBe(1);
+            const ledger = (await (await authed(userId, "/billing/ledger")).json()) as {
+                entries: { reason: string; delta: number }[];
+            };
+            expect(ledger.entries[0]).toMatchObject({ reason: "audition-voice", delta: -1 });
+        } finally {
+            globalThis.fetch = realFetch;
+        }
     });
 
     /**

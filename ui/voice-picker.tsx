@@ -20,7 +20,7 @@ import { Icon } from "./icons";
 export interface VoiceBrowser {
     search(q: VoiceQuery): Promise<LibraryVoice[]>;
     save(v: LibraryVoice, makeDefault: boolean): Promise<void>;
-    /** Absent when this plan cannot design voices, which hides the tab rather than disabling it. */
+    /** Absent when this plan cannot design voices; pair with `designLocked` to wall, not hide. */
     design?(description: string, sampleText?: string): Promise<DesignedCandidate[]>;
     keep?(
         c: DesignedCandidate,
@@ -28,6 +28,11 @@ export interface VoiceBrowser {
         description: string,
         makeDefault: boolean,
     ): Promise<void>;
+    /**
+     * The capability exists on a higher plan: the Design tab renders locked with this hint, so the
+     * feature is discoverable rather than silently missing. `onUpgrade` is the host's pricing route.
+     */
+    designLocked?: { hint: string; onUpgrade?: () => void };
     /** A real line from the open piece, so candidates audition on the actual material. */
     sampleText?: () => string | undefined;
 }
@@ -165,7 +170,7 @@ export const VoicePicker: Component<{
                     </p>
                 </div>
                 <div class="flex items-center gap-2 max-md:pr-9">
-                    <Show when={props.browser.design}>
+                    <Show when={props.browser.design || props.browser.designLocked}>
                         <div class="flex gap-1 rounded-lg bg-surface p-0.5">
                             <Chip
                                 size="sm"
@@ -182,13 +187,31 @@ export const VoicePicker: Component<{
                                 onClick={() => setTab("design")}
                             >
                                 Design
+                                <Show when={!props.browser.design}>
+                                    <Icon name="lock" size={11} />
+                                </Show>
                             </Chip>
                         </div>
                     </Show>
                 </div>
             </div>
 
-            <Show when={tab() === "design"}>
+            <Show when={tab() === "design" && !props.browser.design}>
+                <div class="max-h-[70dvh] overflow-y-auto px-5 py-6 text-center">
+                    <p class="mx-auto max-w-90 text-[13px] leading-relaxed text-soft">
+                        {props.browser.designLocked?.hint ??
+                            "Designing a voice is not on this plan."}
+                    </p>
+                    <Show when={props.browser.designLocked?.onUpgrade}>
+                        {(go) => (
+                            <Button size="sm" class="mt-3" onClick={() => go()()}>
+                                See plans
+                            </Button>
+                        )}
+                    </Show>
+                </div>
+            </Show>
+            <Show when={tab() === "design" && !!props.browser.design}>
                 <div class="max-h-[70dvh] overflow-y-auto px-5 py-4">
                     <p class="mb-2.5 text-[12px] leading-snug text-muted">
                         Describe the voice you want. You get three takes to compare, and nothing is
