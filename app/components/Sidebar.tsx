@@ -69,7 +69,8 @@ const WorkspaceCard: Component<{
         <div
             ref={props.anchor}
             class={`mb-2 flex w-full items-center gap-1 rounded-xl border bg-canvas pr-1 transition-colors ${
-                location.pathname === "/settings"
+                // the tab rides in the path, so this is a prefix rather than an exact match
+                location.pathname.startsWith("/settings")
                     ? "border-accent"
                     : "border-line hover:border-accent/50"
             }`}
@@ -108,11 +109,25 @@ const WorkspaceCard: Component<{
     );
 };
 
+// The drawer hides the credit meter on phones, so the handle itself carries the low signal.
+const creditsLow = (): boolean => {
+    const s = billing();
+    return !!s && s.credits.balance < 2 * s.credits.perGeneration;
+};
+
 export const SidebarToggle: Component = () => (
     <div class="sticky top-0 z-panel flex items-center gap-2 border-b border-line bg-panel/95 px-3 py-2 backdrop-blur-md md:hidden">
-        <IconButton size="touch" tone="muted" title="Menu" onClick={openSidebar}>
-            <MenuIcon />
-        </IconButton>
+        <div class="relative">
+            <IconButton size="touch" tone="muted" title="Menu" onClick={openSidebar}>
+                <MenuIcon />
+            </IconButton>
+            <Show when={creditsLow()}>
+                <span
+                    class="pointer-events-none absolute right-1 top-1 size-2 rounded-full bg-fail"
+                    title="Credits are running low"
+                />
+            </Show>
+        </div>
         <span class="font-mono text-[13px] font-bold tracking-[0.06em] text-accent">GALLEO</span>
     </div>
 );
@@ -478,11 +493,12 @@ export const Sidebar: Component = () => {
 // (failed payment, pending downgrade). Detail lives in settings; this is the glance.
 const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }> = (props) => {
     const remaining = (): number => props.b.credits.balance;
-    const resetsIn = (): number =>
+    const grantIn = (): number =>
         Math.max(
             0,
             Math.ceil((new Date(props.b.credits.resetAt).getTime() - Date.now()) / 86_400_000),
         );
+    const low = (): boolean => remaining() < 2 * props.b.credits.perGeneration;
     const pastDue = (): boolean => props.b.status === "past_due";
     const lapsing = (): boolean => props.b.cancelAtPeriodEnd && props.b.plan !== "free";
     return (
@@ -497,17 +513,31 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
             </div>
             <Meter
                 value={remaining()}
-                max={props.b.credits.monthlyGrant}
+                max={props.b.credits.rolloverCap}
+                tone={low() ? "fail" : "accent"}
                 trackTone="line"
                 class="my-2"
             />
             <div class="flex items-baseline justify-between text-[10.5px] text-muted">
                 <span class="tabular-nums">
-                    <span class="font-semibold text-soft">{remaining().toLocaleString()}</span>{" "}
+                    <span class={`font-semibold ${low() ? "text-fail" : "text-soft"}`}>
+                        {remaining().toLocaleString()}
+                    </span>{" "}
                     credits left
                 </span>
-                <span>resets in {resetsIn()}d</span>
+                <span>
+                    {props.b.credits.capped
+                        ? "at the rollover cap"
+                        : `+${props.b.credits.monthlyGrant.toLocaleString()} in ${grantIn()}d`}
+                </span>
             </div>
+            {/* a capped member's real ceiling is their own, not the pool's */}
+            <Show when={props.b.credits.myCap != null}>
+                <div class="mt-0.5 text-[10.5px] tabular-nums text-muted">
+                    You: {props.b.credits.mySpend.toLocaleString()} /{" "}
+                    {props.b.credits.myCap!.toLocaleString()} cr this cycle
+                </div>
+            </Show>
             <a
                 class={`mt-1.5 block cursor-pointer text-[11.5px] font-semibold ${pastDue() ? "text-accent" : "text-accent"}`}
                 onClick={() => props.navigate("/pricing")}

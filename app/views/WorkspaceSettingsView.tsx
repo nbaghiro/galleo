@@ -3,9 +3,12 @@ import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import type { PublishPolicy, WorkspaceRole } from "@model/workspace";
 import type { ArtifactAccess } from "@model/artifact";
+import { sellsSeats } from "@model/billing";
 import { Avatar } from "@ui/avatar";
-import { ACTIVITY_PREVIEW_ROWS, CreditActivity } from "@app/components/CreditActivity";
+import { CreditActivity, previewEntries } from "@app/components/CreditActivity";
 import { VoiceShelf } from "@app/components/VoiceShelf";
+import { SettingsSection as Section, useSettingsTab } from "@app/components/settings";
+import { Tabs } from "@ui/tabs";
 import { can } from "@app/stores/features";
 import { Button, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
@@ -13,7 +16,15 @@ import { Dropdown } from "@ui/select";
 import { Meter } from "@ui/status";
 import { ConfirmModal } from "@ui/overlay";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
-import { ApiError, type WorkspaceMember } from "@app/api";
+import { UpgradeNotice } from "@app/components/Upgrade";
+import { relativeTime } from "@ui/time";
+import {
+    api,
+    ApiError,
+    type ApiCredential,
+    type NewApiCredential,
+    type WorkspaceMember,
+} from "@app/api";
 import { billing, ledgerEntries, loadBilling, loadLedger, openPortal } from "@app/stores/billing";
 import {
     inviteMember,
@@ -27,15 +38,6 @@ import {
     transferOwnership,
     workspaceState,
 } from "@app/stores/workspace";
-
-const Section: Component<{ title: string; children: JSX.Element }> = (props) => (
-    <section class="mb-8">
-        <Eyebrow as="div" class="mb-2">
-            {props.title}
-        </Eyebrow>
-        {props.children}
-    </section>
-);
 
 const StatCard: Component<{
     label: string;
@@ -71,6 +73,12 @@ const PolicyRow: Component<{ label: string; hint: string; children: JSX.Element 
 
 // "none" is deliberately not offered as a workspace default: a default that hides every new artifact
 // from everyone reads as broken, and the same effect is available per artifact.
+const TABS = [
+    { id: "general", label: "General" },
+    { id: "members", label: "Members" },
+    { id: "billing", label: "Plan & billing" },
+] as const;
+
 const ACCESS_OPTIONS = [
     { label: "Can edit", value: "edit" },
     { label: "Can comment", value: "comment" },
@@ -83,9 +91,208 @@ const roleLabel: Record<WorkspaceRole, string> = {
     member: "Member",
 };
 
+const CopyField: Component<{ label: string; value: string }> = (props) => {
+    const [copied, setCopied] = createSignal(false);
+    const copy = (): void => {
+        void navigator.clipboard.writeText(props.value);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1600);
+    };
+    return (
+        <div class="mt-1.5 flex items-center gap-2">
+            <Eyebrow as="span" class="w-14 flex-none">
+                {props.label}
+            </Eyebrow>
+            <code class="min-w-0 flex-1 truncate rounded-md bg-canvas px-2 py-1 text-[11.5px]">
+                {props.value}
+            </code>
+            <Button variant="outline" size="sm" class="flex-none" onClick={copy}>
+                {copied() ? "Copied" : "Copy"}
+            </Button>
+        </div>
+    );
+};
+
+// Two calls, which is the whole contract: swap the credential for a token, then send the token.
+const usage = (): string =>
+    `curl -X POST ${window.location.origin}/oauth/token \\\n` +
+    `  -d grant_type=client_credentials -d client_id=... -d client_secret=...\n\n` +
+    `curl ${window.location.origin}/api/v1/artifacts \\\n` +
+    `  -H "Authorization: Bearer <access token>"`;
+
+/**
+ * The workspace's machine credentials: create one, read its secret the one time it exists, revoke
+ * one. Admin-only, matching the routes, and mounted only where the plan grants `apiAccess`, so the
+ * create button here is never one the server will refuse.
+ */
+const ApiCredentials: Component = () => {
+    const [list, setList] = createSignal<ApiCredential[]>([]);
+    const [name, setName] = createSignal("");
+    const [busy, setBusy] = createSignal(false);
+    const [error, setError] = createSignal<string | null>(null);
+    // the secret lives in this signal and nowhere else; nothing can fetch it back
+    const [issued, setIssued] = createSignal<NewApiCredential | null>(null);
+    const [revoking, setRevoking] = createSignal<ApiCredential | null>(null);
+    const [acting, setActing] = createSignal(false);
+
+    const refresh = async (): Promise<void> => {
+        try {
+            setList((await api.getCredentials()).credentials);
+        } catch {
+            // signed out, or no longer an admin; the section is gated on both already
+        }
+    };
+    onMount(() => void refresh());
+
+    const submit = async (e: Event): Promise<void> => {
+        e.preventDefault();
+        const label = name().trim();
+        if (!label || busy()) return;
+        setBusy(true);
+        setError(null);
+        try {
+            setIssued(await api.createCredential(label));
+            setName("");
+            await refresh();
+        } catch (err) {
+            setError(err instanceof ApiError ? err.message : "that credential wasn't created");
+        } finally {
+            setBusy(false);
+        }
+    };
+
+    const revoke = async (): Promise<void> => {
+        const target = revoking();
+        if (!target || acting()) return;
+        setActing(true);
+        setError(null);
+        try {
+            await api.revokeCredential(target.clientId);
+            if (issued()?.clientId === target.clientId) setIssued(null);
+            await refresh();
+            setRevoking(null);
+        } catch (err) {
+            setError(err instanceof ApiError ? err.message : "that credential wasn't revoked");
+            setRevoking(null);
+        } finally {
+            setActing(false);
+        }
+    };
+
+    const madeAndUsed = (c: ApiCredential): string =>
+        `Created ${new Date(c.createdAt).toLocaleDateString()} · ${
+            c.lastUsedAt ? `last used ${relativeTime(c.lastUsedAt)}` : "not used yet"
+        }`;
+
+    return (
+        <div class="rounded-xl border border-line bg-panel px-4 py-3">
+            <form class="flex flex-col gap-2 sm:flex-row sm:items-start" onSubmit={submit}>
+                <TextField
+                    class="flex-1"
+                    placeholder="What will use it, for example a CI job"
+                    aria-label="Credential name"
+                    value={name()}
+                    onChange={setName}
+                />
+                <Button
+                    type="submit"
+                    variant="primary"
+                    class="flex-none"
+                    disabled={busy() || !name().trim()}
+                >
+                    <Show when={busy()}>
+                        <Spinner size={13} tone="current" />
+                    </Show>
+                    {busy() ? "Creating…" : "Create credential"}
+                </Button>
+            </form>
+            <Show when={error()}>
+                <p class="mt-2 text-[12.5px] text-accent">{error()}</p>
+            </Show>
+
+            <Show when={issued()}>
+                {(made) => (
+                    <div class="mt-3 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[12.5px] text-ink">
+                        <span class="font-semibold">{made().name}</span> is ready. The secret is on
+                        screen once, and we can't show it again, so copy it somewhere your
+                        integration can read it.
+                        <CopyField label="ID" value={made().clientId} />
+                        <CopyField label="Secret" value={made().secret} />
+                    </div>
+                )}
+            </Show>
+
+            <Show
+                when={list().length}
+                fallback={
+                    <p class="mt-3 text-[12.5px] text-muted">
+                        No credentials yet. Anything you create is listed here with the date it was
+                        last used.
+                    </p>
+                }
+            >
+                <ul class="mt-3 divide-y divide-line border-t border-line">
+                    <For each={list()}>
+                        {(c) => (
+                            <li class="flex items-center gap-3 py-3">
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-[13px] font-semibold">
+                                        {c.name}
+                                    </span>
+                                    <span class="block truncate text-[11.5px] text-muted">
+                                        {c.clientId} · {madeAndUsed(c)}
+                                    </span>
+                                </span>
+                                <button
+                                    class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
+                                    onClick={() => setRevoking(c)}
+                                >
+                                    Revoke
+                                </button>
+                            </li>
+                        )}
+                    </For>
+                </ul>
+            </Show>
+
+            <div class="mt-3 border-t border-line pt-3">
+                <p class="text-[11.5px] leading-relaxed text-muted">
+                    Exchange the credential for an access token, then send that token as a bearer
+                    header. A token is good for an hour and there is no refresh token, so ask for
+                    another when one runs out. Calls act in this workspace and spend its credits.
+                </p>
+                <pre class="mt-2 overflow-x-auto rounded-md bg-canvas px-2 py-1.5 text-[11px] leading-relaxed text-soft">
+                    {usage()}
+                </pre>
+            </div>
+
+            <Show when={revoking()}>
+                {(target) => (
+                    <ConfirmModal
+                        title="Revoke this credential?"
+                        body={
+                            <>
+                                <span class="font-semibold">{target().name}</span> stops working
+                                right away, along with any token it is holding. Whatever uses it
+                                needs a new credential.
+                            </>
+                        }
+                        confirmLabel="Revoke"
+                        danger
+                        busy={acting()}
+                        onConfirm={() => void revoke()}
+                        onCancel={() => setRevoking(null)}
+                    />
+                )}
+            </Show>
+        </div>
+    );
+};
+
 export const WorkspaceSettingsView: Component = () => {
     const navigate = useNavigate();
-    onMount(loadWorkspace);
+    const [tab, setTab] = useSettingsTab("/settings", TABS);
+    onMount(() => loadWorkspace({ spend: true }));
     onMount(loadBilling);
 
     const st = workspaceState;
@@ -155,7 +362,7 @@ export const WorkspaceSettingsView: Component = () => {
     const [email, setEmail] = createSignal("");
     const [inviteRole, setInviteRole] = createSignal<"admin" | "member">("member");
     const [busy, setBusy] = createSignal(false);
-    const [error, setError] = createSignal<string | null>(null);
+    const [error, setError] = createSignal<{ message: string; upgrade: boolean } | null>(null);
     // the accept URL is only known at creation, so offer it once for copy
     const [lastInvite, setLastInvite] = createSignal<{ url: string; sent: boolean } | null>(null);
 
@@ -170,7 +377,11 @@ export const WorkspaceSettingsView: Component = () => {
             setLastInvite(await inviteMember(target, inviteRole()));
             setEmail("");
         } catch (err) {
-            setError(err instanceof ApiError ? err.message : "the invite failed. Try again");
+            setError(
+                err instanceof ApiError
+                    ? { message: err.message, upgrade: !!err.remedies.upgrade }
+                    : { message: "the invite failed. Try again", upgrade: false },
+            );
         } finally {
             setBusy(false);
         }
@@ -213,103 +424,471 @@ export const WorkspaceSettingsView: Component = () => {
                     <Show when={st()}>
                         {(state) => (
                             <>
-                                <Section title="General">
-                                    <div class="rounded-xl border border-line bg-panel px-4 py-3">
-                                        <Show
-                                            when={isAdmin()}
-                                            fallback={
-                                                <div class="text-[14px] font-semibold">
-                                                    {state().workspace.name}
+                                <Tabs
+                                    tabs={TABS}
+                                    active={tab()}
+                                    onSelect={setTab}
+                                    label="Workspace settings"
+                                />
+
+                                <Show when={tab() === "general"}>
+                                    <Section title="General">
+                                        <div class="rounded-xl border border-line bg-panel px-4 py-3">
+                                            <Show
+                                                when={isAdmin()}
+                                                fallback={
+                                                    <div class="text-[14px] font-semibold">
+                                                        {state().workspace.name}
+                                                    </div>
+                                                }
+                                            >
+                                                <form
+                                                    class="flex items-center gap-2"
+                                                    onSubmit={submitName}
+                                                >
+                                                    <TextField
+                                                        class="flex-1"
+                                                        value={name() ?? state().workspace.name}
+                                                        onChange={setName}
+                                                        aria-label="Workspace name"
+                                                    />
+                                                    <Button
+                                                        type="submit"
+                                                        variant="outline"
+                                                        disabled={
+                                                            savingName() ||
+                                                            !name()?.trim() ||
+                                                            name()?.trim() ===
+                                                                state().workspace.name
+                                                        }
+                                                    >
+                                                        {savingName() ? "Saving…" : "Rename"}
+                                                    </Button>
+                                                </form>
+                                            </Show>
+                                            <Show when={!isOwner()}>
+                                                <div class="mt-3 border-t border-line pt-3">
+                                                    <Button
+                                                        variant="ghost"
+                                                        class="text-[12.5px]"
+                                                        onClick={() =>
+                                                            setConfirm({ kind: "leave" })
+                                                        }
+                                                    >
+                                                        Leave this workspace
+                                                    </Button>
                                                 </div>
-                                            }
-                                        >
+                                            </Show>
+                                        </div>
+                                    </Section>
+
+                                    <Show when={isAdmin()}>
+                                        <Section title="Policies">
+                                            <div class="rounded-xl border border-line bg-panel px-4 py-1">
+                                                <PolicyRow
+                                                    label="Default access to new work"
+                                                    hint="What everyone else in the workspace gets on an artifact that sets no level of its own. The person who made it, and admins, always keep full access."
+                                                >
+                                                    <div class="w-44">
+                                                        <Dropdown
+                                                            // an absent value is the ship default, never
+                                                            // a lock: a missing key must not read as none
+                                                            value={
+                                                                state().workspace
+                                                                    .defaultArtifactAccess ?? "edit"
+                                                            }
+                                                            options={ACCESS_OPTIONS}
+                                                            onChange={(v) =>
+                                                                void savePolicy({
+                                                                    defaultArtifactAccess:
+                                                                        v as ArtifactAccess,
+                                                                })
+                                                            }
+                                                        />
+                                                    </div>
+                                                </PolicyRow>
+                                                <PolicyRow
+                                                    label="Who can publish"
+                                                    hint="Publishing puts an artifact on a public URL, outside the workspace."
+                                                >
+                                                    <div class="w-44">
+                                                        <Dropdown
+                                                            value={state().workspace.publishPolicy}
+                                                            options={[
+                                                                {
+                                                                    label: "Everyone",
+                                                                    value: "members",
+                                                                },
+                                                                {
+                                                                    label: "Admins only",
+                                                                    value: "admins",
+                                                                },
+                                                            ]}
+                                                            onChange={(v) =>
+                                                                void savePolicy({
+                                                                    publishPolicy:
+                                                                        v as PublishPolicy,
+                                                                })
+                                                            }
+                                                        />
+                                                    </div>
+                                                </PolicyRow>
+                                            </div>
+                                        </Section>
+                                    </Show>
+
+                                    <Section title="Voice">
+                                        <VoiceShelf canDesign={can("voiceDesign")} />
+                                    </Section>
+                                </Show>
+
+                                <Show when={tab() === "billing"}>
+                                    <Section title="Plan & usage">
+                                        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                                            <StatCard
+                                                label="Plan"
+                                                value={
+                                                    (b()?.plan ?? state().workspace.plan)
+                                                        .charAt(0)
+                                                        .toUpperCase() +
+                                                    (b()?.plan ?? state().workspace.plan).slice(1)
+                                                }
+                                                caption={
+                                                    b()?.status === "past_due"
+                                                        ? "Payment failed. Update your card"
+                                                        : b()?.cancelAtPeriodEnd
+                                                          ? "Ends at the period close"
+                                                          : undefined
+                                                }
+                                                action={
+                                                    <button
+                                                        class="text-[12px] font-semibold text-soft underline hover:text-ink"
+                                                        onClick={() =>
+                                                            b()?.status === "past_due"
+                                                                ? void openPortal("settings")
+                                                                : navigate("/pricing")
+                                                        }
+                                                    >
+                                                        {b()?.status === "past_due"
+                                                            ? "Fix billing →"
+                                                            : "Manage plan →"}
+                                                    </button>
+                                                }
+                                            />
+                                            <StatCard
+                                                label="AI credits left"
+                                                value={creditsLeft().toLocaleString()}
+                                                meter={{
+                                                    value: creditsLeft(),
+                                                    max: b()?.credits.rolloverCap ?? 1,
+                                                }}
+                                                caption={`+${(b()?.credits.monthlyGrant ?? 0).toLocaleString()} a month${
+                                                    b()?.credits.capped
+                                                        ? " · at the rollover cap"
+                                                        : ""
+                                                } · you used ${(
+                                                    b()?.credits.mySpend ?? 0
+                                                ).toLocaleString()} this cycle`}
+                                            />
+                                            <StatCard
+                                                label="Storage"
+                                                value={storageValue()}
+                                                meter={
+                                                    unlimited(b()?.usage.maxStorageMb ?? 0)
+                                                        ? undefined
+                                                        : {
+                                                              value: b()?.usage.storageMb ?? 0,
+                                                              max: b()?.usage.maxStorageMb ?? 1,
+                                                          }
+                                                }
+                                                caption={artifactsCaption()}
+                                            />
+                                        </div>
+                                    </Section>
+                                </Show>
+
+                                <Show when={tab() === "members"}>
+                                    <Section title="Seats">
+                                        <div class="grid gap-3 sm:grid-cols-2">
+                                            <StatCard
+                                                label="Seats"
+                                                value={`${seatsUsed()} / ${seats()}`}
+                                                meter={{ value: seatsUsed(), max: seats() }}
+                                                action={
+                                                    <Show when={isOwner()}>
+                                                        <button
+                                                            class="text-[12px] font-semibold text-soft underline hover:text-ink"
+                                                            onClick={() => navigate("/pricing")}
+                                                        >
+                                                            {/* only the team plan sells seats */}
+                                                            {sellsSeats(state().workspace.plan)
+                                                                ? "Add seats →"
+                                                                : "Upgrade →"}
+                                                        </button>
+                                                    </Show>
+                                                }
+                                            />
+                                        </div>
+                                    </Section>
+
+                                    <Section title="Members">
+                                        <Show when={isAdmin()}>
                                             <form
-                                                class="flex items-center gap-2"
-                                                onSubmit={submitName}
+                                                class="mb-2 flex items-start gap-2"
+                                                onSubmit={submitInvite}
                                             >
                                                 <TextField
+                                                    type="email"
+                                                    placeholder="teammate@company.com"
+                                                    value={email()}
+                                                    onChange={setEmail}
                                                     class="flex-1"
-                                                    value={name() ?? state().workspace.name}
-                                                    onChange={setName}
-                                                    aria-label="Workspace name"
                                                 />
-                                                <Button
-                                                    type="submit"
-                                                    variant="outline"
-                                                    disabled={
-                                                        savingName() ||
-                                                        !name()?.trim() ||
-                                                        name()?.trim() === state().workspace.name
-                                                    }
-                                                >
-                                                    {savingName() ? "Saving…" : "Rename"}
-                                                </Button>
-                                            </form>
-                                        </Show>
-                                        <Show when={!isOwner()}>
-                                            <div class="mt-3 border-t border-line pt-3">
-                                                <Button
-                                                    variant="ghost"
-                                                    class="text-[12.5px]"
-                                                    onClick={() => setConfirm({ kind: "leave" })}
-                                                >
-                                                    Leave this workspace
-                                                </Button>
-                                            </div>
-                                        </Show>
-                                    </div>
-                                </Section>
-
-                                <Show when={isAdmin()}>
-                                    <Section title="Policies">
-                                        <div class="rounded-xl border border-line bg-panel px-4 py-1">
-                                            <PolicyRow
-                                                label="Default access to new work"
-                                                hint="What everyone else in the workspace gets on an artifact that sets no level of its own. The person who made it, and admins, always keep full access."
-                                            >
-                                                <div class="w-44">
+                                                {/* the plain trigger is w-full; unboxed it starves the email field */}
+                                                <div class="w-28 flex-none">
                                                     <Dropdown
-                                                        // an absent value is the ship default, never
-                                                        // a lock: a missing key must not read as none
-                                                        value={
-                                                            state().workspace
-                                                                .defaultArtifactAccess ?? "edit"
-                                                        }
-                                                        options={ACCESS_OPTIONS}
-                                                        onChange={(v) =>
-                                                            void savePolicy({
-                                                                defaultArtifactAccess:
-                                                                    v as ArtifactAccess,
-                                                            })
-                                                        }
-                                                    />
-                                                </div>
-                                            </PolicyRow>
-                                            <PolicyRow
-                                                label="Who can publish"
-                                                hint="Publishing puts an artifact on a public URL, outside the workspace."
-                                            >
-                                                <div class="w-44">
-                                                    <Dropdown
-                                                        value={state().workspace.publishPolicy}
+                                                        value={inviteRole()}
                                                         options={[
-                                                            {
-                                                                label: "Everyone",
-                                                                value: "members",
-                                                            },
-                                                            {
-                                                                label: "Admins only",
-                                                                value: "admins",
-                                                            },
+                                                            { label: "Member", value: "member" },
+                                                            { label: "Admin", value: "admin" },
                                                         ]}
                                                         onChange={(v) =>
-                                                            void savePolicy({
-                                                                publishPolicy: v as PublishPolicy,
-                                                            })
+                                                            setInviteRole(
+                                                                v === "admin" ? "admin" : "member",
+                                                            )
                                                         }
                                                     />
                                                 </div>
-                                            </PolicyRow>
+                                                <Button
+                                                    type="submit"
+                                                    variant="primary"
+                                                    disabled={busy() || !email().trim()}
+                                                >
+                                                    <Show when={busy()}>
+                                                        <Spinner size={13} tone="current" />
+                                                    </Show>
+                                                    {busy() ? "Inviting…" : "Invite"}
+                                                </Button>
+                                            </form>
+                                            <Show when={error()}>
+                                                {(err) => (
+                                                    <div class="mb-3 flex flex-wrap items-center gap-2">
+                                                        <p class="text-[12.5px] text-accent">
+                                                            {err().message}
+                                                        </p>
+                                                        <Show when={err().upgrade}>
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => navigate("/pricing")}
+                                                            >
+                                                                See plans →
+                                                            </Button>
+                                                        </Show>
+                                                    </div>
+                                                )}
+                                            </Show>
+                                            <Show when={lastInvite()}>
+                                                {(inv) => (
+                                                    <div class="mb-4 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[12.5px] text-ink">
+                                                        {inv().sent
+                                                            ? "Invite sent."
+                                                            : "Invite created (email isn't configured on this server)."}{" "}
+                                                        Share this link, which works once:
+                                                        <div class="mt-1.5 flex items-center gap-2">
+                                                            <code class="min-w-0 flex-1 truncate rounded-md bg-canvas px-2 py-1 text-[11.5px]">
+                                                                {inv().url}
+                                                            </code>
+                                                            <button
+                                                                class="flex-none rounded-md border border-line bg-canvas px-2 py-1 text-[11.5px] font-semibold hover:border-accent"
+                                                                onClick={() =>
+                                                                    void navigator.clipboard.writeText(
+                                                                        inv().url,
+                                                                    )
+                                                                }
+                                                            >
+                                                                Copy
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </Show>
+                                        </Show>
+
+                                        <ul class="divide-y divide-line rounded-xl border border-line bg-panel">
+                                            <For each={state().members}>
+                                                {(m) => (
+                                                    <li class="flex items-center gap-3 px-4 py-3">
+                                                        <Avatar
+                                                            src={m.avatarUrl}
+                                                            name={m.name}
+                                                            email={m.email}
+                                                        />
+                                                        <span class="min-w-0 flex-1">
+                                                            <span class="block truncate text-[13px] font-semibold">
+                                                                {m.name ?? m.email}
+                                                            </span>
+                                                            <Show when={m.name}>
+                                                                <span class="block truncate text-[11.5px] text-muted">
+                                                                    {m.email}
+                                                                </span>
+                                                            </Show>
+                                                        </span>
+                                                        <Show
+                                                            when={
+                                                                m.spend != null &&
+                                                                (m.spend > 0 ||
+                                                                    state().workspace
+                                                                        .memberCreditCap != null)
+                                                            }
+                                                        >
+                                                            <span
+                                                                class="flex-none text-[11px] tabular-nums text-muted"
+                                                                title="Credits spent this cycle"
+                                                            >
+                                                                {m.spend!.toLocaleString()}
+                                                                {state().workspace
+                                                                    .memberCreditCap != null &&
+                                                                m.role === "member"
+                                                                    ? ` / ${state().workspace.memberCreditCap!.toLocaleString()}`
+                                                                    : ""}{" "}
+                                                                cr
+                                                            </span>
+                                                        </Show>
+                                                        <Show
+                                                            when={isOwner() && !m.isOwner}
+                                                            fallback={
+                                                                <span class="flex-none text-[11px] font-semibold uppercase tracking-wide text-muted">
+                                                                    {roleLabel[m.role]}
+                                                                </span>
+                                                            }
+                                                        >
+                                                            <Dropdown
+                                                                value={m.role}
+                                                                options={[
+                                                                    {
+                                                                        label: "Member",
+                                                                        value: "member",
+                                                                    },
+                                                                    {
+                                                                        label: "Admin",
+                                                                        value: "admin",
+                                                                    },
+                                                                ]}
+                                                                compact
+                                                                onChange={(v) =>
+                                                                    void setMemberRole(
+                                                                        m.userId,
+                                                                        v === "admin"
+                                                                            ? "admin"
+                                                                            : "member",
+                                                                    ).catch(() => {})
+                                                                }
+                                                            />
+                                                            <button
+                                                                class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
+                                                                title="Make workspace owner"
+                                                                onClick={() =>
+                                                                    setConfirm({
+                                                                        kind: "transfer",
+                                                                        member: m,
+                                                                    })
+                                                                }
+                                                            >
+                                                                Transfer
+                                                            </button>
+                                                        </Show>
+                                                        <Show
+                                                            when={
+                                                                isAdmin() &&
+                                                                !m.isOwner &&
+                                                                (isOwner() || m.role !== "admin")
+                                                            }
+                                                        >
+                                                            <button
+                                                                class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
+                                                                onClick={() =>
+                                                                    void removeMember(
+                                                                        m.userId,
+                                                                    ).catch(() => {})
+                                                                }
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </Show>
+                                                    </li>
+                                                )}
+                                            </For>
+                                            <For each={state().invites}>
+                                                {(inv) => (
+                                                    <li class="flex items-center gap-3 px-4 py-3 opacity-70">
+                                                        <span class="flex size-8 flex-none items-center justify-center rounded-full border border-dashed border-line text-[12.5px] font-bold text-muted">
+                                                            {inv.email[0]?.toUpperCase()}
+                                                        </span>
+                                                        <span class="min-w-0 flex-1">
+                                                            <span class="block truncate text-[13px] font-semibold">
+                                                                {inv.email}
+                                                            </span>
+                                                            <span class="block text-[11.5px] text-muted">
+                                                                Invited · expires{" "}
+                                                                {new Date(
+                                                                    inv.expiresAt,
+                                                                ).toLocaleDateString()}
+                                                            </span>
+                                                        </span>
+                                                        <button
+                                                            class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
+                                                            onClick={() =>
+                                                                void inviteMember(inv.email).catch(
+                                                                    () => {},
+                                                                )
+                                                            }
+                                                        >
+                                                            Resend
+                                                        </button>
+                                                        <button
+                                                            class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
+                                                            onClick={() =>
+                                                                void revokeInvite(inv.id).catch(
+                                                                    () => {},
+                                                                )
+                                                            }
+                                                        >
+                                                            Revoke
+                                                        </button>
+                                                    </li>
+                                                )}
+                                            </For>
+                                        </ul>
+                                    </Section>
+                                </Show>
+
+                                <Show when={tab() === "general"}>
+                                    <Show when={isAdmin()}>
+                                        <Section title="API credentials">
+                                            <Show
+                                                when={can("apiAccess")}
+                                                fallback={
+                                                    <UpgradeNotice
+                                                        feature="apiAccess"
+                                                        title="API credentials"
+                                                    >
+                                                        A credential lets your own code reach this
+                                                        workspace: list and read artifacts, create
+                                                        one, or run a generation, with no browser in
+                                                        the way.
+                                                    </UpgradeNotice>
+                                                }
+                                            >
+                                                <ApiCredentials />
+                                            </Show>
+                                        </Section>
+                                    </Show>
+                                </Show>
+
+                                <Show when={tab() === "billing" && isAdmin()}>
+                                    <Section title="Spending">
+                                        <div class="rounded-xl border border-line bg-panel px-4 py-1">
                                             <PolicyRow
                                                 label="Credit limit per member"
                                                 hint="The most one member can spend from the shared pool each cycle. Admins are never limited. Leave it empty for no limit."
@@ -340,300 +919,29 @@ export const WorkspaceSettingsView: Component = () => {
                                     </Section>
                                 </Show>
 
-                                <Section title="Voice">
-                                    <VoiceShelf canDesign={can("voiceDesign")} />
-                                </Section>
-
-                                <Section title="Plan & usage">
-                                    <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                                        <StatCard
-                                            label="Plan"
-                                            value={
-                                                (b()?.plan ?? state().workspace.plan)
-                                                    .charAt(0)
-                                                    .toUpperCase() +
-                                                (b()?.plan ?? state().workspace.plan).slice(1)
+                                <Show when={tab() === "billing"}>
+                                    <Section title="Credit activity">
+                                        <Show
+                                            when={ledgerEntries().length}
+                                            fallback={
+                                                <p class="text-[12.5px] text-muted">
+                                                    No credit activity yet.
+                                                </p>
                                             }
-                                            caption={
-                                                b()?.status === "past_due"
-                                                    ? "Payment failed. Update your card"
-                                                    : b()?.cancelAtPeriodEnd
-                                                      ? "Ends at the period close"
-                                                      : undefined
-                                            }
-                                            action={
-                                                <button
-                                                    class="text-[12px] font-semibold text-soft underline hover:text-ink"
-                                                    onClick={() =>
-                                                        b()?.status === "past_due"
-                                                            ? void openPortal("settings")
-                                                            : navigate("/pricing")
-                                                    }
-                                                >
-                                                    {b()?.status === "past_due"
-                                                        ? "Fix billing →"
-                                                        : "Manage plan →"}
-                                                </button>
-                                            }
-                                        />
-                                        <StatCard
-                                            label="AI credits left"
-                                            value={creditsLeft().toLocaleString()}
-                                            meter={{
-                                                value: creditsLeft(),
-                                                max: b()?.credits.monthlyGrant ?? 1,
-                                            }}
-                                            caption={`+${(b()?.credits.monthlyGrant ?? 0).toLocaleString()} a month · you used ${(
-                                                b()?.credits.mySpend ?? 0
-                                            ).toLocaleString()} this cycle`}
-                                        />
-                                        <StatCard
-                                            label="Seats"
-                                            value={`${seatsUsed()} / ${seats()}`}
-                                            meter={{ value: seatsUsed(), max: seats() }}
-                                            action={
-                                                <Show when={isOwner()}>
-                                                    <button
-                                                        class="text-[12px] font-semibold text-soft underline hover:text-ink"
-                                                        onClick={() => navigate("/pricing")}
-                                                    >
-                                                        Add seats →
-                                                    </button>
-                                                </Show>
-                                            }
-                                        />
-                                        <StatCard
-                                            label="Storage"
-                                            value={storageValue()}
-                                            meter={
-                                                unlimited(b()?.usage.maxStorageMb ?? 0)
-                                                    ? undefined
-                                                    : {
-                                                          value: b()?.usage.storageMb ?? 0,
-                                                          max: b()?.usage.maxStorageMb ?? 1,
-                                                      }
-                                            }
-                                            caption={artifactsCaption()}
-                                        />
-                                    </div>
-                                </Section>
-
-                                <Section title="Members">
-                                    <Show when={isAdmin()}>
-                                        <form
-                                            class="mb-2 flex items-start gap-2"
-                                            onSubmit={submitInvite}
                                         >
-                                            <TextField
-                                                type="email"
-                                                placeholder="teammate@company.com"
-                                                value={email()}
-                                                onChange={setEmail}
-                                                class="flex-1"
+                                            <CreditActivity
+                                                entries={previewEntries(ledgerEntries())}
+                                                variant="preview"
                                             />
-                                            {/* the plain trigger is w-full; unboxed it starves the email field */}
-                                            <div class="w-28 flex-none">
-                                                <Dropdown
-                                                    value={inviteRole()}
-                                                    options={[
-                                                        { label: "Member", value: "member" },
-                                                        { label: "Admin", value: "admin" },
-                                                    ]}
-                                                    onChange={(v) =>
-                                                        setInviteRole(
-                                                            v === "admin" ? "admin" : "member",
-                                                        )
-                                                    }
-                                                />
-                                            </div>
-                                            <Button
-                                                type="submit"
-                                                variant="primary"
-                                                disabled={busy() || !email().trim()}
+                                            <button
+                                                class="mt-2 text-[12px] font-medium text-soft underline hover:text-ink"
+                                                onClick={() => navigate("/pricing/activity")}
                                             >
-                                                <Show when={busy()}>
-                                                    <Spinner size={13} tone="current" />
-                                                </Show>
-                                                {busy() ? "Inviting…" : "Invite"}
-                                            </Button>
-                                        </form>
-                                        <Show when={error()}>
-                                            <p class="mb-3 text-[12.5px] text-accent">{error()}</p>
+                                                View all
+                                            </button>
                                         </Show>
-                                        <Show when={lastInvite()}>
-                                            {(inv) => (
-                                                <div class="mb-4 rounded-xl border border-accent/30 bg-accent/10 px-4 py-3 text-[12.5px] text-ink">
-                                                    {inv().sent
-                                                        ? "Invite sent."
-                                                        : "Invite created (email isn't configured on this server)."}{" "}
-                                                    Share this link, which works once:
-                                                    <div class="mt-1.5 flex items-center gap-2">
-                                                        <code class="min-w-0 flex-1 truncate rounded-md bg-canvas px-2 py-1 text-[11.5px]">
-                                                            {inv().url}
-                                                        </code>
-                                                        <button
-                                                            class="flex-none rounded-md border border-line bg-canvas px-2 py-1 text-[11.5px] font-semibold hover:border-accent"
-                                                            onClick={() =>
-                                                                void navigator.clipboard.writeText(
-                                                                    inv().url,
-                                                                )
-                                                            }
-                                                        >
-                                                            Copy
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </Show>
-                                    </Show>
-
-                                    <ul class="divide-y divide-line rounded-xl border border-line bg-panel">
-                                        <For each={state().members}>
-                                            {(m) => (
-                                                <li class="flex items-center gap-3 px-4 py-3">
-                                                    <Avatar
-                                                        src={m.avatarUrl}
-                                                        name={m.name}
-                                                        email={m.email}
-                                                    />
-                                                    <span class="min-w-0 flex-1">
-                                                        <span class="block truncate text-[13px] font-semibold">
-                                                            {m.name ?? m.email}
-                                                        </span>
-                                                        <Show when={m.name}>
-                                                            <span class="block truncate text-[11.5px] text-muted">
-                                                                {m.email}
-                                                            </span>
-                                                        </Show>
-                                                    </span>
-                                                    <Show
-                                                        when={isOwner() && !m.isOwner}
-                                                        fallback={
-                                                            <span class="flex-none text-[11px] font-semibold uppercase tracking-wide text-muted">
-                                                                {roleLabel[m.role]}
-                                                            </span>
-                                                        }
-                                                    >
-                                                        <Dropdown
-                                                            value={m.role}
-                                                            options={[
-                                                                {
-                                                                    label: "Member",
-                                                                    value: "member",
-                                                                },
-                                                                { label: "Admin", value: "admin" },
-                                                            ]}
-                                                            compact
-                                                            onChange={(v) =>
-                                                                void setMemberRole(
-                                                                    m.userId,
-                                                                    v === "admin"
-                                                                        ? "admin"
-                                                                        : "member",
-                                                                ).catch(() => {})
-                                                            }
-                                                        />
-                                                        <button
-                                                            class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
-                                                            title="Make workspace owner"
-                                                            onClick={() =>
-                                                                setConfirm({
-                                                                    kind: "transfer",
-                                                                    member: m,
-                                                                })
-                                                            }
-                                                        >
-                                                            Transfer
-                                                        </button>
-                                                    </Show>
-                                                    <Show
-                                                        when={
-                                                            isAdmin() &&
-                                                            !m.isOwner &&
-                                                            (isOwner() || m.role !== "admin")
-                                                        }
-                                                    >
-                                                        <button
-                                                            class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
-                                                            onClick={() =>
-                                                                void removeMember(m.userId).catch(
-                                                                    () => {},
-                                                                )
-                                                            }
-                                                        >
-                                                            Remove
-                                                        </button>
-                                                    </Show>
-                                                </li>
-                                            )}
-                                        </For>
-                                        <For each={state().invites}>
-                                            {(inv) => (
-                                                <li class="flex items-center gap-3 px-4 py-3 opacity-70">
-                                                    <span class="flex size-8 flex-none items-center justify-center rounded-full border border-dashed border-line text-[12.5px] font-bold text-muted">
-                                                        {inv.email[0]?.toUpperCase()}
-                                                    </span>
-                                                    <span class="min-w-0 flex-1">
-                                                        <span class="block truncate text-[13px] font-semibold">
-                                                            {inv.email}
-                                                        </span>
-                                                        <span class="block text-[11.5px] text-muted">
-                                                            Invited · expires{" "}
-                                                            {new Date(
-                                                                inv.expiresAt,
-                                                            ).toLocaleDateString()}
-                                                        </span>
-                                                    </span>
-                                                    <button
-                                                        class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
-                                                        onClick={() =>
-                                                            void inviteMember(inv.email).catch(
-                                                                () => {},
-                                                            )
-                                                        }
-                                                    >
-                                                        Resend
-                                                    </button>
-                                                    <button
-                                                        class="flex-none text-[12px] font-medium text-soft underline hover:text-ink"
-                                                        onClick={() =>
-                                                            void revokeInvite(inv.id).catch(
-                                                                () => {},
-                                                            )
-                                                        }
-                                                    >
-                                                        Revoke
-                                                    </button>
-                                                </li>
-                                            )}
-                                        </For>
-                                    </ul>
-                                </Section>
-
-                                <Section title="Credit activity">
-                                    <Show
-                                        when={ledgerEntries().length}
-                                        fallback={
-                                            <p class="text-[12.5px] text-muted">
-                                                No credit activity yet.
-                                            </p>
-                                        }
-                                    >
-                                        <CreditActivity
-                                            entries={ledgerEntries().slice(
-                                                0,
-                                                ACTIVITY_PREVIEW_ROWS,
-                                            )}
-                                            variant="preview"
-                                        />
-                                        <button
-                                            class="mt-2 text-[12px] font-medium text-soft underline hover:text-ink"
-                                            onClick={() => navigate("/pricing/activity")}
-                                        >
-                                            View all
-                                        </button>
-                                    </Show>
-                                </Section>
+                                    </Section>
+                                </Show>
                             </>
                         )}
                     </Show>

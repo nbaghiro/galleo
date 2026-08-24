@@ -5,7 +5,7 @@ import type { WorkspaceRole } from "@model/workspace";
 import { isToolScope, SCOPE_LABEL } from "@model/tools";
 import { resolveTheme } from "@themes";
 import { Avatar } from "@ui/avatar";
-import { Badge, Button, Eyebrow } from "@ui/button";
+import { Badge, Button } from "@ui/button";
 import { TextField } from "@ui/inputs";
 import { ConfirmModal } from "@ui/overlay";
 import { ConfirmCodeField } from "@app/components/ConfirmCode";
@@ -30,15 +30,14 @@ import { appTheme, customThemes, openThemeEditor } from "@app/stores/theme";
 import { clearModelOverrides, overrideCount } from "@app/stores/models";
 import { modelPickerReady, openModelPicker } from "@app/components/ModelPicker";
 import { leaveWorkspace, switchWorkspace } from "@app/stores/workspace";
+import { SettingsSection as Section, useSettingsTab } from "@app/components/settings";
+import { Tabs } from "@ui/tabs";
 
-const Section: Component<{ title: string; children: JSX.Element }> = (props) => (
-    <section class="mb-8">
-        <Eyebrow as="div" class="mb-2">
-            {props.title}
-        </Eyebrow>
-        {props.children}
-    </section>
-);
+const TABS = [
+    { id: "profile", label: "Profile" },
+    { id: "security", label: "Security" },
+    { id: "workspaces", label: "Workspaces" },
+] as const;
 
 const Card: Component<{ children: JSX.Element }> = (props) => (
     <div class="rounded-xl border border-line bg-panel px-4 py-3">{props.children}</div>
@@ -90,6 +89,7 @@ const LINK_ERRORS: Record<string, string> = {
 
 export const AccountSettingsView: Component = () => {
     const navigate = useNavigate();
+    const [tab, setTab] = useSettingsTab("/account", TABS);
     const [params, setParams] = useSearchParams();
 
     const me = user;
@@ -284,323 +284,333 @@ export const AccountSettingsView: Component = () => {
                         )}
                     </Show>
 
-                    <Section title="Profile">
-                        <Card>
-                            <div class="flex items-center gap-3 border-b border-line pb-3">
-                                <Avatar
-                                    size="lg"
-                                    src={me()?.avatarUrl}
-                                    name={me()?.name}
-                                    email={me()?.email}
-                                />
-                                <div class="min-w-0 flex-1">
-                                    <div class="truncate text-[14px] font-semibold">
-                                        {me()?.name ?? me()?.email}
-                                    </div>
-                                    <div class="truncate text-[12px] text-muted">
-                                        Your picture comes from the account you signed in with.
-                                    </div>
-                                </div>
-                            </div>
+                    <Tabs tabs={TABS} active={tab()} onSelect={setTab} label="Account settings" />
 
-                            <form class="border-b border-line py-3" onSubmit={submitName}>
-                                <label
-                                    class="block text-[13px] font-semibold text-ink"
-                                    for="account-name"
-                                >
-                                    Display name
-                                </label>
-                                <div class="mt-1.5 flex items-center gap-2">
-                                    <TextField
-                                        id="account-name"
-                                        class="flex-1"
-                                        placeholder="Your name"
-                                        value={nameValue()}
-                                        onChange={(v) => {
-                                            setName(v);
-                                            setNameSaved(false);
-                                        }}
+                    <Show when={tab() === "profile"}>
+                        <Section title="Profile">
+                            <Card>
+                                <div class="flex items-center gap-3 border-b border-line pb-3">
+                                    <Avatar
+                                        size="lg"
+                                        src={me()?.avatarUrl}
+                                        name={me()?.name}
+                                        email={me()?.email}
                                     />
-                                    <Button
-                                        type="submit"
-                                        variant="outline"
-                                        disabled={!nameDirty()}
-                                        loading={savingName()}
-                                    >
-                                        Save
-                                    </Button>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="truncate text-[14px] font-semibold">
+                                            {me()?.name ?? me()?.email}
+                                        </div>
+                                        <div class="truncate text-[12px] text-muted">
+                                            Your picture comes from the account you signed in with.
+                                        </div>
+                                    </div>
                                 </div>
-                                <Show when={nameSaved()}>
-                                    <p class="mt-1.5 text-[11.5px] text-muted">Name updated.</p>
-                                </Show>
-                            </form>
 
-                            <Row label="Email" hint={me()?.email}>
-                                <Show
-                                    when={!me()?.emailVerified}
-                                    fallback={<Badge tone="accentSoft">Verified</Badge>}
-                                >
-                                    <Show
-                                        when={!resent()}
-                                        fallback={<ConfirmCodeField layout="inline" />}
+                                <form class="border-b border-line py-3" onSubmit={submitName}>
+                                    <label
+                                        class="block text-[13px] font-semibold text-ink"
+                                        for="account-name"
                                     >
-                                        <Badge tone="muted">Unconfirmed</Badge>
+                                        Display name
+                                    </label>
+                                    <div class="mt-1.5 flex items-center gap-2">
+                                        <TextField
+                                            id="account-name"
+                                            class="flex-1"
+                                            placeholder="Your name"
+                                            value={nameValue()}
+                                            onChange={(v) => {
+                                                setName(v);
+                                                setNameSaved(false);
+                                            }}
+                                        />
                                         <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            loading={resending()}
-                                            onClick={() => void resend()}
+                                            type="submit"
+                                            variant="outline"
+                                            disabled={!nameDirty()}
+                                            loading={savingName()}
                                         >
-                                            Send a code
+                                            Save
                                         </Button>
+                                    </div>
+                                    <Show when={nameSaved()}>
+                                        <p class="mt-1.5 text-[11.5px] text-muted">Name updated.</p>
                                     </Show>
-                                </Show>
-                            </Row>
-                        </Card>
-                    </Section>
+                                </form>
 
-                    <Section title="Password">
-                        <Card>
-                            <p class="text-[12.5px] text-muted">
-                                <Show
-                                    when={hasPassword()}
-                                    fallback="You sign in with a connected account. Set a password to add a second way in."
-                                >
-                                    Changing your password signs out every other device.
-                                </Show>
-                            </p>
-                            <form
-                                class="mt-3 flex flex-col gap-2 sm:max-w-100"
-                                onSubmit={submitPassword}
-                            >
-                                <Show when={hasPassword()}>
-                                    <TextField
-                                        type="password"
-                                        autocomplete="current-password"
-                                        placeholder="Current password"
-                                        aria-label="Current password"
-                                        value={current()}
-                                        onChange={setCurrent}
-                                    />
-                                </Show>
-                                <TextField
-                                    type="password"
-                                    autocomplete="new-password"
-                                    placeholder="New password"
-                                    aria-label="New password"
-                                    value={next()}
-                                    onChange={(v) => {
-                                        setNext(v);
-                                        setPwDone(false);
-                                    }}
-                                />
-                                <TextField
-                                    type="password"
-                                    autocomplete="new-password"
-                                    placeholder="Repeat new password"
-                                    aria-label="Repeat new password"
-                                    value={confirmPw()}
-                                    onChange={setConfirmPw}
-                                />
-                                <div class="flex items-center gap-2">
-                                    <Button
-                                        type="submit"
-                                        variant="primary"
-                                        disabled={!pwReady()}
-                                        loading={pwBusy()}
-                                    >
-                                        {hasPassword() ? "Change password" : "Set password"}
-                                    </Button>
-                                    <Show when={next() && next().length < 8}>
-                                        <span class="text-[11.5px] text-muted">
-                                            At least 8 characters.
-                                        </span>
-                                    </Show>
-                                    <Show when={confirmPw() && next() !== confirmPw()}>
-                                        <span class="text-[11.5px] text-muted">
-                                            Both fields must match.
-                                        </span>
-                                    </Show>
-                                </div>
-                            </form>
-                            <Show when={pwError()}>
-                                {(t) => <p class="mt-2 text-[12.5px] text-accent">{t()}</p>}
-                            </Show>
-                            <Show when={pwDone()}>
-                                <p class="mt-2 text-[12.5px] text-muted">
-                                    Password saved. Other devices have been signed out.
-                                </p>
-                            </Show>
-                        </Card>
-                    </Section>
-
-                    <Section title="Connected accounts">
-                        <Card>
-                            <For each={connections()}>
-                                {(conn) => (
-                                    <Row
-                                        label={providerName(conn.provider)}
-                                        hint={`Connected ${new Date(conn.linkedAt).toLocaleDateString()}`}
+                                <Row label="Email" hint={me()?.email}>
+                                    <Show
+                                        when={!me()?.emailVerified}
+                                        fallback={<Badge tone="accentSoft">Verified</Badge>}
                                     >
                                         <Show
-                                            when={!onlyCredential()}
-                                            fallback={
-                                                <span class="text-[11.5px] text-muted">
-                                                    Set a password to disconnect this
-                                                </span>
-                                            }
+                                            when={!resent()}
+                                            fallback={<ConfirmCodeField layout="inline" />}
                                         >
+                                            <Badge tone="muted">Unconfirmed</Badge>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                onClick={() => void unlink(conn.provider)}
+                                                loading={resending()}
+                                                onClick={() => void resend()}
                                             >
-                                                Disconnect
+                                                Send a code
                                             </Button>
                                         </Show>
-                                    </Row>
-                                )}
-                            </For>
-                            <Show when={googleReady() && !linkedGoogle()}>
-                                <Row
-                                    label="Google"
-                                    hint="Sign in with one click, without a password"
-                                >
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            window.location.assign("/api/auth/google?link=1")
-                                        }
-                                    >
-                                        Connect
-                                    </Button>
+                                    </Show>
                                 </Row>
-                            </Show>
-                            <Show when={!googleReady() && !connections().length}>
-                                <p class="py-1 text-[12.5px] text-muted">
-                                    No sign-in providers are configured on this server.
-                                </p>
-                            </Show>
-                            <Show when={connError()}>
-                                {(t) => <p class="mt-2 text-[12.5px] text-accent">{t()}</p>}
-                            </Show>
-                        </Card>
-                    </Section>
+                            </Card>
+                        </Section>
+                    </Show>
 
-                    <Section title="Connected apps">
-                        <Card>
-                            <Show
-                                when={apps().length}
-                                fallback={
-                                    <p class="py-1 text-[12.5px] text-muted">
-                                        Nothing is connected. Apps you link to Galleo through MCP
-                                        show up here.
+                    <Show when={tab() === "security"}>
+                        <Section title="Password">
+                            <Card>
+                                <p class="text-[12.5px] text-muted">
+                                    <Show
+                                        when={hasPassword()}
+                                        fallback="You sign in with a connected account. Set a password to add a second way in."
+                                    >
+                                        Changing your password signs out every other device.
+                                    </Show>
+                                </p>
+                                <form
+                                    class="mt-3 flex flex-col gap-2 sm:max-w-100"
+                                    onSubmit={submitPassword}
+                                >
+                                    <Show when={hasPassword()}>
+                                        <TextField
+                                            type="password"
+                                            autocomplete="current-password"
+                                            placeholder="Current password"
+                                            aria-label="Current password"
+                                            value={current()}
+                                            onChange={setCurrent}
+                                        />
+                                    </Show>
+                                    <TextField
+                                        type="password"
+                                        autocomplete="new-password"
+                                        placeholder="New password"
+                                        aria-label="New password"
+                                        value={next()}
+                                        onChange={(v) => {
+                                            setNext(v);
+                                            setPwDone(false);
+                                        }}
+                                    />
+                                    <TextField
+                                        type="password"
+                                        autocomplete="new-password"
+                                        placeholder="Repeat new password"
+                                        aria-label="Repeat new password"
+                                        value={confirmPw()}
+                                        onChange={setConfirmPw}
+                                    />
+                                    <div class="flex items-center gap-2">
+                                        <Button
+                                            type="submit"
+                                            variant="primary"
+                                            disabled={!pwReady()}
+                                            loading={pwBusy()}
+                                        >
+                                            {hasPassword() ? "Change password" : "Set password"}
+                                        </Button>
+                                        <Show when={next() && next().length < 8}>
+                                            <span class="text-[11.5px] text-muted">
+                                                At least 8 characters.
+                                            </span>
+                                        </Show>
+                                        <Show when={confirmPw() && next() !== confirmPw()}>
+                                            <span class="text-[11.5px] text-muted">
+                                                Both fields must match.
+                                            </span>
+                                        </Show>
+                                    </div>
+                                </form>
+                                <Show when={pwError()}>
+                                    {(t) => <p class="mt-2 text-[12.5px] text-accent">{t()}</p>}
+                                </Show>
+                                <Show when={pwDone()}>
+                                    <p class="mt-2 text-[12.5px] text-muted">
+                                        Password saved. Other devices have been signed out.
                                     </p>
-                                }
-                            >
-                                <For each={apps()}>
-                                    {(app) => (
-                                        <Row label={app.name} hint={appHint(app)}>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => setDisconnecting(app)}
+                                </Show>
+                            </Card>
+                        </Section>
+
+                        <Section title="Connected accounts">
+                            <Card>
+                                <For each={connections()}>
+                                    {(conn) => (
+                                        <Row
+                                            label={providerName(conn.provider)}
+                                            hint={`Connected ${new Date(conn.linkedAt).toLocaleDateString()}`}
+                                        >
+                                            <Show
+                                                when={!onlyCredential()}
+                                                fallback={
+                                                    <span class="text-[11.5px] text-muted">
+                                                        Set a password to disconnect this
+                                                    </span>
+                                                }
                                             >
-                                                Disconnect
-                                            </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => void unlink(conn.provider)}
+                                                >
+                                                    Disconnect
+                                                </Button>
+                                            </Show>
                                         </Row>
                                     )}
                                 </For>
-                            </Show>
-                            <Show when={appError()}>
-                                {(t) => <p class="mt-2 text-[12.5px] text-accent">{t()}</p>}
-                            </Show>
-                        </Card>
-                    </Section>
+                                <Show when={googleReady() && !linkedGoogle()}>
+                                    <Row
+                                        label="Google"
+                                        hint="Sign in with one click, without a password"
+                                    >
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() =>
+                                                window.location.assign("/api/auth/google?link=1")
+                                            }
+                                        >
+                                            Connect
+                                        </Button>
+                                    </Row>
+                                </Show>
+                                <Show when={!googleReady() && !connections().length}>
+                                    <p class="py-1 text-[12.5px] text-muted">
+                                        No sign-in providers are configured on this server.
+                                    </p>
+                                </Show>
+                                <Show when={connError()}>
+                                    {(t) => <p class="mt-2 text-[12.5px] text-accent">{t()}</p>}
+                                </Show>
+                            </Card>
+                        </Section>
 
-                    <Section title="Preferences">
-                        <Card>
-                            <Row label="App theme" hint={`Currently ${themeName()}`}>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openThemeEditor()}
-                                >
-                                    Change theme
-                                </Button>
-                            </Row>
-                            <Show when={modelPickerReady()}>
-                                <Row
-                                    label="AI models"
-                                    hint={
-                                        overrideCount()
-                                            ? `${overrideCount()} step${overrideCount() > 1 ? "s" : ""} pinned to a specific model, on this browser`
-                                            : "Every step uses the default model for your plan"
+                        <Section title="Connected apps">
+                            <Card>
+                                <Show
+                                    when={apps().length}
+                                    fallback={
+                                        <p class="py-1 text-[12.5px] text-muted">
+                                            Nothing is connected. Apps you link to Galleo through
+                                            MCP show up here.
+                                        </p>
                                     }
                                 >
-                                    <Show when={overrideCount()}>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => clearModelOverrides()}
-                                        >
-                                            Reset
-                                        </Button>
-                                    </Show>
+                                    <For each={apps()}>
+                                        {(app) => (
+                                            <Row label={app.name} hint={appHint(app)}>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setDisconnecting(app)}
+                                                >
+                                                    Disconnect
+                                                </Button>
+                                            </Row>
+                                        )}
+                                    </For>
+                                </Show>
+                                <Show when={appError()}>
+                                    {(t) => <p class="mt-2 text-[12.5px] text-accent">{t()}</p>}
+                                </Show>
+                            </Card>
+                        </Section>
+                    </Show>
+
+                    <Show when={tab() === "profile"}>
+                        <Section title="Preferences">
+                            <Card>
+                                <Row label="App theme" hint={`Currently ${themeName()}`}>
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => openModelPicker()}
+                                        onClick={() => openThemeEditor()}
                                     >
-                                        Pick models
+                                        Change theme
                                     </Button>
                                 </Row>
-                            </Show>
-                        </Card>
-                    </Section>
-
-                    <Section title="Your workspaces">
-                        <Card>
-                            <For each={memberships()}>
-                                {(ws) => (
-                                    <Row label={ws.name} hint={roleLabel[ws.role]}>
-                                        <Show
-                                            when={!ws.active}
-                                            fallback={<Badge tone="accentSoft">Current</Badge>}
+                                <Show when={modelPickerReady()}>
+                                    <Row
+                                        label="AI models"
+                                        hint={
+                                            overrideCount()
+                                                ? `${overrideCount()} step${overrideCount() > 1 ? "s" : ""} pinned to a specific model, on this browser`
+                                                : "Every step uses the default model for your plan"
+                                        }
+                                    >
+                                        <Show when={overrideCount()}>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => clearModelOverrides()}
+                                            >
+                                                Reset
+                                            </Button>
+                                        </Show>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => openModelPicker()}
                                         >
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => void switchWorkspace(ws.id)}
-                                            >
-                                                Switch to
-                                            </Button>
-                                        </Show>
-                                        <Show when={ws.role !== "owner"}>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => setLeaving(ws)}
-                                            >
-                                                Leave
-                                            </Button>
-                                        </Show>
+                                            Pick models
+                                        </Button>
                                     </Row>
-                                )}
-                            </For>
-                            <p class="pt-3 text-[11.5px] text-muted">
-                                Members, plan, and billing live in{" "}
-                                <button
-                                    class="font-semibold text-soft underline hover:text-ink"
-                                    onClick={() => navigate("/settings")}
-                                >
-                                    workspace settings
-                                </button>
-                                .
-                            </p>
-                        </Card>
-                    </Section>
+                                </Show>
+                            </Card>
+                        </Section>
+                    </Show>
+
+                    <Show when={tab() === "workspaces"}>
+                        <Section title="Your workspaces">
+                            <Card>
+                                <For each={memberships()}>
+                                    {(ws) => (
+                                        <Row label={ws.name} hint={roleLabel[ws.role]}>
+                                            <Show
+                                                when={!ws.active}
+                                                fallback={<Badge tone="accentSoft">Current</Badge>}
+                                            >
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => void switchWorkspace(ws.id)}
+                                                >
+                                                    Switch to
+                                                </Button>
+                                            </Show>
+                                            <Show when={ws.role !== "owner"}>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => setLeaving(ws)}
+                                                >
+                                                    Leave
+                                                </Button>
+                                            </Show>
+                                        </Row>
+                                    )}
+                                </For>
+                                <p class="pt-3 text-[11.5px] text-muted">
+                                    Members, plan, and billing live in{" "}
+                                    <button
+                                        class="font-semibold text-soft underline hover:text-ink"
+                                        onClick={() => navigate("/settings")}
+                                    >
+                                        workspace settings
+                                    </button>
+                                    .
+                                </p>
+                            </Card>
+                        </Section>
+                    </Show>
                 </div>
             </main>
 

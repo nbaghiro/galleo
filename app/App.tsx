@@ -180,8 +180,9 @@ export const App: Component = () => {
                             <Route path="/pricing" component={PricingView} />
                             {/* the full credit ledger; /pricing keeps a short preview of it */}
                             <Route path="/pricing/activity" component={CreditActivityView} />
-                            <Route path="/settings" component={WorkspaceSettingsView} />
-                            <Route path="/account" component={AccountSettingsView} />
+                            {/* the tab rides in the path so a settings page is linkable */}
+                            <Route path="/settings/:tab?" component={WorkspaceSettingsView} />
+                            <Route path="/account/:tab?" component={AccountSettingsView} />
                             <Route path="/eval" component={EvalView} />
                             {/* a run is linkable: the detail page is a route, not a signal */}
                             <Route path="/eval/:id" component={EvalView} />
