@@ -244,8 +244,12 @@ The licence question is still open and is still the one thing that could make th
 described. Nothing about the build depends on the answer, but publishing generated audio inside
 customer artifacts should not begin until it is settled.
 
-**Not verifiable end to end yet.** The ElevenLabs account this deployment uses is on the free plan,
-which answers `/v1/music` with `402 limited_access` ("Music API is not available for free users").
-Everything is built and tested against fakes, including that exact refusal shape, and the refusal is
-reported as a 503 naming the plan rather than as a gateway error. Real audio cannot be heard until the
-account is upgraded.
+**Live as of 25 August 2026.** The account moved to a paid plan and `/v1/music` now answers 200; a
+preset prompt composed through `services/core/ai/music.ts` returned real audio. The free-tier refusal
+(`402 limited_access`) is still tested against a fake, since it is what any un-upgraded deployment
+will meet.
+
+The credit cost is the thing to watch: 900 credits a minute, so one bed at the two-minute default is
+1,800, about six percent of a Starter month. Presets are generated once for the whole deployment and
+shared, so the house set is a one-time 9,000; a custom bed is 1,800 every time the prompt changes.
+That is why the bar button says it uses credits before it spends them.

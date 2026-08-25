@@ -74,7 +74,7 @@ import {
 import { openMediaPicker } from "@app/stores/media";
 import { sendToGoogleSlides } from "@app/stores/google";
 import { openShare } from "@app/stores/share";
-import { can, exportFormatsOf, loadFeatures, MUSIC_SHIPPED } from "@app/stores/features";
+import { can, exportFormatsOf, loadFeatures } from "@app/stores/features";
 import { renameArtifactById } from "@app/stores/library";
 import { recordVisit } from "@app/stores/search";
 import { billing, loadBilling } from "@app/stores/billing";
@@ -255,7 +255,7 @@ export const EditorView: Component = () => {
             });
         // parked with `backgroundMusic` at "planned": no source means no bar button and no picker
         onSoundtrack(
-            artifactId && MUSIC_SHIPPED && can("backgroundMusic")
+            artifactId && can("backgroundMusic")
                 ? {
                       load: () => api.soundtrack(artifactId),
                       // starting music from the present bar writes through the editor's own commit,
@@ -277,13 +277,12 @@ export const EditorView: Component = () => {
                   }
                 : undefined,
         );
-        if (MUSIC_SHIPPED)
-            void api
-                .musicPresets()
-                .then((p) => setPresets(p))
-                .catch(() => undefined);
-        onMusicPresets(() => (MUSIC_SHIPPED && can("backgroundMusic") ? presets() : []));
-        if (artifactId && MUSIC_SHIPPED && can("backgroundMusic"))
+        void api
+            .musicPresets()
+            .then((p) => setPresets(p))
+            .catch(() => undefined);
+        onMusicPresets(() => (can("backgroundMusic") ? presets() : []));
+        if (artifactId && can("backgroundMusic"))
             onComposeBed(async (o) => {
                 const startedAt = Date.now();
                 const before = billing()?.credits.balance ?? 0;

@@ -9,7 +9,7 @@ import { ConfirmModal } from "@ui/overlay";
 import { PresentSurface } from "@ui/present";
 import { canEditHere } from "@ui/viewport";
 import { api } from "@app/api";
-import { can, MUSIC_SHIPPED } from "@app/stores/features";
+import { can } from "@app/stores/features";
 import { narrationAsk, narrationGate } from "@app/stores/narration";
 
 /**
@@ -21,7 +21,7 @@ import { narrationAsk, narrationGate } from "@app/stores/narration";
 const canWrite = (a: () => Artifact): boolean => (a().access ?? "edit") === "edit";
 
 const bedSource = (a: () => Artifact): SoundtrackSource | undefined => {
-    if (!MUSIC_SHIPPED || !can("backgroundMusic")) return undefined;
+    if (!can("backgroundMusic")) return undefined;
     if (!canEditHere() || !canWrite(a)) return { load: () => api.soundtrack(a().id) };
     return {
         load: () => api.soundtrack(a().id),
