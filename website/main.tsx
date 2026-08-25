@@ -5,6 +5,8 @@ import { render } from "solid-js/web";
 import { registerThemes, resolveTheme, themeCssVars, type Theme } from "@themes";
 import { setFavicon } from "@ui/brand";
 import { initAnalytics } from "@ui/analytics";
+import { LegalPage } from "./LegalPage";
+import { legalDocFor } from "./routes";
 import { WebsitePage } from "./WebsitePage";
 
 // keep in sync with app/stores/theme.ts (KEY · DEFAULT · CUSTOM_KEY)
@@ -39,5 +41,6 @@ if (root) {
     const vars = themeCssVars(tokens);
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
     setFavicon(tokens);
-    render(() => <WebsitePage />, root);
+    const legal = legalDocFor(window.location.pathname);
+    render(() => (legal ? <LegalPage doc={legal} /> : <WebsitePage />), root);
 }

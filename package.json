@@ -13,6 +13,7 @@
         "eval:diagrams": "vitest run canvas/elements/diagram/__tests__/visual-invariants.test.ts",
         "check:boundaries": "node scripts/check-boundaries.mjs",
         "check:copy": "node scripts/check-copy.mjs",
+        "check:legal": "node scripts/check-legal.mjs",
         "check:modules": "node scripts/check-modules.mjs",
         "check:maps": "node scripts/check-maps.mjs",
         "check:validation": "node scripts/check-validation.mjs",

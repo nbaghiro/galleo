@@ -48,6 +48,7 @@ function appSpaFallback(): Plugin {
                     const authed =
                         readSession(cookieValue(req.headers.cookie, SESSION_COOKIE)) !== null;
                     if (path === "/home") req.url = "/index.html";
+                    else if (/^\/(?:privacy|terms)\/?$/.test(path)) req.url = "/index.html";
                     else if (path.startsWith("/p/")) req.url = "/publish/index.html";
                     else if (path === "/") req.url = authed ? "/app/index.html" : "/index.html";
                     else req.url = "/app/index.html";

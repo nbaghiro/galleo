@@ -275,9 +275,9 @@ export default tseslint.config(
             "import/no-relative-parent-imports": ["error", { ignore: ["^@"] }],
         },
     },
-    // scripts/ and publish/ have no alias, so their tests reach their subjects by relative path.
+    // scripts/, publish/ and website/ have no alias, so their tests reach subjects by relative path.
     {
-        files: ["scripts/**/__tests__/**", "publish/**/__tests__/**"],
+        files: ["scripts/**/__tests__/**", "publish/**/__tests__/**", "website/**/__tests__/**"],
         rules: { "import/no-relative-parent-imports": "off" },
     },
     ...boundaryConfigs,

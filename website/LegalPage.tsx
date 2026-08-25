@@ -1,0 +1,779 @@
+import type { Component, JSX } from "solid-js";
+import { For, Index, Show } from "solid-js";
+import { AuthCta, Wordmark } from "./WebsitePage";
+import { LEGAL_DOC_IDS, LEGAL_PATHS, type LegalDocId } from "./routes";
+
+type Block =
+    | { kind: "p"; text: string }
+    | { kind: "lead"; label: string; text: string }
+    | { kind: "summary"; text: string }
+    | { kind: "list"; items: string[] }
+    | { kind: "table"; columns: string[]; rows: string[][] };
+
+interface LegalSection {
+    id: string;
+    heading: string;
+    blocks: Block[];
+}
+
+interface LegalDoc {
+    title: string;
+    effective?: string;
+    updated: string;
+    intro: string;
+    sections: LegalSection[];
+}
+
+const PRIVACY: LegalDoc = {
+    title: "Privacy Policy",
+    effective: "[DATE]",
+    updated: "[DATE]",
+    intro: "Galleo turns a brief into a deck, a document or a website. To do that we store what you write and send parts of it to the AI providers that generate and edit it. This page says exactly what we hold, what leaves our systems, who receives it, and how long we keep it.",
+    sections: [
+        {
+            id: "short-version",
+            heading: "The short version",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "We store your account details, the pieces you create, and the files you attach to them. When you generate or edit something, that content goes to a model provider so it can produce the result. We do not sell your content or your personal information, we do not use your content to train models, and our product analytics is built so that no content reaches it: it records that a thing happened and never what the thing said.",
+                },
+            ],
+        },
+        {
+            id: "who-we-are",
+            heading: "Who we are",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "[LEGAL ENTITY NAME] operates Galleo at galleo.app and is the controller of the personal data described here. You can reach us at [PRIVACY CONTACT ADDRESS].",
+                },
+            ],
+        },
+        {
+            id: "what-we-collect",
+            heading: "What we collect",
+            blocks: [
+                {
+                    kind: "lead",
+                    label: "Your account.",
+                    text: "Your email address, and a display name and avatar if you set one or if they come from Google when you sign in that way. If you set a password we store a scrypt hash of it, never the password. We record when your email was confirmed and when your password last changed.",
+                },
+                {
+                    kind: "lead",
+                    label: "What you create.",
+                    text: "The pieces you write and everything in them: text, images, video, uploaded files, comments, speaker notes, and the narration and music beds generated from them. We also store what you attach as context, which includes the text extracted from files you upload and pages you ask us to fetch, and the original file alongside it.",
+                },
+                {
+                    kind: "lead",
+                    label: "How you use Galleo.",
+                    text: "Which pieces you open and how often, so the library can order itself sensibly. What each AI action cost, in a credit ledger tied to the person who ran it, so a workspace admin can see where its credits went.",
+                },
+                {
+                    kind: "lead",
+                    label: "Payments.",
+                    text: "If you subscribe, Stripe handles the payment and we store only your Stripe customer and subscription identifiers, your plan, and its status. We never see or store your card number.",
+                },
+                {
+                    kind: "lead",
+                    label: "Published links.",
+                    text: "When somebody opens a link you published, we record that a view happened, which section they reached, the referring site's hostname, a coarse device type, and a country derived from the request. We do not store the reader's IP address or user agent. To count returning readers without identifying them we store a one-way hash of the day, the address, the user agent and the link, which cannot be reversed into any of those.",
+                },
+            ],
+        },
+        {
+            id: "ai-providers",
+            heading: "What we send to AI providers, and to whom",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "When you generate or edit a piece, the content of that piece, the instruction you gave, and any context you attached are sent to a model provider so it can produce the result. The default provider for every task is Google, and a workspace on a paid plan can select Anthropic, OpenAI or xAI for a given task instead. Images and video are generated by Google, and narration, voice design and music beds by ElevenLabs. Searching for stock media sends your search terms, or terms derived from the text of your piece, to Unsplash, Pexels, Pixabay and Openverse. Dictation is the one exception to this pattern: your microphone audio goes from your browser straight to ElevenLabs and never passes through our servers.",
+                },
+                {
+                    kind: "p",
+                    text: "We send this content only to produce the result you asked for, and we do not train models on it. We have no model of our own to train.",
+                },
+                {
+                    kind: "p",
+                    text: "Under the commercial terms these providers publish, Anthropic, OpenAI and Google do not use content sent through their paid interfaces to train their models. Anthropic states this as a contractual prohibition rather than a policy. Each keeps a copy for a limited period so it can detect abuse of its service: up to 30 days at Anthropic and OpenAI, and up to 55 days at Google. Content that a provider's safety systems flag can be kept longer, and Anthropic states that flagged material may be held for up to two years.",
+                },
+                {
+                    kind: "p",
+                    text: "[ELEVENLABS: ITS TERMS ALLOW IT TO USE CUSTOMER CONTENT TO IMPROVE ITS SERVICES UNLESS THE ACCOUNT OPTS OUT. STATE OUR POSITION HERE ONCE THE OPT-OUT IS CONFIRMED, OR NAME IT AS AN EXCEPTION.]",
+                },
+                {
+                    kind: "p",
+                    text: "These periods are what each provider commits to, not a guarantee we can make on their behalf. A provider may also keep content where the law or a court requires it, which is outside our control and outside theirs.",
+                },
+            ],
+        },
+        {
+            id: "processors",
+            heading: "Everyone who processes data for us",
+            blocks: [
+                {
+                    kind: "table",
+                    columns: ["Who", "What they do", "What they receive"],
+                    rows: [
+                        [
+                            "Google",
+                            "the default model for every task, image and video generation, embeddings, and Google sign-in",
+                            "your content, prompts and attached context; your Google profile if you sign in that way",
+                        ],
+                        [
+                            "Anthropic, OpenAI, xAI",
+                            "models a paid workspace can pin a task onto",
+                            "your content and prompts, when selected",
+                        ],
+                        [
+                            "ElevenLabs",
+                            "narration, dictation, voice design, music beds",
+                            "speaker-note text; microphone audio, browser to provider",
+                        ],
+                        [
+                            "Resend",
+                            "transactional and invitation email",
+                            "recipient address, the piece's title, the sender's name, and any note added to an invite",
+                        ],
+                        [
+                            "Stripe",
+                            "subscriptions and payments",
+                            "your email, the workspace name, and payment details you give Stripe directly",
+                        ],
+                        [
+                            "PostHog",
+                            "product analytics",
+                            "events about what happened, never content; your IP for the browser's own events",
+                        ],
+                        [
+                            "Unsplash, Pexels, Pixabay, Openverse",
+                            "stock image and video search",
+                            "your search terms",
+                        ],
+                        ["Iconify", "icon search", "your search terms"],
+                        [
+                            "Render, Neon, Cloudflare",
+                            "hosting, the database, and the network in front of it",
+                            "everything we store, at rest and in transit",
+                        ],
+                    ],
+                },
+            ],
+        },
+        {
+            id: "analytics",
+            heading: "Analytics, and what we deliberately do not collect",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "Our product analytics records ids, counts, durations and fixed categories. It never records content. No prompt text, no section copy, no titles, no file names, no email addresses, no search queries. Where the size of something matters we send a bucket rather than the value, so a search is reported as a result count and a length band and never as the words you typed. You are identified to our analytics by an internal account id rather than by your email.",
+                },
+                {
+                    kind: "p",
+                    text: "We record screen sessions on the app and marketing site, with every piece of text and every input masked, so what we can see is layout, scrolling and where a click landed rather than anything you wrote. Recording is switched off entirely inside the editor and on published pages.",
+                },
+                {
+                    kind: "p",
+                    text: "Somebody reading a link you published is counted but never recorded, is given no identifier that outlives the page, and has no referrer or campaign information collected. They are your audience rather than ours.",
+                },
+            ],
+        },
+        {
+            id: "connected-apps",
+            heading: "Connected apps",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "You can connect Galleo to an external AI client such as Claude or ChatGPT. When you do, you choose which of your workspaces that connection can reach and what it is allowed to do, and the connection gets nothing beyond what you granted. We store the tokens as one-way hashes rather than in a form we could read back. You can see every connected app and disconnect it in your account settings, which takes effect immediately.",
+                },
+            ],
+        },
+        {
+            id: "tracking",
+            heading: "Tracking across other sites, and Do Not Track",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "No third party collects information about what you do on other websites through Galleo. We run no advertising pixels, no tag manager and no third-party analytics script: our own analytics is served from our own domain, and the fonts we use are hosted by us rather than fetched from a font service.",
+                },
+                {
+                    kind: "p",
+                    text: "Because nothing here follows you across other sites, we do not currently respond to Do Not Track signals or similar browser signals. If that changes we will say so here.",
+                },
+            ],
+        },
+        {
+            id: "cookies",
+            heading: "Cookies and local storage",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "We set a session cookie when you sign in, which lasts 30 days and is signed so it cannot be forged. Three short-lived cookies exist only while you are signing in with Google, and are deleted as soon as that finishes. Our analytics sets its own storage on the app and marketing site, and is prevented from doing so on published pages. Your browser also keeps small preferences locally, such as your theme and library layout.",
+                },
+            ],
+        },
+        {
+            id: "retention",
+            heading: "How long we keep things",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "Sessions expire after 30 days. Sign-in codes last 15 minutes and password reset links an hour. Access tokens for connected apps last an hour and their refresh tokens 90 days, after which they are cleared.",
+                },
+                {
+                    kind: "p",
+                    text: "Your content is kept for as long as your account exists. Moving a piece to Trash does not delete it, and Trash is not emptied automatically, so a piece stays there until you empty it or delete the piece outright. [INTENDED RETENTION FOR CONTENT, MEDIA, NARRATION AUDIO, CHAT HISTORY AND LEDGER ROWS.]",
+                },
+                {
+                    kind: "p",
+                    text: "[ACCOUNT DELETION: THERE IS NO SELF-SERVICE DELETION PATH IN THE PRODUCT TODAY. SEE THE NOTE BELOW.]",
+                },
+            ],
+        },
+        {
+            id: "your-rights",
+            heading: "Your rights",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "[RIGHTS SECTION, WHICH DEPENDS ON THE DELETION AND EXPORT DECISION.]",
+                },
+            ],
+        },
+        {
+            id: "where-your-data-is-held",
+            heading: "Where your data is held",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "Galleo runs in the United States. Our servers are in Oregon, our database is [NEON REGION], and our analytics is on PostHog's US cloud. Our AI providers process your content in their own regions. [TRANSFER MECHANISM FOR USERS IN THE EU AND UK.]",
+                },
+            ],
+        },
+        {
+            id: "security",
+            heading: "Security",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "Passwords are stored as scrypt hashes. Every credential we issue, including invitation tokens, sign-in codes and connected-app tokens, is stored as a one-way hash rather than in a readable form. Traffic is encrypted in transit.",
+                },
+                {
+                    kind: "p",
+                    text: "[MEDIA URL DISCLOSURE: IMAGES AND VIDEO IN YOUR PIECES ARE SERVED FROM AN UNGUESSABLE ADDRESS THAT DOES NOT ITSELF CHECK WHO IS ASKING. SEE THE NOTE BELOW.]",
+                },
+            ],
+        },
+        {
+            id: "children",
+            heading: "Children",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "Galleo is not intended for children, and we do not knowingly collect personal information from anyone under [AGE].",
+                },
+            ],
+        },
+        {
+            id: "requests",
+            heading: "Requests, and how to reach us",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "To ask what we hold about you, to correct it, to ask us to delete it, or to opt out of any sale of your personal information, write to [DESIGNATED REQUEST ADDRESS]. We answer a verified request within 60 days, and will tell you if we need up to 30 days more. We do not sell personal information, so there is nothing to opt out of, but the address exists so you can ask.",
+                },
+                {
+                    kind: "p",
+                    text: "You can review and change your account details, and the content of anything you have made, in the product at any time.",
+                },
+            ],
+        },
+        {
+            id: "changes",
+            heading: "Changes",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "We will update this page when what we do changes, and the date at the top will say when. If a change materially affects how we handle your personal data we will tell you rather than relying on you noticing.",
+                },
+            ],
+        },
+    ],
+};
+
+const TERMS: LegalDoc = {
+    title: "Terms of Service",
+    updated: "[DATE]",
+    intro: "These terms are the agreement between you and [LEGAL ENTITY NAME] for the use of Galleo. The grey boxes explain a section in ordinary language. Only the text outside the boxes is binding.",
+    sections: [
+        {
+            id: "your-account",
+            heading: "1. Your account",
+            blocks: [
+                {
+                    kind: "summary",
+                    text: "You need an account, you are responsible for what happens under it, and you must be old enough.",
+                },
+                {
+                    kind: "p",
+                    text: "You must provide an accurate email address and keep your sign-in details to yourself. You are responsible for everything done through your account. You must be at least [AGE] to use Galleo. If you use Galleo for an organisation, you confirm you are allowed to accept these terms for it.",
+                },
+            ],
+        },
+        {
+            id: "what-you-put-in",
+            heading: "2. What you put into Galleo",
+            blocks: [
+                {
+                    kind: "summary",
+                    text: "Your content stays yours. We need permission to store it and show it, and nothing more.",
+                },
+                {
+                    kind: "p",
+                    text: "You keep every right you already have in what you upload or write. To run the service we need your permission to store, copy, display and adapt that content, and to send parts of it to the providers described in section 4. That permission is limited to operating Galleo for you, lasts only as long as you keep the content here, and ends when you delete it.",
+                },
+                {
+                    kind: "p",
+                    text: "You confirm that you have the rights to what you put in, and that it does not infringe anyone else's rights or break the law.",
+                },
+            ],
+        },
+        {
+            id: "what-galleo-produces",
+            heading: "3. What Galleo produces",
+            blocks: [
+                {
+                    kind: "summary",
+                    text: "You own what Galleo generates for you. We do not promise it is accurate, and we do not promise it is unique or that it infringes nobody's rights.",
+                },
+                {
+                    kind: "p",
+                    text: "As between you and us, and to the extent the law allows, you own the output Galleo generates from your input. We assign to you whatever rights we may have in that output, if any.",
+                },
+                {
+                    kind: "p",
+                    text: "Generative systems do not produce unique results. Another user giving a similar instruction may receive similar output, and we make no claim that any output is original or that using it infringes nobody's rights. Nothing we generate is checked by us for accuracy, and it does not represent our views. You are responsible for reviewing output before you rely on it or publish it, which includes obtaining any permission the material itself requires.",
+                },
+                {
+                    kind: "p",
+                    text: "Do not present Galleo's output as human-written where that would mislead someone, and do not use it for legal, medical, financial or other professional advice without a qualified person.",
+                },
+            ],
+        },
+        {
+            id: "ai-providers-and-training",
+            heading: "4. AI providers, and training",
+            blocks: [
+                {
+                    kind: "summary",
+                    text: "We do not train models on your content. We do send it to the providers who generate the result, and we name every one of them.",
+                },
+                {
+                    kind: "p",
+                    text: "Producing a result means sending your content to a model provider. Which providers, and what each receives, is listed at [AI PROVIDERS PAGE] and in our Privacy Policy, and we keep that list current.",
+                },
+                {
+                    kind: "p",
+                    text: "We do not use your content to train models, and we have no model of our own to train. [WHETHER OUR PROVIDERS MAY TRAIN ON WHAT WE SEND THEM, AND FOR HOW LONG THEY KEEP IT, DEPENDS ON OUR AGREEMENT WITH EACH. STATE IT HERE ONCE THOSE TERMS ARE SETTLED.]",
+                },
+            ],
+        },
+        {
+            id: "plans-credits-and-payment",
+            heading: "5. Plans, credits and payment",
+            blocks: [
+                {
+                    kind: "summary",
+                    text: "AI work costs credits. Here is exactly how they behave.",
+                },
+                {
+                    kind: "p",
+                    text: "Paid plans renew automatically at the interval you chose until you cancel, and we will tell you before a renewal charge. Cancelling stops the next renewal and does not refund what you have already paid, except where the law requires otherwise. If we raise a price it applies from your next renewal, and we will give you notice first.",
+                },
+                {
+                    kind: "p",
+                    text: "AI actions consume credits. Credits are an operating limit on how much work a plan may do, not property and not a currency: they have no cash value and cannot be transferred or redeemed.",
+                },
+                {
+                    kind: "list",
+                    items: [
+                        "Your plan's credits are granted for each billing period and [DO NOT ROLL OVER / ROLL OVER UP TO X].",
+                        "Credits bought as a pack [EXPIRE AFTER X / DO NOT EXPIRE].",
+                        "Credits are not refundable, including on cancellation or downgrade.",
+                        "If you downgrade, [WHAT HAPPENS TO A BALANCE ABOVE THE NEW PLAN'S ALLOWANCE].",
+                        "If a workspace runs out mid-action, the action stops and we charge only for the work already done.",
+                    ],
+                },
+                {
+                    kind: "p",
+                    text: "An admin can cap how much of a workspace's credits any one member may spend.",
+                },
+            ],
+        },
+        {
+            id: "publishing",
+            heading: "6. Publishing",
+            blocks: [
+                {
+                    kind: "summary",
+                    text: "A published page is public to anyone with the link. Here is what happens to it if you stop paying.",
+                },
+                {
+                    kind: "p",
+                    text: "Publishing a piece makes it readable by anyone who has the link, and by search engines unless you say otherwise. You are responsible for what you publish. [WHAT HAPPENS TO A PUBLISHED PAGE WHEN A SUBSCRIPTION LAPSES OR AN ACCOUNT CLOSES.]",
+                },
+                {
+                    kind: "p",
+                    text: "If you publish text that Galleo generated, and you are publishing it to inform the public about a matter of public interest, the law in some places requires you to say that it was generated by AI. That duty is yours as the publisher rather than ours, and it does not apply where a person has reviewed the text and takes editorial responsibility for it. We mark generated content so that it can be recognised as such, and we give you a way to label a published page.",
+                },
+                {
+                    kind: "p",
+                    text: "We may take down a published page that breaks section 7, and will tell you why.",
+                },
+            ],
+        },
+        {
+            id: "acceptable-use",
+            heading: "7. Acceptable use",
+            blocks: [
+                {
+                    kind: "summary",
+                    text: "Do not use Galleo to hurt people, break the law, or attack the service.",
+                },
+                {
+                    kind: "p",
+                    text: "You may not use Galleo to create or publish material that is unlawful, that harasses or defames someone, that sexualises children, that impersonates a real person or organisation in a way meant to deceive, or that is designed to defraud. You may not attempt to break, overload or gain unauthorised access to the service, resell it without our agreement, or use it to build a competing model.",
+                },
+            ],
+        },
+        {
+            id: "connected-apps",
+            heading: "8. Connected apps and third-party services",
+            blocks: [
+                {
+                    kind: "summary",
+                    text: "If you connect Galleo to another tool, you decide what it may reach, and you can cut it off.",
+                },
+                {
+                    kind: "p",
+                    text: "You may connect Galleo to an external client such as Claude or ChatGPT. You choose which workspaces the connection reaches and what it may do, you can revoke it at any time in your settings, and you are responsible for what you connect. Those tools are governed by their own terms, not these.",
+                },
+            ],
+        },
+        {
+            id: "ending-it",
+            heading: "9. Ending it",
+            blocks: [
+                { kind: "summary", text: "You can leave whenever. Take your work with you." },
+                {
+                    kind: "p",
+                    text: "You may stop using Galleo at any time. We may suspend or end an account that breaks these terms, and we will say why unless the law stops us.",
+                },
+                {
+                    kind: "p",
+                    text: "[POST-TERMINATION RETRIEVAL: HOW LONG CONTENT STAYS AVAILABLE FOR EXPORT AFTER AN ACCOUNT ENDS.]",
+                },
+                {
+                    kind: "p",
+                    text: "If we discontinue Galleo, we will give reasonable notice and a period to export your work before it becomes unavailable.",
+                },
+            ],
+        },
+        {
+            id: "what-we-do-not-promise",
+            heading: "10. What we do not promise",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "Galleo is provided as it is. To the extent the law allows, we make no warranty that it will be uninterrupted, error-free, or fit for a particular purpose, and section 3 governs output.",
+                },
+            ],
+        },
+        {
+            id: "liability",
+            heading: "11. Liability",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "[LIMITATION OF LIABILITY, WHICH DEPENDS ON THE JURISDICTION IN SECTION 13 AND IS THE ONE CLAUSE HERE THAT A LAWYER SHOULD WRITE RATHER THAN REVIEW.]",
+                },
+            ],
+        },
+        {
+            id: "changes",
+            heading: "12. Changes to these terms",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "We will post any change here and update the date at the top. If a change materially affects your rights we will tell you before it takes effect, and continuing to use Galleo after that is your acceptance of it.",
+                },
+            ],
+        },
+        {
+            id: "governing-law",
+            heading: "13. Governing law",
+            blocks: [{ kind: "p", text: "[GOVERNING LAW AND JURISDICTION.]" }],
+        },
+        {
+            id: "contact",
+            heading: "14. Contact",
+            blocks: [{ kind: "p", text: "[CONTACT ADDRESS]." }],
+        },
+    ],
+};
+
+const DOCS: Record<LegalDocId, LegalDoc> = { privacy: PRIVACY, terms: TERMS };
+
+// The capture keeps the markers in the split, so a run of text alternates prose, marker, prose.
+const PLACEHOLDER = /(\[[^\]]+\])/g;
+
+const isPlaceholder = (part: string): boolean => part.startsWith("[") && part.endsWith("]");
+
+const rule = "calc(var(--border-width) * 2) solid var(--color-ink)";
+
+function openCount(doc: LegalDoc): number {
+    const strings = [doc.intro, doc.updated, doc.effective ?? ""];
+    for (const section of doc.sections) {
+        for (const block of section.blocks) {
+            if (block.kind === "p" || block.kind === "summary") strings.push(block.text);
+            else if (block.kind === "lead") strings.push(block.text);
+            else if (block.kind === "list") strings.push(...block.items);
+            else strings.push(...block.rows.flat());
+        }
+    }
+    return strings.reduce((n, s) => n + (s.match(PLACEHOLDER)?.length ?? 0), 0);
+}
+
+/** Prose with its unresolved decisions marked, so a reader cannot mistake one for a statement. */
+const Prose: Component<{ text: string }> = (props) => (
+    <Index each={props.text.split(PLACEHOLDER)}>
+        {(part) => (
+            <Show when={isPlaceholder(part())} fallback={part()}>
+                <mark class="todo">{part()}</mark>
+            </Show>
+        )}
+    </Index>
+);
+
+// Static content, so a plain switch reads better here than a reactive Switch/Match chain.
+function blockView(block: Block): JSX.Element {
+    switch (block.kind) {
+        case "p":
+            return (
+                <p class="mt-5 leading-relaxed text-soft">
+                    <Prose text={block.text} />
+                </p>
+            );
+        case "lead":
+            return (
+                <p class="mt-5 leading-relaxed text-soft">
+                    <strong class="text-ink font-bold">{block.label}</strong>{" "}
+                    <Prose text={block.text} />
+                </p>
+            );
+        case "summary":
+            return (
+                <aside class="summary mt-5">
+                    <div class="lab text-muted mb-2">Plain language · not binding</div>
+                    <p class="leading-relaxed">
+                        <Prose text={block.text} />
+                    </p>
+                </aside>
+            );
+        case "list":
+            return (
+                <ul class="mt-5 space-y-3 text-soft">
+                    <For each={block.items}>
+                        {(item) => (
+                            <li class="flex gap-3 leading-relaxed">
+                                <span class="text-accent" aria-hidden="true">
+                                    ✺
+                                </span>
+                                <span>
+                                    <Prose text={item} />
+                                </span>
+                            </li>
+                        )}
+                    </For>
+                </ul>
+            );
+        case "table":
+            return (
+                <div
+                    class="mt-6 overflow-x-auto"
+                    style={{ border: rule, "border-radius": "var(--radius)" }}
+                >
+                    <table class="w-full min-w-168 border-collapse text-left text-sm">
+                        <thead>
+                            <tr class="band-ink">
+                                <For each={block.columns}>
+                                    {(col) => (
+                                        <th class="lab px-4 py-3 align-bottom font-normal">
+                                            {col}
+                                        </th>
+                                    )}
+                                </For>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <For each={block.rows}>
+                                {(row) => (
+                                    <tr style={{ "border-top": rule }}>
+                                        <For each={row}>
+                                            {(cell, i) => (
+                                                <td
+                                                    class="px-4 py-3 align-top leading-relaxed"
+                                                    classList={{
+                                                        "text-ink font-bold": i() === 0,
+                                                        "text-soft": i() > 0,
+                                                    }}
+                                                >
+                                                    {cell}
+                                                </td>
+                                            )}
+                                        </For>
+                                    </tr>
+                                )}
+                            </For>
+                        </tbody>
+                    </table>
+                </div>
+            );
+    }
+}
+
+export const LegalPage: Component<{ doc: LegalDocId }> = (props) => {
+    const doc = (): LegalDoc => DOCS[props.doc];
+    return (
+        <div class="web h-full w-full overflow-y-auto bg-canvas font-body text-ink">
+            <header
+                class="sticky top-0 z-50"
+                style={{ background: "var(--color-canvas)", "border-bottom": rule }}
+            >
+                <div class="max-w-[1280px] mx-auto px-5 md:px-8 h-16 flex items-center justify-between gap-4">
+                    <Wordmark href="/" />
+                    <nav class="hidden md:flex items-center gap-8 lab">
+                        <For each={LEGAL_DOC_IDS}>
+                            {(id) => (
+                                <a
+                                    href={LEGAL_PATHS[id]}
+                                    aria-current={id === props.doc ? "page" : undefined}
+                                    class="transition-colors"
+                                    classList={{
+                                        "text-accent": id === props.doc,
+                                        "hover:text-accent": id !== props.doc,
+                                    }}
+                                >
+                                    {DOCS[id].title}
+                                </a>
+                            )}
+                        </For>
+                    </nav>
+                    <AuthCta />
+                </div>
+            </header>
+
+            <main class="max-w-[1280px] mx-auto px-5 md:px-8 py-12 md:py-20">
+                <div class="lab text-accent mb-4">✺ Legal</div>
+                <h1 class="display text-4xl md:text-6xl">{doc().title}</h1>
+                <div class="lab text-muted mt-8 flex flex-wrap gap-x-8 gap-y-3">
+                    <Show when={doc().effective}>
+                        {(effective) => (
+                            <span>
+                                Effective date: <Prose text={effective()} />
+                            </span>
+                        )}
+                    </Show>
+                    <span>
+                        Last updated: <Prose text={doc().updated} />
+                    </span>
+                </div>
+
+                <div class="grid lg:grid-cols-12 gap-10 lg:gap-14 mt-12 md:mt-16">
+                    <nav aria-label="On this page" class="lg:col-span-4 xl:col-span-3">
+                        <div class="lg:sticky lg:top-24">
+                            <div class="lab text-muted mb-4">On this page</div>
+                            <ol class="space-y-2.5 text-soft">
+                                <For each={doc().sections}>
+                                    {(section) => (
+                                        <li>
+                                            <a
+                                                href={`#${section.id}`}
+                                                class="hover:text-accent transition-colors"
+                                            >
+                                                {section.heading}
+                                            </a>
+                                        </li>
+                                    )}
+                                </For>
+                            </ol>
+                        </div>
+                    </nav>
+
+                    {/* min-w-0: a grid item defaults to min-width:auto, which would let the
+                        sub-processor table's min width widen the whole column past the viewport */}
+                    <article class="lg:col-span-8 xl:col-span-9 min-w-0 max-w-[68ch]">
+                        <div
+                            class="card p-5 md:p-6"
+                            style={{
+                                "border-style": "dashed",
+                                "border-color": "var(--color-accent)",
+                            }}
+                        >
+                            <div class="lab text-accent mb-3">✺ Draft</div>
+                            <p class="leading-relaxed text-soft">
+                                This page is not final. The marked passages below are decisions we
+                                have not made yet, so read them as gaps rather than as statements of
+                                what we do. There are {openCount(doc())} of them.
+                            </p>
+                        </div>
+
+                        <p class="mt-8 text-lg leading-relaxed text-soft">
+                            <Prose text={doc().intro} />
+                        </p>
+
+                        <For each={doc().sections}>
+                            {(section) => (
+                                <section class="mt-12 md:mt-14">
+                                    <h2
+                                        id={section.id}
+                                        class="sec-title text-2xl md:text-3xl scroll-mt-24"
+                                    >
+                                        <a href={`#${section.id}`} class="hover:text-accent">
+                                            {section.heading}
+                                        </a>
+                                    </h2>
+                                    <For each={section.blocks}>{(block) => blockView(block)}</For>
+                                </section>
+                            )}
+                        </For>
+                    </article>
+                </div>
+            </main>
+
+            <footer class="max-w-[1280px] mx-auto px-5 md:px-8 pb-16 md:pb-20">
+                <div
+                    class="pt-7 flex flex-col sm:flex-row items-center justify-between gap-4 lab text-muted"
+                    style={{ "border-top": rule }}
+                >
+                    <span>© 2026 Galleo · Decks, docs and sites from one source.</span>
+                    <span class="flex items-center gap-6">
+                        <a href="/" class="hover:text-accent transition-colors">
+                            Home
+                        </a>
+                        <For each={LEGAL_DOC_IDS}>
+                            {(id) => (
+                                <a
+                                    href={LEGAL_PATHS[id]}
+                                    class="hover:text-accent transition-colors"
+                                >
+                                    {DOCS[id].title}
+                                </a>
+                            )}
+                        </For>
+                    </span>
+                </div>
+            </footer>
+        </div>
+    );
+};

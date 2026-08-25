@@ -231,8 +231,8 @@ const footerCols = [
     {
         title: "Legal",
         links: [
-            { label: "Privacy", href: "#" },
-            { label: "Terms", href: "#" },
+            { label: "Privacy", href: "/privacy" },
+            { label: "Terms", href: "/terms" },
             { label: "Security", href: "#" },
             { label: "Status", href: "#" },
         ],
@@ -282,8 +282,9 @@ function Marquee<T>(props: {
     );
 }
 
-const Wordmark: Component = () => (
-    <a href="#top" class="flex items-center gap-2.5">
+// `href` so the legal pages, which have no #top of their own, can point it back at the landing
+export const Wordmark: Component<{ href?: string }> = (props) => (
+    <a href={props.href ?? "#top"} class="flex items-center gap-2.5">
         <span
             class="grid place-items-center font-display font-black text-lg"
             style={{
@@ -302,7 +303,7 @@ const Wordmark: Component = () => (
 );
 
 // The session cookie is httpOnly, so ask the API; null = still checking, show the signed-out CTA.
-const AuthCta: Component = () => {
+export const AuthCta: Component = () => {
     const [authed, setAuthed] = createSignal<boolean | null>(null);
     onMount(async () => {
         try {

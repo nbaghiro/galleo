@@ -26,6 +26,14 @@
     font-size: 0.72rem;
     line-height: 1;
 }
+/* Section heading for long-form pages: the display face without `.display`'s 0.9 line-height,
+   which crowds a heading that wraps. */
+.web .sec-title {
+    font-family: var(--font-display), serif;
+    font-weight: var(--hw, 800);
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+}
 .web .hollow-ink {
     color: transparent;
     -webkit-text-stroke: 2px var(--color-ink);
@@ -139,6 +147,35 @@
     border-radius: 999px;
     background: var(--color-accent);
     flex: 0 0 auto;
+}
+
+/* ---------- legal pages ---------- */
+
+/* An unresolved decision left in the text. Loud on purpose: a policy that still reads
+   [LEGAL ENTITY NAME] must not be mistakable for one that is finished. */
+.web .todo {
+    background: var(--color-accent);
+    color: var(--color-onaccent);
+    font-family: var(--font-mono), monospace;
+    font-size: 0.82em;
+    letter-spacing: 0.06em;
+    padding: 0.1em 0.45em;
+    border: calc(var(--border-width) * 2) dashed var(--color-ink);
+    border-radius: calc(var(--radius) * 0.4);
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+}
+
+/* The plain-language box in the terms. The document says only the text outside it binds, so it has
+   to read as a different kind of thing at a glance. */
+.web .summary {
+    background: var(--color-panel);
+    color: var(--color-soft);
+    border: calc(var(--border-width) * 2) solid var(--color-ink);
+    border-left-width: calc(var(--border-width) * 6);
+    border-left-color: var(--color-accent);
+    border-radius: calc(var(--radius) * 0.6);
+    padding: 1rem 1.2rem;
 }
 
 /* ---------- marquee engine ---------- */

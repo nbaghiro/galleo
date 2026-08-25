@@ -113,6 +113,11 @@ if (process.env.NODE_ENV === "production") {
     app.get("/fonts.css", serveStatic({ path: "./dist/fonts.css" }));
     app.get("/p/*", serveStatic({ path: "./dist/publish/index.html" })); // public read-only viewer
     app.get("/home", serveStatic({ path: "./dist/index.html" })); // marketing, always (signed-in "view the site")
+    // the legal pages read the same signed in or out, so they are the marketing build for everyone;
+    // both slash forms, since these are URLs other systems paste and rewrite
+    for (const path of ["/privacy", "/privacy/", "/terms", "/terms/"]) {
+        app.get(path, serveStatic({ path: "./dist/index.html" }));
+    }
     // contextual root: the app for a valid session, the marketing site otherwise
     app.get("/", (c, next) => {
         const authed = readSession(getCookie(c, SESSION_COOKIE)) !== null;
