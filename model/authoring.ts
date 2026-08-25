@@ -7,6 +7,7 @@ import type {
     SectionTone,
 } from "@model/artifact";
 import { emptyRegion, rowGroup, withWidth } from "@model/artifact";
+import type { Mark } from "./text";
 
 export const t = (
     text: string,
@@ -16,6 +17,34 @@ export const t = (
     type: "text",
     data: align ? { text, style, align } : { text, style },
 });
+
+/**
+ * Text whose spans are real links: parts concatenate in order, and a `[label, href]` pair carries a
+ * link mark over its label, so a footer's `Work · Services` reads as prose but clicks as a nav.
+ * `href` follows `button`: a URL (or mailto:/tel:), or `#<section id>` for a move within the piece.
+ */
+export const linked = (
+    style: string,
+    ...parts: (string | [label: string, href: string])[]
+): ElementInstance => {
+    let text = "";
+    const marks: Mark[] = [];
+    for (const part of parts) {
+        if (typeof part === "string") {
+            text += part;
+            continue;
+        }
+        const [label, href] = part;
+        marks.push({
+            from: text.length,
+            to: text.length + label.length,
+            type: "link",
+            value: href,
+        });
+        text += label;
+    }
+    return { type: "text", data: { text, style, marks } };
+};
 
 // seedOrSrc: a full http URL, or a seed for a deterministic placeholder
 const photo = (seedOrSrc: string, w: number, h: number): string =>

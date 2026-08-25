@@ -23,6 +23,7 @@ import {
     fill,
     fitW,
     group,
+    linked,
     img,
     menu,
     pricing,
@@ -457,14 +458,26 @@ export const portfolio: ArtifactContent = web(
                     fitW(
                         col(
                             fitW(t("STUDIO", "label")),
-                            fitW(t("studio@halvorsen.no", "caption")),
-                            fitW(t("+47 22 40 18 06", "caption")),
+                            fitW(
+                                linked("caption", [
+                                    "studio@halvorsen.no",
+                                    "mailto:studio@halvorsen.no",
+                                ]),
+                            ),
+                            fitW(linked("caption", ["+47 22 40 18 06", "tel:+4722401806"])),
                         ),
                     ),
                     fitW(
                         col(
                             fitW(t("ELSEWHERE", "label")),
-                            fitW(t("Instagram · Pinterest", "caption")),
+                            fitW(
+                                linked(
+                                    "caption",
+                                    ["Instagram", "https://www.instagram.com/studiohalvorsen"],
+                                    " · ",
+                                    ["Pinterest", "https://www.pinterest.com/studiohalvorsen"],
+                                ),
+                            ),
                             fitW(t("Photography by Ingrid Sæther", "caption")),
                         ),
                     ),
@@ -734,14 +747,35 @@ export const personalSite: ArtifactContent = web(
                     fitW(
                         col(
                             fitW(t("WRITING", "label")),
-                            fitW(t("Essays · The letter · The book", "caption")),
+                            fitW(
+                                linked(
+                                    "caption",
+                                    ["Essays", "#writing"],
+                                    " · ",
+                                    ["The letter", "#letter"],
+                                    " · ",
+                                    ["The book", "https://quietmachines.co/book"],
+                                ),
+                            ),
                         ),
                     ),
                     fitW(
                         col(
                             fitW(t("FIND ME", "label")),
-                            fitW(t("wren@quietmachines.co", "caption")),
-                            fitW(t("Mastodon · Read.cv", "caption")),
+                            fitW(
+                                linked("caption", [
+                                    "wren@quietmachines.co",
+                                    "mailto:wren@quietmachines.co",
+                                ]),
+                            ),
+                            fitW(
+                                linked(
+                                    "caption",
+                                    ["Mastodon", "https://mastodon.social/@wrenhalloran"],
+                                    " · ",
+                                    ["Read.cv", "https://read.cv/wrenhalloran"],
+                                ),
+                            ),
                         ),
                     ),
                 ),
@@ -1058,7 +1092,12 @@ export const eventInvite: ArtifactContent = web(
                         col(
                             fitW(t("Amara & Théo", "h3")),
                             fitW(t("12 September 2026 · Sintra", "caption")),
-                            fitW(t("hello@amaraandtheo.love", "caption")),
+                            fitW(
+                                linked("caption", [
+                                    "hello@amaraandtheo.love",
+                                    "mailto:hello@amaraandtheo.love",
+                                ]),
+                            ),
                         ),
                     ),
                     fitW(
@@ -1066,9 +1105,11 @@ export const eventInvite: ArtifactContent = web(
                             fitW(t("GIFTS", "label")),
                             fitW(t("Your presence is the whole gift.", "caption")),
                             fitW(
-                                t(
-                                    "If you'd like to do more, we're saving for the Azores.",
+                                linked(
                                     "caption",
+                                    "If you'd like to do more, we're ",
+                                    ["saving for the Azores", "https://amaraandtheo.love/registry"],
+                                    ".",
                                 ),
                             ),
                         ),
@@ -1077,7 +1118,12 @@ export const eventInvite: ArtifactContent = web(
                         col(
                             fitW(t("SHARE THE DAY", "label")),
                             fitW(t("Tag your photos #AmaraAndTheo", "caption")),
-                            fitW(t("amaraandtheo.love", "caption")),
+                            fitW(
+                                linked("caption", [
+                                    "amaraandtheo.love",
+                                    "https://amaraandtheo.love",
+                                ]),
+                            ),
                         ),
                     ),
                 ),
@@ -1864,14 +1910,37 @@ export const landingPage: ArtifactContent = web(
                 fitW(
                     col(
                         fitW(t("PRODUCT", "label")),
-                        fitW(t("Integrations · Pricing · Changelog", "caption")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["Integrations", "https://northwind.dev/integrations"],
+                                " · ",
+                                ["Pricing", "#pricing"],
+                                " · ",
+                                ["Changelog", "https://northwind.dev/changelog"],
+                            ),
+                        ),
                     ),
                 ),
                 fitW(
                     col(
                         fitW(t("COMPANY", "label")),
-                        fitW(t("About · Careers · Security", "caption")),
-                        fitW(t("hello@northwind.dev", "caption")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["About", "https://northwind.dev/about"],
+                                " · ",
+                                ["Careers", "https://northwind.dev/careers"],
+                                " · ",
+                                ["Security", "https://northwind.dev/security"],
+                            ),
+                        ),
+                        fitW(
+                            linked("caption", [
+                                "hello@northwind.dev",
+                                "mailto:hello@northwind.dev",
+                            ]),
+                        ),
                     ),
                 ),
             ),
@@ -2405,8 +2474,13 @@ export const waitlistPage: ArtifactContent = web(
                 row(
                     { justify: "between", align: "center" },
                     fitW(t("Vanta", "h3")),
-                    fitW(t("hello@vanta.app", "caption")),
-                    fitW(t("Changelog · Privacy", "caption")),
+                    fitW(linked("caption", ["hello@vanta.app", "mailto:hello@vanta.app"])),
+                    fitW(
+                        linked("caption", ["Changelog", "https://vanta.app/changelog"], " · ", [
+                            "Privacy",
+                            "https://vanta.app/privacy",
+                        ]),
+                    ),
                 ),
             ),
         ),
@@ -2661,15 +2735,45 @@ export const agencySite: ArtifactContent = web(
                     fitW(
                         col(
                             fitW(t("STUDIO", "label")),
-                            fitW(t("Work · Services · About", "caption")),
-                            fitW(t("Journal · Careers", "caption")),
+                            fitW(
+                                linked(
+                                    "caption",
+                                    ["Work", "#work"],
+                                    " · ",
+                                    ["Services", "#services"],
+                                    " · ",
+                                    ["About", "#approach"],
+                                ),
+                            ),
+                            fitW(
+                                linked(
+                                    "caption",
+                                    ["Journal", "https://counterform.studio/journal"],
+                                    " · ",
+                                    ["Careers", "https://counterform.studio/careers"],
+                                ),
+                            ),
                         ),
                     ),
                     fitW(
                         col(
                             fitW(t("ELSEWHERE", "label")),
-                            fitW(t("Instagram · Dribbble · LinkedIn", "caption")),
-                            fitW(t("hello@counterform.studio", "caption")),
+                            fitW(
+                                linked(
+                                    "caption",
+                                    ["Instagram", "https://www.instagram.com/counterform"],
+                                    " · ",
+                                    ["Dribbble", "https://dribbble.com/counterform"],
+                                    " · ",
+                                    ["LinkedIn", "https://www.linkedin.com/company/counterform"],
+                                ),
+                            ),
+                            fitW(
+                                linked("caption", [
+                                    "hello@counterform.studio",
+                                    "mailto:hello@counterform.studio",
+                                ]),
+                            ),
                         ),
                     ),
                 ),

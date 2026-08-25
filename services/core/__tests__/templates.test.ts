@@ -52,8 +52,11 @@ describe("TEMPLATE_INDEX ↔ bodies", () => {
 // is a link that silently does nothing. Nothing else would catch it: the body is authored data.
 describe("the links a template ships with", () => {
     const hrefsIn = (el: ElementInstance, out: string[] = []): string[] => {
-        const d = el.data as { href?: unknown; children?: unknown };
+        const d = el.data as { href?: unknown; children?: unknown; marks?: unknown };
         if (typeof d.href === "string") out.push(d.href);
+        if (Array.isArray(d.marks))
+            for (const m of d.marks as { type?: unknown; value?: unknown }[])
+                if (m.type === "link" && typeof m.value === "string") out.push(m.value);
         if (Array.isArray(d.children))
             for (const child of d.children as ElementInstance[]) hrefsIn(child, out);
         return out;
