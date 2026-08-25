@@ -102,11 +102,17 @@ use, since `width`/`height` are typed `number | "fill" | "auto"`.
 ### 3.1 Per-section framing (`sectionFrame`)
 
 The one custom-size hook that actually landed is **per-section**, not per-artifact. `Section.frame?.aspect`
-(`@model/artifact` — `SectionFrame { aspect?: number }`, honored only for paged rendering) lets a single
-slide override its shape. `sectionFrame(section, profile)` (`profile.ts`) resolves the paged frame a section
-renders into: width stays the profile's page width (1280 for deck); height is the profile height (720) — or
-`round(width / aspect)` when the section sets one. The deck path (`sectionSlides`, §8) reads `sectionFrame`
-per section, so a deck can mix a 16:9 slide with a square or tall one without any new profile.
+(`@model/artifact` — `SectionFrame { aspect?: number }`) lets a single slide override its shape.
+`sectionFrame(section, profile)` (`profile.ts`) resolves the paged frame a section renders into: width stays
+the profile's page width (1280 for deck); height is the profile height (720) — or `round(width / aspect)`
+when the section sets one. The deck path (`sectionSlides`, §8) reads `sectionFrame` per section, so a deck
+can mix a 16:9 slide with a square or tall one without any new profile.
+
+A **continuous** format has no page for the aspect to shape, so `composeSection` reads the same field as a
+**minimum band height**: `h = fit(min: availWidth / aspect)` with `alignY: "center"`, which is what makes a
+site's opening section a tall hero the content sits centred in. Content that needs more room still grows
+past the band; a section with no `frame` composes exactly as before, and the paged path is untouched
+(`compose.ts`, guarded by `compose.test.ts` and a corpus check in `scripts/__tests__/reading-order.test.ts`).
 
 ### 3.2 Artifact-level page geometry (`ArtifactContent.page`)
 
@@ -119,7 +125,8 @@ exceed its own page.
 `sectionFrame(section, profile)` is where the two levels compose: the page fixes the width and the base
 height, then a section's `frame.aspect` overrides the height on top of it. Everything paged flows from
 there — `sectionSlides`, Present, PDF page size, PPTX (`defineLayout` off `pagedSize`), the windowed
-loader's height estimate, and the thumbnail aspect in `ScaledSectionCanvas`.
+loader's height estimate, and the preview aspect in `ScaledSectionCanvas`. A **tile** is the exception
+(§8.2): its box is fixed by the grid, so `thumbFrame` gives every card the same frame instead.
 
 Two invariants worth knowing when touching this:
 
@@ -474,10 +481,25 @@ clipboard (paste lands through the same `place()` logic as a drop). Bindings are
 or the inline editor has focus.
 
 **The overlay stack.** All chrome is mounted as absolutely-positioned siblings over the `paintHost` inside
-one stage div — the selection/hover rings (`Overlay`), the drop indicators + lift veil
-(`panels/DropIndicators.tsx`), the drag/resize/divider handle layers, the section pill, the `ContextBar`,
-the empty-region "+ Add element" affordance, the AI generate popup/stages, live video embeds, and the
-inline `TextEditor`.
+one stage div — the popup panel host (below), the selection/hover rings (`Overlay`), the drop indicators +
+lift veil (`panels/DropIndicators.tsx`), the drag/resize/divider handle layers, the section pill, the
+`ContextBar`, the empty-region "+ Add element" affordance, the AI generate popup/stages, live video embeds,
+and the inline `TextEditor`.
+
+**Floating panels.** A `popup` never paints its panel in flow: `arrange` paints the trigger alone and
+`open` only turns the chevron, so a popup in a pinned nav cannot stretch its section or clip its panel to
+a row slot (and an export prints the closed trigger). The editor floats the panel instead: `draw()` walks
+the artifact for open popups (`openPopups`/`panelFor` in `editor/core/leaf.ts`), composes each through
+`panelNode` at a clamped width, and paints it into a per-popup host anchored under the trigger's region
+box, flipped above when it would leave the viewport. The panel's regions are **merged into the regions the
+canvas publishes**, and `panelNode` stamps its children with exactly the ids `composeElement` would have
+given them in flow, so selection, hover, comments, multi-select and drag-and-drop work inside it with no
+per-feature code. Two seams carry that: panel regions get a constant specificity boost, since hit-testing
+resolves by depth rather than paint order; and the panel publishes `contentRegionId` (`content:…`), which
+`dnd.regionBox` prefers, so drop slots aim at the panel rather than at the trigger it hangs off. Inline
+text editing matches because `paintedLeafFor` resolves a panel child through the same `panelFor` compose.
+Playback floats the same subtree in the `Popover` portal (`ui/live.tsx`); its host is stacked above
+`PINNED_Z` so a press on a stuck nav reaches the overlay instead of the painted layer.
 
 **Drag & drop (`editor/core/dnd.ts`).** The canvas never reflows during an element drag: the document
 stays frozen, so the regions captured at drag start stay valid for the whole gesture. `computeDropSlots`
@@ -775,15 +797,36 @@ Two things it deliberately handles rather than assumes away:
   the fallback tries it at 1×, 2× and 4× the frame width. Only if that also fails is the canonical width
   returned with `exact: false` for the caller to letterbox.
 
-**Who uses it.** Only a view at a shape that is not the section's own — today the 16:9 thumbnails of a
-**continuous** artifact, where there is no page shape at all and no canonical width (a doc reflows to the
-viewport; `previewContentProfile` already widens it), so choosing the width that fits the card is no more
-a fiction than choosing 816. A **paged** artifact's thumbnail does _not_ use it: that card already is the
-section's own frame, so it renders through `sectionSlides` as its own page.
+**Who uses it.** A free-standing preview of a **continuous** section at a shape that is not its own, where
+there is no page shape at all and no canonical width (a doc reflows to the viewport;
+`previewContentProfile` already widens it), so choosing the width that fits the card is no more a fiction
+than choosing 816. That is `ScaledSectionCanvas` without a `tile`: the chat rail's proposal previews and
+the editor's section-layout picker. A **paged** artifact's preview does _not_ use it: that card already is
+the section's own frame, so it renders as its own page.
 
 **Who must not.** Present and export of an artifact in its own format. A deck slide is canonically 1280
 wide, and reflowing it would change the line breaks the author sees — "what you edit is what ships" is
 not tradeable for fill.
+
+### 8.2 Tiles (`thumbFrame` / `fitIntoBox`, same file)
+
+A **tile** is the other arrangement: a grid of uniform cards (the library in both layouts, the template
+catalog) where the box is fixed and the section has to take it. `ScaledSectionCanvas` gets `tile={16/9}`
+and two rules follow from it.
+
+- **One frame.** `thumbFrame` ignores the section's own frame and hands every tile `1280 × 1280/tile`,
+  rendered as its own page through `layoutSlide` (short content centres in it, a hero's `frame.aspect`
+  band is a minimum the taller frame only centres in, and a paged card's page aspect does not leak into
+  the grid). One width for every card is also what keeps type legible _and_ comparable: solved for its own
+  shape a doc section lands on a few hundred px, and the same authored type then paints two or three times
+  the size of the deck card beside it. Every tile paints at `cardWidth / 1280`.
+- **Cover, not contain.** `fitIntoBox(box, content, "cover")` fills the box and crops what will not fit,
+  from the bottom (a section is recognised by its head). Bars around a thumbnail read as a broken card;
+  a few cropped pixels do not. In practice nothing crops: the page frame guarantees `contentH ≥ box`, and
+  only a section that overflows the frame at 1280 with autofit exhausted has a tail to lose.
+
+The width solver is deliberately not in this path: it answers "what width becomes 16:9", and a tile has
+already fixed the width.
 
 ## 9. Paint backends (`canvas/render/backends.ts`)
 

@@ -176,12 +176,11 @@ grip's height and icon, and sits the same `HANDLE_GAP` out from the element,
 which is one constant in `editor/core/store.ts` rather than one per panel: they drifted 2px apart
 the first time each owned its own, the grip on its own gap and the chip on the thread rail's. It is
 a little wider than the grip (20 against 16) because a speech bubble needs squarer room than a
-column of dots and looked pinched in the grip's box. Both hang off the same vertical rule, `handleTop` in `editor/core/store.ts`, which centres the pill
-in the first `HANDLE_BAND` pixels of the element's box rather than pinning it to the top edge. Top
-anchoring is right for a tall block and wrong for a one-line one: a 20px pill in a 24px box leaves
-an uneven sliver under it, and a single line of text is optically centred in its own box, so both
-handles read as sitting high. A band rather than a threshold, so a box growing past it slides
-instead of jumping. It has the grip's hover bridge: a band
+column of dots and looked pinched in the grip's box. Both hang off the same vertical rule, `handleTop` in `editor/core/store.ts`: flush with the top edge
+of the element's box, which is where the handle for a block belongs and what puts the pair level
+with its first line of content. The selection outline is drawn at the box itself, so flush there is
+flush on screen. The only exception is a box shorter than the pill, which centres so the handle
+overhangs evenly rather than hanging out of the bottom. It has the grip's hover bridge: a band
 spanning the gap from the element's edge out to the pill, so crossing it never lands on the canvas,
 which would read as hovering the section and take the chip away mid-reach. Only the pill takes a
 press, the bridge just holds the hover, and it is `HANDLE_BRIDGE_H` on both sides so a pointer

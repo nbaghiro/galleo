@@ -249,6 +249,18 @@ AI-side edit.
       suppressed on anchor click).
 - [x] A7 Gates: full suite, all guards, `eval:shots` unchanged.
 
+**Internal links, added after the fact (site round).** An href of `#<section id>` names a section of the
+same piece rather than a URL, which is what a nav bar and a hero CTA need. `sectionLinkId`
+(`@model/artifact`) is the single definition of the grammar, and three layers read it: the DOM backend
+paints such an href as a plain anchor with no `target`/`rel` (external links keep both); `PresentSurface`
+delegates a click on `a[href^="#"]` from its host to `goToSection`, which for a continuous format scrolls to
+`sectionScrollTop` (the section's top less the height of anything pinned above it, so a stuck nav does not
+cover the target's first line) and for a paged one steps to the section's first slide; the editor's
+capture-phase interceptor scrolls to the section on cmd-click instead of navigating. The popup's panel is
+painted into a portal outside the host, so the live component intercepts its own anchors and hands the id
+back through `LiveProps.onSectionLink`. There is no section-picker UI yet: the button's Link control takes
+the id by hand.
+
 ## 7. Phase B: disclosure
 
 - [x] B1 `withViewerPatches` in `canvas/elements/ops.ts` + unit tests (fresh-path identity, cache
@@ -287,11 +299,15 @@ near-duplicate types). Data: `{ children, label?, variant?, open? }`. The trigge
 a compact button-like chip with a chevron; `menu` styles the panel as a tight column, and menu items
 are ordinary `button` children, whose Phase A `link` makes them real anchors in the portal for free.
 
-**Editor**: disclosure, exactly the faq pattern. `open` is authored data; when open, `arrange`
-paints the panel in flow below the trigger (a surfaced box: fill, border, radius, shadow), fully
-editable, selectable, droppable. The trigger mints `hit:disclose:<self>` so the author toggles by
-click; the affordance map already dispatches it. Export and eval render the authored state, so the
-static story needs nothing.
+**Editor**: disclosure, exactly the faq pattern. `open` is authored data and the trigger mints
+`hit:disclose:<self>` so the author toggles by click; the affordance map already dispatches it.
+
+> **Superseded 2026-08-24.** The panel was originally painted in flow below the trigger while open.
+> That stretched the section's height and clipped the panel to the trigger's row slot, which in a
+> pinned nav (the main use case) is unusable. **The panel now never paints in flow, on any surface**:
+> `arrange` paints the trigger alone and `open` only turns the chevron. The editor floats the panel
+> in an overlay of its own (section 9.1); export, thumbnails and the corpus therefore show the closed
+> trigger, which is correct, since a popup's content is transient UI rather than print content.
 
 **Playback**: the live layer owns it entirely.
 
@@ -303,20 +319,21 @@ static story needs nothing.
 - The popup live component overlays the trigger box, `pointer-events: auto` in playback; being
   `[data-live]` content, `pressOnContent` already stands the slide-advance and the viewer-toggle
   scan down, so the click never reaches the in-flow toggle path.
-- On open it composes the panel via a pure `panelNode(data, ctx)` exported from the popup's own spec
-  file (children through their specs' `layout`, no region ids needed), lays it out with `layoutNode`
-  at a clamped width (min 260, max `min(400, availWidth)`), and paints the commands into a portaled
-  `Popover` anchored to the trigger element, inheriting its positioning, collision flip, scrim
-  dismissal, Escape scope and theme-var bridge.
+- On open it composes the panel via `panelNode(data, ctx, address)` exported from the popup's own
+  spec file, lays it out with `layoutNode` at a clamped width (min 260, max `min(400, availWidth)`),
+  and paints the commands into a portaled `Popover` anchored to the trigger element, inheriting its
+  positioning, collision flip, scrim dismissal, Escape scope and theme-var bridge.
 - `LiveProps` gains what panel composition needs: the resolved `theme` (after
-  `sectionContentTokens` for the popup's section) and `format`, resolved once in `LiveLayer`.
+  `sectionContentTokens` for the popup's section), the `format`, and the element's own `address`,
+  all resolved once in `LiveLayer`.
 
 **Accepted for v1, recorded**: in a scaled paged slide the portal paints unscaled (a popover reads
-as chrome, and popups are a doc/site feature first); panel content has no region ids in the portal,
-so nothing inside it is selectable in playback, which playback does not need.
+as chrome, and popups are a doc/site feature first); nothing inside the portal is selectable in
+playback, which playback does not need. The painted chevron follows the authored state that
+`seedViewerPatches` shuts, not the portal, so it does not flip as a reader opens the panel.
 
 - [x] D1 `ElementSpec.live`; `liveElements` widened; `LiveProps` + `LiveLayer` carry theme/format.
-- [x] D2 `canvas/elements/composite/popup.ts`: spec, both variants, in-flow open arrange,
+- [x] D2 `canvas/elements/composite/popup.ts`: spec, both variants, trigger-only arrange,
       `hit:disclose` mint, `panelNode` export, preview, skeleton, palette + catalog entries.
 - [x] D3 The live component in `ui/live.tsx` (or a sibling registration site if the file grows past
       one concept): trigger overlay, seed-closed patches in `PresentSurface`, `Popover` portal
@@ -324,6 +341,46 @@ so nothing inside it is selectable in playback, which playback does not need.
 - [x] D4 Tests: spec-level (variants, hit mint, panelNode composition), ops (`liveElements` with the
       `live` flag), present.dom (seeded-closed patches), plus the e2e spec extended.
 - [x] D5 Gates as A7; corpus unchanged (popup appears in no corpus artifact).
+
+### 9.1 The floating panel (2026-08-24)
+
+The panel is chrome on every surface. Playback floats it in the `Popover` portal already described;
+the editor floats it over the canvas so it stays fully editable.
+
+**The playback fall-through, root-caused.** A pinned layer stays in flow to stick, so
+`paintSectionStack` gives it `z-index: 1` to ride over the absolutely positioned sections around it
+(`PINNED_Z`). `PresentSurface`'s stage opens no stacking context, so the live overlay host, at
+`z-index: auto`, painted _under_ every stuck layer. A press on a popup trigger in a pinned nav
+therefore landed on the painted stack, `pressOnContent` saw no `[data-live]` ancestor, and `toggleAt`
+flipped the popup's own `open` viewer patch, which is why the panel appeared in flow and clipped to
+about 90px. The overlay host is now stacked at `PINNED_Z + 1`. Two guards sit behind that fix:
+`toggleAt` carries a press on a pinned layer back by the same `pinnedShift` the overlay uses (its
+regions are in the static layout), and it stands down entirely on an element that has a live
+component, so the painted affordance and the portal can never race.
+
+**The editor overlay.** `editor/Canvas.tsx`'s `draw()` walks the artifact for open popups
+(`openPopups` in `editor/core/leaf.ts`), composes each panel through the same `panelNode` at the same
+clamped width (`panelFor`), lays it out and paints it into a per-popup absolutely positioned host in
+the stage, anchored under the trigger's region box and flipped above it when it would leave the
+viewport. The host sits after `paintHost` and before every piece of chrome, all of which carries a
+`z-*` utility, so DOM order alone gets the stacking right.
+
+What makes this cheap is that the panel's regions are **merged into the regions the canvas
+publishes**, offset into stage coordinates. `panelNode` takes the popup's address and stamps its
+children with exactly the ids `composeElement` would have given them in flow, so selection rings,
+hover, the context menu, comments, multi-select, drag out of the panel and drop into it all work
+with no per-feature code. Two seams were needed:
+
+- Hit-testing resolves by specificity, not paint order, so panel regions carry a constant boost:
+  a floating panel outranks whatever it covers, however deep that sits.
+- Drop slots read a container's box to lay their hitboxes over it, and a popup's own box is its
+  trigger. The panel publishes `contentRegionId(address)` (`content:<section>:<path>`, parsed by
+  nothing else) and `dnd.regionBox` prefers it, so slots follow the children rather than the chip.
+
+Inline text editing inside the panel works because `paintedLeafFor`/`paintedNodeFor` resolve a panel
+child through the same `panelFor` compose instead of `composeSection`, which no longer contains it,
+and because the panel paint filters the edited element's text command the way `paintSectionStack`
+does. One definition of the panel subtree, so the caret cannot sit at a size the paint does not use.
 
 ## 10. Decisions needing approval before execution
 
