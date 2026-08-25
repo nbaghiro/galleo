@@ -821,7 +821,7 @@ export const PresentSurface: Component<{
                         size={ctrl()}
                         rounded="lg"
                         tone="onDark"
-                        active={bed.playing()}
+                        live={bed.playing()}
                         disabled={bed.busy()}
                         title={
                             bed.busy()
@@ -834,11 +834,13 @@ export const PresentSurface: Component<{
                         }
                         onClick={() => bed.toggle()}
                     >
-                        {/* The same three states the narration button has: a piece with no bed is
-                            offering to compose one, which costs credits and is not a play button;
-                            composing is a wait; a bed that exists is played and stopped. */}
+                        {/* Always the music note, whether the bed exists yet or not: the button is
+                            about music, and an AI glyph here described how it gets made rather than
+                            what it is. Which of the two it is doing is the tooltip's job. Composing
+                            is the one state with its own mark, and it is a wait, so it is a
+                            spinner, the same as narration recording. */}
                         <Show when={!bed.busy()} fallback={<Spinner size={13} tone="current" />}>
-                            <Icon name={bed.ready() ? "music" : "sparkle"} size={15} />
+                            <Icon name="music" size={15} />
                         </Show>
                     </IconButton>
                 </Show>
@@ -850,7 +852,7 @@ export const PresentSurface: Component<{
                         size={ctrl()}
                         rounded="lg"
                         tone="onDark"
-                        active={player.playing()}
+                        live={player.playing()}
                         disabled={waiting()}
                         title={
                             waiting()

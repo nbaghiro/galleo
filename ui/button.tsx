@@ -124,6 +124,13 @@ export const IconButton: Component<
         rounded?: Rounded;
         tone?: IconButtonTone;
         active?: boolean;
+        /**
+         * This control is producing sound right now, which is not the same as being toggled on: the
+         * bar's other toggles (overview, captions) change what is on screen, and a viewer glancing
+         * at it needs to tell "narration is speaking" from "captions are enabled". Wins over
+         * `active` and takes the accent, where a toggle only takes a wash.
+         */
+        live?: boolean;
         bordered?: boolean;
         auto?: boolean;
     }
@@ -133,6 +140,7 @@ export const IconButton: Component<
         "rounded",
         "tone",
         "active",
+        "live",
         "bordered",
         "auto",
         "class",
@@ -145,7 +153,11 @@ export const IconButton: Component<
             "grid place-items-center transition-colors disabled:pointer-events-none disabled:opacity-40",
             (local.auto ? IB_AUTO : IB_SIZE)[local.size ?? "md"],
             ROUNDED[local.rounded ?? "lg"],
-            local.active ? activeCls() : IB_TONE[local.tone ?? "muted"],
+            local.live
+                ? "bg-accent text-onaccent"
+                : local.active
+                  ? activeCls()
+                  : IB_TONE[local.tone ?? "muted"],
             local.bordered ? "border border-line" : "",
             local.class ?? "",
         ].join(" ");
