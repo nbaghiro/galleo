@@ -3,7 +3,7 @@ import { createResource, createSignal, For, onCleanup, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import type { LibraryVoice, WorkspaceVoice } from "@model/speech";
 import { upgradeFor } from "@model/billing";
-import { Button, IconButton } from "@ui/button";
+import { Button, IconButton, Spinner } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { TextField } from "@ui/inputs";
 import { VoicePicker } from "@ui/voice-picker";
@@ -38,9 +38,30 @@ const Row: Component<{
 
     return (
         <div class="flex items-center gap-2.5 border-b border-line py-2.5 last:border-b-0">
+            {/*
+                Every voice gets the same triangle, but they are not the same press. An adopted
+                library voice carries a provider-hosted sample, which is free to play. A seeded one
+                (the premade fallback) never touched the provider, so it has no sample and the only
+                way to hear it is to synthesise a line, which is what "Try it" does and what costs a
+                credit. Showing nothing there, as this did, read as a voice you could not hear.
+            */}
             <Show
                 when={props.voice.previewUrl}
-                fallback={<span class="size-7 flex-none" aria-hidden="true" />}
+                fallback={
+                    <IconButton
+                        size="sm"
+                        rounded="full"
+                        tone="muted"
+                        class="flex-none"
+                        disabled={props.trying}
+                        title={`Hear ${props.voice.name} read a line, which costs a credit`}
+                        onClick={() => props.onTry(props.voice)}
+                    >
+                        <Show when={!props.trying} fallback={<Spinner size={11} tone="current" />}>
+                            <Icon name="play" size={13} />
+                        </Show>
+                    </IconButton>
+                }
             >
                 {(url) => (
                     <IconButton
