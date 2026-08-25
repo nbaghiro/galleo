@@ -1,22 +1,28 @@
-import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
+import type {
+    ArtifactContent,
+    ElementInstance,
+    Section,
+    SectionBackground,
+    SectionFrame,
+} from "@model/artifact";
 import { emptyRegion, rowGroup, withWidth } from "@model/artifact";
 
-export const t = (text: string, style: string): ElementInstance => ({
+export const t = (
+    text: string,
+    style: string,
+    align?: "start" | "center" | "end",
+): ElementInstance => ({
     type: "text",
-    data: { text, style },
+    data: align ? { text, style, align } : { text, style },
 });
 
 // seedOrSrc: a full http URL, or a seed for a deterministic placeholder
+const photo = (seedOrSrc: string, w: number, h: number): string =>
+    seedOrSrc.startsWith("http") ? seedOrSrc : `https://picsum.photos/seed/${seedOrSrc}/${w}/${h}`;
+
 export const img = (seedOrSrc: string, aspect: number, radius = 14): ElementInstance => ({
     type: "image",
-    data: {
-        src: seedOrSrc.startsWith("http")
-            ? seedOrSrc
-            : `https://picsum.photos/seed/${seedOrSrc}/1100/900`,
-        aspect,
-        radius,
-        fit: "cover",
-    },
+    data: { src: photo(seedOrSrc, 1100, 900), aspect, radius, fit: "cover" },
 });
 
 export const stat = (value: string, label: string): ElementInstance => ({
@@ -34,11 +40,18 @@ export const bullets = (...items: string[]): ElementInstance => ({
     data: { children: items.map((i) => t(i, "body")) },
 });
 
+/** A bullet list marked with ticks: an inclusion list, where `bullets` is a plain one. */
+export const checks = (...items: string[]): ElementInstance => ({
+    type: "bullets",
+    data: { children: items.map((i) => t(i, "body")), marker: "check" },
+});
+
 // A container takes an optional leading options object; an element always carries `type`, so the
 // two are told apart without a second entry point.
 interface ContainerOpts {
     gap?: number;
     align?: "start" | "center" | "end";
+    justify?: "between" | "around" | "evenly";
     surface?: "solid" | "outline" | "sideline" | "topline" | "plain";
     bg?: string;
     shape?: "sharp" | "rounded";
@@ -95,7 +108,23 @@ export const top = selfAlign("start");
 export const middle = selfAlign("center");
 export const bottom = selfAlign("end");
 
-export const button = (label: string): ElementInstance => ({ type: "button", data: { label } });
+interface ButtonOpts {
+    variant?: "filled" | "outline" | "soft" | "ghost";
+    size?: "sm" | "md" | "lg";
+    shape?: "sharp" | "rounded" | "pill";
+}
+
+/** `href` is a URL, or `#<section id>` to move within the same piece (a nav link, a hero CTA). */
+export const button = (label: string, href?: string, opts?: ButtonOpts): ElementInstance => ({
+    type: "button",
+    data: { label, ...(href ? { href } : {}), ...opts },
+});
+
+/** The popup's menu variant: one trigger over a tight column of linked buttons. */
+export const menu = (label: string, ...items: ElementInstance[]): ElementInstance => ({
+    type: "popup",
+    data: { label, variant: "menu", children: items },
+});
 
 export const chart = (type: string, values: string, height = 240): ElementInstance => ({
     type: "chart",
@@ -123,7 +152,14 @@ export { emptyRegion };
 export const section = (
     id: string,
     root: ElementInstance,
-    opts?: { background?: SectionBackground; bleed?: boolean },
+    opts?: {
+        background?: SectionBackground;
+        bleed?: boolean;
+        // paged: the page shape. Continuous: a minimum band height, which is what makes a hero tall.
+        frame?: SectionFrame;
+        // sticks to the top of a scrolling page; a nav bar wants a solid background with it
+        pinned?: boolean;
+    },
 ): Section => ({ id, root, ...opts });
 
 export const bgImage = (seedOrSrc: string, scrim = 0.5): SectionBackground => ({
@@ -134,9 +170,17 @@ export const bgImage = (seedOrSrc: string, scrim = 0.5): SectionBackground => ({
     scrim,
 });
 
-export const video = (src: string): ElementInstance => ({
+export const bgColor = (color: string): SectionBackground => ({ kind: "color", color });
+
+// The poster is what every static surface paints (thumbnail, PDF, the editor canvas); without one a
+// YouTube src falls back to the provider's own frame, which is rarely the shot the page wants.
+export const video = (src: string, posterSeedOrSrc?: string): ElementInstance => ({
     type: "video",
-    data: { src, controls: true },
+    data: {
+        src,
+        controls: true,
+        ...(posterSeedOrSrc ? { poster: photo(posterSeedOrSrc, 1280, 720) } : {}),
+    },
 });
 
 export const badge = (text: string): ElementInstance => ({ type: "badge", data: { text } });
@@ -169,6 +213,105 @@ export const callout = (tone: string, ...children: ElementInstance[]): ElementIn
 /** A column with a surface. The older spelling of `col({ surface: … })`. */
 export const card = (...children: ElementInstance[]): ElementInstance =>
     container("col", [{ surface: "solid" }, ...children]);
+
+// ---- smart blocks
+//
+// Each composite element reads its children by position (testimonial indexes four fixed slots,
+// faq walks question/answer pairs), so these builders are how an author gets the order right.
+
+const avatar = (size: number, src?: string): ElementInstance => ({
+    type: "avatar",
+    data: { size, ...(src ? { src } : {}) },
+});
+
+/** One priced tier: eyebrow, price, the line under it, what's included, and the action. */
+export const pricing = (
+    tier: string,
+    price: string,
+    note: string,
+    includes: string[],
+    action: ElementInstance,
+): ElementInstance => ({
+    type: "pricing",
+    data: {
+        children: [
+            t(tier, "label"),
+            t(price, "h1"),
+            t(note, "caption"),
+            checks(...includes),
+            action,
+        ],
+    },
+});
+
+export const feature = (title: string, body: string, eyebrow?: string): ElementInstance => ({
+    type: "feature",
+    data: {
+        children: eyebrow
+            ? [t(eyebrow, "label"), t(title, "h3"), t(body, "body")]
+            : [t(title, "h3"), t(body, "body")],
+    },
+});
+
+/** Four fixed slots: the quote, the face, the name, the line under the name. */
+export const testimonial = (
+    said: string,
+    name: string,
+    role: string,
+    face?: string,
+): ElementInstance => ({
+    type: "testimonial",
+    data: { children: [t(said, "quote"), avatar(52, face), t(name, "body"), t(role, "caption")] },
+});
+
+export const profile = (
+    name: string,
+    role: string,
+    face?: string,
+    note?: string,
+): ElementInstance => ({
+    type: "profile",
+    data: {
+        children: [
+            avatar(88, face),
+            t(name, "h3", "center"),
+            t(role, "caption", "center"),
+            ...(note ? [t(note, "caption", "center")] : []),
+        ],
+    },
+});
+
+/** The tinted closing card: headline, one line, one action. */
+export const cta = (headline: string, line: string, action: ElementInstance): ElementInstance => ({
+    type: "cta",
+    data: { children: [t(headline, "h2", "center"), t(line, "body", "center"), action] },
+});
+
+// `open` on the ANSWER is what the accordion toggles, so an authored one starts expanded.
+const answer = (text: string, open: boolean): ElementInstance =>
+    open ? { type: "text", data: { text, style: "body", open: true } } : t(text, "body");
+
+/**
+ * Question/answer pairs. `collapsible` turns each question into a disclosure a reader presses;
+ * `openFirst` leaves the top answer showing so the block does not read as a bare list of questions.
+ */
+export const faq = (
+    collapse: "expanded" | "collapsible",
+    items: [string, string][],
+    openFirst = false,
+): ElementInstance => ({
+    type: "faq",
+    data: {
+        collapse,
+        children: items.flatMap(([q, a], i) => [t(q, "h3"), answer(a, openFirst && i === 0)]),
+    },
+});
+
+/** One panel per tab; `labels` is the comma-separated strip, positional. */
+export const tabs = (labels: string, ...panels: ElementInstance[]): ElementInstance => ({
+    type: "tabs",
+    data: { labels, active: 0, children: panels },
+});
 
 const artifact = (
     format: string,

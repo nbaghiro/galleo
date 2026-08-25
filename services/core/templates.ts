@@ -1,21 +1,32 @@
-import type { ArtifactContent } from "@model/artifact";
+import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import type { Template } from "@model/templates";
 import { TEMPLATE_INDEX } from "@model/templates";
 import {
     badge,
+    bgColor,
     bgImage,
     bullets,
     button,
     callout,
     card,
     chart,
+    checks,
+    col,
+    cta,
     deck,
     diagram,
     divider,
     doc,
     emptyRegion,
+    faq,
+    feature,
+    fill,
+    fitW,
     group,
     img,
+    menu,
+    pricing,
+    profile,
     quote,
     row,
     section,
@@ -23,12 +34,39 @@ import {
     stat,
     t,
     table,
+    tabs,
+    testimonial,
+    video,
     web,
 } from "@model/authoring";
 
 // The starter-template bodies, hand-authored with the @model/authoring DSL and grouped by the same
 // category the index uses. @model/templates carries the client-facing half (ids, labels, grouping);
 // this file is the other half, plus the id → body resolution the /templates route and the seed use.
+
+// ---- site chrome
+//
+// The nav is one flat row: a nested one would reflow to a column at the share of the width it would
+// get. The brand takes the slack, which is what puts the links hard right without a justify rule.
+// Every nav band carries a solid colour of its own, since a pinned section is painted over whatever
+// scrolls beneath it.
+
+const siteNav = (brand: string, ...items: ElementInstance[]): ElementInstance => ({
+    ...row({ align: "center" }, fill(t(brand, "label")), ...items.map((i) => fitW(i))),
+    layout: { dock: "top" },
+});
+
+const navLink = (label: string, href: string): ElementInstance =>
+    button(label, href, { variant: "ghost", size: "sm" });
+
+const navCta = (label: string, href: string): ElementInstance =>
+    button(label, href, { variant: "filled", size: "sm", shape: "pill" });
+
+// A real, long-lived URL so the demo section actually plays for someone who publishes the template
+// before swapping in their own footage; the poster beside it is what every static surface paints.
+// Must be an ordinary upload, never a live stream: YouTube embeds a stream's recording as
+// "Video unavailable" once the stream rotates.
+const DEMO_VIDEO = "https://www.youtube.com/watch?v=WhWc3b3KhnY";
 
 // ---- creative
 
@@ -220,23 +258,43 @@ export const portfolio: ArtifactContent = web(
     "couture",
     [
         section(
-            "p1",
-            group(
+            "hero",
+            col(
+                siteNav(
+                    "STUDIO HALVORSEN",
+                    menu(
+                        "Work",
+                        navLink("Fjord House", "#work"),
+                        navLink("Hotel Amber", "#amber"),
+                        navLink("The Glasshouse", "#more-work"),
+                        navLink(
+                            "Archive on Instagram",
+                            "https://www.instagram.com/studiohalvorsen",
+                        ),
+                    ),
+                    navLink("Studio", "#studio"),
+                    navLink("Services", "#services"),
+                    navCta("Enquire", "#contact"),
+                ),
                 t("STUDIO HALVORSEN", "label"),
                 t("Light, made deliberate.", "h1"),
                 t(
                     "An independent design studio working at the edge of architecture, brand, and the objects in between — for people who believe a space should be felt before it's understood.",
                     "subtitle",
                 ),
+                button("See the work", "#work"),
             ),
-            { background: bgImage("halvorsen-hero-architecture", 0.55) },
+            {
+                background: bgImage("halvorsen-hero-architecture", 0.55),
+                frame: { aspect: 16 / 7 },
+            },
         ),
         section(
-            "p2",
+            "studio",
             split(
                 40,
                 img("halvorsen-portrait-studio", 0.82),
-                group(
+                col(
                     t("Statement", "label"),
                     t("We design the pause before the room speaks.", "h2"),
                     t(
@@ -247,16 +305,17 @@ export const portfolio: ArtifactContent = web(
             ),
         ),
         section(
-            "p3",
+            "numbers",
             row(
                 stat("120+", "projects completed"),
                 stat("16", "years independent"),
                 stat("9", "design awards"),
             ),
+            { background: bgColor("#0C0C0C"), bleed: true },
         ),
         section(
-            "p4",
-            group(
+            "work",
+            col(
                 t("Selected work", "label"),
                 t("A few rooms we're proud of.", "h2"),
                 t(
@@ -266,7 +325,7 @@ export const portfolio: ArtifactContent = web(
             ),
         ),
         section(
-            "p5",
+            "work-a",
             row(
                 card(
                     img("halvorsen-fjord-house-interior", 1.2),
@@ -280,8 +339,13 @@ export const portfolio: ArtifactContent = web(
                 ),
             ),
         ),
+        section("interlude", col(t("Light is the one material we never buy.", "h2", "center")), {
+            background: bgImage("halvorsen-interlude-white-wall-shadow", 0.5),
+            bleed: true,
+            frame: { aspect: 16 / 5 },
+        }),
         section(
-            "p6",
+            "more-work",
             row(
                 card(
                     img("halvorsen-glasshouse-cafe", 1),
@@ -301,10 +365,10 @@ export const portfolio: ArtifactContent = web(
             ),
         ),
         section(
-            "p7",
+            "amber",
             split(
                 60,
-                group(
+                col(
                     t("In focus", "label"),
                     badge("FEATURED"),
                     t("Hotel Amber.", "h2"),
@@ -312,13 +376,16 @@ export const portfolio: ArtifactContent = web(
                         "Twenty-eight rooms inside a former printing house. We kept the cast-iron columns, warmed everything in oak and brass, and let a single skylight do the work of a chandelier. It won the Wallpaper* Design Award the year it opened.",
                         "body",
                     ),
+                    button("Read the project note", "https://studiohalvorsen.no/amber", {
+                        variant: "outline",
+                    }),
                 ),
                 img("halvorsen-amber-detail-brass", 0.92),
             ),
         ),
-        section("p8", group(t("What we do", "label"), t("Three ways to work with us.", "h2"))),
+        section("services", col(t("What we do", "label"), t("Three ways to work with us.", "h2"))),
         section(
-            "p9",
+            "services-list",
             row(
                 card(
                     t("Interiors", "h3"),
@@ -344,55 +411,98 @@ export const portfolio: ArtifactContent = web(
             ),
         ),
         section(
-            "p10",
+            "praise",
             quote(
                 "They handed us a building we'd stopped seeing and gave it back as somewhere we never want to leave.",
                 "Ines Lund · Owner, Hotel Amber",
             ),
+            { background: bgImage("halvorsen-amber-suite-evening", 0.62), bleed: true },
         ),
         section(
-            "p11",
+            "contact",
             split(
                 60,
-                group(
+                col(
                     t("Let's begin", "label"),
                     t("Tell us about the space.", "h2"),
                     t(
                         "We take on a handful of projects a year so each one gets all of us. If you've got a room, a brand, or an idea that deserves restraint, we'd love to hear it.",
                         "subtitle",
                     ),
-                    button("Start a project"),
+                    row(
+                        { align: "center" },
+                        button("Start a project", "mailto:studio@halvorsen.no"),
+                        button("See the archive", "https://www.instagram.com/studiohalvorsen", {
+                            variant: "ghost",
+                        }),
+                    ),
                 ),
                 img("halvorsen-studio-materials-flatlay", 0.92),
             ),
             { background: bgImage("halvorsen-contact-texture", 0.4) },
+        ),
+        section(
+            "footer",
+            col(
+                divider(),
+                row(
+                    { justify: "between", align: "start" },
+                    fitW(
+                        col(
+                            fitW(t("Studio Halvorsen", "h3")),
+                            fitW(t("Thorvald Meyers gate 12, Oslo", "caption")),
+                        ),
+                    ),
+                    fitW(
+                        col(
+                            fitW(t("STUDIO", "label")),
+                            fitW(t("studio@halvorsen.no", "caption")),
+                            fitW(t("+47 22 40 18 06", "caption")),
+                        ),
+                    ),
+                    fitW(
+                        col(
+                            fitW(t("ELSEWHERE", "label")),
+                            fitW(t("Instagram · Pinterest", "caption")),
+                            fitW(t("Photography by Ingrid Sæther", "caption")),
+                        ),
+                    ),
+                ),
+            ),
         ),
     ],
     bgImage("couture-paper-texture", 0.3),
 );
 
 export const personalSite: ArtifactContent = web(
-    "aura",
+    "vellum",
     [
         section(
-            "s1",
-            split(
-                60,
-                group(
-                    t("WRITER · DESIGNER · FOUNDER", "label"),
-                    t("Wren Halloran", "h1"),
-                    t(
-                        "I make small, durable software — and write about the craft of paying attention. Currently in Lisbon, building Quiet Machines.",
-                        "subtitle",
-                    ),
-                    button("Say hello"),
+            "hero",
+            col(
+                siteNav(
+                    "WREN HALLORAN",
+                    navLink("Writing", "#writing"),
+                    navLink("Work", "#now"),
+                    navLink("The letter", "#letter"),
+                    navCta("Say hello", "#contact"),
                 ),
-                img("wren-halloran-portrait", 0.78),
+                t("WRITER · DESIGNER · FOUNDER", "label"),
+                t("Wren Halloran", "h1"),
+                t(
+                    "I make small, durable software — and write about the craft of paying attention. Currently in Lisbon, building Quiet Machines.",
+                    "subtitle",
+                ),
+                button("Read the essays", "#writing"),
             ),
+            {
+                background: bgImage("wren-halloran-hero-desk-window", 0.55),
+                frame: { aspect: 16 / 8 },
+            },
         ),
         section(
-            "s2",
-            group(
+            "about",
+            col(
                 t("A few words", "label"),
                 t("I build things meant to be kept.", "h2"),
                 t(
@@ -406,11 +516,11 @@ export const personalSite: ArtifactContent = web(
             ),
         ),
         section(
-            "s3",
+            "story",
             split(
                 40,
-                img("wren-studio-desk", 1.05),
-                group(
+                img("wren-halloran-portrait", 0.9),
+                col(
                     t("About", "label"),
                     t("A short version of a long story.", "h2"),
                     t(
@@ -426,7 +536,7 @@ export const personalSite: ArtifactContent = web(
             ),
         ),
         section(
-            "s4",
+            "now",
             row(
                 card(
                     badge("SHIPPING"),
@@ -455,34 +565,94 @@ export const personalSite: ArtifactContent = web(
             ),
         ),
         section(
-            "s5",
-            split(
-                60,
-                group(
-                    t("Selected writing", "label"),
-                    t("Essays people actually finished.", "h2"),
-                    t("In Praise of Software That Ends", "h3"),
-                    t(
-                        "On the quiet dignity of a tool that lets you reach the bottom · 9 min",
-                        "caption",
+            "writing",
+            col(
+                t("Selected writing", "label"),
+                t("Essays people actually finished.", "h2"),
+                divider(),
+                row(
+                    fill(
+                        col(
+                            t("In Praise of Software That Ends", "h3"),
+                            t(
+                                "On the quiet dignity of a tool that lets you reach the bottom.",
+                                "caption",
+                            ),
+                        ),
                     ),
-                    t("The Last Honest Inbox", "h3"),
-                    t(
-                        "Why I rebuilt email for one person — me — and kept it that way · 12 min",
-                        "caption",
-                    ),
-                    t("Notes on Making Things Small", "h3"),
-                    t("A working theory of why less software outlives more · 7 min", "caption"),
+                    fitW(t("9 min · 2026", "caption")),
                 ),
-                img("wren-essay-spread", 0.82),
+                divider(),
+                row(
+                    fill(
+                        col(
+                            t("The Last Honest Inbox", "h3"),
+                            t(
+                                "Why I rebuilt email for one person — me — and then kept it that way.",
+                                "caption",
+                            ),
+                        ),
+                    ),
+                    fitW(t("12 min · 2025", "caption")),
+                ),
+                divider(),
+                row(
+                    fill(
+                        col(
+                            t("Notes on Making Things Small", "h3"),
+                            t("A working theory of why less software outlives more.", "caption"),
+                        ),
+                    ),
+                    fitW(t("7 min · 2025", "caption")),
+                ),
+                divider(),
+                row(
+                    fill(
+                        col(
+                            t("The Year I Stopped Shipping", "h3"),
+                            t(
+                                "Twelve months of maintenance, and what it taught me about scope.",
+                                "caption",
+                            ),
+                        ),
+                    ),
+                    fitW(t("11 min · 2024", "caption")),
+                ),
+                divider(),
+                button("Read the archive", "https://slowtools.substack.com/archive", {
+                    variant: "ghost",
+                }),
             ),
         ),
         section(
-            "s6",
+            "letter",
+            col(
+                t("SLOW TOOLS", "label", "center"),
+                t("A letter most Sunday mornings.", "h2", "center"),
+                t(
+                    "One short essay a week on attention, craft, and software that ages well. Twenty-four thousand people read it; nobody has ever been sold anything in it.",
+                    "subtitle",
+                    "center",
+                ),
+                fitW(
+                    row(
+                        { align: "center" },
+                        button("Subscribe free", "https://slowtools.substack.com"),
+                        button("Read a recent issue", "https://slowtools.substack.com/archive", {
+                            variant: "outline",
+                        }),
+                    ),
+                ),
+                t("No sponsors, no tracking, one click to leave.", "caption", "center"),
+            ),
+            { background: bgColor("#1C1712"), bleed: true },
+        ),
+        section(
+            "margin",
             split(
                 40,
                 img("wren-margin-app", 1),
-                group(
+                col(
                     t("Featured", "label"),
                     badge("LIVE"),
                     t("Margin — a reading app that forgets nothing.", "h2"),
@@ -490,20 +660,21 @@ export const personalSite: ArtifactContent = web(
                         "Save anything, highlight freely, and trust that it will still be there in ten years. No feed, no algorithm, no expiry — just your library, getting more valuable the longer you tend it.",
                         "body",
                     ),
-                    button("Visit Margin"),
+                    button("Visit Margin", "https://margin.app", { variant: "outline" }),
                 ),
             ),
         ),
         section(
-            "s7",
+            "numbers",
             row(
                 stat("24K", "readers of the weekly “Slow Tools” letter"),
                 stat("3", "products shipped and still maintained, years on"),
                 stat("10 yrs", "moving between writing and design"),
             ),
+            { background: bgColor("#121110"), bleed: true },
         ),
         section(
-            "s8",
+            "praise",
             row(
                 quote(
                     "Wren is the rare maker who treats restraint as a feature. Working with her, the best ideas were always the ones she talked us out of.",
@@ -516,29 +687,62 @@ export const personalSite: ArtifactContent = web(
             ),
         ),
         section(
-            "s9",
-            row(
-                group(
-                    t("Offscreen", "h3"),
-                    t("“A quiet manifesto for durable software.”", "caption"),
+            "press",
+            col(
+                t("ELSEWHERE", "label", "center"),
+                row(
+                    { justify: "evenly", align: "center" },
+                    fitW(t("Offscreen", "h3")),
+                    fitW(t("The Verge", "h3")),
+                    fitW(t("Dense Discovery", "h3")),
+                    fitW(t("Hacker News", "h3")),
                 ),
-                group(t("The Verge", "h3"), t("“Margin is reading, minus the noise.”", "caption")),
-                group(
-                    t("Dense Discovery", "h3"),
-                    t("“Wren’s letter is a weekly exhale.”", "caption"),
+                t(
+                    "“A quiet manifesto for durable software.” · “Margin is reading, minus the noise.” · “Wren’s letter is a weekly exhale.”",
+                    "caption",
+                    "center",
                 ),
             ),
         ),
         section(
-            "s10",
-            group(
+            "contact",
+            col(
                 t("Say hello", "label"),
                 t("Let’s make something that lasts.", "h2"),
                 t(
                     "I take on a couple of small collaborations a year — writing, design, or the early shape of a product. If that sounds like you, I’d love to hear what you’re building.",
                     "subtitle",
                 ),
-                button("Email me"),
+                button("Email me", "mailto:wren@quietmachines.co"),
+            ),
+            { background: bgImage("wren-contact-window-light", 0.45) },
+        ),
+        section(
+            "footer",
+            col(
+                divider(),
+                row(
+                    { justify: "between", align: "start" },
+                    fitW(
+                        col(
+                            fitW(t("Wren Halloran", "h3")),
+                            fitW(t("Lisbon, most of the year", "caption")),
+                        ),
+                    ),
+                    fitW(
+                        col(
+                            fitW(t("WRITING", "label")),
+                            fitW(t("Essays · The letter · The book", "caption")),
+                        ),
+                    ),
+                    fitW(
+                        col(
+                            fitW(t("FIND ME", "label")),
+                            fitW(t("wren@quietmachines.co", "caption")),
+                            fitW(t("Mastodon · Read.cv", "caption")),
+                        ),
+                    ),
+                ),
             ),
         ),
     ],
@@ -546,7 +750,7 @@ export const personalSite: ArtifactContent = web(
 );
 
 export const coverLetter: ArtifactContent = doc(
-    "sumi",
+    "chalk",
     [
         section(
             "c1",
@@ -645,11 +849,18 @@ export const coverLetter: ArtifactContent = doc(
 );
 
 export const eventInvite: ArtifactContent = web(
-    "rose",
+    "orchard",
     [
         section(
-            "s1",
-            group(
+            "hero",
+            col(
+                siteNav(
+                    "AMARA & THÉO",
+                    navLink("The day", "#schedule"),
+                    navLink("Travel", "#travel"),
+                    navLink("Registry", "https://amaraandtheo.love/registry"),
+                    navCta("RSVP", "#rsvp"),
+                ),
                 t("WITH JOYFUL HEARTS, TOGETHER WITH THEIR FAMILIES", "label"),
                 badge("SATURDAY · 12 SEPTEMBER 2026"),
                 t("Amara & Théo", "h1"),
@@ -658,14 +869,17 @@ export const eventInvite: ArtifactContent = web(
                     "subtitle",
                 ),
                 t("Quinta da Lua · Sintra, Portugal", "caption"),
-                button("RSVP by 1 August"),
+                button("RSVP by 1 August", "#rsvp"),
             ),
-            { background: bgImage("wedding-hero-olive-grove-dusk", 0.55) },
+            {
+                background: bgImage("wedding-hero-olive-grove-dusk", 0.55),
+                frame: { aspect: 16 / 7 },
+            },
         ),
 
         section(
-            "s2",
-            group(
+            "note",
+            col(
                 t("A NOTE FROM US", "label"),
                 t("Eight years, two cities, and one very good dog later.", "h2"),
                 t(
@@ -680,10 +894,10 @@ export const eventInvite: ArtifactContent = web(
         ),
 
         section(
-            "s3",
+            "us",
             split(
                 60,
-                group(
+                col(
                     t("THE TWO OF US", "label"),
                     t("Amara, who plans everything. Théo, who plans nothing.", "h2"),
                     t(
@@ -696,8 +910,14 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
 
+        section("olive", col(t("Come for the vows. Stay for the figs.", "h2", "center")), {
+            background: bgImage("wedding-interlude-olive-branch-sunlight", 0.45),
+            bleed: true,
+            frame: { aspect: 16 / 5 },
+        }),
+
         section(
-            "s4",
+            "details",
             row(
                 card(
                     img("wedding-detail-ceremony-arch", 1),
@@ -718,67 +938,79 @@ export const eventInvite: ArtifactContent = web(
         ),
 
         section(
-            "s5",
-            group(
+            "schedule",
+            col(
                 t("THE DAY, HOUR BY HOUR", "label"),
                 t("How Saturday will unfold.", "h2"),
                 table(
                     "Time,What's happening,Where\n3:30 PM,Arrival & welcome drinks,The Lower Courtyard\n4:00 PM,Ceremony,The Olive Terrace\n4:45 PM,Photos & golden-hour aperitivo,The Garden\n6:00 PM,Dinner & toasts,The Stone Barn\n8:30 PM,First dance & the band,The Barn\n11:00 PM,Late-night snacks & last orders,The Courtyard\n12:00 AM,Sparkler send-off,The Drive",
                 ),
             ),
+            { background: bgColor("#EFE7D5"), bleed: true },
         ),
 
         section(
-            "s6",
-            group(
+            "venue",
+            col(
                 t("THE PLACE", "label"),
                 t("Quinta da Lua", "h2"),
                 t(
                     "A working olive farm folded into the green hills above Sintra — terracotta, old stone, and rows of silver trees that go gold at dusk. It's a forty-minute drive from Lisbon and feels a hundred years from anywhere.",
                     "subtitle",
                 ),
+                button("Open the map", "https://maps.google.com/?q=Sintra+Portugal", {
+                    variant: "outline",
+                }),
             ),
             { background: bgImage("wedding-venue-quinta-hillside", 0.5) },
         ),
 
         section(
-            "s7",
-            row(
-                group(
-                    t("GETTING THERE", "label"),
-                    t("Finding the grove", "h3"),
-                    bullets(
-                        "Fly into Lisbon (LIS) — about 40 minutes by car from the quinta",
-                        "We'll run shuttle vans from central Sintra at 3:00 and 3:20 PM",
-                        "Driving? There's free parking on the lower drive; leave the car overnight if you'd rather",
-                        "Taxis and rideshare reach the gate, but book the return ahead — signal is thin in the hills",
-                    ),
-                ),
-                group(
-                    t("WHERE TO STAY", "label"),
-                    t("A few nights nearby", "h3"),
-                    bullets(
-                        "We've held a block of rooms at Casa do Vale in Sintra — code AMARATHEO until 1 August",
-                        "Sintra's old town is the prettiest base; Cascais is lovelier still if you want the sea",
-                        "Lisbon is close enough for a 'morning after' brunch — we'd love to see you there",
-                        "Coming far? Make a holiday of it; we're happy to share our favourite places",
-                    ),
+            "travel",
+            col(
+                t("GETTING HERE & STAYING OVER", "label"),
+                t("Everything you'll want to know.", "h2"),
+                faq(
+                    "collapsible",
+                    [
+                        [
+                            "How do I get to the quinta?",
+                            "Fly into Lisbon (LIS) and drive about forty minutes north. We'll run shuttle vans from central Sintra at 3:00 and 3:20 PM, and they'll take you back down whenever you're ready to go.",
+                        ],
+                        [
+                            "Can I drive and park?",
+                            "Yes. There's free parking on the lower drive, and you're welcome to leave the car overnight and collect it the next morning. Taxis reach the gate too, but book the return ahead: signal is thin in the hills.",
+                        ],
+                        [
+                            "Where should I stay?",
+                            "We've held a block of rooms at Casa do Vale in Sintra under the code AMARATHEO until 1 August. Sintra's old town is the prettiest base, and Cascais is lovelier still if you want to be near the sea.",
+                        ],
+                        [
+                            "Is there anything the morning after?",
+                            "There is. Coffee and pastries at the quinta from ten, and a long, slow brunch in Lisbon for anyone still standing.",
+                        ],
+                        [
+                            "Can we bring the children?",
+                            "Please do. We adore them, and there's a quiet room with a sitter from 8 PM so you can stay for the dancing. Just tell us when you reply.",
+                        ],
+                    ],
+                    true,
                 ),
             ),
         ),
 
         section(
-            "s8",
+            "gallery",
             row(
-                group(
+                col(
                     img("wedding-gallery-olive-rows-light", 0.8),
                     t("The grove at the hour we'll marry.", "caption"),
                 ),
-                group(
+                col(
                     img("wedding-gallery-table-figs-candles", 0.8),
                     t("Long tables, figs, and far too many candles.", "caption"),
                 ),
-                group(
+                col(
                     img("wedding-gallery-dancing-string-lights", 0.8),
                     t("And then, the part with the dancing.", "caption"),
                 ),
@@ -786,64 +1018,71 @@ export const eventInvite: ArtifactContent = web(
         ),
 
         section(
-            "s9",
+            "praise",
             quote(
                 "These two make everyone around them feel like the most interesting person in the room. Come September, that room has a sea view.",
                 "Lena · maid of honour",
             ),
+            { background: bgImage("wedding-praise-candlelit-toast", 0.6), bleed: true },
         ),
 
         section(
-            "s10",
-            group(
-                t("THE ONLY HOMEWORK", "label"),
-                t("Let us know you're coming.", "h2"),
+            "rsvp",
+            col(
+                t("THE ONLY HOMEWORK", "label", "center"),
+                t("Let us know you're coming.", "h2", "center"),
                 t(
                     "Kindly reply by 1 August so we can save you a seat, a glass, and a place at the long table. Tell us about dietary needs, songs that will get you dancing, and whether you'll need a shuttle.",
                     "subtitle",
+                    "center",
                 ),
-                button("RSVP at amaraandtheo.love"),
-                callout(
-                    "tip",
-                    t(
-                        "Bringing little ones? We adore them and have a quiet room with a sitter from 8 PM — just say the word when you reply.",
-                        "body",
-                    ),
-                ),
+                button("RSVP at amaraandtheo.love", "https://amaraandtheo.love/rsvp", {
+                    shape: "pill",
+                    size: "lg",
+                }),
+                t("Replies close 1 August 2026.", "caption", "center"),
             ),
-            { background: bgImage("wedding-rsvp-string-lights-evening", 0.55) },
+            { background: bgColor("#6E2739"), bleed: true },
         ),
 
         section(
-            "s11",
-            row(
-                group(
-                    t("Amara & Théo", "h3"),
-                    t("12 September 2026 · Sintra", "caption"),
-                    t("hello@amaraandtheo.love", "caption"),
-                ),
-                group(
-                    t("GIFTS", "label"),
-                    t(
-                        "Your presence is the whole gift. If you'd like to do more, we're saving for a honeymoon in the Azores — details on the site.",
-                        "caption",
+            "footer",
+            col(
+                divider(),
+                row(
+                    { justify: "between", align: "start" },
+                    fitW(
+                        col(
+                            fitW(t("Amara & Théo", "h3")),
+                            fitW(t("12 September 2026 · Sintra", "caption")),
+                            fitW(t("hello@amaraandtheo.love", "caption")),
+                        ),
+                    ),
+                    fitW(
+                        col(
+                            fitW(t("GIFTS", "label")),
+                            fitW(t("Your presence is the whole gift.", "caption")),
+                            fitW(
+                                t(
+                                    "If you'd like to do more, we're saving for the Azores.",
+                                    "caption",
+                                ),
+                            ),
+                        ),
+                    ),
+                    fitW(
+                        col(
+                            fitW(t("SHARE THE DAY", "label")),
+                            fitW(t("Tag your photos #AmaraAndTheo", "caption")),
+                            fitW(t("amaraandtheo.love", "caption")),
+                        ),
                     ),
                 ),
-                group(
-                    t("SHARE THE DAY", "label"),
-                    t("Tag your photos #AmaraAndTheo so we don't miss a single one.", "caption"),
-                    t("amaraandtheo.love", "caption"),
-                ),
-            ),
-        ),
-
-        section(
-            "s12",
-            group(
                 divider(),
                 t(
                     "With love, and with thanks to our parents — Ngozi & Emeka Okonkwo and Inês & Rui Almeida — who started all of this.",
                     "caption",
+                    "center",
                 ),
             ),
         ),
@@ -852,7 +1091,7 @@ export const eventInvite: ArtifactContent = web(
 );
 
 export const photoEssay: ArtifactContent = doc(
-    "sumi",
+    "atelier",
     [
         section(
             "s1",
@@ -1044,26 +1283,43 @@ export const photoEssay: ArtifactContent = doc(
 // ---- marketing
 
 export const productLaunch: ArtifactContent = web(
-    "botanic",
+    "moss",
     [
         section(
-            "s1",
-            group(
+            "hero",
+            col(
+                siteNav(
+                    "AER",
+                    menu(
+                        "Explore",
+                        navLink("The device", "#product"),
+                        navLink("See it running", "#demo"),
+                        navLink("How it works", "#how"),
+                        navLink("Specifications", "#specs"),
+                        navLink("What we measured", "#data"),
+                        navLink("Support", "https://help.aerone.com"),
+                    ),
+                    navLink("Pricing", "#pricing"),
+                    navCta("Pre-order", "#preorder"),
+                ),
                 t("Introducing Aer One", "label"),
                 t("The air you forgot you were breathing.", "h1"),
                 t(
                     "A whisper-quiet purifier that reads your room and clears it in minutes — no app to babysit, no filters you’ll forget to change.",
                     "subtitle",
                 ),
-                button("Pre-order — $249"),
+                button("Pre-order · $249", "#preorder"),
             ),
-            { background: bgImage("aer-hero-living-room", 0.58) },
+            {
+                background: bgImage("aer-hero-living-room", 0.58),
+                frame: { aspect: 16 / 7 },
+            },
         ),
         section(
-            "s2",
+            "problem",
             split(
                 60,
-                group(
+                col(
                     t("The problem", "label"),
                     t("Indoor air is the pollution nobody talks about.", "h2"),
                     t(
@@ -1075,35 +1331,49 @@ export const productLaunch: ArtifactContent = web(
             ),
         ),
         section(
-            "s3",
+            "proof",
             row(
                 stat("99.97%", "of particles down to 0.1 microns captured"),
                 stat("12 min", "to clear a 400 sq ft room"),
                 stat("21 dB", "quieter than a library at night"),
             ),
-            { background: bgImage("aer-clean-air-gradient", 0.5) },
+            { background: bgImage("aer-clean-air-gradient", 0.5), bleed: true },
         ),
         section(
-            "s4",
+            "product",
             split(
                 40,
                 img("aer-device-on-floor", 1.05),
-                group(
+                col(
                     t("Meet Aer One", "label"),
                     t("Engineered to disappear into your home.", "h2"),
                     t(
                         "A single seamless aluminum shell, a fabric crown spun from recycled PET, and a glow ring that fades from amber to white as your air gets cleaner. It’s the first purifier we’ve made that people leave out on purpose.",
                         "body",
                     ),
-                    button("Take the tour"),
+                    button("Take the tour", "#how", { variant: "outline" }),
                 ),
             ),
         ),
         section(
-            "s5",
+            "demo",
+            col(
+                t("Two minutes", "label", "center"),
+                t("Watch a room clear itself.", "h2", "center"),
+                t(
+                    "A sealed 400 sq ft kitchen, one seared steak, and a particle counter running the whole time. Nothing is sped up.",
+                    "subtitle",
+                    "center",
+                ),
+                video(DEMO_VIDEO, "aer-demo-still-kitchen-evening"),
+            ),
+            { background: bgColor("#10140F"), bleed: true },
+        ),
+        section(
+            "sensing",
             split(
                 60,
-                group(
+                col(
                     t("Intelligence", "label"),
                     badge("ON-DEVICE"),
                     t("It senses, then it acts.", "h2"),
@@ -1116,8 +1386,8 @@ export const productLaunch: ArtifactContent = web(
             ),
         ),
         section(
-            "s6",
-            group(
+            "how",
+            col(
                 t("How it works", "label"),
                 t("Four stages, one breath.", "h2"),
                 t(
@@ -1128,7 +1398,22 @@ export const productLaunch: ArtifactContent = web(
             ),
         ),
         section(
-            "s7",
+            "specs",
+            col(
+                t("Specifications", "label"),
+                t("The numbers, in full.", "h2"),
+                table(
+                    "Model,Room size,Noise range,Filter life,Weight,Price\nAer One,Up to 400 sq ft,21–48 dB,12 months,4.1 kg,$249\nAer One Plus,Up to 650 sq ft,23–52 dB,18 months,5.6 kg,$329",
+                ),
+                t(
+                    "Both models draw under 6 W on the lowest setting and share the same filter chemistry; the Plus adds a larger fan and a deeper carbon bed.",
+                    "caption",
+                ),
+            ),
+            { background: bgColor("#10140F"), bleed: true },
+        ),
+        section(
+            "features",
             row(
                 card(
                     img("aer-filter-cartridge", 1),
@@ -1157,25 +1442,27 @@ export const productLaunch: ArtifactContent = web(
             ),
         ),
         section(
-            "s8",
+            "reviews",
             split(
                 60,
-                quote(
+                testimonial(
                     "I stopped waking up congested within a week. I didn’t expect to feel the difference — but the whole house notices when it’s off.",
-                    "Dr. Lena Osei · Pulmonologist & early tester",
+                    "Dr. Lena Osei",
+                    "Pulmonologist · early tester",
+                    "https://i.pravatar.cc/240?img=45",
                 ),
-                group(
+                col(
                     stat("4.9★", "average across 2,300 beta reviews"),
                     stat("96%", "would replace their old purifier"),
                 ),
             ),
-            { background: bgImage("aer-soft-home-window", 0.55) },
+            { background: bgImage("aer-soft-home-window", 0.55), bleed: true },
         ),
         section(
-            "s9",
+            "data",
             split(
                 40,
-                group(
+                col(
                     t("Measured, not marketed", "label"),
                     t("From hazy to clear in twelve minutes.", "h2"),
                     t(
@@ -1187,75 +1474,153 @@ export const productLaunch: ArtifactContent = web(
             ),
         ),
         section(
-            "s10",
-            group(
+            "pricing",
+            col(
                 t("Pricing", "label"),
-                t("One device, three ways to live with it.", "h2"),
-                table(
-                    "Model,Coverage,Filter,Price\nAer One,Up to 400 sq ft,12-month HEPA + carbon,$249\nAer One Plus,Up to 650 sq ft,18-month HEPA + carbon,$329\nAer Care,Any model,Auto-shipped filters + warranty,$6/mo",
+                t("Reserve one now, pay the rest at dispatch.", "h2"),
+                row(
+                    { align: "start" },
+                    pricing(
+                        "AER ONE",
+                        "$249",
+                        "Up to 400 sq ft · ships March",
+                        [
+                            "True HEPA H13 + carbon",
+                            "12-month filter included",
+                            "Five-year warranty",
+                            "60-night trial at home",
+                        ],
+                        button("Pre-order Aer One", "#preorder"),
+                    ),
+                    pricing(
+                        "AER ONE PLUS",
+                        "$329",
+                        "Up to 650 sq ft · ships April",
+                        [
+                            "Everything in Aer One",
+                            "Larger fan, deeper carbon bed",
+                            "18-month filter included",
+                            "Priority dispatch",
+                        ],
+                        button("Pre-order the Plus", "#preorder", { variant: "outline" }),
+                    ),
+                ),
+                t(
+                    "Aer Care is $6 a month and entirely optional: filters arrive the week they’re due and the warranty extends for as long as you keep it.",
+                    "caption",
                 ),
             ),
         ),
         section(
-            "s11",
-            row(
-                group(
-                    t("Frequently asked", "label"),
-                    t("The honest answers.", "h2"),
-                    bullets(
-                        "Yes — it’s true HEPA, independently certified, not “HEPA-type”.",
-                        "Filters last a full year and ship to you the week they’re due.",
-                        "No subscription required; Aer Care is entirely optional.",
-                    ),
-                ),
-                callout(
-                    "info",
-                    t(
-                        "Ships free across North America in 2–4 days. Try it for 60 nights — if your air doesn’t feel different, send it back and we’ll refund every cent, return shipping included.",
-                        "body",
-                    ),
+            "faq",
+            col(
+                t("Frequently asked", "label"),
+                t("The honest answers.", "h2"),
+                faq(
+                    "collapsible",
+                    [
+                        [
+                            "Is it really HEPA?",
+                            "Yes: true HEPA H13, independently certified, not the “HEPA-type” media most cheap purifiers ship with. The test report is linked from every product page.",
+                        ],
+                        [
+                            "How often do filters change?",
+                            "Once a year on the Aer One and every eighteen months on the Plus. The device counts real runtime rather than calendar days, so a quiet season buys you longer.",
+                        ],
+                        [
+                            "Do I need the app?",
+                            "No. Everything works on the device, and nothing breaks if you never install it. The app only adds history charts and a filter reminder.",
+                        ],
+                        [
+                            "What if I don’t notice a difference?",
+                            "Sleep on it for sixty nights. If your air doesn’t feel different, send it back and we refund every cent, return shipping included.",
+                        ],
+                        [
+                            "When does my pre-order ship?",
+                            "First units leave in March, in the order they were placed. Your $25 deposit is fully refundable until the day yours is boxed.",
+                        ],
+                    ],
+                    true,
                 ),
             ),
         ),
         section(
-            "s12",
-            group(
-                t("Breathe better, starting now", "label"),
-                t("Your first clear breath ships in March.", "h2"),
+            "preorder",
+            col(
+                t("Breathe better, starting now", "label", "center"),
+                t("Your first clear breath ships in March.", "h2", "center"),
                 t(
                     "Reserve yours today with a fully refundable $25 deposit and lock in launch pricing before it goes up.",
                     "subtitle",
+                    "center",
                 ),
-                button("Pre-order Aer One"),
+                button("Pre-order Aer One", "https://aerone.com/preorder", { size: "lg" }),
+                t("Free shipping across North America · 2–4 days", "caption", "center"),
             ),
-            { background: bgImage("aer-final-cta-sky", 0.55) },
+            { background: bgImage("aer-final-cta-sky", 0.55), bleed: true },
         ),
     ],
     bgImage("aer-bg-texture", 0.32),
 );
 
 export const landingPage: ArtifactContent = web(
-    "sunrise",
+    "press",
     [
         section(
-            "s1",
-            split(
-                60,
-                group(
-                    t("Northwind Analytics", "label"),
-                    t("Your metrics, finally in one place.", "h1"),
-                    t(
-                        "Connect every tool your team already uses and watch a single, trustworthy dashboard build itself — no SQL, no data team, no waiting on a Monday report.",
-                        "subtitle",
+            "hero",
+            col(
+                siteNav(
+                    "NORTHWIND",
+                    menu(
+                        "Product",
+                        navLink("What it does", "#features"),
+                        navLink("Live metrics", "#live"),
+                        navLink("What teams save", "#why"),
+                        navLink("Questions", "#faq"),
+                        navLink("Status page", "https://status.northwind.dev"),
                     ),
-                    button("Start free — no card"),
+                    navLink("Pricing", "#pricing"),
+                    navLink("Docs", "https://docs.northwind.dev"),
+                    navCta("Start free", "#signup"),
                 ),
-                img("northwind-dashboard-hero", 0.95),
+                t("Northwind Analytics", "label"),
+                t("Your metrics, finally in one place.", "h1"),
+                t(
+                    "Connect every tool your team already uses and watch a single, trustworthy dashboard build itself — no SQL, no data team, no waiting on a Monday report.",
+                    "subtitle",
+                ),
+                row(
+                    { align: "center" },
+                    button("Start free, no card", "#signup"),
+                    button("See the pricing", "#pricing", { variant: "outline" }),
+                ),
             ),
-            { background: bgImage("northwind-hero-workspace", 0.52) },
+            {
+                background: bgImage("northwind-hero-workspace", 0.52),
+                frame: { aspect: 16 / 8 },
+            },
         ),
         section(
-            "s2",
+            "shot",
+            col(t("One screen, every source", "label"), img("northwind-dashboard-hero", 1.7)),
+        ),
+        section(
+            "logos",
+            col(
+                t("TRUSTED BY FAST-MOVING TEAMS", "label", "center"),
+                row(
+                    { justify: "evenly", align: "center" },
+                    fitW(t("LUMEN", "h3")),
+                    fitW(t("CEDARWORKS", "h3")),
+                    fitW(t("HALOWAY", "h3")),
+                    fitW(t("NORRØN", "h3")),
+                    fitW(t("BELLWEATHER", "h3")),
+                ),
+            ),
+            { background: bgColor("#E2DFD3"), bleed: true },
+        ),
+        section(
+            "numbers",
             row(
                 stat("8,400+", "teams shipping with Northwind"),
                 stat("42M", "events processed every day"),
@@ -1263,47 +1628,69 @@ export const landingPage: ArtifactContent = web(
             ),
         ),
         section(
-            "s3",
-            group(
-                t("Trusted by fast-moving teams", "caption"),
-                t("Lumen · Cedarworks · Haloway · Norrøn · Bellweather · Patchwork", "h3"),
+            "features",
+            col(
+                t("What it does", "label"),
+                t("Three jobs, one afternoon.", "h2"),
+                tabs(
+                    "Connect, Ask, Share",
+                    split(
+                        45,
+                        img("northwind-connect-sources", 1.35),
+                        col(
+                            t("Connect in minutes", "h3"),
+                            t(
+                                "Forty native integrations — Stripe, Postgres, HubSpot, GA4 and the rest — go live the moment you click connect. No warehouse to stand up first, and no engineer on the hook for the pipeline.",
+                                "body",
+                            ),
+                            checks(
+                                "40 native sources, OAuth in one click",
+                                "Incremental syncs every 60 seconds",
+                                "Bring your own warehouse if you have one",
+                            ),
+                        ),
+                    ),
+                    split(
+                        45,
+                        img("northwind-ask-question", 1.35),
+                        col(
+                            t("Ask in plain English", "h3"),
+                            t(
+                                "Type “revenue by plan last quarter” and get a chart you can trust, then open the SQL underneath it and edit anything you disagree with. Every answer shows its working.",
+                                "body",
+                            ),
+                            checks(
+                                "Generated SQL is always visible and editable",
+                                "Saved answers become dashboard tiles",
+                                "Definitions live in one shared metric layer",
+                            ),
+                        ),
+                    ),
+                    split(
+                        45,
+                        img("northwind-team-share", 1.35),
+                        col(
+                            t("Share without friction", "h3"),
+                            t(
+                                "Dashboards, alerts, and weekly digests land where your team already works: Slack, email, or the TV on the wall. Read access costs nothing, so nobody is stuck screenshotting a number.",
+                                "body",
+                            ),
+                            checks(
+                                "Unlimited free viewers on every plan",
+                                "Slack and email digests on a schedule",
+                                "Public links with an expiry, when you need one",
+                            ),
+                        ),
+                    ),
+                ),
             ),
         ),
         section(
-            "s4",
-            row(
-                card(
-                    img("northwind-connect-sources", 1),
-                    t("Connect in minutes", "h3"),
-                    t(
-                        "Forty native integrations — Stripe, Postgres, HubSpot, GA4 and more — live the moment you click connect.",
-                        "caption",
-                    ),
-                ),
-                card(
-                    img("northwind-ask-question", 1),
-                    t("Ask in plain English", "h3"),
-                    t(
-                        "Type “revenue by plan last quarter” and get a chart you can trust — and edit — in seconds.",
-                        "caption",
-                    ),
-                ),
-                card(
-                    img("northwind-team-share", 1),
-                    t("Share without friction", "h3"),
-                    t(
-                        "Dashboards, alerts, and weekly digests land where your team already works — Slack, email, or the wall TV.",
-                        "caption",
-                    ),
-                ),
-            ),
-        ),
-        section(
-            "s5",
+            "live",
             split(
                 40,
                 img("northwind-live-metrics-screen", 1.05),
-                group(
+                col(
                     t("Live, not stale", "label"),
                     badge("REAL-TIME"),
                     t("Numbers that move when your business does.", "h2"),
@@ -1311,16 +1698,16 @@ export const landingPage: ArtifactContent = web(
                         "Northwind streams your data instead of batching it overnight, so the figure on the screen is the figure right now. Set a threshold once and we’ll ping you the instant signups dip or churn spikes — long before it shows up in a monthly review.",
                         "body",
                     ),
-                    button("See it live"),
+                    button("See it live", "#signup", { variant: "outline" }),
                 ),
             ),
-            { background: bgImage("northwind-feature-glow", 0.5) },
+            { background: bgImage("northwind-feature-glow", 0.5), bleed: true },
         ),
         section(
-            "s6",
+            "why",
             split(
                 60,
-                group(
+                col(
                     t("Why teams switch", "label"),
                     t("Less time wrangling, more time deciding.", "h2"),
                     t(
@@ -1332,77 +1719,204 @@ export const landingPage: ArtifactContent = web(
             ),
         ),
         section(
-            "s7",
-            row(
-                quote(
-                    "We replaced a $90k BI contract and two spreadsheets with Northwind in an afternoon. Our whole company reads the same numbers now.",
-                    "Priya Raman · VP Growth, Cedarworks",
-                ),
-                quote(
-                    "I’m not technical, and I built our exec dashboard myself on day one. That has never once been true of an analytics tool.",
-                    "Tom Becker · Founder, Haloway",
+            "praise",
+            col(
+                t("What changed for them", "label"),
+                row(
+                    testimonial(
+                        "We replaced a $90k BI contract and two spreadsheets with Northwind in an afternoon. Our whole company reads the same numbers now.",
+                        "Priya Raman",
+                        "VP Growth, Cedarworks",
+                        "https://i.pravatar.cc/240?img=32",
+                    ),
+                    testimonial(
+                        "I’m not technical, and I built our exec dashboard myself on day one. That has never once been true of an analytics tool.",
+                        "Tom Becker",
+                        "Founder, Haloway",
+                        "https://i.pravatar.cc/240?img=12",
+                    ),
                 ),
             ),
+            { background: bgColor("#E2DFD3"), bleed: true },
         ),
         section(
-            "s8",
-            group(
+            "pricing",
+            col(
                 t("Pricing", "label"),
                 t("Start free. Grow when you’re ready.", "h2"),
-                table(
-                    "Plan,Best for,Data sources,Price\nFree,Side projects,3 sources,$0\nTeam,Growing startups,15 sources,$49/mo\nBusiness,Scaling companies,Unlimited,$199/mo\nEnterprise,Custom needs,Unlimited + SSO,Let’s talk",
+                t(
+                    "Every plan includes unlimited viewers, because a metric nobody can see is not worth collecting. Enterprise adds SAML, a private deployment, and a migration engineer for your first month; annual billing takes two months off any plan.",
+                    "body",
                 ),
             ),
         ),
         section(
-            "s9",
+            "tiers",
             row(
-                group(
-                    t("Questions, answered", "label"),
-                    t("Everything before you sign up.", "h2"),
-                    bullets(
-                        "Free forever for three sources — no trial clock, no card.",
-                        "SOC 2 Type II certified; your data is encrypted in transit and at rest.",
-                        "Cancel or export everything in one click, any time.",
-                    ),
+                { align: "start" },
+                pricing(
+                    "FREE",
+                    "$0",
+                    "For a side project",
+                    ["3 data sources", "Unlimited viewers", "7-day history", "Community support"],
+                    button("Start free", "#signup", { variant: "outline" }),
                 ),
-                group(
-                    callout(
-                        "tip",
-                        t(
-                            "Most teams have their first live dashboard within ten minutes of signing up — and our team will migrate your old reports for free.",
-                            "body",
-                        ),
-                    ),
-                    button("Create your free workspace"),
+                pricing(
+                    "TEAM",
+                    "$49",
+                    "Per month, for a growing startup",
+                    [
+                        "15 data sources",
+                        "Alerts and Slack digests",
+                        "12-month history",
+                        "Email support",
+                    ],
+                    button("Start a trial", "#signup"),
+                ),
+                pricing(
+                    "BUSINESS",
+                    "$199",
+                    "Per month, for a scaling company",
+                    [
+                        "Unlimited sources",
+                        "SSO and audit log",
+                        "Unlimited history",
+                        "Named support engineer",
+                    ],
+                    button("Talk to us", "https://northwind.dev/contact", {
+                        variant: "outline",
+                    }),
                 ),
             ),
+        ),
+        section(
+            "faq",
+            col(
+                t("Questions, answered", "label"),
+                t("Everything before you sign up.", "h2"),
+                faq(
+                    "collapsible",
+                    [
+                        [
+                            "Is the free plan really free?",
+                            "Yes, and permanently: three sources, unlimited viewers, no trial clock and no card. We only charge when you outgrow it.",
+                        ],
+                        [
+                            "How long does setup take?",
+                            "Most teams have a live dashboard inside ten minutes. If you’re moving off another tool, our team will rebuild your old reports for free.",
+                        ],
+                        [
+                            "Where does my data live?",
+                            "In your region, encrypted in transit and at rest. We’re SOC 2 Type II certified and the report is available under NDA.",
+                        ],
+                        [
+                            "Can I get my data out?",
+                            "Any time, in one click: CSV for the tables, SQL for the queries, JSON for the dashboards. Cancelling never locks anything up.",
+                        ],
+                        [
+                            "Do you charge for viewers?",
+                            "No. Read access is free on every plan, because a metric nobody can see is not worth collecting.",
+                        ],
+                    ],
+                    true,
+                ),
+            ),
+        ),
+        section(
+            "signup",
+            col(
+                t("Ten minutes to your first dashboard", "label", "center"),
+                t("Start free. Bring the whole team.", "h2", "center"),
+                t(
+                    "Connect a source, ask one question, and share the answer before your coffee goes cold. No card, no sales call, no data engineer.",
+                    "subtitle",
+                    "center",
+                ),
+                fitW(
+                    row(
+                        { align: "center" },
+                        button("Create your free workspace", "https://app.northwind.dev/signup", {
+                            size: "lg",
+                        }),
+                        button("Read the docs", "https://docs.northwind.dev", {
+                            variant: "ghost",
+                        }),
+                    ),
+                ),
+            ),
+            { background: bgColor("#16140F"), bleed: true },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Northwind", "h3")),
+                        fitW(t("Analytics for teams without a data team.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("PRODUCT", "label")),
+                        fitW(t("Integrations · Pricing · Changelog", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("COMPANY", "label")),
+                        fitW(t("About · Careers · Security", "caption")),
+                        fitW(t("hello@northwind.dev", "caption")),
+                    ),
+                ),
+            ),
+            { background: bgColor("#E2DFD3"), bleed: true },
         ),
     ],
     bgImage("northwind-bg-texture", 0.3),
 );
 
 export const eventPage: ArtifactContent = web(
-    "vapor",
+    "obsidian",
     [
         section(
-            "s1",
-            group(
+            "hero",
+            col(
+                siteNav(
+                    "FREQUENCY 2026",
+                    menu(
+                        "Programme",
+                        navLink("Speakers", "#speakers"),
+                        navLink("The agenda", "#agenda"),
+                        navLink("The venue", "#venue"),
+                        navLink("Good to know", "#faq"),
+                        navLink("Last year’s recap", "https://frequency.fest/2025"),
+                    ),
+                    navLink("Tickets", "#tickets"),
+                    navCta("Register", "#register"),
+                ),
                 t("Frequency 2026 · A design + technology festival", "label"),
                 t("Where design meets the machine.", "h1"),
                 t(
                     "Three days of talks, workshops, and after-dark sessions on the new craft of building with AI — October 15–17, 2026 · Lx Factory, Lisbon.",
                     "subtitle",
                 ),
-                button("Register now"),
+                row(
+                    { align: "center" },
+                    button("Register now", "#register"),
+                    button("See the lineup", "#speakers", { variant: "outline" }),
+                ),
             ),
-            { background: bgImage("frequency-lisbon-stage-lights", 0.58) },
+            {
+                background: bgImage("frequency-lisbon-stage-lights", 0.58),
+                frame: { aspect: 16 / 7 },
+            },
         ),
         section(
-            "s2",
+            "about",
             split(
                 60,
-                group(
+                col(
                     t("What is Frequency", "label"),
                     t("The festival for people who make the future feel good to use.", "h2"),
                     t(
@@ -1414,7 +1928,7 @@ export const eventPage: ArtifactContent = web(
             ),
         ),
         section(
-            "s3",
+            "why",
             row(
                 card(
                     img("frequency-workshop-hands-on", 1),
@@ -1443,54 +1957,94 @@ export const eventPage: ArtifactContent = web(
             ),
         ),
         section(
-            "s4",
+            "lineup",
             split(
                 40,
                 img("frequency-speaker-on-stage-portrait", 1.05),
-                group(
+                col(
                     t("The lineup", "label"),
                     t("Sixty voices worth flying for.", "h2"),
                     t(
                         "Heads of design from the labs defining the field, the engineers behind the tools in your dock, and the independent makers whose side projects became everyone’s daily driver. Every talk is brand-new for Frequency — no recycled conference deck in the building.",
                         "body",
                     ),
-                    button("See all speakers"),
+                    button("See all speakers", "#speakers", { variant: "outline" }),
                 ),
             ),
         ),
         section(
-            "s5",
-            row(
-                card(
-                    img("frequency-speaker-maya-okonkwo", 1),
-                    t("Maya Okonkwo", "h3"),
-                    t("Head of Design · Northwind", "caption"),
+            "speakers",
+            col(
+                t("Speaking this year", "label"),
+                t("Six of the sixty.", "h2"),
+                row(
+                    fill(
+                        profile(
+                            "Maya Okonkwo",
+                            "Head of Design · Northwind",
+                            "https://i.pravatar.cc/240?img=44",
+                            "“Interfaces for things that think”",
+                        ),
+                    ),
+                    fill(
+                        profile(
+                            "Diego Salas",
+                            "Creative Technologist · Studio Mono",
+                            "https://i.pravatar.cc/240?img=15",
+                            "“Motion as a state machine”",
+                        ),
+                    ),
+                    fill(
+                        profile(
+                            "Aisha Rahman",
+                            "Founder · Halcyon Labs",
+                            "https://i.pravatar.cc/240?img=47",
+                            "“Shipping an agent people trust”",
+                        ),
+                    ),
                 ),
-                card(
-                    img("frequency-speaker-diego-salas", 1),
-                    t("Diego Salas", "h3"),
-                    t("Creative Technologist · Studio Mono", "caption"),
-                ),
-                card(
-                    img("frequency-speaker-aisha-rahman", 1),
-                    t("Aisha Rahman", "h3"),
-                    t("Founder · Halcyon Labs", "caption"),
+                row(
+                    fill(
+                        profile(
+                            "Ren Takahashi",
+                            "Principal Engineer · Cedarworks",
+                            "https://i.pravatar.cc/240?img=68",
+                            "“Latency is a design material”",
+                        ),
+                    ),
+                    fill(
+                        profile(
+                            "Nora Vance",
+                            "Independent · Vanta",
+                            "https://i.pravatar.cc/240?img=26",
+                            "“Building quiet software”",
+                        ),
+                    ),
+                    fill(
+                        profile(
+                            "Kwame Boateng",
+                            "Research Lead · Field Day",
+                            "https://i.pravatar.cc/240?img=53",
+                            "“What users do with the undo button”",
+                        ),
+                    ),
                 ),
             ),
         ),
         section(
-            "s6",
-            group(
+            "agenda",
+            col(
                 t("The agenda", "label"),
                 t("Three days, three frequencies.", "h2"),
                 table(
                     "Day,Morning,Afternoon,Night\nThu · Foundations,Keynote + craft talks,Hands-on workshops,Opening party on the terrace\nFri · Frontiers,Agent UX deep dives,Research showcase,Live demo night\nSat · Futures,Design fireside chats,Build-your-own labs,Closing set + dinner",
                 ),
             ),
+            { background: bgColor("#0A0A0C"), bleed: true },
         ),
         section(
-            "s7",
-            group(
+            "flow",
+            col(
                 t("How a day flows", "label"),
                 t("Arrive curious, leave building.", "h2"),
                 t(
@@ -1501,83 +2055,167 @@ export const eventPage: ArtifactContent = web(
             ),
         ),
         section(
-            "s8",
+            "numbers",
             row(
                 stat("3,200", "makers in the room last year"),
                 stat("96%", "said they’d come back"),
                 stat("48", "countries on the badge list"),
             ),
-            { background: bgImage("frequency-crowd-from-above-night", 0.55) },
+            { background: bgImage("frequency-crowd-from-above-night", 0.55), bleed: true },
         ),
         section(
-            "s9",
+            "praise",
             row(
-                quote(
+                testimonial(
                     "I came with a half-finished prototype and left with three collaborators and a launch date. Frequency is the only conference I expense without asking.",
-                    "Priya Raman · Product Lead, Cedarworks",
+                    "Priya Raman",
+                    "Product Lead, Cedarworks",
+                    "https://i.pravatar.cc/240?img=32",
                 ),
-                quote(
+                testimonial(
                     "It’s the rare event where the hallway is better than the stage — and the stage was incredible.",
-                    "Tom Becker · Founder, Haloway",
+                    "Tom Becker",
+                    "Founder, Haloway",
+                    "https://i.pravatar.cc/240?img=12",
+                ),
+                testimonial(
+                    "Three days without a single slide about digital transformation. I have been to eleven conferences this year and this is the one I would pay for myself.",
+                    "Ines Duarte",
+                    "Design Lead, Bright Coast",
+                    "https://i.pravatar.cc/240?img=20",
                 ),
             ),
         ),
         section(
-            "s10",
-            group(
+            "tickets",
+            col(
                 t("Tickets", "label"),
                 t("Pick your pass before they’re gone.", "h2"),
-                table(
-                    "Pass,Includes,Workshops,Price\nDay Pass,One day of talks,Not included,€220\nFull Festival,All three days + party,Open seating,€540\nMaker Pass,All three days + reserved labs,Guaranteed seats,€780\nTeam (5+),Everything in Maker,Guaranteed seats,€650 / person",
+                row(
+                    { align: "start" },
+                    pricing(
+                        "DAY PASS",
+                        "€220",
+                        "One day of talks",
+                        [
+                            "Any single day",
+                            "All stage sessions",
+                            "Lunch and all-day coffee",
+                            "Access to the courtyard",
+                        ],
+                        button("Get a day pass", "#register", { variant: "outline" }),
+                    ),
+                    pricing(
+                        "FULL FESTIVAL",
+                        "€540",
+                        "All three days",
+                        [
+                            "Every talk, all three days",
+                            "Open workshop seating",
+                            "Opening party and demo night",
+                            "Recordings for a year",
+                        ],
+                        button("Get the full pass", "#register"),
+                    ),
+                    pricing(
+                        "MAKER PASS",
+                        "€780",
+                        "All three days, seats reserved",
+                        [
+                            "Everything in Full Festival",
+                            "Guaranteed workshop seats",
+                            "Curated dinner on the Friday",
+                            "Speaker office hours",
+                        ],
+                        button("Get a maker pass", "#register", { variant: "outline" }),
+                    ),
+                ),
+                t(
+                    "Teams of five or more pay €650 a head on the Maker Pass. Students and independents: write to us and we’ll sort something out.",
+                    "caption",
                 ),
             ),
         ),
         section(
-            "s11",
-            row(
-                group(
+            "sponsors",
+            col(
+                t("MADE POSSIBLE BY", "label", "center"),
+                row(
+                    { justify: "evenly", align: "center" },
+                    fitW(t("NORTHWIND", "h3")),
+                    fitW(t("HALCYON", "h3")),
+                    fitW(t("CEDARWORKS", "h3")),
+                    fitW(t("FIELD DAY", "h3")),
+                    fitW(t("STUDIO MONO", "h3")),
+                ),
+                t("Sponsorship packs for 2027 open in January.", "caption", "center"),
+            ),
+            { background: bgColor("#0A0A0C"), bleed: true },
+        ),
+        section(
+            "venue",
+            split(
+                60,
+                col(
                     t("The venue", "label"),
                     t("A printworks turned playground.", "h2"),
                     t(
                         "Lx Factory is a reclaimed industrial block in Alcântara — exposed brick, river light, and a courtyard built for the conversations that happen between sessions. Lisbon airport is twenty minutes away, and partner hotels are a short tram ride down the hill.",
                         "body",
                     ),
-                    img("frequency-lx-factory-courtyard", 1.5),
+                    button("Hotels and travel", "https://frequency.fest/travel", {
+                        variant: "outline",
+                    }),
                 ),
-                group(
-                    t("Good to know", "label"),
-                    t("Is lunch included?", "h3"),
-                    t(
-                        "Yes — every full-festival pass includes lunch, all-day coffee, and the opening-night party.",
-                        "body",
-                    ),
-                    t("Can I get a refund?", "h3"),
-                    t(
-                        "Full refunds up to 30 days out, and you can transfer your pass to a colleague any time before the doors open.",
-                        "body",
-                    ),
-                    callout(
-                        "info",
-                        t(
-                            "Travelling from abroad? We’ll send a visa invitation letter within 48 hours of your purchase — just reply to your confirmation email.",
-                            "body",
-                        ),
-                    ),
+                img("frequency-lx-factory-courtyard", 1.1),
+            ),
+        ),
+        section(
+            "faq",
+            col(
+                t("Good to know", "label"),
+                t("The practical part.", "h2"),
+                faq(
+                    "collapsible",
+                    [
+                        [
+                            "Is lunch included?",
+                            "Yes. Every full-festival pass covers lunch, all-day coffee, and the opening-night party. Day passes include lunch on the day you attend.",
+                        ],
+                        [
+                            "Can I get a refund?",
+                            "Full refunds up to thirty days out, and you can transfer your pass to a colleague any time before the doors open.",
+                        ],
+                        [
+                            "I need a visa letter.",
+                            "We send an invitation letter within 48 hours of purchase. Reply to your confirmation email with the name exactly as it appears in your passport.",
+                        ],
+                        [
+                            "Are the talks recorded?",
+                            "The stage sessions are, and full-festival ticket holders keep access for a year. Workshops are never recorded, so people can be wrong out loud.",
+                        ],
+                        [
+                            "How accessible is the venue?",
+                            "Step-free throughout, with a quiet room off the courtyard and live captioning on both stages. Tell us what you need and we will arrange it.",
+                        ],
+                    ],
+                    true,
                 ),
             ),
         ),
         section(
-            "s12",
-            group(
-                t("Three days that change how you build", "label"),
-                t("Lisbon, October 2026. Save your seat.", "h2"),
+            "register",
+            col(
+                t("Three days that change how you build", "label", "center"),
+                t("Lisbon, October 2026. Save your seat.", "h2", "center"),
                 t(
                     "Early-bird pricing ends August 1, and Maker Passes sold out in nine days last year. Don’t watch the recap — be in the room.",
                     "subtitle",
+                    "center",
                 ),
-                button("Get your pass"),
+                button("Get your pass", "https://frequency.fest/tickets", { size: "lg" }),
             ),
-            { background: bgImage("frequency-river-sunset-lisbon", 0.55) },
+            { background: bgImage("frequency-river-sunset-lisbon", 0.55), bleed: true },
         ),
     ],
     bgImage("frequency-bg-grain", 0.32),
@@ -1587,23 +2225,33 @@ export const waitlistPage: ArtifactContent = web(
     "noir",
     [
         section(
-            "s1",
-            group(
+            "hero",
+            col(
+                siteNav(
+                    "VANTA",
+                    navLink("The idea", "#idea"),
+                    navLink("First look", "#look"),
+                    navLink("Timeline", "#plan"),
+                    navCta("Join the waitlist", "#join"),
+                ),
                 t("Coming this fall", "label"),
                 t("Vanta", "h1"),
                 t(
                     "The workspace that disappears. One thing at a time, in perfect quiet — built to hold your attention instead of stealing it. We’re opening the first invites soon.",
                     "subtitle",
                 ),
-                button("Join the waitlist"),
+                button("Join the waitlist", "#join"),
             ),
-            { background: bgImage("vanta-dark-desk-single-light", 0.62) },
+            {
+                background: bgImage("vanta-dark-desk-single-light", 0.62),
+                frame: { aspect: 16 / 9 },
+            },
         ),
         section(
-            "s2",
+            "idea",
             split(
                 60,
-                group(
+                col(
                     t("The idea", "label"),
                     t("Your tools should get out of the way.", "h2"),
                     t(
@@ -1615,15 +2263,15 @@ export const waitlistPage: ArtifactContent = web(
             ),
         ),
         section(
-            "s3",
-            group(
+            "look",
+            col(
                 t("First look", "label"),
                 t("This is what nothing-in-your-way looks like.", "h2"),
                 img("vanta-app-fullscreen-focus-mode", 1.7),
             ),
         ),
         section(
-            "s4",
+            "features",
             row(
                 card(
                     img("vanta-feature-single-focus", 1),
@@ -1652,11 +2300,11 @@ export const waitlistPage: ArtifactContent = web(
             ),
         ),
         section(
-            "s5",
+            "deep",
             split(
                 40,
                 img("vanta-night-mode-typing", 1.05),
-                group(
+                col(
                     t("Built for deep work", "label"),
                     badge("ON-DEVICE"),
                     t("It learns your rhythm, not your data.", "h2"),
@@ -1666,20 +2314,20 @@ export const waitlistPage: ArtifactContent = web(
                     ),
                 ),
             ),
-            { background: bgImage("vanta-dark-gradient-glow", 0.5) },
+            { background: bgImage("vanta-dark-gradient-glow", 0.5), bleed: true },
         ),
         section(
-            "s6",
+            "numbers",
             row(
                 stat("31,400", "people already on the list"),
                 stat("74", "countries waiting"),
                 stat("Invite-only", "at launch this fall"),
             ),
-            { background: bgImage("vanta-dark-particles-field", 0.55) },
+            { background: bgColor("#0D0D0D"), bleed: true },
         ),
         section(
-            "s7",
-            group(
+            "plan",
+            col(
                 t("The plan", "label"),
                 t("Here’s when it lands.", "h2"),
                 table(
@@ -1688,58 +2336,72 @@ export const waitlistPage: ArtifactContent = web(
             ),
         ),
         section(
-            "s8",
+            "founders",
             split(
                 40,
                 img("vanta-founders-studio-portrait", 1.05),
-                quote(
+                testimonial(
                     "We built Vanta because we were tired of software that treats your attention as inventory to sell. This is the tool we wanted for ourselves — and the first thing in years that made our own work feel quiet again.",
-                    "Eli Brandt & Nora Vance · Co-founders",
+                    "Eli Brandt & Nora Vance",
+                    "Co-founders",
+                    "https://i.pravatar.cc/240?img=26",
                 ),
             ),
         ),
         section(
-            "s9",
-            row(
-                group(
-                    t("Before you ask", "label"),
-                    t("When do I get in?", "h3"),
-                    t(
-                        "Invites go out in order, starting in August. Join now and you’ll move up the list every time a friend signs up with your link.",
-                        "body",
-                    ),
-                    t("What will it cost?", "h3"),
-                    t(
-                        "There’s a generous free tier, and waitlist members get six months of Vanta Pro free at launch — no card required to reserve your spot.",
-                        "body",
-                    ),
-                ),
-                group(
-                    t("Which platforms?", "h3"),
-                    t(
-                        "macOS and iOS first, with Windows and a shared team workspace following in early 2027.",
-                        "body",
-                    ),
-                    t("Is my work really private?", "h3"),
-                    t(
-                        "Yes. Vanta runs entirely on your device — there’s no cloud account to create and nothing of yours is ever uploaded or sold.",
-                        "body",
-                    ),
+            "faq",
+            col(
+                t("Before you ask", "label"),
+                t("Four things people write in about.", "h2"),
+                faq(
+                    "collapsible",
+                    [
+                        [
+                            "When do I get in?",
+                            "Invites go out in order, starting in August. You move up the list every time a friend joins with your link.",
+                        ],
+                        [
+                            "What will it cost?",
+                            "There’s a generous free tier, and everyone on the waitlist gets six months of Vanta Pro at launch. No card is needed to hold your place.",
+                        ],
+                        [
+                            "Which platforms?",
+                            "macOS and iOS first. Windows and a shared team workspace follow in early 2027.",
+                        ],
+                        [
+                            "Is my work really private?",
+                            "Yes. Vanta runs entirely on your device. There’s no cloud account to create, and nothing of yours is ever uploaded or sold.",
+                        ],
+                    ],
+                    true,
                 ),
             ),
         ),
         section(
-            "s10",
-            group(
-                t("Be first through the door", "label"),
-                t("The quiet is almost ready.", "h2"),
+            "join",
+            col(
+                t("Be first through the door", "label", "center"),
+                t("The quiet is almost ready.", "h2", "center"),
                 t(
                     "Join 31,000 people waiting for a calmer way to work. We’ll only email you twice before launch — once with your invite, once to say it’s live.",
                     "subtitle",
+                    "center",
                 ),
-                button("Join the waitlist"),
+                button("Join the waitlist", "https://vanta.app/waitlist", { size: "lg" }),
             ),
-            { background: bgImage("vanta-dawn-window-calm", 0.58) },
+            { background: bgImage("vanta-dawn-window-calm", 0.58), bleed: true },
+        ),
+        section(
+            "footer",
+            col(
+                divider(),
+                row(
+                    { justify: "between", align: "center" },
+                    fitW(t("Vanta", "h3")),
+                    fitW(t("hello@vanta.app", "caption")),
+                    fitW(t("Changelog · Privacy", "caption")),
+                ),
+            ),
         ),
     ],
     bgImage("vanta-bg-noir-texture", 0.34),
@@ -1749,8 +2411,22 @@ export const agencySite: ArtifactContent = web(
     "carbon",
     [
         section(
-            "s1",
-            group(
+            "hero",
+            col(
+                siteNav(
+                    "COUNTERFORM",
+                    menu(
+                        "Work",
+                        navLink("Meridian", "#work"),
+                        navLink("Novel Press", "#more-work"),
+                        navLink("Client list", "#clients"),
+                        navLink("Archive on Read.cv", "https://read.cv/counterform"),
+                    ),
+                    navLink("Services", "#services"),
+                    navLink("Approach", "#approach"),
+                    navLink("Team", "#team"),
+                    navCta("Start a project", "#contact"),
+                ),
                 t("Counterform · Brand & digital studio", "label"),
                 badge("EST. 2015 · LISBON & NEW YORK"),
                 t("We design brands that know how to behave.", "h1"),
@@ -1758,42 +2434,47 @@ export const agencySite: ArtifactContent = web(
                     "A small studio for ambitious companies. We build identities, products, and the systems that hold them together — so the work still looks like itself on the fortieth screen, not just the first.",
                     "subtitle",
                 ),
-                button("Start a project"),
-            ),
-            { background: bgImage("counterform-studio-wall-pinups-mono", 0.58) },
-        ),
-        section(
-            "s2",
-            row(
-                card(
-                    img("counterform-service-brand-identity", 1.6),
-                    t("Brand", "h3"),
-                    t(
-                        "Naming, identity, voice, and the guidelines that keep it all honest as you grow.",
-                        "caption",
-                    ),
-                ),
-                card(
-                    img("counterform-service-digital-product", 1.6),
-                    t("Digital", "h3"),
-                    t(
-                        "Websites and product interfaces — designed and built, from the first sketch to shipped code.",
-                        "caption",
-                    ),
-                ),
-                card(
-                    img("counterform-service-design-system", 1.6),
-                    t("Systems", "h3"),
-                    t(
-                        "Design systems, motion, and the components that let your team move fast without us in the room.",
-                        "caption",
-                    ),
+                row(
+                    { align: "center" },
+                    button("Start a project", "#contact"),
+                    button("See the work", "#work", { variant: "outline" }),
                 ),
             ),
+            {
+                bleed: true,
+                frame: { aspect: 16 / 7 },
+                background: bgImage("counterform-studio-wall-pinups-mono", 0.58),
+            },
         ),
         section(
-            "s3",
-            group(
+            "services",
+            col(
+                t("What we do", "label"),
+                t("Three practices, one studio.", "h2"),
+                row(
+                    { align: "start" },
+                    feature(
+                        "Brand",
+                        "Naming, identity, voice, and the guidelines that keep it all honest as you grow. Usually where a relationship starts.",
+                        "01",
+                    ),
+                    feature(
+                        "Digital",
+                        "Websites and product interfaces, designed and built by the same people, from the first sketch to shipped code.",
+                        "02",
+                    ),
+                    feature(
+                        "Systems",
+                        "Design systems, motion, and the components that let your team keep moving after we have left the room.",
+                        "03",
+                    ),
+                ),
+            ),
+            { background: bgColor("#0A0A0A"), bleed: true },
+        ),
+        section(
+            "work-intro",
+            col(
                 t("Selected work", "label"),
                 t("A few things we’re proud of.", "h2"),
                 t(
@@ -1803,7 +2484,7 @@ export const agencySite: ArtifactContent = web(
             ),
         ),
         section(
-            "s4",
+            "work",
             row(
                 card(
                     img("counterform-work-meridian-bank-brand", 1.4),
@@ -1822,8 +2503,13 @@ export const agencySite: ArtifactContent = web(
                 ),
             ),
         ),
+        section("interlude", col(t("The details are the work.", "h2", "center")), {
+            background: bgImage("counterform-detail-press-proof-mono", 0.55),
+            bleed: true,
+            frame: { aspect: 16 / 5 },
+        }),
         section(
-            "s5",
+            "more-work",
             row(
                 card(
                     img("counterform-work-novel-press-rebrand", 1.6),
@@ -1838,8 +2524,8 @@ export const agencySite: ArtifactContent = web(
             ),
         ),
         section(
-            "s6",
-            group(
+            "approach",
+            col(
                 t("Our approach", "label"),
                 t("Four phases, no surprises.", "h2"),
                 t(
@@ -1857,85 +2543,128 @@ export const agencySite: ArtifactContent = web(
             ),
         ),
         section(
-            "s7",
-            group(
-                t("Clients", "label"),
-                t("In good company.", "h2"),
-                t(
-                    "Meridian · Orchard · Atlas · Novel Press · Tidal · Halcyon · Cedarworks · Field Day · Northwind · Bright Coast · Mara Health · Postscript",
-                    "subtitle",
+            "clients",
+            col(
+                t("Clients", "label", "center"),
+                t("In good company.", "h2", "center"),
+                row(
+                    { justify: "evenly", align: "center" },
+                    fitW(t("MERIDIAN", "h3")),
+                    fitW(t("ORCHARD", "h3")),
+                    fitW(t("ATLAS", "h3")),
+                    fitW(t("NOVEL PRESS", "h3")),
+                    fitW(t("TIDAL", "h3")),
+                ),
+                row(
+                    { justify: "evenly", align: "center" },
+                    fitW(t("HALCYON", "h3")),
+                    fitW(t("CEDARWORKS", "h3")),
+                    fitW(t("FIELD DAY", "h3")),
+                    fitW(t("NORTHWIND", "h3")),
+                    fitW(t("MARA HEALTH", "h3")),
                 ),
                 t(
-                    "From two-person seed startups to public companies rebuilding from the logo out — the constant is people who care how the thing actually works.",
+                    "From two-person seed startups to public companies rebuilding from the logo out. The constant is people who care how the thing actually works.",
                     "caption",
+                    "center",
                 ),
             ),
+            { background: bgColor("#0A0A0A"), bleed: true },
         ),
         section(
-            "s8",
+            "numbers",
             row(
                 stat("120+", "brands and products shipped"),
                 stat("11 yrs", "designing in the open"),
                 stat("6", "clients a year, on purpose"),
             ),
-            { background: bgImage("counterform-studio-shelves-archive", 0.55) },
+            { background: bgImage("counterform-studio-shelves-archive", 0.55), bleed: true },
         ),
         section(
-            "s9",
-            quote(
+            "quote",
+            testimonial(
                 "Counterform didn’t hand us a logo and leave. They gave us a way of making decisions — a year on, we still design like they’re in the room.",
-                "Dana Okoro · VP Brand, Meridian",
+                "Dana Okoro",
+                "VP Brand, Meridian",
+                "https://i.pravatar.cc/240?img=41",
             ),
-            { background: bgImage("counterform-meeting-table-warm-light", 0.6) },
+            { background: bgImage("counterform-meeting-table-warm-light", 0.6), bleed: true },
         ),
         section(
-            "s10",
-            row(
-                card(
-                    img("counterform-team-sofia-marques", 1),
-                    t("Sofia Marques", "h3"),
-                    t("Founder & Creative Director", "caption"),
-                ),
-                card(
-                    img("counterform-team-ravi-anand", 1),
-                    t("Ravi Anand", "h3"),
-                    t("Design Director", "caption"),
-                ),
-                card(
-                    img("counterform-team-june-park", 1),
-                    t("June Park", "h3"),
-                    t("Engineering Lead", "caption"),
+            "team",
+            col(
+                t("The studio", "label"),
+                t("Nine people, no account managers.", "h2"),
+                row(
+                    fill(
+                        profile(
+                            "Sofia Marques",
+                            "Founder & Creative Director",
+                            "https://i.pravatar.cc/240?img=31",
+                        ),
+                    ),
+                    fill(
+                        profile(
+                            "Ravi Anand",
+                            "Design Director",
+                            "https://i.pravatar.cc/240?img=59",
+                        ),
+                    ),
+                    fill(
+                        profile(
+                            "June Park",
+                            "Engineering Lead",
+                            "https://i.pravatar.cc/240?img=25",
+                        ),
+                    ),
+                    fill(
+                        profile(
+                            "Tomás Ferreira",
+                            "Motion & Systems",
+                            "https://i.pravatar.cc/240?img=60",
+                        ),
+                    ),
                 ),
             ),
         ),
         section(
-            "s11",
-            group(
-                t("Start a project", "label"),
-                t("Tell us what you’re building.", "h2"),
-                t(
-                    "A brand from scratch, a product that’s outgrown its first look, or a system to hold a fast-growing team together — whatever it is, we’d love to hear about it. We reply to every note within two days.",
-                    "subtitle",
-                ),
-                button("Start a project"),
+            "contact",
+            cta(
+                "Tell us what you’re building.",
+                "A brand from scratch, a product that has outgrown its first look, or a system to hold a fast-growing team together. We reply to every note within two days.",
+                button("hello@counterform.studio", "mailto:hello@counterform.studio", {
+                    size: "lg",
+                }),
             ),
-            { background: bgImage("counterform-studio-window-morning-light", 0.55) },
+            { background: bgImage("counterform-studio-window-morning-light", 0.55), bleed: true },
         ),
         section(
-            "s12",
-            row(
-                group(
-                    t("Counterform", "h3"),
-                    t("Brand & digital studio. Lisbon & New York.", "caption"),
-                    t("hello@counterform.studio", "caption"),
-                ),
-                group(
-                    t("STUDIO", "label"),
-                    bullets("Work", "Services", "About", "Journal", "Careers"),
-                ),
-                group(
-                    t("ELSEWHERE", "label"),
-                    bullets("Instagram", "Dribbble", "LinkedIn", "Read.cv", "Newsletter"),
+            "footer",
+            col(
+                divider(),
+                row(
+                    { justify: "between", align: "start" },
+                    fitW(
+                        col(
+                            fitW(t("Counterform", "h3")),
+                            fitW(t("Brand & digital studio.", "caption")),
+                            fitW(t("Lisbon & New York.", "caption")),
+                        ),
+                    ),
+                    fitW(
+                        col(
+                            fitW(t("STUDIO", "label")),
+                            fitW(t("Work · Services · About", "caption")),
+                            fitW(t("Journal · Careers", "caption")),
+                        ),
+                    ),
+                    fitW(
+                        col(
+                            fitW(t("ELSEWHERE", "label")),
+                            fitW(t("Instagram · Dribbble · LinkedIn", "caption")),
+                            fitW(t("hello@counterform.studio", "caption")),
+                        ),
+                    ),
                 ),
             ),
         ),
@@ -2301,7 +3030,7 @@ export const startupPitch: ArtifactContent = deck(
 );
 
 export const salesDeck: ArtifactContent = deck(
-    "cobalt",
+    "carbon",
     [
         section(
             "f1",
@@ -2449,7 +3178,7 @@ export const salesDeck: ArtifactContent = deck(
 );
 
 export const seriesA: ArtifactContent = deck(
-    "indigo",
+    "obsidian",
     [
         section(
             "a1",
@@ -2631,7 +3360,7 @@ export const seriesA: ArtifactContent = deck(
 );
 
 export const productDemo: ArtifactContent = deck(
-    "signal",
+    "telegraph",
     [
         section(
             "p1",
@@ -3031,7 +3760,7 @@ export const companyOverview: ArtifactContent = deck(
 );
 
 export const gtmPlan: ArtifactContent = deck(
-    "swiss",
+    "cement",
     [
         section(
             "g1",
@@ -3447,7 +4176,7 @@ export const projectProposal: ArtifactContent = deck(
 );
 
 export const investorUpdate: ArtifactContent = doc(
-    "signal",
+    "clay",
     [
         section(
             "cover",
@@ -3599,7 +4328,7 @@ export const investorUpdate: ArtifactContent = doc(
 );
 
 export const businessProposal: ArtifactContent = doc(
-    "mineral",
+    "chalk",
     [
         section(
             "cover",
@@ -4001,7 +4730,7 @@ export const boardDeck: ArtifactContent = deck(
 );
 
 export const sponsorshipDeck: ArtifactContent = deck(
-    "deco",
+    "royal",
     [
         section(
             "cover",
@@ -4202,7 +4931,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
 );
 
 export const sow: ArtifactContent = doc(
-    "blue",
+    "chalk",
     [
         section(
             "cover",
@@ -4658,7 +5387,7 @@ export const annualReport: ArtifactContent = doc(
 );
 
 export const caseStudy: ArtifactContent = doc(
-    "mineral",
+    "gazette",
     [
         section(
             "s1",
@@ -5064,7 +5793,7 @@ export const researchReport: ArtifactContent = doc(
 );
 
 export const marketAnalysis: ArtifactContent = doc(
-    "blue",
+    "press",
     [
         section(
             "s1",
@@ -5491,7 +6220,7 @@ export const qbr: ArtifactContent = doc("studio", [
     ),
 ]);
 
-export const trendsReport: ArtifactContent = doc("mocha", [
+export const trendsReport: ArtifactContent = doc("studio", [
     section(
         "t1",
         group(
