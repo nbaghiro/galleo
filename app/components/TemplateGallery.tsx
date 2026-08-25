@@ -6,13 +6,9 @@ import { resolveTheme } from "@themes";
 import { api, type ApiTemplate } from "@app/api";
 import { asFormat } from "@model/analytics";
 import { capture } from "@ui/analytics";
-import { FORMATS, formatLabel } from "@app/stores/library";
-import { Button } from "@ui/button";
-import { Segmented } from "@ui/inputs";
-import { Modal } from "@ui/overlay";
-import { PresentSurface } from "@ui/present";
-import { canEditHere } from "@ui/viewport";
-import { PreviewCanvas, SectionThumb } from "./previews";
+import { formatLabel } from "@app/stores/library";
+import { SectionThumb } from "./previews";
+import { TemplatePreview } from "./TemplatePreview";
 import { appTheme } from "@app/stores/theme";
 import { templatesOnce } from "@app/stores/templates";
 
@@ -28,10 +24,7 @@ export const TemplateGallery: Component<{ onCreated?: () => void; from?: string 
     const [loading, setLoading] = createSignal(true);
     const [using, setUsing] = createSignal<string | null>(null);
     const [preview, setPreview] = createSignal<ApiTemplate | null>(null);
-    const [previewFmt, setPreviewFmt] = createSignal("deck");
-
     const openPreview = (t: ApiTemplate): void => {
-        setPreviewFmt(t.content.format);
         setPreview(t);
         capture("template_previewed", {
             template_id: t.id,
@@ -50,12 +43,11 @@ export const TemplateGallery: Component<{ onCreated?: () => void; from?: string 
     const inCategory = (cat: string): ApiTemplate[] =>
         templates().filter((t) => t.category === cat);
 
-    const use = async (t: ApiTemplate): Promise<void> => {
+    const use = async (t: ApiTemplate, fmt: string): Promise<void> => {
         if (using()) return;
         setUsing(t.id);
         try {
-            // use the preview's format + the user's app theme, not the template's saved ones
-            const fmt = previewFmt();
+            // the format the preview settled on + the user's app theme, not the template's saved ones
             const content = { ...t.content, format: fmt, theme: appTheme() };
             const { id } = await api.createArtifact({
                 title: t.name,
@@ -163,94 +155,15 @@ export const TemplateGallery: Component<{ onCreated?: () => void; from?: string 
 
             <Show when={preview()}>
                 {(t) => (
-                    <Show
-                        when={canEditHere()}
-                        fallback={
-                            <PresentSurface
-                                artifact={{
-                                    ...t().content,
-                                    format: previewFmt(),
-                                    theme: appTheme(),
-                                }}
-                                viewOnly
-                                onExit={() => setPreview(null)}
-                            >
-                                <div class="absolute inset-x-0 top-0 flex flex-col gap-2 bg-black/55 px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] backdrop-blur-md">
-                                    <div class="flex items-center gap-2">
-                                        <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-white">
-                                            {t().name}
-                                        </span>
-                                        <Button
-                                            variant="primary"
-                                            size="sm"
-                                            rounded="lg"
-                                            disabled={using() !== null}
-                                            onClick={() => use(t())}
-                                        >
-                                            {using() === t().id ? "Creating…" : "Use →"}
-                                        </Button>
-                                    </div>
-                                    <Segmented
-                                        variant="accent"
-                                        value={previewFmt()}
-                                        options={FORMATS.map((f) => ({
-                                            label: f.label,
-                                            value: f.id,
-                                        }))}
-                                        onChange={setPreviewFmt}
-                                    />
-                                </div>
-                            </PresentSurface>
-                        }
-                    >
-                        <Modal
-                            size="full"
-                            surface="canvas"
-                            scrim="dim"
-                            class="flex h-[94vh] w-[97vw] flex-col overflow-hidden"
-                            onClose={() => setPreview(null)}
-                        >
-                            <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3">
-                                <div class="min-w-0">
-                                    <div class="truncate text-[14px] font-semibold text-ink">
-                                        {t().name}
-                                    </div>
-                                    <div class="text-[11px] text-muted">
-                                        {t().category} · {t().content.sections.length} sections
-                                    </div>
-                                </div>
-                                <div class="ml-4">
-                                    <Segmented
-                                        variant="accent"
-                                        value={previewFmt()}
-                                        options={FORMATS.map((f) => ({
-                                            label: f.label,
-                                            value: f.id,
-                                        }))}
-                                        onChange={setPreviewFmt}
-                                    />
-                                </div>
-                                <div class="ml-auto flex items-center gap-2 max-md:pr-10">
-                                    <Button
-                                        variant="primary"
-                                        disabled={using() !== null}
-                                        onClick={() => use(t())}
-                                    >
-                                        {using() === t().id ? "Creating…" : "Use template →"}
-                                    </Button>
-                                </div>
-                            </header>
-                            <div class="min-h-0 flex-1">
-                                {/* the modal stands in for the published page, so it plays like
-                                    one: menus open, links move the pane, video runs */}
-                                <PreviewCanvas
-                                    live
-                                    content={{ ...t().content, theme: appTheme() }}
-                                    format={previewFmt}
-                                />
-                            </div>
-                        </Modal>
-                    </Show>
+                    <TemplatePreview
+                        template={t()}
+                        busy={using() === t().id}
+                        // the Templates page is its own destination and needs no way back; a
+                        // gallery hosted inside a flow names itself, and does
+                        onBack={props.from ? () => setPreview(null) : undefined}
+                        onClose={() => setPreview(null)}
+                        onUse={(fmt) => void use(t(), fmt)}
+                    />
                 )}
             </Show>
         </>

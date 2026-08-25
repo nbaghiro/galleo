@@ -385,7 +385,7 @@ const GalleryPane: Component<{ onBack: () => void }> = (props) => (
             <span class="font-mono text-[10px] text-muted">pick one and make it yours</span>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto">
-            <TemplateGallery onCreated={closeGenerate} />
+            <TemplateGallery onCreated={closeGenerate} from="generate" />
         </div>
     </div>
 );
