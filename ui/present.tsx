@@ -459,9 +459,8 @@ export const PresentSurface: Component<{
         onError: (m) => setPlayError(m),
     });
     const [showCaption, setShowCaption] = createSignal(false);
-    // one wait, however it arose: the fill on open has not reached the first section yet, or a press
-    // landed on one that was never recorded. Both mean the same thing to a viewer.
-    const waiting = (): boolean => player.preparing() || player.recording();
+    // a press landed on a section that was never recorded, and it is being read in now
+    const waiting = (): boolean => player.recording();
 
     const sectionIndexOf = (sectionId: string): number =>
         props.artifact.sections.findIndex((s) => s.id === sectionId);
@@ -826,14 +825,21 @@ export const PresentSurface: Component<{
                         disabled={bed.busy()}
                         title={
                             bed.busy()
-                                ? "Starting music…"
-                                : bed.playing()
-                                  ? "Music off"
-                                  : "Background music"
+                                ? "Composing…"
+                                : !bed.ready()
+                                  ? "Add background music (uses credits)"
+                                  : bed.playing()
+                                    ? "Music off"
+                                    : "Background music"
                         }
                         onClick={() => bed.toggle()}
                     >
-                        <Icon name={bed.busy() ? "sparkle" : "music"} size={15} />
+                        {/* The same three states the narration button has: a piece with no bed is
+                            offering to compose one, which costs credits and is not a play button;
+                            composing is a wait; a bed that exists is played and stopped. */}
+                        <Show when={!bed.busy()} fallback={<Spinner size={13} tone="current" />}>
+                            <Icon name={bed.ready() ? "music" : "sparkle"} size={15} />
+                        </Show>
                     </IconButton>
                 </Show>
                 {/* One control until it is running: starting narration is the only thing to say
@@ -848,17 +854,25 @@ export const PresentSurface: Component<{
                         disabled={waiting()}
                         title={
                             waiting()
-                                ? "Getting the voice ready…"
+                                ? "Reading it in…"
                                 : player.playing()
                                   ? "Pause narration (space)"
-                                  : `Play with voice${player.voiceName() ? ` (${player.voiceName()})` : ""}`
+                                  : player.prepared()
+                                    ? `Play with voice${player.voiceName() ? ` (${player.voiceName()})` : ""}`
+                                    : "Read this aloud (records it first)"
                         }
                         onClick={() => player.toggle()}
                     >
-                        {/* Preparing is a wait, not a feature: a spinner says "not yet", where the
-                            sparkle said "something is being invented for you" and then sat there. */}
+                        {/* Three states, three icons: nothing recorded yet offers to record (a
+                            mic, not a play triangle that would lie about what the press does), the
+                            recording itself is a wait, and a piece that has audio plays it. */}
                         <Show when={!waiting()} fallback={<Spinner size={14} tone="current" />}>
-                            <Icon name={player.playing() ? "pause" : "play"} size={16} />
+                            <Icon
+                                name={
+                                    player.playing() ? "pause" : player.prepared() ? "play" : "mic"
+                                }
+                                size={16}
+                            />
                         </Show>
                     </IconButton>
                     <Show when={player.playing()}>

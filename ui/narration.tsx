@@ -196,10 +196,10 @@ export interface NarrationPlayer {
     /** Anything a voice could read, whether or not it has been recorded yet. */
     hasScript: Accessor<boolean>;
     /**
-     * True while the piece is not yet playable and something is being recorded to make it so. Goes
-     * false as soon as the section a press would start on is ready, even though the fill continues.
+     * Whether the section a press would start on already has audio. False means the first press
+     * records before it can speak, which is a different offer and gets a different icon.
      */
-    preparing: Accessor<boolean>;
+    prepared: Accessor<boolean>;
     toggle(): void;
     stop(): void;
     /** The surface calls this when the viewer navigates by hand, so the audio follows them. */
@@ -249,11 +249,6 @@ export function createNarrationPlayer(opts: {
 
     const [made, setMade] = createSignal<Map<string, NarrationTrack>>(new Map());
     const [recording, setRecording] = createSignal(false);
-    const [warming, setWarming] = createSignal(false);
-    let disposed = false;
-    onCleanup(() => {
-        disposed = true;
-    });
     // what the manifest had, plus anything recorded since; a just-made track wins
     const tracks = createMemo(() => {
         const out = new Map(manifest()?.tracks.map((t) => [t.sectionId, t]));
@@ -439,33 +434,11 @@ export function createNarrationPlayer(opts: {
         }
     };
 
-    /**
-     * Bring the piece up to date in the background, in document order, as soon as the surface opens.
-     * Nothing waits on it: the control renders immediately and the press that arrives mid-warm joins
-     * whatever is already in flight for that section.
-     *
-     * The work is a cache fill, so this is once per piece rather than once per open, and a host with
-     * no `ensure` (a link viewer, who may not spend the owner's credits) warms nothing at all.
-     */
-    const warm = async (): Promise<void> => {
-        if (warming() || !opts.source()?.ensure || manifest()?.ready === false) return;
-        setWarming(true);
-        try {
-            for (const id of opts.order()) {
-                if (disposed) return;
-                if (current(id)) continue;
-                await ensure(id).catch(() => undefined);
-            }
-        } finally {
-            setWarming(false);
-        }
-    };
-
     // read when a source is wired; re-read on demand after a piece is prepared
     createEffect(
         on(
             () => opts.source(),
-            () => void reload().then(() => warm()),
+            () => void reload(),
         ),
     );
 
@@ -499,9 +472,9 @@ export function createNarrationPlayer(opts: {
         progress: () => (totalMs() ? Math.min(1, elapsed() / totalMs()) : 0),
         speaking,
         recording,
-        preparing: () => {
+        prepared: () => {
             const first = firstSpoken();
-            return warming() && (!first || !current(first));
+            return !!first && !!current(first);
         },
         hasScript: () => opts.order().some(speakable),
         toggle,

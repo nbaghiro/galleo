@@ -868,15 +868,19 @@ After the first section is speaking, `scriptRest` writes everything still unscri
 behind the voice (`editor/core/notes.ts`), and every section after the first waits on that pass rather
 than asking for its own script. Per-section first buys latency, the whole-piece pass buys continuity.
 
-**The whole piece warms itself on open.** Mounting a present surface starts a background fill in
-document order that nothing waits on: the control renders at once, and a press arriving mid-fill joins
-whatever is already in flight for that section rather than paying twice for it. The bar shows a
-spinner only while the section a press would start on is still missing, so a long piece becomes
-playable as soon as its first section lands and finishes filling quietly behind the voice.
+**Nothing is recorded until someone asks.** Opening a present surface reads the manifest and stops
+there. An earlier build filled the whole piece in the background on mount, which meant every open of
+every piece paid to narrate it, including the ones nobody was ever going to listen to; the spend is
+now behind a press. Concurrent asks for the same section still share one request rather than paying
+twice, which is what the in-flight map in `createNarrationPlayer` is for.
+
+The bar's one button therefore has three states, and the icon says which: a **mic** when the piece has
+no audio yet, because the press records before it can speak and a play triangle would misdescribe it;
+a **spinner** while that recording happens; and **play/pause** once there is something to hear.
 
 Writing and recording are wired only where the caller may edit. Recording spends the artifact owner's
-credits, so an invited viewer and a published link play what is already there and warm nothing; the
-alternative is a fill loop that can only answer 403 and a control that never becomes ready.
+credits, so an invited viewer and a published link play what is already there and record nothing; the
+alternative is a control that can only answer 403.
 
 There is no speaker-notes editor. Notes are written by the model, on demand, and read in the present
 notes pane; `SectionNotes.source` still distinguishes writing a person did, because rows predating
