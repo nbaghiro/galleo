@@ -84,7 +84,7 @@ import {
     undo,
     zoom,
     zoomBy,
-    ZOOM_MAX,
+    zoomCeiling,
     ZOOM_MIN,
 } from "./core/store";
 
@@ -321,7 +321,7 @@ const ZoomPill: Component = () => (
             </button>
             <button
                 class={ZOOM_STEPPER}
-                disabled={zoom() >= ZOOM_MAX}
+                disabled={zoom() >= zoomCeiling()}
                 title="Zoom in"
                 onClick={() => zoomBy(1)}
             >

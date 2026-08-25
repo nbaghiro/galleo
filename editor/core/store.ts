@@ -42,6 +42,7 @@ import type { NarrationSource, SoundtrackSource } from "@ui/narration";
 import { capture } from "@ui/analytics";
 import { asFormat, charsBucket, type ElementCategory } from "@model/analytics";
 import { getElement } from "@elements/spec";
+import { profileFor } from "@engine/profile";
 import { resolveTheme, THEMES } from "@themes";
 
 const EMPTY_ARTIFACT: ArtifactContent = {
@@ -1474,8 +1475,14 @@ export function setMinimapWidth(px: number): void {
 // publishes (regions, hitboxes, drop slots, section tops) stays in unscaled layout coordinates,
 // which is why every client→stage conversion goes through `stagePoint` below.
 
-export const ZOOM_MIN = 0.5;
+export const ZOOM_MIN = 0.6;
+/**
+ * The hard ceiling. The real one is `zoomCeiling`, which is narrower: the stage is laid out to the
+ * space it has and then scaled, so anything above the fit scale pushes it wider than the canvas and
+ * the piece has to be scrolled sideways to be read.
+ */
 export const ZOOM_MAX = 2;
+
 export const ZOOM_STEP = 0.1;
 const ZOOM_KEY = "galleo:canvas-zoom";
 // artifacts remembered; the least recently set falls off rather than the record growing forever
@@ -1484,6 +1491,22 @@ const ZOOM_KEPT = 40;
 /** Held inside the range and snapped to whole percents, so stepping never lands on 0.7000000001. */
 export const clampZoom = (z: number): number =>
     Number.isFinite(z) ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100)) : 1;
+
+/**
+ * The largest scale at which the piece still fits the width it is given. A format that fills the
+ * canvas is already at its ceiling; one with a frame of its own (a deck's page, a document's
+ * column) has room to grow into the space beside it.
+ *
+ * Read by `setZoom` and by the stepper, so neither the buttons nor a restored setting can leave the
+ * stack wider than the canvas it is being read in.
+ */
+export function zoomCeiling(): number {
+    const available = canvasContentWidth();
+    const profile = profileFor(content());
+    const natural = profile.width === "fill" ? available : Math.min(profile.width, available);
+    if (!available || !natural) return ZOOM_MAX;
+    return Math.min(ZOOM_MAX, Math.max(1, Math.floor((available / natural) * 100) / 100));
+}
 
 function readZooms(): Record<string, number> {
     const out: Record<string, number> = {};
@@ -1508,7 +1531,7 @@ const [zoomSetting, setZoomSignal] = createSignal(1);
 export const zoom = (): number => (isPhone() ? 1 : zoomSetting());
 
 export function setZoom(z: number): void {
-    const next = clampZoom(z);
+    const next = Math.min(clampZoom(z), zoomCeiling());
     setZoomSignal(next);
     const id = currentArtifactId();
     if (!id) return;

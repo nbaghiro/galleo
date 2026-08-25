@@ -60,6 +60,8 @@ import {
     toStage,
     zoom,
     zoomBy,
+    setCanvasContentWidth,
+    zoomCeiling,
     ZOOM_MAX,
     ZOOM_MIN,
 } from "@editor/core/store";
@@ -742,9 +744,12 @@ describe("canvas zoom", () => {
         setZoom(ZOOM_MIN);
         zoomBy(-1);
         expect(zoom()).toBe(ZOOM_MIN);
+        // the top end is the fit ceiling, not the hard cap: a stack scaled past the width it was
+        // laid out for has to be read sideways, which is the thing the ceiling exists to prevent
         setZoom(ZOOM_MAX);
         zoomBy(1);
-        expect(zoom()).toBe(ZOOM_MAX);
+        expect(zoom()).toBe(zoomCeiling());
+        expect(zoomCeiling()).toBeLessThanOrEqual(ZOOM_MAX);
         setZoom(1);
     });
 
@@ -775,14 +780,37 @@ describe("zoom persistence", () => {
         setZoom(1);
     });
 
+    /**
+     * The ceiling, not the hard cap. The stack is laid out to the width it is given and then scaled,
+     * so a scale above the fit pushes it wider than the canvas and the piece has to be read
+     * sideways. A format that already fills the width is at its ceiling; one with its own frame has
+     * the space beside it to grow into.
+     */
+    it("will not scale a piece wider than the canvas it is read in", () => {
+        inRoot(() => {
+            loadArtifactContent("site-a", { ...makeArt(["a"]), format: "web" });
+            setCanvasContentWidth(1120);
+            expect(zoomCeiling()).toBe(1); // a site fills what it is given
+
+            loadArtifactContent("deck-a", makeArt(["a"]));
+            setCanvasContentWidth(1280);
+            expect(zoomCeiling()).toBe(1); // exactly its page width, so no headroom
+            setCanvasContentWidth(1920);
+            expect(zoomCeiling()).toBe(1.5); // 1920 / 1280
+
+            setZoom(2);
+            expect(zoom()).toBe(1.5); // the hard cap is 2, but the fit is what holds
+        });
+    });
+
     it("restores the scale each artifact was last read at", () => {
         inRoot(() => {
             loadArtifactContent("deck-a", makeArt(["a"]));
-            setZoom(1.4);
+            setZoom(0.8);
             loadArtifactContent("deck-b", makeArt(["a"]));
             expect(zoom()).toBe(1);
             loadArtifactContent("deck-a", makeArt(["a"]));
-            expect(zoom()).toBe(1.4);
+            expect(zoom()).toBe(0.8);
         });
     });
 
@@ -790,7 +818,7 @@ describe("zoom persistence", () => {
     it("stores nothing for an artifact back at 100%", () => {
         inRoot(() => {
             loadArtifactContent("deck-a", makeArt(["a"]));
-            setZoom(1.4);
+            setZoom(0.8);
             setZoom(1);
             expect(JSON.parse(store.get("galleo:canvas-zoom") ?? "null")).toEqual({});
         });

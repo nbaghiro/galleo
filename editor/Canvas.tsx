@@ -117,6 +117,21 @@ const panelL = (): number => minimapWidth() + PANEL_L_GAP;
 // phone: no rails to clear — a sliver of gutter, sections take essentially the full width
 const PHONE_PAD = 6;
 
+/**
+ * How much of the canvas a bleeding format (a site) spans. Its sections bleed edge to edge by
+ * design, so at full width the page runs into the editor's own chrome and stops reading as a piece
+ * of work sitting on a desk: a deck has its page and a doc its column, and this is the site's.
+ *
+ * A share rather than a fixed margin, so the framing holds at any window width. It is layout, not
+ * zoom: the page re-flows to the narrower width the way a real viewport would, rather than being
+ * photographed and shrunk.
+ */
+const SITE_FILL = 0.9;
+
+/** Extra padding either side that leaves a bleeding format spanning `SITE_FILL` of the canvas. */
+const siteMargin = (profile: { bleedSections?: boolean }, available: number): number =>
+    profile.bleedSections ? Math.round((available * (1 - SITE_FILL)) / 2) : 0;
+
 const PANEL_GAP = 8; // between a popup's trigger and its floating panel
 const PANEL_EDGE = 12; // slack the panel keeps from the stage edge
 // A floating panel covers whatever it is over, so its regions outrank them however deep those sit;
@@ -272,9 +287,12 @@ export const Canvas: Component = () => {
         const profile = profileFor(editor.artifact);
         // a bleeding format (site) covers the backdrop entirely on phone; others keep the sliver
         const phonePad = profile.bleedSections ? 0 : PHONE_PAD;
-        const padL = isPhone() ? phonePad : leftOpen() ? panelL() : RAIL_GAP;
-        const padR = isPhone() ? phonePad : RAIL_R;
-        const fullW = Math.max(isPhone() ? 280 : 360, (scrollEl.clientWidth || 800) - padL - padR);
+        const clientW = scrollEl.clientWidth || 800;
+        // on a phone a site keeps the whole width: there is no room to give away
+        const inset = isPhone() ? 0 : siteMargin(profile, clientW);
+        const padL = (isPhone() ? phonePad : leftOpen() ? panelL() : RAIL_GAP) + inset;
+        const padR = (isPhone() ? phonePad : RAIL_R) + inset;
+        const fullW = Math.max(isPhone() ? 280 : 360, clientW - padL - padR);
         setCanvasContentWidth(fullW); // so minimap thumbnails match this width
         // hide the painted text of the edited element; the live overlay shows it
         const editAddr = editing();
@@ -796,13 +814,21 @@ export const Canvas: Component = () => {
 
     const pageStyle = createMemo(() => {
         const tk = editorTokens();
-        const phonePad = profileFor(editor.artifact).bleedSections ? 0 : PHONE_PAD;
+        const profile = profileFor(editor.artifact);
+        const phonePad = profile.bleedSections ? 0 : PHONE_PAD;
+        // percentages resolve against this element's own width, which is the same figure `draw`
+        // measures, so the painted stack and the box it sits in agree without measuring twice
+        const share =
+            isPhone() || !profile.bleedSections
+                ? ""
+                : ` + ${Math.round(((1 - SITE_FILL) / 2) * 1000) / 10}%`;
+        const pad = (base: number): string => (share ? `calc(${base}px${share})` : `${base}px`);
         return {
             background: backdropCss(editor.artifact.background, tk),
             "background-size": "cover",
             "background-position": "center",
-            "padding-left": `${isPhone() ? phonePad : leftOpen() ? panelL() : RAIL_GAP}px`,
-            "padding-right": `${isPhone() ? phonePad : RAIL_R}px`,
+            "padding-left": pad(isPhone() ? phonePad : leftOpen() ? panelL() : RAIL_GAP),
+            "padding-right": pad(isPhone() ? phonePad : RAIL_R),
             "--sb": tk.line,
             "--sb-strong": tk.muted,
         };
