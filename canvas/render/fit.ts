@@ -2,6 +2,7 @@ import type { Section } from "@model/artifact";
 import type { MeasureText, RenderCommand } from "@engine/node";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
+import { SLIDE_W, sectionFrame } from "@engine/profile";
 import { layoutSection, layoutSlide } from "./commands";
 
 // Rendering a section at a shape that is not its own.
@@ -154,4 +155,44 @@ export function fitSectionToFrame(
 
     if (!bracket.lo || !bracket.hi) return asPageOrGiveUp(first); // never straddled the target
     return done(best);
+}
+
+/**
+ * The frame a thumbnail lays a section out in.
+ *
+ * Without a tile that is the section's own frame (§`sectionFrame`) and the caller sizes its box
+ * from it. A **tile** is the opposite arrangement: the box is fixed by the grid, so the frame comes
+ * from the tile instead — one shape, so a section that does not share it is re-framed rather than
+ * fitted inside bars, and one logical width for every card, so the type in a doc tile reads at the
+ * same optical size as the type in the deck tile beside it. A section's own frame (a page's aspect,
+ * a hero's `frame.aspect` band) is a minimum that the tile's taller frame only centres it in.
+ */
+export function thumbFrame(
+    section: Section,
+    format: FormatDescriptor,
+    tile?: number,
+): { w: number; h: number } {
+    if (!tile || tile <= 0) return sectionFrame(section, format);
+    return { w: SLIDE_W, h: Math.round(SLIDE_W / tile) };
+}
+
+/**
+ * Where a laid-out section sits in the box a preview paints into. `contain` fits both axes and
+ * letterboxes what could not take the shape; `cover` fills the box, which is what a tile in a grid
+ * wants — bars read as a broken card, a few cropped pixels do not. A cover crop reads downward: a
+ * section is recognised by its head, so what falls off the bottom is the tail, not half of each.
+ */
+export function fitIntoBox(
+    box: { w: number; h: number },
+    content: { w: number; h: number },
+    mode: "contain" | "cover",
+): { scale: number; left: number; top: number } {
+    const sx = box.w / content.w;
+    const sy = box.h / content.h;
+    const scale = mode === "cover" ? Math.max(sx, sy) : Math.min(sx, sy);
+    return {
+        scale,
+        left: (box.w - content.w * scale) / 2,
+        top: mode === "cover" ? 0 : (box.h - content.h * scale) / 2,
+    };
 }

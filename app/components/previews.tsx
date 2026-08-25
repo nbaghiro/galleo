@@ -1,4 +1,5 @@
 import {
+    createMemo,
     createSignal,
     For,
     on,
@@ -8,21 +9,27 @@ import {
     type Component,
     createEffect,
 } from "solid-js";
+import { Portal } from "solid-js/web";
 import type { Section, ArtifactContent, Cover, PageSize, SectionSummary } from "@model/artifact";
-import { sectionRegionId } from "@model/artifact";
-import type { Rect } from "@engine/node";
+import { parseTarget, sectionLinkId, sectionRegionId } from "@model/artifact";
+import type { Rect, Region } from "@engine/node";
 import { profileFor } from "@engine/profile";
 import { resolveTheme, type Tokens } from "@themes";
+import { seedViewerPatches, viewerToggleAt, withViewerPatches } from "@elements/ops";
 import { appTheme } from "@app/stores/theme";
 import {
     backdropCss,
     createSectionStackCache,
     paintSectionStack,
+    PINNED_Z,
     scaledHostCss,
     type StackWindow,
 } from "@canvas/render/backends";
 import { stackWindow, windowMoved } from "@canvas/render/window";
 import { SECTION_GAP } from "@canvas/render/commands";
+import { pinnedShift, sectionScrollTop } from "@canvas/render/present";
+import { LiveLayer } from "@ui/live";
+import { pressOnContent, TAP_SLOP } from "@ui/gesture";
 import { ScaledSectionCanvas } from "@ui/section";
 import { StatusDot } from "@ui/status";
 
@@ -217,6 +224,7 @@ export const MiniCanvas: Component<{
     // every format thumbnails identically. Pass frame="natural" with that format's own layout width
     // to get its true proportions; the caller crops to the height it wants to show.
     frame?: "slide" | "natural";
+    tile?: number; // box aspect (w/h) the section must FILL — see ScaledSectionCanvas
     layoutWidth?: number;
     lazy?: boolean; // defer paint until near view
     class?: string;
@@ -228,6 +236,7 @@ export const MiniCanvas: Component<{
         profile={profileFor({ format: props.formatId, page: props.page })}
         width={props.width}
         frame={props.frame ?? "slide"}
+        tile={props.tile}
         layoutWidth={props.layoutWidth}
         lazy={props.lazy}
         radius={0}
@@ -243,6 +252,7 @@ export const SectionThumb: Component<{
     page?: PageSize;
     label?: string;
     width?: number;
+    tile?: number; // box aspect (w/h) the section must FILL — see ScaledSectionCanvas
     selected?: boolean;
     onOpen: (e: MouseEvent) => void;
 }> = (props) => (
@@ -253,6 +263,7 @@ export const SectionThumb: Component<{
         profile={profileFor({ format: props.formatId, page: props.page })}
         width={props.width ?? DEFAULT_W}
         frame="slide"
+        tile={props.tile}
         as="button"
         onOpen={props.onOpen}
         selected={props.selected}
@@ -343,12 +354,35 @@ export const PreviewCanvas: Component<{
     /** Scrolling reports the section now being read, so a caller's list can follow the view. */
     onActive?: (id: string) => void;
     mark?: (id: string) => "fail" | "warn" | null;
+    /**
+     * Make the preview behave like the published page: popup panels open, videos and embeds play,
+     * `#section` links move this pane, and a reader's disclosure toggles land (per session, never
+     * written back). Off by default, so a preview used to inspect a document keeps an inert stack.
+     */
+    live?: boolean;
 }> = (props) => {
     let host!: HTMLDivElement;
     let paintHost!: HTMLDivElement;
     let stage: HTMLDivElement | null = null;
+    // Two children of one stage, as in @ui/present: the stack paints into the lower one, and the
+    // live overlay sits above the pinned layers so a press on a stuck nav's popup reaches it.
+    let layerHost: HTMLDivElement | null = null;
+    let overlayHost: HTMLDivElement | null = null;
     const cache = createSectionStackCache();
     let lastWindow: StackWindow | null = null;
+    const tokens = createMemo(() => resolveTheme(props.themeId ?? props.content.theme).tokens);
+    // props.format may preview the content as a different format; its own page size still applies
+    const profile = createMemo(() =>
+        profileFor({ format: props.format(), page: props.content.page }),
+    );
+    const [liveHost, setLiveHost] = createSignal<HTMLElement | null>(null);
+    const [liveRegions, setLiveRegions] = createSignal<Region[]>([]);
+    const [scrolled, setScrolled] = createSignal(0);
+    let stackRegions: Region[] = [];
+    // What this reader has opened or switched to, keyed by element address. Never written back:
+    // the stored value is the author's default, this is one session's view of it.
+    const viewerPatches = new Map<string, Record<string, unknown>>();
+    const shownContent = (): ArtifactContent => withViewerPatches(props.content, viewerPatches);
     // `top`/`height` are the section's band in the stack and exist for every section, which is what
     // the scroll spy reads. `card` is the painted card inside that band, which is narrower than the
     // pane whenever the format centres its page, and is what selection outlines. It comes from the
@@ -366,30 +400,40 @@ export const PreviewCanvas: Component<{
 
     const render = (): void => {
         if (!host) return;
-        const tk = resolveTheme(props.themeId ?? props.content.theme).tokens;
-        // props.format may preview the content as a different format; its own page size still applies
-        const profile = profileFor({ format: props.format(), page: props.content.page });
-        const gap = profile.kind === "continuous" ? 0 : SECTION_GAP;
+        const tk = tokens();
+        const prof = profile();
+        const gap = prof.kind === "continuous" ? 0 : SECTION_GAP;
+        // a bleeding format (site) owns its edges: no head or tail margin, the nav sits flush
+        const pad = prof.bleedSections ? 0 : PAD;
         const fullW = host.clientWidth || 1100;
         host.style.background = backdropCss(props.content.background, tk);
-        if (!stage) {
+        if (!stage || !layerHost || !overlayHost) {
             stage = document.createElement("div");
+            layerHost = document.createElement("div");
+            layerHost.style.cssText = "position:absolute;inset:0";
+            overlayHost = document.createElement("div");
+            overlayHost.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:${PINNED_Z + 1}`;
+            stage.append(layerHost, overlayHost);
             paintHost.replaceChildren(stage);
         }
+        setLiveHost(props.live ? overlayHost : null);
         stage.style.cssText = `position:relative;width:${fullW}px`;
         const viewH = host.clientHeight || 800;
         const win = stackWindow(host.scrollTop, viewH);
         lastWindow = win;
+        const shown = shownContent();
         const { height, tops, heights, regions } = paintSectionStack(
-            stage,
-            props.content.sections,
-            profile,
+            layerHost,
+            shown.sections,
+            prof,
             tk,
-            { fullW, startY: PAD, cache, window: win },
+            { fullW, startY: pad, cache, window: win, pinned: props.live },
         );
-        stage.style.height = `${height - gap + PAD}px`;
+        stage.style.height = `${height - gap + pad}px`;
+        stackRegions = regions;
+        setLiveRegions(regions);
         setBoxes(
-            props.content.sections.map((s, i) => {
+            shown.sections.map((s, i) => {
                 const top = tops[i] ?? 0;
                 const h = heights[i] ?? 0;
                 const region = regions.find((r) => r.id === sectionRegionId(s.id));
@@ -410,9 +454,81 @@ export const PreviewCanvas: Component<{
         void props.themeId; // a theme switch repaints from scratch, like a format change
         void props.content; // track the artifact too: a different one starts a fresh stage
         stage = null;
+        layerHost = null;
+        overlayHost = null;
+        setLiveHost(null);
         cache.entries.clear();
+        // addresses only mean anything against the tree they were read from, and a disclosure is
+        // chrome this reader opens rather than something the author already opened for them
+        viewerPatches.clear();
+        for (const [key, patch] of seedViewerPatches(props.content)) viewerPatches.set(key, patch);
         render();
     });
+
+    /** Where a `#section` link lands: the section's painted top, less whatever is pinned above it. */
+    const goToSection = (sectionId: string): void => {
+        const bs = boxes();
+        const top = sectionScrollTop(
+            props.content.sections,
+            bs.map((b) => b.top),
+            bs.map((b) => b.height),
+            sectionId,
+        );
+        if (top === null || !host) return;
+        settleTo = top;
+        clearTimeout(settleTimer);
+        settleTimer = setTimeout(() => (settleTo = null), SETTLE_MS);
+        host.scrollTo({ top, behavior: "smooth" });
+    };
+
+    // The stack's anchors are painted into the host rather than rendered by Solid, so an internal
+    // link is intercepted here; an external one is a real anchor and opens itself.
+    const onContentClick = (e: MouseEvent): void => {
+        if (!props.live) return;
+        const a = (e.target as Element | null)?.closest?.("a");
+        const id = a && sectionLinkId(a.getAttribute("href"));
+        if (!id) return;
+        e.preventDefault();
+        goToSection(id);
+    };
+
+    // A pinned layer slides out from under its own slot as the pane scrolls; both the overlay and
+    // a press are anchored to the static layout, so they are carried the same distance.
+    const pinShift = (sectionId: string): number =>
+        pinnedShift(
+            props.content.sections,
+            boxes().map((b) => b.top),
+            scrolled(),
+            sectionId,
+        );
+    const liveOffsetY = (regionId: string): number => {
+        const t = parseTarget(regionId);
+        return t?.kind === "element" ? pinShift(t.address.section) : 0;
+    };
+
+    // A reader's press on a `hit:` region (an faq row, a tab). Live only: with the layer off the
+    // preview is an inert plate, and the eval board's own selection owns every press.
+    let down: { x: number; y: number } | null = null;
+    const onPointerDown = (e: PointerEvent): void => {
+        down = props.live ? { x: e.clientX, y: e.clientY } : null;
+    };
+    const onPointerUp = (e: PointerEvent): void => {
+        const start = down;
+        down = null;
+        if (!start || !stage || pressOnContent(e.target)) return;
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > TAP_SLOP) return;
+        const r = stage.getBoundingClientRect();
+        const shown = shownContent();
+        const hit = viewerToggleAt(
+            shown,
+            stackRegions,
+            { x: e.clientX - r.left, y: e.clientY - r.top },
+            pinShift,
+        );
+        if (!hit) return;
+        viewerPatches.set(hit.key, { ...viewerPatches.get(hit.key), ...hit.patch });
+        render();
+    };
 
     const activeAt = (): string | undefined => {
         const bs = boxes();
@@ -429,6 +545,7 @@ export const PreviewCanvas: Component<{
 
     const onScroll = (): void => {
         const viewH = host?.clientHeight || 800;
+        setScrolled(host.scrollTop);
         if (windowMoved(lastWindow, stackWindow(host.scrollTop, viewH), viewH)) render();
         if (settleTo !== null) {
             if (Math.abs(host.scrollTop - settleTo) > 4) return;
@@ -462,8 +579,31 @@ export const PreviewCanvas: Component<{
     onCleanup(() => clearTimeout(settleTimer));
 
     return (
-        <div ref={host} class="relative h-full w-full overflow-y-auto" onScroll={onScroll}>
+        <div
+            ref={host}
+            class="relative h-full w-full overflow-y-auto"
+            onScroll={onScroll}
+            onClick={onContentClick}
+            onPointerDown={onPointerDown}
+            onPointerUp={onPointerUp}
+        >
             <div ref={paintHost} />
+            {/* keyed: a format or theme change builds a new stage, and a Portal reads `mount` once */}
+            <Show keyed when={liveHost()}>
+                {(mount) => (
+                    <Portal mount={mount}>
+                        <LiveLayer
+                            content={shownContent()}
+                            regions={liveRegions}
+                            surface="present"
+                            theme={tokens()}
+                            format={profile()}
+                            offsetY={liveOffsetY}
+                            onSectionLink={goToSection}
+                        />
+                    </Portal>
+                )}
+            </Show>
             <Show when={props.onSelect || props.mark}>
                 <div class="pointer-events-none absolute inset-0">
                     <For each={boxes()}>

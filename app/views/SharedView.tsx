@@ -722,7 +722,12 @@ const InsightsModal: Component<{
                         }
                     >
                         {(a) => (
-                            <PreviewCanvas content={a().draftContent} format={() => a().formatId} />
+                            // live: this pane is what the people on those links are looking at
+                            <PreviewCanvas
+                                live
+                                content={a().draftContent}
+                                format={() => a().formatId}
+                            />
                         )}
                     </Show>
                 </div>

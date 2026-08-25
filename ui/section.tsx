@@ -6,15 +6,14 @@ import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { paint, backdropCss, scaledHostCss } from "@canvas/render/backends";
 import { layoutPlaceholder } from "@canvas/render/placeholder";
-import { fitSectionToFrame } from "@canvas/render/fit";
+import { fitIntoBox, fitSectionToFrame, thumbFrame } from "@canvas/render/fit";
 import {
     measureText,
+    layoutSlide,
     layoutSlideSkeleton,
     layoutSection,
     layoutSectionSkeleton,
-    sectionSlides,
 } from "@canvas/render/commands";
-import { sectionFrame } from "@engine/profile";
 
 // CSS-scaled to `width`, so it is a true zoomed-out copy (identical wraps), not a re-wrap in a narrow box.
 
@@ -25,6 +24,11 @@ export const ScaledSectionCanvas: Component<{
     profile: FormatDescriptor;
     width?: number;
     frame?: "slide" | "natural";
+    // Tile box aspect (w/h). A tile is a picture of the section, not a viewport onto it: the section
+    // is re-framed to this shape at the one layout width every tile shares (`thumbFrame`) and scaled
+    // to FILL the box, cropping the tail rather than sitting inside bars. Ignored by frame="natural",
+    // which has no box.
+    tile?: number;
     layoutWidth?: number; // logical layout width for frame="natural"
     lazy?: boolean;
     rootMargin?: string;
@@ -48,9 +52,15 @@ export const ScaledSectionCanvas: Component<{
     const w = (): number => props.width ?? 176;
     const plain = (): boolean => props.plain ?? true;
     const frame = (): "slide" | "natural" => props.frame ?? "slide";
-    const slideBox = (): { w: number; h: number } => sectionFrame(props.section, props.profile);
-    const boxH = (): number =>
-        frame() === "slide" ? Math.round((w() * slideBox().h) / slideBox().w) : naturalH();
+    const tile = (): number | undefined =>
+        props.tile && props.tile > 0 && frame() === "slide" ? props.tile : undefined;
+    const slideBox = (): { w: number; h: number } =>
+        thumbFrame(props.section, props.profile, tile());
+    const boxH = (): number => {
+        if (frame() !== "slide") return naturalH();
+        const a = tile();
+        return a ? Math.round(w() / a) : Math.round((w() * slideBox().h) / slideBox().w);
+    };
 
     createEffect(() => {
         if (!visible()) return;
@@ -73,11 +83,12 @@ export const ScaledSectionCanvas: Component<{
         } else {
             const fr = slideBox();
             const ghost = props.ghost;
-            // Two cases. A PAGED format's card is the section's own frame, so it already has a
-            // canonical shape — render it as its own page (short content centres, tall content fits
-            // rather than paginating, because a thumbnail shows the whole section). A CONTINUOUS format
-            // has no page shape at all, so solve for the width at which the content BECOMES this
-            // card's shape (@canvas/render/fit) instead of scaling its natural layout down into bars.
+            // Three cases. A frame that is canonical — a PAGED format's page, a hero's authored band,
+            // or the one every TILE shares — is rendered as its own page: short content centres in it
+            // and tall content fits rather than paginating, because a thumbnail shows the whole
+            // section. A CONTINUOUS format asked for a free-standing preview has no page shape at all,
+            // so solve for the width at which the content BECOMES this card's shape
+            // (@canvas/render/fit) instead of scaling its natural layout down into bars.
             // Stand-ins keep the frame width: there is nothing to reflow in a placeholder or skeleton.
             let commands: RenderCommand[];
             let layoutW = fr.w;
@@ -105,15 +116,24 @@ export const ScaledSectionCanvas: Component<{
                 );
                 commands = r.commands;
                 contentH = r.height;
-            } else if (props.profile.kind === "paged") {
-                const page = sectionSlides(
+            } else if (tile() || props.profile.kind === "paged" || props.section.frame?.aspect) {
+                // A banded continuous section (a hero) has a canonical shape by authorship, exactly
+                // like a paged card, and a tile hands every section one. Width-solving a tile would
+                // undo what the shared frame is for: it lands a doc card on a few hundred px and the
+                // same authored type then paints two or three times the size of the deck card beside
+                // it. `layoutSlide` and not `sectionSlides`, so the page is the frame THIS canvas
+                // draws into rather than the section's own.
+                const page = layoutSlide(
                     props.section,
+                    fr.w,
+                    fr.h,
+                    measureText,
                     props.theme,
                     { ...props.profile, overflow: "fit" },
                     plain(),
-                )[0];
-                commands = page?.commands ?? [];
-                contentH = page?.contentH ?? fr.h;
+                );
+                commands = page.commands;
+                contentH = page.height;
             } else {
                 const r = fitSectionToFrame(
                     props.section,
@@ -127,14 +147,19 @@ export const ScaledSectionCanvas: Component<{
                 layoutW = r.layoutW;
                 contentH = r.contentH;
             }
-            // Fits both axes: exactly filling when the solver found the shape, letterboxed when the
-            // content could not take it (a lone photo). Never crops.
-            const s = Math.min(w() / layoutW, boxH() / contentH);
+            // Contain fits both axes: exactly filling when the solver found the shape, letterboxed
+            // when the content could not take it (a lone photo). A tile covers instead, so the box
+            // is always full and whatever hangs past it is clipped by the wrapper.
+            const { scale, left, top } = fitIntoBox(
+                { w: w(), h: boxH() },
+                { w: layoutW, h: contentH },
+                tile() ? "cover" : "contain",
+            );
             paint(commands, inner); // paint first — it forces position:relative
             inner.style.cssText =
                 `position:absolute;width:${layoutW}px;height:${contentH}px;` +
-                `transform:scale(${s});transform-origin:top left;` +
-                `left:${(w() - layoutW * s) / 2}px;top:${(boxH() - contentH * s) / 2}px`;
+                `transform:scale(${scale});transform-origin:top left;` +
+                `left:${left}px;top:${top}px`;
         }
     });
 

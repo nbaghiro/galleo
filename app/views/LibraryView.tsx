@@ -65,7 +65,6 @@ import {
 } from "@ui/icons";
 import { classifySwipe } from "@ui/gesture";
 import { isCoarsePointer } from "@ui/viewport";
-import { profileFor, sectionFrame } from "@engine/profile";
 import { MiniCanvas, SectionThumb } from "@app/components/previews";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 
@@ -107,7 +106,9 @@ const NAV_CLS = `pointer-events-auto grid size-7 place-items-center rounded-full
 
 const GRID_MIN = 280; // narrowest a card gets before the grid drops a column
 const GRID_GAP = 20;
-// the card's window on the artifact; a section that doesn't share it is fitted inside, never cropped
+// Every tile in the library is this shape, in both layouts. A section that does not share it is
+// re-framed into it and fills it: a thumbnail is a picture of the section, and bars around one read
+// as a broken card.
 const CARD_ASPECT = 16 / 9;
 
 const GhostCard: Component<{ variant: number }> = (p) => (
@@ -689,6 +690,7 @@ export const LibraryView: Component = () => {
                                             page={p.d.page}
                                             label={summary.title ?? `Section ${i() + 1}`}
                                             width={TILE_W}
+                                            tile={CARD_ASPECT}
                                             onOpen={onCardClick}
                                         />
                                     </span>
@@ -727,15 +729,6 @@ export const LibraryView: Component = () => {
             const id = summaryId();
             return id && !cardSection(p.d.id, id) ? at() : undefined;
         };
-        // fit the section's frame inside the card's window: a 16:9 deck fills it, anything else
-        // letterboxes against the backdrop rather than being cropped
-        const canvasW = (): number => {
-            const sec = shown();
-            if (!sec) return p.width;
-            const fr = sectionFrame(sec, profileFor({ format: p.d.formatId, page: p.d.page }));
-            return Math.max(1, Math.min(p.width, Math.round((mediaH() * fr.w) / fr.h)));
-        };
-
         // the card asks for what it shows plus the next one, so an arrow click paints immediately
         let root!: HTMLElement;
         onMount(() => {
@@ -839,14 +832,15 @@ export const LibraryView: Component = () => {
                     >
                         <Show when={shown()} fallback={<CoverFill img={img()} />}>
                             {(sec) => (
-                                <span class="absolute inset-0 grid place-items-center">
+                                <span class="absolute inset-0">
                                     <MiniCanvas
                                         section={sec()}
                                         ghost={ghost()}
                                         themeId={appTheme()}
                                         formatId={p.d.formatId}
                                         page={p.d.page}
-                                        width={canvasW()}
+                                        width={p.width}
+                                        tile={CARD_ASPECT}
                                         lazy
                                     />
                                 </span>

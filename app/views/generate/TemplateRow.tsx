@@ -119,6 +119,7 @@ export const TemplateRow: Component<{ onBrowseAll: () => void }> = (props) => {
                                         themeId={appTheme()}
                                         formatId={body()!.content.format}
                                         width={168}
+                                        tile={16 / 9}
                                         label={entry.name}
                                         onOpen={() => void use(entry)}
                                     />

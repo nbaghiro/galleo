@@ -1,4 +1,5 @@
 import type { Component } from "solid-js";
+import type { Section } from "@model/artifact";
 import { createMemo, createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { resolveTheme } from "@themes";
@@ -14,6 +15,9 @@ import { canEditHere } from "@ui/viewport";
 import { PreviewCanvas, SectionThumb } from "./previews";
 import { appTheme } from "@app/stores/theme";
 import { templatesOnce } from "@app/stores/templates";
+
+// every card in the catalog is this shape, whatever the cover section's own frame is
+const CARD_ASPECT = 16 / 9;
 
 // The template gallery — category rows, live-preview modal, and the use action — shared by the
 // Templates page and the intake's in-place browser. `onCreated` runs before the navigate, so a
@@ -80,7 +84,10 @@ export const TemplateGallery: Component<{ onCreated?: () => void; from?: string 
 
     const Card: Component<{ t: ApiTemplate }> = (p) => {
         const tk = (): ReturnType<typeof resolveTheme>["tokens"] => resolveTheme(appTheme()).tokens;
-        const cover = () => p.t.content.sections[0];
+        // first unpinned section (a pinned nav is chrome); `tile` below is what makes every card
+        // 16:9 whatever shape that section carries
+        const cover = (): Section | undefined =>
+            p.t.content.sections.find((s) => !s.pinned) ?? p.t.content.sections[0];
         return (
             <div class="flex w-61 flex-none flex-col">
                 <div class="group relative">
@@ -90,6 +97,7 @@ export const TemplateGallery: Component<{ onCreated?: () => void; from?: string 
                             themeId={appTheme()}
                             formatId={p.t.content.format}
                             width={244}
+                            tile={CARD_ASPECT}
                             label={p.t.name}
                             onOpen={() => openPreview(p.t)}
                         />
@@ -233,7 +241,10 @@ export const TemplateGallery: Component<{ onCreated?: () => void; from?: string 
                                 </div>
                             </header>
                             <div class="min-h-0 flex-1">
+                                {/* the modal stands in for the published page, so it plays like
+                                    one: menus open, links move the pane, video runs */}
                                 <PreviewCanvas
+                                    live
                                     content={{ ...t().content, theme: appTheme() }}
                                     format={previewFmt}
                                 />
