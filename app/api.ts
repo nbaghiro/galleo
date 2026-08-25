@@ -507,10 +507,13 @@ export const api = {
         id: string,
         body: { preset?: string; custom?: boolean; lengthMs?: number; content?: ArtifactContent },
     ) =>
-        req<{ trackId: string; cached: boolean }>(`/artifacts/${id}/soundtrack`, {
-            method: "POST",
-            body: JSON.stringify(body),
-        }),
+        req<{ trackId: string; cached: boolean; track: Soundtrack }>(
+            `/artifacts/${id}/soundtrack`,
+            {
+                method: "POST",
+                body: JSON.stringify(body),
+            },
+        ),
     voices: () => req<{ voices: WorkspaceVoice[] }>("/voices").then((r) => r.voices),
     voiceLibrary: (q: VoiceQuery) => {
         const p = new URLSearchParams();

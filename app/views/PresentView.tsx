@@ -5,12 +5,12 @@ import { createResource, Show } from "solid-js";
 import { useNavigate, useParams } from "@solidjs/router";
 import { setArtifactMusic } from "@elements/ops";
 import type { SoundtrackSource } from "@ui/narration";
-import { ConfirmModal } from "@ui/overlay";
+
 import { PresentSurface } from "@ui/present";
 import { canEditHere } from "@ui/viewport";
 import { api } from "@app/api";
 import { can } from "@app/stores/features";
-import { narrationAsk, narrationGate } from "@app/stores/narration";
+import { narrationGate } from "@app/stores/narration";
 
 /**
  * No source means no control, which is how the parked music feature stays invisible without any of
@@ -26,11 +26,12 @@ const bedSource = (a: () => Artifact): SoundtrackSource | undefined => {
     return {
         load: () => api.soundtrack(a().id),
         enable: async () => {
-            const { trackId } = await api.composeSoundtrack(a().id, {});
+            const { trackId, track } = await api.composeSoundtrack(a().id, {});
             await api.saveArtifact(a().id, {
                 draftContent: setArtifactMusic(asContent(a().draftContent), { on: true, trackId }),
             });
-            return api.soundtrack(a().id);
+            // the bed the route just built, rather than a read that would race the write above
+            return track;
         },
     };
 };
@@ -43,12 +44,9 @@ export const PresentView: Component = () => {
         (id) => api.getArtifact(id),
     );
 
-    // Recording is real spend and the player warms the whole piece on open; the shared gate asks
-    // once per artifact, priced from what is scripted but not yet recorded.
+    // one credit refusal ends the piece rather than repeating itself section by section
     const gate = narrationGate({
         artifactId: () => data()?.artifact.id ?? params.id ?? "",
-        content: () => asContent(data()?.artifact.draftContent),
-        countUnscripted: false,
         record: (sectionId) => api.narrateSection(data()!.artifact.id, sectionId),
     });
 
@@ -80,17 +78,6 @@ export const PresentView: Component = () => {
                         // to preview on a phone
                         onExit={() => navigate(canEditHere() ? `/edit/${params.id}` : "/")}
                     />
-                    <Show when={narrationAsk()}>
-                        {(ask) => (
-                            <ConfirmModal
-                                title="Record the narration?"
-                                body={`Recording this piece costs about ${ask().credits} credits. Sections already recorded replay free.`}
-                                confirmLabel="Start recording"
-                                onConfirm={() => ask().resolve(true)}
-                                onCancel={() => ask().resolve(false)}
-                            />
-                        )}
-                    </Show>
                 </>
             )}
         </Show>

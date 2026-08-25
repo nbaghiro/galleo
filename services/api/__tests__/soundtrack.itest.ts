@@ -107,6 +107,37 @@ describe("POST /artifacts/:id/soundtrack", () => {
         expect(calls).toBe(1); // the second ask was served from what the first built
     });
 
+    /**
+     * The caller turns music on in its own copy of the content and syncs that write later, so it
+     * cannot read the bed back from the server yet. Answering with only an id sent it to a read
+     * that returned null, and the surface said "That music could not be started" for a bed that
+     * had just been built.
+     */
+    it("answers with the bed itself, not only its id", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const artifactId = await seedArtifact(workspaceId); // music still off in the stored content
+
+        const res = await authed(
+            userId,
+            `/artifacts/${artifactId}/soundtrack`,
+            jsonInit("POST", { preset: "calm" }),
+        );
+        expect(res.status).toBe(200);
+        const body = (await res.json()) as { trackId: string; track: Soundtrack };
+        expect(body.track.id).toBe(body.trackId);
+        expect(body.track.preset).toBe("calm");
+        expect(body.track.ms).toBeGreaterThan(0);
+        expect(body.track.url).toContain(body.trackId);
+
+        // the read the client used to make would still be empty at this point, which is the bug
+        const read = await authed(userId, `/artifacts/${artifactId}/soundtrack`);
+        expect((await read.json()) as { track: Soundtrack | null }).toEqual({ track: null });
+
+        // and the url the response carried serves real bytes
+        const audio = await authed(userId, body.track.url.replace("/api", ""));
+        expect(audio.status).toBe(200);
+    });
+
     it("writes a custom bed from the artifact's own content", async () => {
         const { userId, workspaceId } = await seedUser({ plan: "pro" });
         const artifactId = await seedArtifact(workspaceId);

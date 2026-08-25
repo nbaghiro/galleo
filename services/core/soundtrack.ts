@@ -20,7 +20,8 @@ import {
 // Which bed a piece plays and how it gets made. The audio is a cache keyed by what produced it, so
 // picking the same preset twice costs one generation for the whole deployment, ever.
 
-const rowToTrack = (r: typeof schema.soundtracks.$inferSelect, url: string): Soundtrack => ({
+/** Exported for the compose route: it has just built a bed and can answer with it directly. */
+export const rowToTrack = (r: typeof schema.soundtracks.$inferSelect, url: string): Soundtrack => ({
     id: r.id,
     source: r.source as Soundtrack["source"],
     ...(r.preset ? { preset: r.preset } : {}),

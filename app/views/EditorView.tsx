@@ -6,7 +6,7 @@ import { setArtifactMusic } from "@elements/ops";
 import { scriptRest, scriptSection } from "@editor/core/notes";
 import { Editor } from "@editor/Editor";
 import { Button } from "@ui/button";
-import { ConfirmModal, FloatingBar } from "@ui/overlay";
+import { FloatingBar } from "@ui/overlay";
 import { canEditHere } from "@ui/viewport";
 import {
     canEdit,
@@ -78,7 +78,7 @@ import { can, exportFormatsOf, loadFeatures } from "@app/stores/features";
 import { renameArtifactById } from "@app/stores/library";
 import { recordVisit } from "@app/stores/search";
 import { billing, loadBilling } from "@app/stores/billing";
-import { narrationAsk, narrationGate } from "@app/stores/narration";
+import { narrationGate } from "@app/stores/narration";
 import { setEditorActive } from "@app/stores/chat";
 import { appTheme, loadCustomThemes, setFaviconOverride, openThemeEditor } from "@app/stores/theme";
 import { flushAutosave, installAutosave, noteSavedContent, onSaveConflict } from "@app/stores/save";
@@ -263,14 +263,18 @@ export const EditorView: Component = () => {
                       ...(canEdit()
                           ? {
                                 enable: async () => {
-                                    const { trackId } = await api.composeSoundtrack(artifactId, {
-                                        content: editor.artifact,
-                                    });
+                                    const { trackId, track } = await api.composeSoundtrack(
+                                        artifactId,
+                                        { content: editor.artifact },
+                                    );
                                     commit(
                                         setArtifactMusic(editor.artifact, { on: true, trackId }),
                                     );
                                     void loadBilling();
-                                    return api.soundtrack(artifactId);
+                                    // that commit reaches the server on its own schedule, so the
+                                    // bed comes from the response rather than from a read that
+                                    // would ask about content the server has not been sent yet
+                                    return track;
                                 },
                             }
                           : {}),
@@ -315,15 +319,10 @@ export const EditorView: Component = () => {
             void loadBilling();
             return t;
         };
-        // the same spend gate present uses: the overlay's warm-up must not script and record a
-        // whole piece without the one-time ask
+        // the same wall present uses: one credit refusal ends the piece rather than repeating
+        // itself section by section
         const gate = artifactId
-            ? narrationGate({
-                  artifactId: () => artifactId,
-                  content: () => editor.artifact,
-                  countUnscripted: true,
-                  record: makeSpeakable,
-              })
+            ? narrationGate({ artifactId: () => artifactId, record: makeSpeakable })
             : null;
         onNarration(
             artifactId
@@ -442,17 +441,6 @@ export const EditorView: Component = () => {
                             </Button>
                         </FloatingBar>
                     </div>
-                </Show>
-                <Show when={narrationAsk()}>
-                    {(ask) => (
-                        <ConfirmModal
-                            title="Record the narration?"
-                            body={`Recording this piece costs about ${ask().credits} credits. Sections already recorded replay free.`}
-                            confirmLabel="Start recording"
-                            onConfirm={() => ask().resolve(true)}
-                            onCancel={() => ask().resolve(false)}
-                        />
-                    )}
                 </Show>
             </div>
         </Show>

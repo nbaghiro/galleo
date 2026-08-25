@@ -12,6 +12,7 @@ import {
     composeForArtifact,
     ensurePreset,
     presets,
+    rowToTrack,
     soundtrackFor,
 } from "@services/core/soundtrack";
 import { DEFAULT_PRESET } from "@model/speech";
@@ -265,16 +266,28 @@ narration.post("/artifacts/:id/soundtrack", requireWorkspace, async (c) => {
 
     return held.settle(async (billed) => {
         try {
+            // The bed itself comes back, not just its id. The caller turns music on in its own
+            // copy of the content and cannot read it back from here until that write lands, and
+            // asking anyway is a race it loses often enough to look broken.
+            const bedUrl = (t: string): string => `/api/artifacts/${id}/soundtrack/${t}`;
             if (body.custom) {
                 const content = body.content ?? (await contentOf(id));
                 const out = await composeForArtifact(id, content, body.lengthMs ?? DEFAULT_MS);
                 // a cached bed reports zero, so asking twice for the same piece costs nothing
                 billed({ music: out.ms ? Math.max(1, Math.ceil(out.ms / 60_000)) : 0 });
-                return c.json({ trackId: out.row.id, cached: !out.ms });
+                return c.json({
+                    trackId: out.row.id,
+                    cached: !out.ms,
+                    track: rowToTrack(out.row, bedUrl(out.row.id)),
+                });
             }
             const out = await ensurePreset(body.preset ?? DEFAULT_PRESET);
             billed({ music: out.chars ? Math.max(1, Math.ceil(out.chars / 60_000)) : 0 });
-            return c.json({ trackId: out.row.id, cached: !out.chars });
+            return c.json({
+                trackId: out.row.id,
+                cached: !out.chars,
+                track: rowToTrack(out.row, bedUrl(out.row.id)),
+            });
         } catch (e) {
             billed({ music: 0 });
             const status = e instanceof MusicError ? e.status : 502;
