@@ -6,7 +6,7 @@ import { inRegion } from "@engine/node";
 import { pickArtifactBackground } from "./core/media";
 import type { ElementAddress, Target, Section } from "@model/artifact";
 import type { Component } from "solid-js";
-import { createEffect, createMemo, createSignal, onCleanup, onMount, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show } from "solid-js";
 import { applyAffordance, getElementAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
@@ -706,6 +706,30 @@ export const Canvas: Component = () => {
         scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null);
     });
 
+    /**
+     * Keep the stack in the middle of the view as the scale changes.
+     *
+     * The sizer is left-aligned above 100% on purpose (see its comment: auto margins go negative on
+     * a box wider than its container, which would put the left of the stack past scrollLeft 0 where
+     * nothing can reach it). That sends the whole overflow to one side, so a zoomed-in deck sat hard
+     * against the left of its box and ran off the right. Centring the scroll position instead gives
+     * the same picture as 100% while leaving both edges reachable.
+     *
+     * After a frame, because the sizer's new width has to be laid out before there is an overflow to
+     * measure.
+     */
+    createEffect(
+        on(zoom, () => {
+            const el = scrollEl;
+            if (!el) return;
+            const at = requestAnimationFrame(() => {
+                const over = el.scrollWidth - el.clientWidth;
+                el.scrollLeft = over > 0 ? over / 2 : 0;
+            });
+            onCleanup(() => cancelAnimationFrame(at));
+        }),
+    );
+
     // Slots enumerate once per gesture (the canvas doesn't reflow during an element drag) and
     // re-enumerate only when the canvas republishes regions underneath the drag — a scroll
     // materializing new windowed sections, AI streaming, a collaborative write.
@@ -838,7 +862,7 @@ export const Canvas: Component = () => {
         <main
             ref={scrollEl}
             // the floating chrome sits over this scroller, so the last section needs room to clear it
-            class="h-full overflow-y-auto overscroll-none pb-35 pt-6"
+            class="h-full overflow-auto overscroll-none pb-35 pt-6"
             style={pageStyle()}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
