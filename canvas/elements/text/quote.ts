@@ -31,7 +31,7 @@ export const quoteElement: ElementSpec<QuoteData> = {
     create: () => ({
         children: [
             { type: "text", data: { text: "Taste is the only moat left.", style: "h3" } },
-            { type: "text", data: { text: "— the thesis", style: "caption" } },
+            { type: "text", data: { text: "The thesis", style: "caption" } },
         ],
     }),
     layout: (d, ctx) => arrangeQuote(d, ctx, composeQuote(d, ctx)),

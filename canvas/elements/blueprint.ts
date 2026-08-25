@@ -77,7 +77,7 @@ export function placeholderBlock(kind: string): ElementInstance {
                 data: {
                     children: [
                         t("A pulled quotation that carries the point.", "h3"),
-                        t("— Attribution", "caption"),
+                        t("Attribution", "caption"),
                     ],
                 },
             };

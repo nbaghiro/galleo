@@ -3,8 +3,8 @@ import type { Template } from "@model/templates";
 import { TEMPLATE_INDEX } from "@model/templates";
 import {
     badge,
-    bgColor,
     bgImage,
+    bgTone,
     bullets,
     button,
     callout,
@@ -97,7 +97,7 @@ export const resume: ArtifactContent = doc(
             group(
                 t("Summary", "label"),
                 t(
-                    "I design end-to-end product experiences — from the first scrappy prototype to the pixels that ship — for tools people open every day. Nine years across fintech, developer platforms, and consumer health, most recently leading design for a payments product used by 40,000+ small businesses. I care about systems that scale, interfaces that disappear, and shipping work that actually makes it to production.",
+                    "I design end-to-end product experiences, from the first scrappy prototype to the pixels that ship, for tools people open every day. Nine years across fintech, developer platforms, and consumer health, most recently leading design for a payments product used by 40,000+ small businesses. I care about systems that scale, interfaces that disappear, and shipping work that actually makes it to production.",
                     "subtitle",
                 ),
             ),
@@ -117,11 +117,11 @@ export const resume: ArtifactContent = doc(
                 group(
                     t("Northwind", "h3"),
                     t("Lead Product Designer", "caption"),
-                    t("2022 — Present · San Francisco", "caption"),
+                    t("2022–Present · San Francisco", "caption"),
                 ),
                 bullets(
                     "Led the end-to-end redesign of the merchant payments dashboard, lifting weekly active use 34% and cutting time-to-first-invoice from 11 minutes to under 3.",
-                    "Built and now maintain Aster, the company's first cross-platform design system — 80+ components adopted by four product teams.",
+                    "Built and now maintain Aster, the company's first cross-platform design system: 80+ components adopted by four product teams.",
                     "Mentor two designers and run the weekly critique that the whole product org now attends.",
                 ),
             ),
@@ -133,7 +133,7 @@ export const resume: ArtifactContent = doc(
                 group(
                     t("Cadence Health", "h3"),
                     t("Senior Product Designer", "caption"),
-                    t("2019 — 2022 · Remote", "caption"),
+                    t("2019–2022 · Remote", "caption"),
                 ),
                 bullets(
                     "Designed the onboarding and daily-tracking flows for a chronic-care app that grew from 5k to 220k monthly users.",
@@ -149,10 +149,10 @@ export const resume: ArtifactContent = doc(
                 group(
                     t("Foglight Studio", "h3"),
                     t("Product Designer", "caption"),
-                    t("2017 — 2019 · Portland", "caption"),
+                    t("2017–2019 · Portland", "caption"),
                 ),
                 bullets(
-                    "Sole designer on client products for early-stage startups — brand, web, and product across a dozen launches.",
+                    "Sole designer on client products for early-stage startups: brand, web, and product across a dozen launches.",
                     "Established the studio's first reusable Figma libraries, cutting average project setup from days to hours.",
                 ),
             ),
@@ -197,7 +197,7 @@ export const resume: ArtifactContent = doc(
                     t("Selected projects", "label"),
                     t("Aster Design System", "h3"),
                     t(
-                        "A single source of truth for four product teams — tokens, components, and usage guidelines that turned a fractured UI into one coherent voice. Documented, versioned, and adopted across web and mobile.",
+                        "A single source of truth for four product teams: tokens, components, and usage guidelines that turned a fractured UI into one coherent voice. Documented, versioned, and adopted across web and mobile.",
                         "body",
                     ),
                     t(
@@ -214,15 +214,15 @@ export const resume: ArtifactContent = doc(
                 group(
                     t("Education", "label"),
                     t("Rhode Island School of Design", "h3"),
-                    t("BFA, Graphic Design · 2013 — 2017", "caption"),
+                    t("BFA, Graphic Design · 2013–2017", "caption"),
                     t("Senior thesis on type systems for data-dense interfaces.", "caption"),
                 ),
                 group(
                     t("Recognition", "label"),
                     bullets(
-                        "Core77 Design Award, Interaction — 2023",
+                        "Core77 Design Award, Interaction · 2023",
                         'Speaker, Config 2022: "Design systems that survive reorgs"',
-                        "Awwwards Honorable Mention — 2019",
+                        "Awwwards Honorable Mention · 2019",
                     ),
                 ),
             ),
@@ -234,7 +234,7 @@ export const resume: ArtifactContent = doc(
                 group(
                     t("What I value", "label"),
                     t(
-                        "The best design work is quiet. I'd rather ship one flow that genuinely respects a person's time than ten features that demo well. I show up for the unglamorous middle — the edge cases, the empty states, the error copy — because that's where products earn trust. Always learning in public, always shipping.",
+                        "The best design work is quiet. I'd rather ship one flow that genuinely respects a person's time than ten features that demo well. I show up for the unglamorous middle (the edge cases, the empty states, the error copy) because that is where products earn trust.",
                         "body",
                     ),
                 ),
@@ -279,7 +279,7 @@ export const portfolio: ArtifactContent = web(
                 t("STUDIO HALVORSEN", "label"),
                 t("Light, made deliberate.", "h1"),
                 t(
-                    "An independent design studio working at the edge of architecture, brand, and the objects in between — for people who believe a space should be felt before it's understood.",
+                    "An independent design studio working at the edge of architecture, brand, and the objects in between, for people who believe a space should be felt before it's understood.",
                     "subtitle",
                 ),
                 button("See the work", "#work"),
@@ -298,7 +298,7 @@ export const portfolio: ArtifactContent = web(
                     t("Statement", "label"),
                     t("We design the pause before the room speaks.", "h2"),
                     t(
-                        "Founded in Oslo, Studio Halvorsen makes interiors, identities, and objects that hold their composure. We start with restraint and remove until only what matters is left — then we make that one thing unforgettable. Sixteen years, three continents, one obsession with proportion.",
+                        "Founded in Oslo, Studio Halvorsen makes interiors, identities, and objects that hold their composure. We start with restraint and remove until only what matters is left. Then we make that one thing unforgettable. Sixteen years, three continents, one obsession with proportion.",
                         "body",
                     ),
                 ),
@@ -311,7 +311,7 @@ export const portfolio: ArtifactContent = web(
                 stat("16", "years independent"),
                 stat("9", "design awards"),
             ),
-            { background: bgColor("#0C0C0C"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "work",
@@ -319,7 +319,7 @@ export const portfolio: ArtifactContent = web(
                 t("Selected work", "label"),
                 t("A few rooms we're proud of.", "h2"),
                 t(
-                    "Residential, hospitality, and retail — each a study in light, material, and the discipline of leaving things out.",
+                    "Residential, hospitality, and retail, each a study in light, material, and the discipline of leaving things out.",
                     "body",
                 ),
             ),
@@ -397,7 +397,7 @@ export const portfolio: ArtifactContent = web(
                 card(
                     t("Identity", "h3"),
                     t(
-                        "Brand systems for places and makers — naming, type, and the small printed things people keep.",
+                        "Brand systems for places and makers: naming, type, and the small printed things people keep.",
                         "body",
                     ),
                 ),
@@ -490,7 +490,7 @@ export const personalSite: ArtifactContent = web(
                 t("WRITER · DESIGNER · FOUNDER", "label"),
                 t("Wren Halloran", "h1"),
                 t(
-                    "I make small, durable software — and write about the craft of paying attention. Currently in Lisbon, building Quiet Machines.",
+                    "I make small, durable software, and write about the craft of paying attention. Currently in Lisbon, building Quiet Machines.",
                     "subtitle",
                 ),
                 button("Read the essays", "#writing"),
@@ -506,7 +506,7 @@ export const personalSite: ArtifactContent = web(
                 t("A few words", "label"),
                 t("I build things meant to be kept.", "h2"),
                 t(
-                    "Most software is designed to be replaced — by the next version, the next funding round, the next acquirer. I’m interested in the other kind: tools that earn a permanent place on your desk, that get quieter and more useful the longer you live with them.",
+                    "Most software is designed to be replaced by the next version, the next funding round, the next acquirer. I’m interested in the other kind: tools that earn a permanent place on your desk, that get quieter and more useful the longer you live with them.",
                     "body",
                 ),
                 t(
@@ -588,7 +588,7 @@ export const personalSite: ArtifactContent = web(
                         col(
                             t("The Last Honest Inbox", "h3"),
                             t(
-                                "Why I rebuilt email for one person — me — and then kept it that way.",
+                                "Why I rebuilt email for one person (me) and then kept it that way.",
                                 "caption",
                             ),
                         ),
@@ -645,7 +645,7 @@ export const personalSite: ArtifactContent = web(
                 ),
                 t("No sponsors, no tracking, one click to leave.", "caption", "center"),
             ),
-            { background: bgColor("#1C1712"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "margin",
@@ -655,9 +655,9 @@ export const personalSite: ArtifactContent = web(
                 col(
                     t("Featured", "label"),
                     badge("LIVE"),
-                    t("Margin — a reading app that forgets nothing.", "h2"),
+                    t("Margin, a reading app that forgets nothing.", "h2"),
                     t(
-                        "Save anything, highlight freely, and trust that it will still be there in ten years. No feed, no algorithm, no expiry — just your library, getting more valuable the longer you tend it.",
+                        "Save anything, highlight freely, and trust that it will still be there in ten years. No feed, no algorithm, no expiry. Just your library, getting more valuable the longer you tend it.",
                         "body",
                     ),
                     button("Visit Margin", "https://margin.app", { variant: "outline" }),
@@ -671,7 +671,7 @@ export const personalSite: ArtifactContent = web(
                 stat("3", "products shipped and still maintained, years on"),
                 stat("10 yrs", "moving between writing and design"),
             ),
-            { background: bgColor("#121110"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "praise",
@@ -710,7 +710,7 @@ export const personalSite: ArtifactContent = web(
                 t("Say hello", "label"),
                 t("Let’s make something that lasts.", "h2"),
                 t(
-                    "I take on a couple of small collaborations a year — writing, design, or the early shape of a product. If that sounds like you, I’d love to hear what you’re building.",
+                    "I take on a couple of small collaborations a year: writing, design, or the early shape of a product. If that sounds like you, I’d love to hear what you’re building.",
                     "subtitle",
                 ),
                 button("Email me", "mailto:wren@quietmachines.co"),
@@ -757,7 +757,7 @@ export const coverLetter: ArtifactContent = doc(
             group(
                 t("COVER LETTER", "label"),
                 t("Camille Laurent", "h1"),
-                t("Application — Senior Product Designer, Northwind", "caption"),
+                t("Application · Senior Product Designer, Northwind", "caption"),
                 t("camille.laurent@hey.com · (415) 555-0142 · Portland, OR · June 2026", "caption"),
             ),
         ),
@@ -766,7 +766,7 @@ export const coverLetter: ArtifactContent = doc(
             group(
                 t("Dear Northwind team,", "subtitle"),
                 t(
-                    "I recommend your app to people without being asked — which, for a money product, is almost unheard of. Northwind is the rare financial tool that lowers my pulse instead of raising it. You design for calm in a category that profits from anxiety, and I’ve wanted to work on something like it for a long time. So when I saw the Senior Product Designer role open, I didn’t want to send the usual letter. I wanted to send a real one.",
+                    "I recommend your app to people without being asked, which for a money product is almost unheard of. Northwind is the rare financial tool that lowers my pulse instead of raising it. You design for calm in a category that profits from anxiety, and I’ve wanted to work on something like it for a long time. So when I saw the Senior Product Designer role open, I didn’t want to send the usual letter. I wanted to send a real one.",
                     "body",
                 ),
             ),
@@ -778,9 +778,9 @@ export const coverLetter: ArtifactContent = doc(
                 img("camille-onboarding-flow", 1.15),
                 group(
                     t("What I’d bring", "label"),
-                    t("I design for trust, not just clicks.", "h2"),
+                    t("Earning permission before asking for it.", "h2"),
                     t(
-                        "At Folio I led the redesign of an onboarding flow that asked first-time users to connect their bank on screen one — and watched most of them leave. We rebuilt it around earning permission slowly: explain, then ask. Activation rose 38% and first-week drop-off was cut nearly in half, without a single dark pattern. It’s the work I’m proudest of, and it’s the kind of work Northwind already values.",
+                        "At Folio I led the redesign of an onboarding flow that asked first-time users to connect their bank on screen one, and watched most of them leave. We rebuilt it around earning permission slowly: explain, then ask. Activation rose 38% and first-week drop-off was cut nearly in half, without a single dark pattern. It’s the work I’m proudest of, and it’s the kind of work Northwind already values.",
                         "body",
                     ),
                 ),
@@ -792,7 +792,7 @@ export const coverLetter: ArtifactContent = doc(
                 t("Systems", "label"),
                 t("Tools that scale past me.", "h3"),
                 t(
-                    "Good design shouldn’t depend on the designer being in the room. I built and shipped Atlas, Folio’s design system, and grew it from a Figma file into a living library adopted by six product teams. The point was never consistency for its own sake — it was speed and trust: designers stopped reinventing the same date picker, and engineers stopped guessing.",
+                    "Good design shouldn’t depend on the designer being in the room. I built and shipped Atlas, Folio’s design system, and grew it from a Figma file into a living library adopted by six product teams. Consistency was the smaller half of it. What the system really bought was speed and trust: designers stopped reinventing the same date picker, and engineers stopped guessing.",
                     "body",
                 ),
                 stat("−40%", "time from design to shipped after Atlas was adopted"),
@@ -804,7 +804,7 @@ export const coverLetter: ArtifactContent = doc(
                 t("Craft", "label"),
                 t("Accessible by default, not as an afterthought.", "h3"),
                 t(
-                    "Last year I led an accessibility overhaul that brought our core flows to WCAG 2.2 AA — re-thinking contrast, focus order, and screen-reader copy across the product. I also mentored three junior designers through it, because the surest way to keep standards high is to make sure you’re not the only one who can hold them.",
+                    "Last year I led an accessibility overhaul that brought our core flows to WCAG 2.2 AA, re-thinking contrast, focus order, and screen-reader copy across the product. I also mentored three junior designers through it, because the surest way to keep standards high is to make sure you’re not the only one who can hold them.",
                     "body",
                 ),
             ),
@@ -812,7 +812,7 @@ export const coverLetter: ArtifactContent = doc(
         section(
             "c6",
             quote(
-                "Camille is the rare designer who can hold the whole system in her head and still sweat a single label. She raised the bar for the entire team — and made the rest of us want to clear it.",
+                "Camille is the rare designer who can hold the whole system in her head and still sweat a single label. She raised the bar for the entire team, and made the rest of us want to clear it.",
                 "Devin Park · Head of Design, Folio",
             ),
         ),
@@ -821,7 +821,7 @@ export const coverLetter: ArtifactContent = doc(
             callout(
                 "note",
                 t(
-                    "A few practical notes: I’m based in Portland and happy to relocate or keep to your hours. I’m available from August, and I’d be glad to begin with a short paid design exercise — it’s the fastest honest way for both of us to see how we work together.",
+                    "A few practical notes: I’m based in Portland and happy to relocate or keep to your hours. I’m available from August, and I’d be glad to begin with a short paid design exercise. It’s the fastest honest way for both of us to see how we work together.",
                     "body",
                 ),
             ),
@@ -830,7 +830,7 @@ export const coverLetter: ArtifactContent = doc(
             "c8",
             group(
                 t(
-                    "I’ve admired Northwind from the outside for two years; I’d love the chance to make it better from the inside. Thank you for reading this far — I know your time is short, and I’ve tried to be worth it.",
+                    "I’ve admired Northwind from the outside for two years; I’d love the chance to make it better from the inside. Thank you for reading this far. I know your time is short, and I’ve tried to be worth it.",
                     "body",
                 ),
             ),
@@ -865,7 +865,7 @@ export const eventInvite: ArtifactContent = web(
                 badge("SATURDAY · 12 SEPTEMBER 2026"),
                 t("Amara & Théo", "h1"),
                 t(
-                    "are getting married — and they would be overjoyed for you to be there, under the olive trees, when they say yes.",
+                    "are getting married, and they would be overjoyed for you to be there, under the olive trees, when they say yes.",
                     "subtitle",
                 ),
                 t("Quinta da Lua · Sintra, Portugal", "caption"),
@@ -887,7 +887,7 @@ export const eventInvite: ArtifactContent = web(
                     "subtitle",
                 ),
                 t(
-                    "This September we're gathering the people who made us who we are — in a hillside grove above Sintra, with the sea somewhere over the trees — to make it official and then to dance about it for as long as the band will let us. There's no part of this day that matters more than having you in it. So please: come early, stay late, wear shoes you can lose.",
+                    "This September we're gathering the people who made us who we are, in a hillside grove above Sintra with the sea somewhere over the trees, to make it official and then to dance about it for as long as the band will let us. There's no part of this day that matters more than having you in it. So please: come early, stay late, wear shoes you can lose.",
                     "body",
                 ),
             ),
@@ -904,7 +904,7 @@ export const eventInvite: ArtifactContent = web(
                         "Amara grew up in Lagos and London and reads three books at once; Théo is from Porto, cooks like he's feeding an army, and has never once been on time. Somehow it works. Most weekends you'll find us at the market, arguing happily about which tomatoes to buy and where to put the future couch.",
                         "body",
                     ),
-                    t("— Amara & Théo", "caption"),
+                    t("Yours, Amara & Théo", "caption"),
                 ),
                 img("wedding-couple-portrait-laughing", 0.84),
             ),
@@ -946,7 +946,7 @@ export const eventInvite: ArtifactContent = web(
                     "Time,What's happening,Where\n3:30 PM,Arrival & welcome drinks,The Lower Courtyard\n4:00 PM,Ceremony,The Olive Terrace\n4:45 PM,Photos & golden-hour aperitivo,The Garden\n6:00 PM,Dinner & toasts,The Stone Barn\n8:30 PM,First dance & the band,The Barn\n11:00 PM,Late-night snacks & last orders,The Courtyard\n12:00 AM,Sparkler send-off,The Drive",
                 ),
             ),
-            { background: bgColor("#EFE7D5"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
 
         section(
@@ -955,7 +955,7 @@ export const eventInvite: ArtifactContent = web(
                 t("THE PLACE", "label"),
                 t("Quinta da Lua", "h2"),
                 t(
-                    "A working olive farm folded into the green hills above Sintra — terracotta, old stone, and rows of silver trees that go gold at dusk. It's a forty-minute drive from Lisbon and feels a hundred years from anywhere.",
+                    "A working olive farm folded into the green hills above Sintra: terracotta, old stone, and rows of silver trees that go gold at dusk. It's a forty-minute drive from Lisbon and feels a hundred years from anywhere.",
                     "subtitle",
                 ),
                 button("Open the map", "https://maps.google.com/?q=Sintra+Portugal", {
@@ -1042,7 +1042,7 @@ export const eventInvite: ArtifactContent = web(
                 }),
                 t("Replies close 1 August 2026.", "caption", "center"),
             ),
-            { background: bgColor("#6E2739"), bleed: true },
+            { background: bgTone("accent"), bleed: true },
         ),
 
         section(
@@ -1080,7 +1080,7 @@ export const eventInvite: ArtifactContent = web(
                 ),
                 divider(),
                 t(
-                    "With love, and with thanks to our parents — Ngozi & Emeka Okonkwo and Inês & Rui Almeida — who started all of this.",
+                    "With love, and with thanks to our parents, Ngozi & Emeka Okonkwo and Inês & Rui Almeida, who started all of this.",
                     "caption",
                     "center",
                 ),
@@ -1099,7 +1099,7 @@ export const photoEssay: ArtifactContent = doc(
                 t("A PHOTO ESSAY", "label"),
                 t("Before the City Wakes", "h1"),
                 t(
-                    "One hour in Kyoto, between the last streetlight and the first delivery bike — when the old city briefly belongs to no one.",
+                    "One hour in Kyoto, between the last streetlight and the first delivery bike, when the old city briefly belongs to no one.",
                     "subtitle",
                 ),
                 t("Photographs & words by Rei Tanaka · winter, 5:40 AM", "caption"),
@@ -1116,11 +1116,11 @@ export const photoEssay: ArtifactContent = doc(
                     "subtitle",
                 ),
                 t(
-                    "There is a particular hour here — too late to be night, too early to be morning — when Kyoto sets itself down like a held breath. The shutters are still drawn. The lanterns have gone out but the sky hasn't quite caught up. For maybe sixty minutes the streets are returned to the stones, the river, the mist, and the few of us foolish enough to be out in the cold to see it.",
+                    "There is a particular hour here, too late to be night and too early to be morning, when Kyoto sets itself down like a held breath. The shutters are still drawn. The lanterns have gone out but the sky hasn't quite caught up. For maybe sixty minutes the streets are returned to the stones, the river, the mist, and the few of us foolish enough to be out in the cold to see it.",
                     "body",
                 ),
                 t(
-                    "These are the pictures I came home with — and the small things I noticed only because there was nothing else to look at.",
+                    "These are the pictures I came home with, and the small things I noticed only because there was nothing else to look at.",
                     "body",
                 ),
             ),
@@ -1131,7 +1131,7 @@ export const photoEssay: ArtifactContent = doc(
             group(
                 img("kyoto-dawn-gion-empty-lane-lanterns", 1.6),
                 t(
-                    "Gion, 5:48. The teahouse lanterns are dark, the cobbles wet from a rain that came and went while the city slept. Not a single footprint yet — only mine, and I keep them to the edge.",
+                    "Gion, 5:48. The teahouse lanterns are dark, the cobbles wet from a rain that came and went while the city slept. Not a single footprint yet. Only mine, and I keep them to the edge.",
                     "caption",
                 ),
             ),
@@ -1158,7 +1158,7 @@ export const photoEssay: ArtifactContent = doc(
             group(
                 img("kyoto-dawn-fushimi-torii-tunnel", 1.6),
                 t(
-                    "Fushimi Inari before the crowds — ten thousand vermilion gates and not one other soul. The light comes through sideways and turns the whole tunnel the colour of a lit ember.",
+                    "Fushimi Inari before the crowds: ten thousand vermilion gates and not one other soul. The light comes through sideways and turns the whole tunnel the colour of a lit ember.",
                     "caption",
                 ),
             ),
@@ -1172,7 +1172,7 @@ export const photoEssay: ArtifactContent = doc(
                     t("Nishiki", "label"),
                     t("The market, half-awake", "h2"),
                     t(
-                        "Behind the shutters of the covered market the day is already starting in whispers — a knife on a board, the hiss of a kettle, a radio turned low. A fishmonger hoses down the stones outside his stall and nods at me without surprise, as if everyone is up at this hour and only pretending otherwise.",
+                        "Behind the shutters of the covered market the day is already starting in whispers: a knife on a board, the hiss of a kettle, a radio turned low. A fishmonger hoses down the stones outside his stall and nods at me without surprise, as if everyone is up at this hour and only pretending otherwise.",
                         "body",
                     ),
                     t(
@@ -1204,7 +1204,7 @@ export const photoEssay: ArtifactContent = doc(
                 group(
                     img("kyoto-dawn-detail-paper-window-glow", 0.8),
                     t(
-                        "The first window to glow — someone, somewhere, putting on the rice.",
+                        "The first window to glow: someone, somewhere, putting on the rice.",
                         "caption",
                     ),
                 ),
@@ -1215,7 +1215,7 @@ export const photoEssay: ArtifactContent = doc(
             "s8",
             quote(
                 "I came to photograph the temples and stayed for the silence between them, which no lens has ever once held still.",
-                "— field notes, the third morning",
+                "From field notes, the third morning",
             ),
             { background: bgImage("kyoto-dawn-bamboo-grove-fog", 0.55) },
         ),
@@ -1269,10 +1269,10 @@ export const photoEssay: ArtifactContent = doc(
                 t("The closing", "label"),
                 t("And then the bicycles", "h2"),
                 t(
-                    "It ends the same way each time. A delivery bike turns the corner, a shutter rolls up with a clatter, a phone rings somewhere behind a wall — and the spell, which was never really mine to keep, lifts. The city stretches, remembers itself, and takes its streets back. I put the lens cap on and walk home into the noise, already a little homesick for an hour that hasn't even finished leaving.",
+                    "It ends the same way each time. A delivery bike turns the corner, a shutter rolls up with a clatter, a phone rings somewhere behind a wall. The spell, which was never really mine to keep, lifts. The city stretches, remembers itself, and takes its streets back. I put the lens cap on and walk home into the noise, already a little homesick for an hour that hasn't even finished leaving.",
                     "body",
                 ),
-                t("— Rei, walking back along the Kamo", "caption"),
+                t("Rei, walking back along the Kamo", "caption"),
             ),
             { background: bgImage("kyoto-dawn-closing-sunrise-rooftops", 0.5) },
         ),
@@ -1305,7 +1305,7 @@ export const productLaunch: ArtifactContent = web(
                 t("Introducing Aer One", "label"),
                 t("The air you forgot you were breathing.", "h1"),
                 t(
-                    "A whisper-quiet purifier that reads your room and clears it in minutes — no app to babysit, no filters you’ll forget to change.",
+                    "A whisper-quiet purifier that reads your room and clears it in minutes: no app to babysit, no filters you’ll forget to change.",
                     "subtitle",
                 ),
                 button("Pre-order · $249", "#preorder"),
@@ -1323,7 +1323,7 @@ export const productLaunch: ArtifactContent = web(
                     t("The problem", "label"),
                     t("Indoor air is the pollution nobody talks about.", "h2"),
                     t(
-                        "We spend 90% of our lives indoors, where the air can be up to five times more polluted than the street outside — cooking smoke, off-gassing furniture, pollen, pet dander, and the fine particles that slip past every cheap filter. Most purifiers either roar like a jet or quietly do nothing at all.",
+                        "We spend 90% of our lives indoors, where the air can be up to five times more polluted than the street outside, from cooking smoke and off-gassing furniture to pollen, pet dander, and the fine particles that slip past every cheap filter. Most purifiers either roar like a jet or quietly do nothing at all.",
                         "body",
                     ),
                 ),
@@ -1367,7 +1367,7 @@ export const productLaunch: ArtifactContent = web(
                 ),
                 video(DEMO_VIDEO, "aer-demo-still-kitchen-evening"),
             ),
-            { background: bgColor("#10140F"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "sensing",
@@ -1378,7 +1378,7 @@ export const productLaunch: ArtifactContent = web(
                     badge("ON-DEVICE"),
                     t("It senses, then it acts.", "h2"),
                     t(
-                        "Four laser sensors sample the room sixty times a second. When you sear a steak or the pollen count spikes, Aer One spins up before you’d ever notice — then settles back to a hush the moment the air is clear. All of it runs on the device. Nothing leaves your home.",
+                        "Four laser sensors sample the room sixty times a second. When you sear a steak or the pollen count spikes, Aer One spins up before you’d ever notice, then settles back to a hush the moment the air is clear. All of it runs on the device. Nothing leaves your home.",
                         "body",
                     ),
                 ),
@@ -1391,7 +1391,7 @@ export const productLaunch: ArtifactContent = web(
                 t("How it works", "label"),
                 t("Four stages, one breath.", "h2"),
                 t(
-                    "Air is pulled in from every direction, stripped of particles and gases, and returned cooler and cleaner than it came — a full pass every ninety seconds.",
+                    "Air is pulled in from every direction, stripped of particles and gases, and returned cooler and cleaner than it came, a full pass every ninety seconds.",
                     "body",
                 ),
                 diagram("process", "Draw in, Pre-filter, HEPA + carbon, Return clean", 240),
@@ -1410,7 +1410,7 @@ export const productLaunch: ArtifactContent = web(
                     "caption",
                 ),
             ),
-            { background: bgColor("#10140F"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "features",
@@ -1419,7 +1419,7 @@ export const productLaunch: ArtifactContent = web(
                     img("aer-filter-cartridge", 1),
                     t("One-click filter", "h3"),
                     t(
-                        "A magnetic cartridge swaps in five seconds — and the device tells you the exact day it’s due.",
+                        "A magnetic cartridge swaps in five seconds, and the device tells you the exact day it’s due.",
                         "caption",
                     ),
                 ),
@@ -1446,7 +1446,7 @@ export const productLaunch: ArtifactContent = web(
             split(
                 60,
                 testimonial(
-                    "I stopped waking up congested within a week. I didn’t expect to feel the difference — but the whole house notices when it’s off.",
+                    "I stopped waking up congested within a week. I didn’t expect to feel the difference, but the whole house notices when it’s off.",
                     "Dr. Lena Osei",
                     "Pulmonologist · early tester",
                     "https://i.pravatar.cc/240?img=45",
@@ -1463,7 +1463,7 @@ export const productLaunch: ArtifactContent = web(
             split(
                 40,
                 col(
-                    t("Measured, not marketed", "label"),
+                    t("What we measured", "label"),
                     t("From hazy to clear in twelve minutes.", "h2"),
                     t(
                         "Particulate count (PM2.5) in a sealed 400 sq ft room after a stovetop sear, sampled every two minutes. Lower is cleaner.",
@@ -1586,7 +1586,7 @@ export const landingPage: ArtifactContent = web(
                 t("Northwind Analytics", "label"),
                 t("Your metrics, finally in one place.", "h1"),
                 t(
-                    "Connect every tool your team already uses and watch a single, trustworthy dashboard build itself — no SQL, no data team, no waiting on a Monday report.",
+                    "Connect every tool your team already uses and watch a single, trustworthy dashboard build itself: no SQL, no data team, no waiting on a Monday report.",
                     "subtitle",
                 ),
                 row(
@@ -1617,7 +1617,7 @@ export const landingPage: ArtifactContent = web(
                     fitW(t("BELLWEATHER", "h3")),
                 ),
             ),
-            { background: bgColor("#E2DFD3"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "numbers",
@@ -1640,7 +1640,7 @@ export const landingPage: ArtifactContent = web(
                         col(
                             t("Connect in minutes", "h3"),
                             t(
-                                "Forty native integrations — Stripe, Postgres, HubSpot, GA4 and the rest — go live the moment you click connect. No warehouse to stand up first, and no engineer on the hook for the pipeline.",
+                                "Forty native integrations (Stripe, Postgres, HubSpot, GA4 and the rest) go live the moment you click connect. No warehouse to stand up first, and no engineer on the hook for the pipeline.",
                                 "body",
                             ),
                             checks(
@@ -1691,11 +1691,11 @@ export const landingPage: ArtifactContent = web(
                 40,
                 img("northwind-live-metrics-screen", 1.05),
                 col(
-                    t("Live, not stale", "label"),
+                    t("Always current", "label"),
                     badge("REAL-TIME"),
                     t("Numbers that move when your business does.", "h2"),
                     t(
-                        "Northwind streams your data instead of batching it overnight, so the figure on the screen is the figure right now. Set a threshold once and we’ll ping you the instant signups dip or churn spikes — long before it shows up in a monthly review.",
+                        "Northwind streams your data instead of batching it overnight, so the figure on the screen is the figure right now. Set a threshold once and we’ll ping you the instant signups dip or churn spikes, long before it shows up in a monthly review.",
                         "body",
                     ),
                     button("See it live", "#signup", { variant: "outline" }),
@@ -1737,7 +1737,7 @@ export const landingPage: ArtifactContent = web(
                     ),
                 ),
             ),
-            { background: bgColor("#E2DFD3"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "pricing",
@@ -1815,7 +1815,7 @@ export const landingPage: ArtifactContent = web(
                         ],
                         [
                             "Do you charge for viewers?",
-                            "No. Read access is free on every plan, because a metric nobody can see is not worth collecting.",
+                            "No. Read access is free on every plan. Charging per seat only teaches a team to screenshot numbers instead of sharing them.",
                         ],
                     ],
                     true,
@@ -1844,7 +1844,7 @@ export const landingPage: ArtifactContent = web(
                     ),
                 ),
             ),
-            { background: bgColor("#16140F"), bleed: true },
+            { background: bgTone("contrast"), bleed: true },
         ),
         section(
             "footer",
@@ -1870,7 +1870,7 @@ export const landingPage: ArtifactContent = web(
                     ),
                 ),
             ),
-            { background: bgColor("#E2DFD3"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
     ],
     bgImage("northwind-bg-texture", 0.3),
@@ -1898,7 +1898,7 @@ export const eventPage: ArtifactContent = web(
                 t("Frequency 2026 · A design + technology festival", "label"),
                 t("Where design meets the machine.", "h1"),
                 t(
-                    "Three days of talks, workshops, and after-dark sessions on the new craft of building with AI — October 15–17, 2026 · Lx Factory, Lisbon.",
+                    "Three days of talks, workshops, and after-dark sessions on the new craft of building with AI. October 15–17, 2026 · Lx Factory, Lisbon.",
                     "subtitle",
                 ),
                 row(
@@ -1920,7 +1920,7 @@ export const eventPage: ArtifactContent = web(
                     t("What is Frequency", "label"),
                     t("The festival for people who make the future feel good to use.", "h2"),
                     t(
-                        "Frequency is where 3,000 designers, engineers, and founders gather to figure out what comes next — and how to build it with taste. No keynote theatre, no vendor booths shouting over each other. Just the people quietly shaping the tools everyone else will use in three years, in one beautiful old factory by the river.",
+                        "Frequency is where 3,000 designers, engineers, and founders gather to figure out what comes next, and how to build it with taste. No keynote theatre, no vendor booths shouting over each other. Just the people quietly shaping the tools everyone else will use in three years, in one beautiful old factory by the river.",
                         "body",
                     ),
                 ),
@@ -1965,7 +1965,7 @@ export const eventPage: ArtifactContent = web(
                     t("The lineup", "label"),
                     t("Sixty voices worth flying for.", "h2"),
                     t(
-                        "Heads of design from the labs defining the field, the engineers behind the tools in your dock, and the independent makers whose side projects became everyone’s daily driver. Every talk is brand-new for Frequency — no recycled conference deck in the building.",
+                        "Heads of design from the labs defining the field, the engineers behind the tools in your dock, and the independent makers whose side projects became everyone’s daily driver. Every talk is brand-new for Frequency. No recycled conference deck in the building.",
                         "body",
                     ),
                     button("See all speakers", "#speakers", { variant: "outline" }),
@@ -2040,7 +2040,7 @@ export const eventPage: ArtifactContent = web(
                     "Day,Morning,Afternoon,Night\nThu · Foundations,Keynote + craft talks,Hands-on workshops,Opening party on the terrace\nFri · Frontiers,Agent UX deep dives,Research showcase,Live demo night\nSat · Futures,Design fireside chats,Build-your-own labs,Closing set + dinner",
                 ),
             ),
-            { background: bgColor("#0A0A0C"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "flow",
@@ -2048,7 +2048,7 @@ export const eventPage: ArtifactContent = web(
                 t("How a day flows", "label"),
                 t("Arrive curious, leave building.", "h2"),
                 t(
-                    "Every day moves the same way — a big idea in the morning, your hands on the keyboard by lunch, and something real to show by the time the lights come down.",
+                    "Every day moves the same way: a big idea in the morning, your hands on the keyboard by lunch, and something real to show by the time the lights come down.",
                     "body",
                 ),
                 diagram("process", "Big talk, Hands-on lab, Build, Demo + connect", 240),
@@ -2073,7 +2073,7 @@ export const eventPage: ArtifactContent = web(
                     "https://i.pravatar.cc/240?img=32",
                 ),
                 testimonial(
-                    "It’s the rare event where the hallway is better than the stage — and the stage was incredible.",
+                    "It’s the rare event where the hallway is better than the stage, and the stage was incredible.",
                     "Tom Becker",
                     "Founder, Haloway",
                     "https://i.pravatar.cc/240?img=12",
@@ -2150,7 +2150,7 @@ export const eventPage: ArtifactContent = web(
                 ),
                 t("Sponsorship packs for 2027 open in January.", "caption", "center"),
             ),
-            { background: bgColor("#0A0A0C"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "venue",
@@ -2160,7 +2160,7 @@ export const eventPage: ArtifactContent = web(
                     t("The venue", "label"),
                     t("A printworks turned playground.", "h2"),
                     t(
-                        "Lx Factory is a reclaimed industrial block in Alcântara — exposed brick, river light, and a courtyard built for the conversations that happen between sessions. Lisbon airport is twenty minutes away, and partner hotels are a short tram ride down the hill.",
+                        "Lx Factory is a reclaimed industrial block in Alcântara: exposed brick, river light, and a courtyard built for the conversations that happen between sessions. Lisbon airport is twenty minutes away, and partner hotels are a short tram ride down the hill.",
                         "body",
                     ),
                     button("Hotels and travel", "https://frequency.fest/travel", {
@@ -2209,7 +2209,7 @@ export const eventPage: ArtifactContent = web(
                 t("Three days that change how you build", "label", "center"),
                 t("Lisbon, October 2026. Save your seat.", "h2", "center"),
                 t(
-                    "Early-bird pricing ends August 1, and Maker Passes sold out in nine days last year. Don’t watch the recap — be in the room.",
+                    "Early-bird pricing ends August 1, and Maker Passes sold out in nine days last year. Don’t watch the recap. Be in the room.",
                     "subtitle",
                     "center",
                 ),
@@ -2237,7 +2237,7 @@ export const waitlistPage: ArtifactContent = web(
                 t("Coming this fall", "label"),
                 t("Vanta", "h1"),
                 t(
-                    "The workspace that disappears. One thing at a time, in perfect quiet — built to hold your attention instead of stealing it. We’re opening the first invites soon.",
+                    "The workspace that disappears. One thing at a time, in perfect quiet, built to hold your attention instead of stealing it. We’re opening the first invites soon.",
                     "subtitle",
                 ),
                 button("Join the waitlist", "#join"),
@@ -2255,7 +2255,7 @@ export const waitlistPage: ArtifactContent = web(
                     t("The idea", "label"),
                     t("Your tools should get out of the way.", "h2"),
                     t(
-                        "Every app you own is fighting for your attention — notifications, tabs, the endless pull to check one more thing. Vanta does the opposite. It shows you the single piece of work in front of you and hides everything else until you’re done. No feeds, no badges, no noise. Just the quiet you forgot work could feel like.",
+                        "Every app you own is fighting for your attention: notifications, tabs, the endless pull to check one more thing. Vanta does the opposite. It shows you the single piece of work in front of you and hides everything else until you’re done. No feeds, no badges, no noise. Just the quiet you forgot work could feel like.",
                         "body",
                     ),
                 ),
@@ -2285,7 +2285,7 @@ export const waitlistPage: ArtifactContent = web(
                     img("vanta-feature-on-device", 1),
                     t("Private by design", "h3"),
                     t(
-                        "Everything runs on your device. Your notes, your work, your patterns — none of it leaves the machine.",
+                        "Everything runs on your device. Your notes, your work, your patterns. None of it leaves the machine.",
                         "caption",
                     ),
                 ),
@@ -2293,7 +2293,7 @@ export const waitlistPage: ArtifactContent = web(
                     img("vanta-feature-quiet-ai", 1),
                     t("A quiet assistant", "h3"),
                     t(
-                        "An AI that drafts, summarizes, and clears the busywork — then steps back without asking for a thing.",
+                        "An AI that drafts, summarizes, and clears the busywork, then steps back without asking for a thing.",
                         "caption",
                     ),
                 ),
@@ -2309,7 +2309,7 @@ export const waitlistPage: ArtifactContent = web(
                     badge("ON-DEVICE"),
                     t("It learns your rhythm, not your data.", "h2"),
                     t(
-                        "Vanta notices when you do your best work and protects it — softening the world during your focus hours, surfacing the right task at the right moment, and leaving you completely alone when you’re in flow. All of it happens locally, on hardware you own.",
+                        "Vanta notices when you do your best work and protects it: softening the world during your focus hours, surfacing the right task at the right moment, and leaving you completely alone when you’re in flow. All of it happens locally, on hardware you own.",
                         "body",
                     ),
                 ),
@@ -2323,7 +2323,7 @@ export const waitlistPage: ArtifactContent = web(
                 stat("74", "countries waiting"),
                 stat("Invite-only", "at launch this fall"),
             ),
-            { background: bgColor("#0D0D0D"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "plan",
@@ -2341,7 +2341,7 @@ export const waitlistPage: ArtifactContent = web(
                 40,
                 img("vanta-founders-studio-portrait", 1.05),
                 testimonial(
-                    "We built Vanta because we were tired of software that treats your attention as inventory to sell. This is the tool we wanted for ourselves — and the first thing in years that made our own work feel quiet again.",
+                    "We built Vanta because we were tired of software that treats your attention as inventory to sell. This is the tool we wanted for ourselves, and the first thing in years that made our own work feel quiet again.",
                     "Eli Brandt & Nora Vance",
                     "Co-founders",
                     "https://i.pravatar.cc/240?img=26",
@@ -2383,7 +2383,7 @@ export const waitlistPage: ArtifactContent = web(
                 t("Be first through the door", "label", "center"),
                 t("The quiet is almost ready.", "h2", "center"),
                 t(
-                    "Join 31,000 people waiting for a calmer way to work. We’ll only email you twice before launch — once with your invite, once to say it’s live.",
+                    "Join 31,000 people waiting for a calmer way to work. We’ll only email you twice before launch: once with your invite, once to say it’s live.",
                     "subtitle",
                     "center",
                 ),
@@ -2431,7 +2431,7 @@ export const agencySite: ArtifactContent = web(
                 badge("EST. 2015 · LISBON & NEW YORK"),
                 t("We design brands that know how to behave.", "h1"),
                 t(
-                    "A small studio for ambitious companies. We build identities, products, and the systems that hold them together — so the work still looks like itself on the fortieth screen, not just the first.",
+                    "A small studio for ambitious companies. We build identities, products, and the systems that hold them together, so the work still looks like itself on the fortieth screen, not just the first.",
                     "subtitle",
                 ),
                 row(
@@ -2470,7 +2470,7 @@ export const agencySite: ArtifactContent = web(
                     ),
                 ),
             ),
-            { background: bgColor("#0A0A0A"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "work-intro",
@@ -2478,7 +2478,7 @@ export const agencySite: ArtifactContent = web(
                 t("Selected work", "label"),
                 t("A few things we’re proud of.", "h2"),
                 t(
-                    "Eleven years, a hundred-odd launches, and a stubborn belief that the details are the work. A small selection below — the rest lives in the deck we’ll send once we’ve talked.",
+                    "Eleven years, a hundred-odd launches, and a stubborn belief that the details are the work. A small selection is below. The rest lives in the deck we’ll send once we’ve talked.",
                     "body",
                 ),
             ),
@@ -2536,7 +2536,7 @@ export const agencySite: ArtifactContent = web(
                 callout(
                     "note",
                     t(
-                        "Most projects run 8–14 weeks. We take on six clients a year, on purpose — so yours is never the one we’re squeezing in.",
+                        "Most projects run 8–14 weeks. We take on six clients a year, on purpose, so yours is never the one we’re squeezing in.",
                         "body",
                     ),
                 ),
@@ -2569,7 +2569,7 @@ export const agencySite: ArtifactContent = web(
                     "center",
                 ),
             ),
-            { background: bgColor("#0A0A0A"), bleed: true },
+            { background: bgTone("tint"), bleed: true },
         ),
         section(
             "numbers",
@@ -2583,7 +2583,7 @@ export const agencySite: ArtifactContent = web(
         section(
             "quote",
             testimonial(
-                "Counterform didn’t hand us a logo and leave. They gave us a way of making decisions — a year on, we still design like they’re in the room.",
+                "Counterform didn’t hand us a logo and leave. They gave us a way of making decisions. A year on, we still design like they’re in the room.",
                 "Dana Okoro",
                 "VP Brand, Meridian",
                 "https://i.pravatar.cc/240?img=41",
@@ -2694,11 +2694,11 @@ export const newsletter: ArtifactContent = doc(
                 t("From the editor", "label"),
                 t("Good morning from the square.", "h2"),
                 t(
-                    "This issue nearly missed its deadline, because the street outside my window has been closed to cars for three weeks and I keep going down to sit in it. That’s the whole newsletter, really — the strange, immediate joy of a place suddenly built for people instead of through-traffic.",
+                    "This issue nearly missed its deadline, because the street outside my window has been closed to cars for three weeks and I keep going down to sit in it. That’s the whole newsletter, really: the strange, immediate joy of a place suddenly built for people instead of through-traffic.",
                     "subtitle",
                 ),
                 t(
-                    "So this fortnight: a street that closed for the summer, a bench worth the detour, the economics of a well-lit evening, and a postcard from Ghent. As always, hit reply — the best half of this letter is the part you write back.",
+                    "So this fortnight: a street that closed for the summer, a bench worth the detour, the economics of a well-lit evening, and a postcard from Ghent. As always, hit reply. The best half of this letter is the part you write back.",
                     "body",
                 ),
             ),
@@ -2711,11 +2711,11 @@ export const newsletter: ArtifactContent = doc(
                     t("The lead", "label"),
                     t("The street that closed for the summer.", "h2"),
                     t(
-                        "In May the city did something quietly radical: it closed Rua das Flores to cars, put down forty planters and a few hundred chairs, and waited to see what would happen. What happened is that the street filled up — not with programming or events, just people doing the ordinary things people do when there’s finally room for them. Children drew on the cobbles. The café tripled its tables. An old man brought a folding chair and a newspaper and held court by the fountain every morning at nine.",
+                        "In May the city did something quietly radical: it closed Rua das Flores to cars, put down forty planters and a few hundred chairs, and waited to see what would happen. What happened is that the street filled up, not with programming or events, just people doing the ordinary things people do when there’s finally room for them. Children drew on the cobbles. The café tripled its tables. An old man brought a folding chair and a newspaper and held court by the fountain every morning at nine.",
                         "body",
                     ),
                     t(
-                        "The merchants, who fought it, now want it made permanent. Foot traffic is up, the bakery sold out by noon three Saturdays running, and the hardware store — the one everyone was sure would suffer — reports its best quarter in a decade. It turns out a street you want to linger on is a street you also want to shop on.",
+                        "The merchants, who fought it, now want it made permanent. Foot traffic is up, the bakery sold out by noon three Saturdays running, and the hardware store (the one everyone was sure would suffer) reports its best quarter in a decade. It turns out a street you want to linger on is a street you also want to shop on.",
                         "body",
                     ),
                 ),
@@ -2735,14 +2735,14 @@ export const newsletter: ArtifactContent = doc(
                 group(
                     img("commonground-public-bench-waterfront", 1.05, 6),
                     t(
-                        "The new benches on the waterfront — backs, armrests, and shade, which is more than most cities manage.",
+                        "The new benches on the waterfront: backs, armrests, and shade, which is more than most cities manage.",
                         "caption",
                     ),
                 ),
                 group(
                     t("A bench worth sitting on.", "h3"),
                     t(
-                        "It sounds like nothing, but most public benches are designed to be looked at, not used — backless, armrest-less, deliberately uncomfortable so no one stays too long. The new ones along the harbour do the radical thing of being comfortable: a real back to lean on, armrests to push up from, and a tree planted to throw shade by August. The test of a city isn’t its monuments. It’s whether an eighty-year-old can find somewhere to rest between the bus and the front door.",
+                        "It sounds like nothing, but most public benches are designed to be looked at, not used. They are backless, armrest-less, deliberately uncomfortable so no one stays too long. The new ones along the harbour do the radical thing of being comfortable: a real back to lean on, armrests to push up from, and a tree planted to throw shade by August. The test of a city isn’t its monuments. It’s whether an eighty-year-old can find somewhere to rest between the bus and the front door.",
                         "body",
                     ),
                 ),
@@ -2753,7 +2753,7 @@ export const newsletter: ArtifactContent = doc(
             group(
                 t("The 8 p.m. economy.", "h3"),
                 t(
-                    "A surprising line in this month’s council report: streets with warm, human-scale lighting see thirty percent more evening foot traffic than those lit by the usual orange floodlights — and, counter-intuitively, less crime. Light that makes a place feel watched-over rather than interrogated turns out to be the cheapest urban safety measure we have. The city is swapping two thousand fixtures this autumn. Watch the corners that used to empty at dusk.",
+                    "A surprising line in this month’s council report: streets with warm, human-scale lighting see thirty percent more evening foot traffic than those lit by the usual orange floodlights. Counter-intuitively, they also see less crime. Light that makes a place feel watched-over rather than interrogated turns out to be the cheapest urban safety measure we have. The city is swapping two thousand fixtures this autumn. Watch the corners that used to empty at dusk.",
                     "body",
                 ),
             ),
@@ -2765,7 +2765,7 @@ export const newsletter: ArtifactContent = doc(
                 group(
                     t("Field notes from Ghent.", "h3"),
                     t(
-                        "I spent last weekend in Ghent, which famously banned through-traffic from its medieval centre back in 2017 and has spent the years since being smug about it — deservedly. What strikes you isn’t the absence of cars; it’s the presence of everything else. Deliveries happen by cargo bike before ten. Children ride to school alone. The air, measurably, is cleaner. It isn’t a museum either — it’s loud and ordinary and full of teenagers. The lesson Ghent keeps trying to teach the rest of us: you don’t lose a city by slowing it down. You finally get to keep it.",
+                        "I spent last weekend in Ghent, which famously banned through-traffic from its medieval centre back in 2017 and has spent the years since being smug about it, deservedly. What strikes you isn’t the absence of cars; it’s the presence of everything else. Deliveries happen by cargo bike before ten. Children ride to school alone. The air, measurably, is cleaner. It is not a museum, either. The centre is loud and ordinary and full of teenagers. The lesson Ghent keeps trying to teach the rest of us: you don’t lose a city by slowing it down. You finally get to keep it.",
                         "body",
                     ),
                 ),
@@ -2788,7 +2788,7 @@ export const newsletter: ArtifactContent = doc(
                 t("From the mailbag", "label"),
                 t("“Doesn’t pedestrianizing just push the traffic somewhere else?”", "h3"),
                 t(
-                    "It’s the first question every time, and the honest answer is: less than you’d think. The phenomenon is called traffic evaporation — when you remove road capacity, a measurable share of trips simply stop happening. People combine errands, walk the short ones, or shift the discretionary ones off the peak. Study after study finds that roughly a fifth of the displaced traffic just disappears. Cars, it turns out, are not water. They don’t have to go somewhere.",
+                    "It’s the first question every time, and the honest answer is: less than you’d think. The phenomenon is called traffic evaporation. When you remove road capacity, a measurable share of trips simply stop happening. People combine errands, walk the short ones, or shift the discretionary ones off the peak. Study after study finds that roughly a fifth of the displaced traffic just disappears. Cars, it turns out, are not water. They don’t have to go somewhere.",
                     "body",
                 ),
             ),
@@ -2807,7 +2807,7 @@ export const newsletter: ArtifactContent = doc(
                 t("Worth your time", "label"),
                 t("Five things I saved this fortnight.", "h2"),
                 bullets(
-                    "“The Death and Life of Great American Streets” — a long, generous reappraisal of Jane Jacobs at sixty.",
+                    "“The Death and Life of Great American Streets”, a long, generous reappraisal of Jane Jacobs at sixty.",
                     "A photo essay on Tokyo’s pocket parks, the smallest of which is the size of a single parking space.",
                     "The council’s own before-and-after data on Rua das Flores (a PDF, but worth the download).",
                     "A short film on Pontevedra, the Spanish town that banned cars and forgot what a traffic jam feels like.",
@@ -2820,7 +2820,7 @@ export const newsletter: ArtifactContent = doc(
             group(
                 divider(),
                 t(
-                    "That’s the fortnight. I’ll be in the square if you need me — third chair from the fountain, the one with the newspaper. See you in two weeks. — Lena",
+                    "That’s the fortnight. I’ll be in the square if you need me, third chair from the fountain, the one with the newspaper. Until the next one, Lena.",
                     "subtitle",
                 ),
             ),
@@ -2830,7 +2830,7 @@ export const newsletter: ArtifactContent = doc(
             group(
                 divider(),
                 t(
-                    "Common Ground is written every other Saturday by Lena Hartmann, a writer and former city planner in Lisbon. Forwarded this? Subscribe at commonground.letter. Reply to anything — it all reaches me.",
+                    "Common Ground is written every other Saturday by Lena Hartmann, a writer and former city planner in Lisbon. Forwarded this? Subscribe at commonground.letter. Reply to anything. It all reaches me.",
                     "caption",
                 ),
             ),
@@ -2850,7 +2850,7 @@ export const startupPitch: ArtifactContent = deck(
                 t("MISE · SEED ROUND 2026", "label"),
                 t("Run the kitchen, not the spreadsheet.", "h1"),
                 t(
-                    "Mise turns every restaurant's POS, invoices, and suppliers into one live system — forecasting prep, automating orders, and clawing back the margin that waste quietly eats.",
+                    "Mise turns every restaurant's POS, invoices, and suppliers into one live system: forecasting prep, automating orders, and clawing back the margin that waste quietly eats.",
                     "subtitle",
                 ),
                 badge("$4M SEED · LED BY ANDISON CAPITAL"),
@@ -2862,7 +2862,7 @@ export const startupPitch: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("01 — The problem", "label"),
+                    t("01 · The problem", "label"),
                     t("Restaurants run on 4% margins and 1990s tooling.", "h2"),
                     t(
                         "The average independent restaurant throws away 8% of everything it buys, orders by gut feel at 11pm, and learns it lost money a month too late. The back of house is the last part of the business still run on clipboards and group texts.",
@@ -2875,8 +2875,8 @@ export const startupPitch: ArtifactContent = deck(
         section(
             "s3",
             quote(
-                "Front of house got Toast, Square, and Resy. The kitchen — where the money is actually made or lost — got nothing.",
-                "— the Mise thesis",
+                "Front of house got Toast, Square, and Resy. The kitchen, where the money is actually made or lost, got nothing.",
+                "The Mise thesis",
             ),
             { background: bgImage("mise-chef-pass", 0.6) },
         ),
@@ -2886,10 +2886,10 @@ export const startupPitch: ArtifactContent = deck(
                 40,
                 img("mise-supplier-truck", 1.1),
                 group(
-                    t("02 — Why now", "label"),
+                    t("02 · Why now", "label"),
                     t("The kitchen's data finally left the building.", "h2"),
                     bullets(
-                        "Cloud POS (Toast, Square) now expose item-level sales over API — the demand signal didn't exist five years ago",
+                        "Cloud POS (Toast, Square) now expose item-level sales over API: the demand signal didn't exist five years ago",
                         "Distributors like US Foods and Sysco shipped ordering APIs in 2024",
                         "Forecasting that used to need a data team now runs as one model per location",
                     ),
@@ -2902,12 +2902,12 @@ export const startupPitch: ArtifactContent = deck(
                 40,
                 img("mise-app-prep-list", 1.1),
                 group(
-                    t("03 — The product", "label"),
+                    t("03 · The product", "label"),
                     t("One screen the whole line actually opens.", "h2"),
                     bullets(
                         "Prep lists that predict tomorrow from last year, the weather, and tonight's reservations",
                         "Orders that draft themselves to par and send with one tap",
-                        "Live food cost — by dish, by station, by shift",
+                        "Live food cost: by dish, by station, by shift",
                     ),
                 ),
             ),
@@ -2923,7 +2923,7 @@ export const startupPitch: ArtifactContent = deck(
         section(
             "s7",
             group(
-                t("04 — How it works", "label"),
+                t("04 · How it works", "label"),
                 t("Connect once. It runs every morning.", "h2"),
                 diagram(
                     "process",
@@ -2937,7 +2937,7 @@ export const startupPitch: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("05 — Traction", "label"),
+                    t("05 · Traction", "label"),
                     t("Kitchens that don't want to give it back.", "h2"),
                     t(
                         "Live in 38 kitchens across 6 restaurant groups, with $2.1M in food orders run through Mise this quarter. Pilots cut food cost by an average of 310 basis points within 60 days.",
@@ -2946,7 +2946,7 @@ export const startupPitch: ArtifactContent = deck(
                     callout(
                         "success",
                         t(
-                            "112% net revenue retention — groups add locations faster than we can onboard them.",
+                            "112% net revenue retention: groups add locations faster than we can onboard them.",
                             "body",
                         ),
                     ),
@@ -2965,7 +2965,7 @@ export const startupPitch: ArtifactContent = deck(
         section(
             "s10",
             group(
-                t("06 — Business model", "label"),
+                t("06 · Business model", "label"),
                 t("Per-location SaaS, priced under the waste it kills.", "h2"),
                 table(
                     "Plan,Per location / mo,Built for\nLine,$249,Single independents\nKitchen,$399,Full-service & multi-station\nGroup,$329,Multi-unit groups (5+)\nEnterprise,Custom,Chains & franchisors",
@@ -2977,12 +2977,12 @@ export const startupPitch: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("07 — Why we win", "label"),
-                    t("Spreadsheets, distributor portals, and point tools.", "h2"),
+                    t("07 · Why we win", "label"),
+                    t("What we are up against, and why it loses.", "h2"),
                     bullets(
                         "Distributor portals (Sysco, US Foods) want you to buy more, not waste less",
                         "Inventory apps count what's already gone; Mise predicts what's next",
-                        "We're POS-agnostic — the data layer for the kitchen, not another silo",
+                        "We're POS-agnostic: the data layer for the kitchen, not another silo",
                     ),
                 ),
                 img("mise-competition-grid", 0.86),
@@ -3014,7 +3014,7 @@ export const startupPitch: ArtifactContent = deck(
                 40,
                 emptyRegion(),
                 group(
-                    t("08 — The ask", "label"),
+                    t("08 · The ask", "label"),
                     t("Raising $4M to put Mise in 1,000 kitchens.", "h2"),
                     t(
                         "Use of funds: supplier API coverage (40%), the forecasting & food-cost engine (35%), and a culinary-led go-to-market across the top 20 U.S. metros (25%). 24 months of runway to $4M ARR.",
@@ -3038,7 +3038,7 @@ export const salesDeck: ArtifactContent = deck(
                 t("FLEETWISE · FOR OPERATIONS & MAINTENANCE LEADERS", "label"),
                 t("Your trucks make money moving, not in the shop.", "h1"),
                 t(
-                    "Fleetwise reads the telematics you already pay for and turns it into maintenance you do before the breakdown — cutting unplanned downtime, roadside failures, and the overtime that follows.",
+                    "Fleetwise reads the telematics you already pay for and turns it into maintenance you do before the breakdown, cutting unplanned downtime, roadside failures, and the overtime that follows.",
                     "subtitle",
                 ),
                 badge("TRUSTED BY 140+ FLEETS"),
@@ -3053,7 +3053,7 @@ export const salesDeck: ArtifactContent = deck(
                     t("The problem", "label"),
                     t("Every breakdown is a fire you find out about by phone.", "h2"),
                     t(
-                        "Maintenance is still scheduled by odometer and gut. A water pump telematics flagged three weeks ago strands a driver on I-80 at 2am — now it's a tow, a missed delivery, a hotel, and a tech on overtime. The signal to prevent it was already in the truck.",
+                        "Maintenance is still scheduled by odometer and gut. A water pump telematics flagged three weeks ago strands a driver on I-80 at 2am. Now it's a tow, a missed delivery, a hotel, and a tech on overtime. The signal to prevent it was already in the truck.",
                         "body",
                     ),
                 ),
@@ -3079,7 +3079,7 @@ export const salesDeck: ArtifactContent = deck(
                     bullets(
                         "Predicts component failures 2–6 weeks out from the telematics you already run",
                         "Auto-builds the work order with parts, labor, and the best open bay window",
-                        "One health score per truck — green, watch, or ground it",
+                        "One health score per truck: green, watch, or ground it",
                     ),
                 ),
             ),
@@ -3104,12 +3104,12 @@ export const salesDeck: ArtifactContent = deck(
                     t("Case study · Meridian Freight", "label"),
                     t("A 320-truck carrier got its shop ahead of the road.", "h2"),
                     t(
-                        "Meridian ran 18% unplanned downtime and a purely reactive shop. Twelve months on Fleetwise, planned maintenance went from 41% to 78% of all work — and roadside failures fell by more than half.",
+                        "Meridian ran 18% unplanned downtime and a purely reactive shop. Twelve months on Fleetwise, planned maintenance went from 41% to 78% of all work, and roadside failures fell by more than half.",
                         "body",
                     ),
                     callout(
                         "success",
-                        t("$1.9M saved in year one — 11× their Fleetwise spend.", "body"),
+                        t("$1.9M saved in year one, 11× their Fleetwise spend.", "body"),
                     ),
                 ),
                 chart("line", "18, 16, 14, 11, 9, 8, 8", 240),
@@ -3127,7 +3127,7 @@ export const salesDeck: ArtifactContent = deck(
             "f8",
             quote(
                 "We used to staff for breakdowns. Now we staff for the schedule Fleetwise hands us the night before.",
-                "— Carla Mendez, VP Maintenance, Meridian Freight",
+                "Carla Mendez, VP Maintenance, Meridian Freight",
             ),
             { background: bgImage("fleetwise-shop-bay", 0.6) },
         ),
@@ -3149,7 +3149,7 @@ export const salesDeck: ArtifactContent = deck(
                     t("Why now", "label"),
                     t("Margins are thin and parts lead times aren't shrinking.", "h2"),
                     t(
-                        "Freight rates are soft, labor is tight, and a backordered part can ground a truck for a week. The fleets pulling ahead stopped reacting — predictive maintenance is now table stakes, and your telematics already carries the signal.",
+                        "Freight rates are soft, labor is tight, and a backordered part can ground a truck for a week. The fleets pulling ahead stopped reacting. Predictive maintenance is now table stakes, and your telematics already carries the signal.",
                         "body",
                     ),
                 ),
@@ -3165,7 +3165,7 @@ export const salesDeck: ArtifactContent = deck(
                     t("Next steps", "label"),
                     t("See your own fleet's risk in 30 minutes.", "h2"),
                     t(
-                        "Send us read-only telematics access and we'll bring a free risk assessment of your top 25 vehicles to the next call — no install, no commitment.",
+                        "Send us read-only telematics access and we'll bring a free risk assessment of your top 25 vehicles to the next call: no install, no commitment.",
                         "body",
                     ),
                     button("Book your fleet assessment"),
@@ -3186,7 +3186,7 @@ export const seriesA: ArtifactContent = deck(
                 t("SWITCHBOARD · SERIES A · 2026", "label"),
                 t("Never miss the call that pays the bills.", "h1"),
                 t(
-                    "Switchboard is the AI front desk for home-services businesses — answering every call and text in seconds, booking the job, and keeping the schedule full, around the clock.",
+                    "Switchboard is the AI front desk for home-services businesses, answering every call and text in seconds, booking the job, and keeping the schedule full, around the clock.",
                     "subtitle",
                 ),
                 badge("$18M SERIES A · LED BY MERIDIAN VENTURES"),
@@ -3198,10 +3198,10 @@ export const seriesA: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("01 — Why now", "label"),
+                    t("01 · Why now", "label"),
                     t("Voice AI finally crossed the line a caller can't hear.", "h2"),
                     t(
-                        "The trades still run on the phone — and owners on a roof or under a sink miss roughly one call in four. Until 2024, an AI that answered was obviously a robot. Today Switchboard books the job, and the customer never knows they weren't talking to the front desk.",
+                        "The trades still run on the phone, and owners on a roof or under a sink miss roughly one call in four. Until 2024, an AI that answered was obviously a robot. Today Switchboard books the job, and the customer never knows they weren't talking to the front desk.",
                         "body",
                     ),
                 ),
@@ -3212,7 +3212,7 @@ export const seriesA: ArtifactContent = deck(
             "a3",
             quote(
                 "Every missed call is a job that went to the next plumber on Google. We just pick up.",
-                "— the Switchboard thesis",
+                "The Switchboard thesis",
             ),
             { background: bgImage("switchboard-night-shift", 0.6) },
         ),
@@ -3229,16 +3229,16 @@ export const seriesA: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("02 — What we've proven", "label"),
+                    t("02 · What we've proven", "label"),
                     t("Revenue that compounds with every booked job.", "h2"),
                     t(
-                        "Live across 2,400 contractors in 38 states, Switchboard answered 1.9 million calls last quarter and turned a third of them into booked work. Owners don't churn — they add their second location and switch on texting and scheduling on their own.",
+                        "Live across 2,400 contractors in 38 states, Switchboard answered 1.9 million calls last quarter and turned a third of them into booked work. Owners don't churn. They add their second location and switch on texting and scheduling on their own.",
                         "body",
                     ),
                     callout(
                         "success",
                         t(
-                            "132% net revenue retention — accounts grow faster than we can sell to them.",
+                            "132% net revenue retention: accounts grow faster than we can sell to them.",
                             "body",
                         ),
                     ),
@@ -3252,11 +3252,11 @@ export const seriesA: ArtifactContent = deck(
                 40,
                 img("switchboard-dashboard", 1.1),
                 group(
-                    t("03 — The product", "label"),
+                    t("03 · The product", "label"),
                     t("One front desk that never sleeps.", "h2"),
                     bullets(
                         "Answers every call and text in under two seconds, in English or Spanish",
-                        "Books the job straight into the calendar — with address, photos, and the right crew",
+                        "Books the job straight into the calendar, with address, photos, and the right crew",
                         "Texts the customer a confirmation, a reminder, and a review request",
                         "Hands off to a human the moment it should, with the full call summary",
                     ),
@@ -3268,10 +3268,10 @@ export const seriesA: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("04 — The wedge", "label"),
+                    t("04 · The wedge", "label"),
                     t("We land on the call they're already losing.", "h2"),
                     t(
-                        "Switchboard starts with after-hours and overflow calls — the clearest ROI in the business and nothing to rip out. Once an owner sees jobs booked while they slept, we expand into texting, scheduling, follow-ups, and payments, until we're the whole front office.",
+                        "Switchboard starts with after-hours and overflow calls: the clearest ROI in the business and nothing to rip out. Once an owner sees jobs booked while they slept, we expand into texting, scheduling, follow-ups, and payments, until we're the whole front office.",
                         "body",
                     ),
                 ),
@@ -3281,7 +3281,7 @@ export const seriesA: ArtifactContent = deck(
         section(
             "a8",
             group(
-                t("05 — Go-to-market", "label"),
+                t("05 · Go-to-market", "label"),
                 t("A self-serve funnel with a field-sales motor.", "h2"),
                 diagram(
                     "process",
@@ -3293,8 +3293,8 @@ export const seriesA: ArtifactContent = deck(
         section(
             "a9",
             group(
-                t("06 — Unit economics", "label"),
-                t("Payback under three months — and still improving.", "h2"),
+                t("06 · Unit economics", "label"),
+                t("Payback under three months, and still improving.", "h2"),
                 table(
                     "Metric,Today,Series B target\nAverage revenue / account,$236 / mo,$340 / mo\nGross margin,79%,84%\nCAC payback,2.8 months,2.0 months\nNet revenue retention,132%,140%\nAnnual logo churn,9%,6%",
                 ),
@@ -3324,7 +3324,7 @@ export const seriesA: ArtifactContent = deck(
             "a11",
             row(
                 group(
-                    t("07 — The raise", "label"),
+                    t("07 · The raise", "label"),
                     t("Raising $18M to reach 10,000 businesses.", "h2"),
                     t(
                         "Use of funds: deepen the voice and scheduling product (40%), build a category-leading field and partner sales motion (35%), and expand into the next five trades (25%). 24 months of runway to $25M ARR.",
@@ -3335,10 +3335,10 @@ export const seriesA: ArtifactContent = deck(
                 group(
                     t("Milestones", "label"),
                     bullets(
-                        "Q3 — Spanish-first voice and SMS go GA",
-                        "Q4 — 5,000 businesses, $12M ARR",
-                        "Q2 '27 — Payments & invoicing live",
-                        "Q4 '27 — 10,000 businesses, $25M ARR",
+                        "Q3 · Spanish-first voice and SMS go GA",
+                        "Q4 · 5,000 businesses, $12M ARR",
+                        "Q2 '27 · Payments & invoicing live",
+                        "Q4 '27 · 10,000 businesses, $25M ARR",
                     ),
                 ),
             ),
@@ -3346,10 +3346,10 @@ export const seriesA: ArtifactContent = deck(
         section(
             "a12",
             group(
-                t("08 — Vision", "label"),
+                t("08 · Vision", "label"),
                 t("The operating system for the businesses that show up at your door.", "h1"),
                 t(
-                    "Eight million tradespeople run the physical economy off a phone and a paper calendar. Switchboard starts by answering the call — and ends up running the whole business behind it.",
+                    "Eight million tradespeople run the physical economy off a phone and a paper calendar. Switchboard starts by answering the call, and ends up running the whole business behind it.",
                     "subtitle",
                 ),
             ),
@@ -3368,7 +3368,7 @@ export const productDemo: ArtifactContent = deck(
                 t("SIFT · PRODUCT TOUR", "label"),
                 t("Turn every customer signal into your next release.", "h1"),
                 t(
-                    "Sift pulls feedback from support tickets, sales calls, reviews, and surveys into one place — then tells your product team what to build next, and exactly who asked for it.",
+                    "Sift pulls feedback from support tickets, sales calls, reviews, and surveys into one place, then tells your product team what to build next, and exactly who asked for it.",
                     "subtitle",
                 ),
                 badge("A FIVE-MINUTE TOUR"),
@@ -3382,7 +3382,7 @@ export const productDemo: ArtifactContent = deck(
                     t("Who it's for", "label"),
                     t("Built for the people who own the roadmap.", "h2"),
                     t(
-                        "Product managers, support leaders, and founders at growing B2B software companies — anyone who has to decide what's worth building when every customer is asking for something different.",
+                        "Product managers, support leaders, and founders at growing B2B software companies: anyone who has to decide what's worth building when every customer is asking for something different.",
                         "body",
                     ),
                 ),
@@ -3399,13 +3399,13 @@ export const productDemo: ArtifactContent = deck(
                     t("Feedback lives everywhere. Decisions live on a hunch.", "h2"),
                     bullets(
                         "Requests scattered across Zendesk, Slack, Gong, and a spreadsheet nobody updates",
-                        "The loudest customer wins — not the most important one",
+                        "The loudest customer wins, not the most important one",
                         "No way to prove what's actually driving churn or expansion",
                     ),
                     callout(
                         "warn",
                         t(
-                            "The average team burns a full day a week just collating feedback — before a single decision gets made.",
+                            "The average team burns a full day a week just collating feedback, before a single decision gets made.",
                             "body",
                         ),
                     ),
@@ -3421,7 +3421,7 @@ export const productDemo: ArtifactContent = deck(
                     t("The tour · 01", "label"),
                     t("Every signal lands in one inbox.", "h2"),
                     bullets(
-                        "Connect your tools once — Sift streams in tickets, calls, reviews, and survey replies automatically",
+                        "Connect your tools once: Sift streams in tickets, calls, reviews, and survey replies automatically",
                         "Each item carries the account, plan, and revenue it came from",
                         "Nothing to forward, tag, or copy-paste ever again",
                     ),
@@ -3438,7 +3438,7 @@ export const productDemo: ArtifactContent = deck(
                     bullets(
                         "Every piece of feedback is summarized, sentiment-scored, and sorted into themes automatically",
                         "Duplicate requests merge into one, with a running count and the revenue behind them",
-                        'Ask in plain English — "what are enterprise accounts frustrated by?" — and get the answer with receipts',
+                        'Ask in plain English ("what are enterprise accounts frustrated by?") and get the answer with receipts',
                     ),
                 ),
                 img("sift-ai-themes", 0.82),
@@ -3454,7 +3454,7 @@ export const productDemo: ArtifactContent = deck(
                     t("Watch the themes that matter move week over week.", "h2"),
                     bullets(
                         "Top themes ranked by reach, revenue at risk, and momentum",
-                        "Filter to any segment — plan, region, ARR band, or lifecycle stage",
+                        "Filter to any segment: plan, region, ARR band, or lifecycle stage",
                         "Spot a spike the day it starts, not in next quarter's QBR",
                     ),
                 ),
@@ -3488,7 +3488,7 @@ export const productDemo: ArtifactContent = deck(
             "p9",
             quote(
                 "We stopped arguing about the roadmap in meetings. Now we just open Sift and the answer's already there.",
-                "— Priya Nair, VP Product, Northwind Software",
+                "Priya Nair, VP Product, Northwind Software",
             ),
             { background: bgImage("sift-customer-office", 0.6) },
         ),
@@ -3519,7 +3519,7 @@ export const productDemo: ArtifactContent = deck(
                 t("Get started", "label"),
                 t("Stop guessing. Start shipping what customers actually asked for.", "h1"),
                 t(
-                    "Connect your first source in under ten minutes — free for your first 1,000 pieces of feedback, no credit card.",
+                    "Connect your first source in under ten minutes. Free for your first 1,000 pieces of feedback, no credit card.",
                     "subtitle",
                 ),
                 button("Start free"),
@@ -3539,7 +3539,7 @@ export const companyOverview: ArtifactContent = deck(
                 t("FERNWOOD & CO.", "label"),
                 t("Furniture made to outlast the trend that inspired it.", "h1"),
                 t(
-                    "We are a Portland design studio and workshop making contemporary furniture, lighting, and objects — drawn by hand, built by people, and meant to be handed down.",
+                    "We are a Portland design studio and workshop making contemporary furniture, lighting, and objects: drawn by hand, built by people, and meant to be handed down.",
                     "subtitle",
                 ),
                 badge("EST. 2012 · PORTLAND, OREGON"),
@@ -3558,7 +3558,7 @@ export const companyOverview: ArtifactContent = deck(
                         "h2",
                     ),
                     t(
-                        "From a single dining table to the seating for a 200-room hotel, every Fernwood piece is designed in-house and made to order in our Southeast Portland workshop. No middlemen, no warehouse of the same chair — just considered work, built to last.",
+                        "From a single dining table to the seating for a 200-room hotel, every Fernwood piece is designed in-house and made to order in our Southeast Portland workshop. No middlemen, no warehouse of the same chair. Just considered work, built to last.",
                         "body",
                     ),
                 ),
@@ -3575,7 +3575,7 @@ export const companyOverview: ArtifactContent = deck(
                     t("OUR STORY", "label"),
                     t("It started with one stubborn bench.", "h2"),
                     t(
-                        "In 2012, Mara and Elias Fernwood couldn't find a bench that would survive their kids, so they built one. Friends asked for theirs. A decade later, that same joinery holds up every piece we ship — now from a 12,000-square-foot workshop and a team of thirty makers.",
+                        "In 2012, Mara and Elias Fernwood couldn't find a bench that would survive their kids, so they built one. Friends asked for theirs. A decade later, that same joinery holds up every piece we ship, now from a 12,000-square-foot workshop and a team of thirty makers.",
                         "body",
                     ),
                 ),
@@ -3589,7 +3589,7 @@ export const companyOverview: ArtifactContent = deck(
                     img("fernwood-seating", 1.4),
                     t("Seating", "h3"),
                     t(
-                        "Chairs, benches, and sofas with frames that are screwed, not stapled — and reupholstered, not replaced.",
+                        "Chairs, benches, and sofas with frames that are screwed rather than stapled, and reupholstered rather than replaced.",
                         "caption",
                     ),
                 ),
@@ -3618,7 +3618,7 @@ export const companyOverview: ArtifactContent = deck(
                 t("OUR CRAFT", "label"),
                 t("Real materials, joined to last a generation.", "h2"),
                 t(
-                    "We work only in FSC-certified hardwoods, water-based finishes, and solid brass hardware — nothing veneered, nothing disposable. Each joint is cut to fit, each surface sanded through nine grits, and each piece signed by the maker who built it.",
+                    "We work only in FSC-certified hardwoods, water-based finishes, and solid brass hardware. Nothing veneered, nothing disposable. Each joint is cut to fit, each surface sanded through nine grits, and each piece signed by the maker who built it.",
                     "body",
                 ),
                 button("Tour the workshop"),
@@ -3638,10 +3638,10 @@ export const companyOverview: ArtifactContent = deck(
                         "body",
                     ),
                     bullets(
-                        "Interior designers & architects — a trade program with to-the-trade pricing",
-                        "Hospitality — hotels, restaurants, and members' clubs",
-                        "Workplace — studios and offices that have outgrown the catalog",
-                        "Private clients — heirloom commissions, made to measure",
+                        "Interior designers & architects · a trade program with to-the-trade pricing",
+                        "Hospitality · hotels, restaurants, and members' clubs",
+                        "Workplace · studios and offices that have outgrown the catalog",
+                        "Private clients · heirloom commissions, made to measure",
                     ),
                     t(
                         "Selected clients · The Hoxton · Roman and Williams · Studio McGee · Ace Hotel",
@@ -3683,7 +3683,7 @@ export const companyOverview: ArtifactContent = deck(
                     t("HOW WE WORK", "label"),
                     t("From sketch to your room in four steps.", "h2"),
                     t(
-                        "Every commission moves through the same calm process — so you always know where your piece is and who is building it.",
+                        "Every commission moves through the same calm process, so you always know where your piece is and who is building it.",
                         "body",
                     ),
                     diagram(
@@ -3726,15 +3726,15 @@ export const companyOverview: ArtifactContent = deck(
                     t("WHAT WE BELIEVE", "label"),
                     t("Make less. Make it last.", "h2"),
                     bullets(
-                        "Repairable by design — we keep the parts and plans for everything we ship",
-                        "Local first — we mill, build, and finish under one Portland roof",
-                        "Fair work — a living wage and a real bench for every maker",
-                        "Honest materials — solid wood and metal, or we don't use it",
+                        "Repairable by design · we keep the parts and plans for everything we ship",
+                        "Local first · we mill, build, and finish under one Portland roof",
+                        "Fair work · a living wage and a real bench for every maker",
+                        "Honest materials · solid wood and metal, or we don't use it",
                     ),
                     callout(
                         "success",
                         t(
-                            "Carbon-measured since 2021 — every piece ships climate-neutral, and our offcuts heat the shop.",
+                            "Carbon-measured since 2021: every piece ships climate-neutral, and our offcuts heat the shop.",
                             "body",
                         ),
                     ),
@@ -3768,7 +3768,7 @@ export const gtmPlan: ArtifactContent = deck(
                 t("TIDEPOOL · GO-TO-MARKET PLAN", "label"),
                 t("Launching the inventory brain for growing brands.", "h1"),
                 t(
-                    "Our plan to take Tidepool — demand planning and inventory for multi-channel retail — from private beta to 1,000 paying brands in twelve months.",
+                    "Our plan to take Tidepool (demand planning and inventory for multi-channel retail) from private beta to 1,000 paying brands in twelve months.",
                     "subtitle",
                 ),
                 badge("GO-TO-MARKET PLAN · H2 2026"),
@@ -3784,7 +3784,7 @@ export const gtmPlan: ArtifactContent = deck(
                     t("THE OPPORTUNITY", "label"),
                     t("Growing brands are flying blind on inventory.", "h2"),
                     t(
-                        "Once a brand sells across a website, three marketplaces, and a few wholesale accounts, spreadsheets stop working — and stockouts and overstock quietly eat the margin. The tools that solve it are built for the enterprise and priced out of reach. That gap is ours.",
+                        "Once a brand sells across a website, three marketplaces, and a few wholesale accounts, spreadsheets stop working. Stockouts and overstock quietly eat the margin. The tools that solve it are built for the enterprise and priced out of reach. That gap is ours.",
                         "body",
                     ),
                 ),
@@ -3834,7 +3834,7 @@ export const gtmPlan: ArtifactContent = deck(
                 t("POSITIONING", "label"),
                 t("The demand-planning brain built for brands, not the enterprise.", "h2"),
                 t(
-                    "For operators at growing multi-channel brands who are tired of guessing, Tidepool is the inventory platform that forecasts demand, flags stockouts before they happen, and tells you exactly what to reorder — without an ERP project or a six-figure contract.",
+                    "For operators at growing multi-channel brands who are tired of guessing, Tidepool is the inventory platform that forecasts demand, flags stockouts before they happen, and tells you exactly what to reorder, without an ERP project or a six-figure contract.",
                     "body",
                 ),
                 callout(
@@ -3943,9 +3943,9 @@ export const gtmPlan: ArtifactContent = deck(
                     t("FIRST 90 DAYS", "label"),
                     t("What we ship before launch.", "h2"),
                     bullets(
-                        "Weeks 1–4 — Finalize Free/Growth packaging and the self-serve onboarding",
-                        "Weeks 5–8 — Ship the Shopify app listing and three cornerstone guides",
-                        "Weeks 9–12 — Open beta to the waitlist and stand up the operators' community",
+                        "Weeks 1–4 · Finalize Free/Growth packaging and the self-serve onboarding",
+                        "Weeks 5–8 · Ship the Shopify app listing and three cornerstone guides",
+                        "Weeks 9–12 · Open beta to the waitlist and stand up the operators' community",
                     ),
                 ),
                 group(
@@ -3986,7 +3986,7 @@ export const projectProposal: ArtifactContent = deck(
                 t("PROPOSAL · PREPARED FOR ATLAS COFFEE ROASTERS", "label"),
                 t("A rebrand worth waking up for.", "h1"),
                 t(
-                    "Foldwork — a brand & digital studio — on relaunching Atlas as a specialty-coffee name that travels. Prepared for the Atlas leadership team, June 2026.",
+                    "Foldwork (a brand & digital studio) on relaunching Atlas as a specialty-coffee name that travels. Prepared for the Atlas leadership team, June 2026.",
                     "subtitle",
                 ),
                 badge("CONFIDENTIAL · v2"),
@@ -3998,10 +3998,10 @@ export const projectProposal: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("01 — The opportunity", "label"),
+                    t("01 · The opportunity", "label"),
                     t("Great coffee, hiding behind a tired bag.", "h2"),
                     t(
-                        "Atlas has roasted exceptional coffee since 2014 and earned a loyal following across 60 wholesale cafes. But the brand hasn’t kept up with the cup. The packaging reads local-craft-2014, the site converts below category benchmarks, and the look fractures at every touchpoint. Meanwhile specialty-coffee DTC is growing 23% a year — and the shelf has never been more crowded.",
+                        "Atlas has roasted exceptional coffee since 2014 and earned a loyal following across 60 wholesale cafes. But the brand hasn’t kept up with the cup. The packaging reads local-craft-2014, the site converts below category benchmarks, and the look fractures at every touchpoint. Meanwhile specialty-coffee DTC is growing 23% a year, and the shelf has never been more crowded.",
                         "body",
                     ),
                 ),
@@ -4011,7 +4011,7 @@ export const projectProposal: ArtifactContent = deck(
         section(
             "goals",
             group(
-                t("02 — What we heard", "label"),
+                t("02 · What we heard", "label"),
                 t("Where you want to be in twelve months.", "h2"),
                 bullets(
                     "Triple direct-to-consumer revenue within twelve months",
@@ -4026,7 +4026,7 @@ export const projectProposal: ArtifactContent = deck(
             "northstar",
             quote(
                 "We don’t want to look bigger. We want to look like the best version of ourselves.",
-                "— Dana Mercer · Founder, Atlas Coffee Roasters",
+                "Dana Mercer · Founder, Atlas Coffee Roasters",
             ),
             { background: bgImage("atlas-coffee-pour", 0.6) },
         ),
@@ -4036,10 +4036,10 @@ export const projectProposal: ArtifactContent = deck(
                 40,
                 img("atlas-roastery-craft", 1.05),
                 group(
-                    t("03 — Our approach", "label"),
+                    t("03 · Our approach", "label"),
                     t("Strategy first. Then a system, not a logo.", "h2"),
                     bullets(
-                        "Roast notes, not buzzwords — language that actually sounds like you",
+                        "Roast notes, not buzzwords: language that actually sounds like you",
                         "A flexible identity that scales from one bag to a grocery shelf",
                         "Designed for the shelf and the screen at the same time",
                     ),
@@ -4078,7 +4078,7 @@ export const projectProposal: ArtifactContent = deck(
         section(
             "timeline",
             group(
-                t("04 — Timeline", "label"),
+                t("04 · Timeline", "label"),
                 t("Twelve weeks, four milestones.", "h2"),
                 diagram("process", "Discovery, Strategy, Identity, Build, Launch", 180),
                 bullets(
@@ -4112,7 +4112,7 @@ export const projectProposal: ArtifactContent = deck(
         section(
             "investment",
             group(
-                t("05 — Investment", "label"),
+                t("05 · Investment", "label"),
                 t("A fixed-scope engagement.", "h2"),
                 table(
                     "Phase,Timeline,Investment\nDiscovery & Strategy,2 weeks,$16K\nVisual Identity,4 weeks,$34K\nWebsite & Build,5 weeks,$39K\nLaunch & Handover,1 week,$11K\nTotal,12 weeks,$100K",
@@ -4129,12 +4129,12 @@ export const projectProposal: ArtifactContent = deck(
                 40,
                 img("foldwork-studio-work", 0.86),
                 group(
-                    t("06 — Why Foldwork", "label"),
+                    t("06 · Why Foldwork", "label"),
                     t("We make brands people taste before they read.", "h2"),
                     bullets(
-                        "Specialty-only — 14 food & beverage brands launched",
+                        "Specialty-only · 14 food & beverage brands launched",
                         "Strategy and design under one roof, one team",
-                        "We build what we design — no handoff, no surprises",
+                        "We build what we design: no handoff, no surprises",
                     ),
                     callout(
                         "success",
@@ -4159,7 +4159,7 @@ export const projectProposal: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("07 — Next steps", "label"),
+                    t("07 · Next steps", "label"),
                     t("Let’s get the first roast on.", "h2"),
                     t(
                         "If this resonates, we’ll schedule a 60-minute kickoff and hold a start date in July. This proposal is valid for 30 days.",
@@ -4184,7 +4184,7 @@ export const investorUpdate: ArtifactContent = doc(
                 t("INVESTOR UPDATE · MAY 2026", "label"),
                 t("Cadence", "h1"),
                 t(
-                    "The billing engine for usage-based software. Another month of compounding — MRR up 16% to $248K, NRR holding at 124%, and Usage Studio now shipped to every customer.",
+                    "The billing engine for usage-based software. Another month of compounding, with MRR up 16% to $248K, NRR holding at 124%, and Usage Studio now shipped to every customer.",
                     "subtitle",
                 ),
                 t("Elena Vossberg · Co-founder & CEO", "caption"),
@@ -4199,7 +4199,7 @@ export const investorUpdate: ArtifactContent = doc(
                     t("TL;DR", "label"),
                     bullets(
                         "MRR grew 16% MoM to $248K (≈ $3.0M ARR)",
-                        "14 net-new logos — our best month yet — at 1.1% logo churn",
+                        "14 net-new logos (our best month yet) at 1.1% logo churn",
                         "Shipped Usage Studio: real-time metering for every customer",
                         "Runway extended to 21 months on improving gross margin",
                         "The ask: warm intros to Series A leads and a VP Sales",
@@ -4223,7 +4223,7 @@ export const investorUpdate: ArtifactContent = doc(
                     t("Growth", "label"),
                     t("Six straight months of compounding.", "h2"),
                     t(
-                        "Net revenue retention is doing the heavy lifting — existing customers expanding usage now drives 61% of new MRR. New-logo velocity is the other half, and it accelerated this month off the back of two enterprise wins.",
+                        "Net revenue retention is doing the heavy lifting: existing customers expanding usage now drives 61% of new MRR. New-logo velocity is the other half, and it accelerated this month off the back of two enterprise wins.",
                         "body",
                     ),
                 ),
@@ -4239,9 +4239,9 @@ export const investorUpdate: ArtifactContent = doc(
                 t("Wins this month", "label"),
                 t("What went right.", "h2"),
                 bullets(
-                    "Closed Northloop and Verge — our two largest contracts to date ($3.4K and $2.9K MRR)",
+                    "Closed Northloop and Verge, our two largest contracts to date ($3.4K and $2.9K MRR)",
                     "Shipped Usage Studio: live metering, anomaly alerts and revenue forecasting",
-                    "Completed SOC 2 Type II — unblocking three enterprise deals in the pipeline",
+                    "Completed SOC 2 Type II, unblocking three enterprise deals in the pipeline",
                     "Hired Sofia Reyes as VP Engineering (ex-Stripe, ex-Plaid)",
                     "Gross margin improved from 71% to 78% after the metering rewrite",
                 ),
@@ -4251,7 +4251,7 @@ export const investorUpdate: ArtifactContent = doc(
             "voice",
             quote(
                 "Cadence replaced three internal tools and a spreadsheet the whole team was afraid of. We closed the books four days faster.",
-                "— Marisol Tan · VP Finance, Northloop",
+                "Marisol Tan · VP Finance, Northloop",
             ),
             { background: bgImage("cadence-dashboard-glow", 0.6) },
         ),
@@ -4261,7 +4261,7 @@ export const investorUpdate: ArtifactContent = doc(
                 t("Challenges & lowlights", "label"),
                 t("What we’re watching.", "h2"),
                 t(
-                    "Enterprise sales cycles are stretching — the SOC 2 deals are real but slow, averaging 71 days from first call to signature. We lost one SMB customer (Pinecrest, $2.1K MRR) to an in-house build, our first churn of that size. And a usage spike from two accounts pushed infra costs 22% over plan before we shipped autoscaling caps.",
+                    "Enterprise sales cycles are stretching: the SOC 2 deals are real but slow, averaging 71 days from first call to signature. We lost one SMB customer (Pinecrest, $2.1K MRR) to an in-house build, our first churn of that size. And a usage spike from two accounts pushed infra costs 22% over plan before we shipped autoscaling caps.",
                     "body",
                 ),
                 callout(
@@ -4292,7 +4292,7 @@ export const investorUpdate: ArtifactContent = doc(
                     t("Product progress", "label"),
                     t("Usage Studio is live.", "h2"),
                     t(
-                        "Customers can now watch metered usage in real time, set anomaly alerts and forecast next-month revenue straight from live consumption. Adoption hit 64% of accounts in three weeks — it’s already the most-opened screen in the product and the top reason cited in deals we won this month.",
+                        "Customers can now watch metered usage in real time, set anomaly alerts and forecast next-month revenue straight from live consumption. Adoption hit 64% of accounts in three weeks. It’s already the most-opened screen in the product and the top reason cited in deals we won this month.",
                         "body",
                     ),
                 ),
@@ -4304,10 +4304,10 @@ export const investorUpdate: ArtifactContent = doc(
                 t("The ask", "label"),
                 t("How you can help.", "h2"),
                 bullets(
-                    "Intros to Series A leads in fintech infra or usage-based SaaS — we open the round in Q3",
-                    "Candidates for VP Sales — taking us from PLG into a sales-led enterprise motion",
+                    "Intros to Series A leads in fintech infra or usage-based SaaS: we open the round in Q3",
+                    "Candidates for VP Sales, taking us from PLG into a sales-led enterprise motion",
                     "Design partners in fintech and dev-tools with metered-billing pain",
-                    "Anyone wrestling with the limits of Stripe billing — send them our way",
+                    "Anyone you know wrestling with the limits of Stripe billing",
                 ),
                 button("elena@cadence.dev"),
             ),
@@ -4316,7 +4316,7 @@ export const investorUpdate: ArtifactContent = doc(
             "thanks",
             group(
                 t(
-                    "Thank you — for the intros, the candidates and the patience. Reply to this update anytime; I read and answer every one.",
+                    "Thank you for the intros, the candidates and the patience. Reply to this update anytime; I read and answer every one.",
                     "subtitle",
                 ),
                 t("Elena Vossberg · Co-founder & CEO, Cadence · May 2026", "caption"),
@@ -4336,7 +4336,7 @@ export const businessProposal: ArtifactContent = doc(
                 t("PROPOSAL · PREPARED FOR BRIGHTLINE MANUFACTURING", "label"),
                 t("Power the plant with the roof you already own.", "h1"),
                 t(
-                    "Cascade Solar & Energy on a 1.4-megawatt rooftop and carport solar system for the Brightline plant in Reno — engineered to cut energy spend 68% and pay for itself in under six years. Prepared for the Brightline leadership team, June 2026.",
+                    "Cascade Solar & Energy on a 1.4-megawatt rooftop and carport solar system for the Brightline plant in Reno, engineered to cut energy spend 68% and pay for itself in under six years. Prepared for the Brightline leadership team, June 2026.",
                     "subtitle",
                 ),
                 badge("CONFIDENTIAL · v1.2"),
@@ -4349,7 +4349,7 @@ export const businessProposal: ArtifactContent = doc(
                 t("Executive summary", "label"),
                 t("A 1.4-megawatt system that pays for itself.", "h2"),
                 t(
-                    "Brightline spent $1.18M on electricity last year, and exposure to peak-demand charges is climbing. This proposal outlines a turnkey solar and storage system that offsets 68% of that load from day one, locks in your energy cost for 25 years, and qualifies for $1.9M in federal and state incentives. Cascade designs, permits, builds, and monitors the entire system — a single point of accountability from contract to commissioning.",
+                    "Brightline spent $1.18M on electricity last year, and exposure to peak-demand charges is climbing. This proposal outlines a turnkey solar and storage system that offsets 68% of that load from day one, locks in your energy cost for 25 years, and qualifies for $1.9M in federal and state incentives. Cascade designs, permits, builds, and monitors the entire system: a single point of accountability from contract to commissioning.",
                     "body",
                 ),
                 callout(
@@ -4366,13 +4366,13 @@ export const businessProposal: ArtifactContent = doc(
             split(
                 60,
                 group(
-                    t("01 — Understanding your needs", "label"),
+                    t("01 · Understanding your needs", "label"),
                     t("What we heard from your team.", "h2"),
                     bullets(
                         "Cut a $1.18M annual energy bill that grows 6–8% a year",
                         "Hedge against Nevada peak-demand and time-of-use charges",
                         "Hit the 2030 corporate carbon-neutral commitment",
-                        "Keep the line running — zero downtime during installation",
+                        "Keep the line running: zero downtime during installation",
                         "A financing structure that protects working capital",
                     ),
                 ),
@@ -4384,7 +4384,7 @@ export const businessProposal: ArtifactContent = doc(
             split(
                 60,
                 group(
-                    t("02 — The opportunity", "label"),
+                    t("02 · The opportunity", "label"),
                     t("Your energy cost is only going one way.", "h2"),
                     t(
                         "Without action, Brightline’s electricity spend climbs to roughly $1.7M a year by 2031 on current rate trajectories. The solar system flips that curve: after year six the marginal cost of your generated power is effectively zero, and the savings compound for two more decades.",
@@ -4403,8 +4403,8 @@ export const businessProposal: ArtifactContent = doc(
                 40,
                 img("brightline-solar-carport", 1.05),
                 group(
-                    t("03 — Proposed solution", "label"),
-                    t("Rooftop, carport, and storage — one integrated system.", "h2"),
+                    t("03 · Proposed solution", "label"),
+                    t("Rooftop, carport, and storage: one integrated system.", "h2"),
                     bullets(
                         "1.4 MW of high-efficiency panels across 180,000 sq ft of roof",
                         "420 kW solar carport over the north employee lot",
@@ -4446,13 +4446,13 @@ export const businessProposal: ArtifactContent = doc(
         section(
             "timeline",
             group(
-                t("04 — Timeline", "label"),
-                t("Twenty weeks, four phases, zero plant downtime.", "h2"),
+                t("04 · Timeline", "label"),
+                t("Twenty weeks to switch-on, zero plant downtime.", "h2"),
                 diagram("process", "Design, Permit, Install, Commission, Monitor", 180),
                 bullets(
                     "Weeks 1–4 · Engineering, production modeling and final design",
                     "Weeks 5–9 · Permitting and utility interconnection approval",
-                    "Weeks 10–17 · Rooftop, carport and storage install — staged around your production calendar",
+                    "Weeks 10–17 · Rooftop, carport and storage install, staged around your production calendar",
                     "Weeks 18–20 · Commissioning, utility sign-off and dashboard handover",
                 ),
             ),
@@ -4460,7 +4460,7 @@ export const businessProposal: ArtifactContent = doc(
         section(
             "pricing",
             group(
-                t("05 — Pricing & terms", "label"),
+                t("05 · Pricing & terms", "label"),
                 t("A transparent, fixed-price engagement.", "h2"),
                 table(
                     "Line item,Detail,Investment\nSolar array (1.4 MW),Panels racking and inverters,$2.34M\nSolar carport (420 kW),Structure and install,$0.61M\nBattery storage (600 kWh),Hardware and integration,$0.48M\nEngineering & permitting,Design permits and interconnect,$0.27M\nGross system cost,,$3.70M\nIncentives (30% ITC + state),Federal and Nevada credits,-$1.90M\nNet investment,After incentives,$1.80M",
@@ -4482,8 +4482,8 @@ export const businessProposal: ArtifactContent = doc(
         section(
             "reference",
             quote(
-                "Cascade ran the whole project around our production schedule — we never lost an hour on the line, and our power bill dropped 71% the first month it switched on.",
-                "— Renata Pho · Director of Operations, Sierra Foods",
+                "Cascade ran the whole project around our production schedule. We never lost an hour on the line, and our power bill dropped 71% the first month it switched on.",
+                "Renata Pho · Director of Operations, Sierra Foods",
             ),
             { background: bgImage("cascade-install-crew", 0.6) },
         ),
@@ -4512,7 +4512,7 @@ export const businessProposal: ArtifactContent = doc(
             split(
                 60,
                 group(
-                    t("06 — Acceptance & next steps", "label"),
+                    t("06 · Acceptance & next steps", "label"),
                     t("Let’s lock in your rate for the next 25 years.", "h2"),
                     t(
                         "To proceed, countersign below and we’ll schedule a site survey within ten business days and hold a Q3 installation slot. This proposal and pricing are valid for 45 days.",
@@ -4550,11 +4550,11 @@ export const boardDeck: ArtifactContent = deck(
                 t("Agenda", "label"),
                 t("What we’ll cover today.", "h2"),
                 bullets(
-                    "The quarter at a glance — KPIs vs. plan",
-                    "Financials — revenue, burn and runway",
-                    "Growth & funnel — pipeline and conversion",
-                    "Product & ops — what shipped, what’s next",
-                    "Team & hiring — org and key roles",
+                    "The quarter at a glance · KPIs vs. plan",
+                    "Financials · revenue, burn and runway",
+                    "Growth & funnel · pipeline and conversion",
+                    "Product & ops · what shipped, what’s next",
+                    "Team & hiring · org and key roles",
                     "Risks & mitigations",
                     "Priorities for Q3",
                     "Open discussion",
@@ -4574,10 +4574,10 @@ export const boardDeck: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("01 — Financials", "label"),
+                    t("01 · Financials", "label"),
                     t("Six quarters of compounding growth.", "h2"),
                     t(
-                        "ARR reached $6.2M, up 19% quarter-over-quarter and 7 points ahead of plan. Expansion revenue drove 58% of net-new ARR — existing accounts are growing faster than we’re adding logos, which is exactly the shape we want heading into the Series B.",
+                        "ARR reached $6.2M, up 19% quarter-over-quarter and 7 points ahead of plan. Expansion revenue drove 58% of net-new ARR: existing accounts are growing faster than we’re adding logos, which is exactly the shape we want heading into the Series B.",
                         "body",
                     ),
                 ),
@@ -4590,7 +4590,7 @@ export const boardDeck: ArtifactContent = deck(
         section(
             "financials-table",
             group(
-                t("01 — Financials", "label"),
+                t("01 · Financials", "label"),
                 t("The numbers vs. plan.", "h2"),
                 table(
                     "Metric,Q1,Q2,Plan,vs. Plan\nARR,$5.2M,$6.2M,$5.8M,+7%\nNet new ARR,$0.6M,$1.0M,$0.8M,+25%\nNRR,118%,121%,118%,+3pt\nGross margin,79%,81%,80%,+1pt\nNet burn,$0.34M,$0.31M,$0.38M,better\nCash runway,15 mo,16 mo,13 mo,+3 mo",
@@ -4602,10 +4602,10 @@ export const boardDeck: ArtifactContent = deck(
             split(
                 40,
                 group(
-                    t("02 — Growth & funnel", "label"),
+                    t("02 · Growth & funnel", "label"),
                     t("The funnel is tightening.", "h2"),
                     t(
-                        "Top-of-funnel held steady while activation and paid conversion both improved — a product-led motion finally compounding. Sales-assisted deals now close 22% faster after we shipped the in-product trial extension.",
+                        "Top-of-funnel held steady while activation and paid conversion both improved, a product-led motion finally compounding. Sales-assisted deals now close 22% faster after we shipped the in-product trial extension.",
                         "body",
                     ),
                 ),
@@ -4622,13 +4622,13 @@ export const boardDeck: ArtifactContent = deck(
                 40,
                 img("tideline-signals-dashboard", 1.2),
                 group(
-                    t("03 — Product & ops", "label"),
-                    t("Signals shipped — and it’s landing.", "h2"),
+                    t("03 · Product & ops", "label"),
+                    t("Signals shipped, and it’s landing.", "h2"),
                     bullets(
-                        "Launched Signals — automated anomaly detection on any metric",
+                        "Launched Signals: automated anomaly detection on any metric",
                         "Adoption hit 38% of accounts in five weeks",
                         "Cut median dashboard load time from 2.4s to 0.9s",
-                        "99.98% platform uptime — best quarter on record",
+                        "99.98% platform uptime, best quarter on record",
                     ),
                 ),
             ),
@@ -4638,7 +4638,7 @@ export const boardDeck: ArtifactContent = deck(
             split(
                 60,
                 group(
-                    t("04 — Team & hiring", "label"),
+                    t("04 · Team & hiring", "label"),
                     t("Scaling the org behind the growth.", "h2"),
                     t(
                         "We grew from 38 to 49 full-time staff this quarter, weighted toward engineering and customer success. The VP Sales search is in final-round interviews with two strong candidates; we expect an offer out by mid-July.",
@@ -4652,7 +4652,7 @@ export const boardDeck: ArtifactContent = deck(
             "voice",
             quote(
                 "Tideline is the first analytics tool our PMs actually open every morning. Signals caught a checkout regression before our on-call did.",
-                "— Theo Marsh · Head of Product, Loop Commerce",
+                "Theo Marsh · Head of Product, Loop Commerce",
             ),
             { background: bgImage("tideline-customer-team", 0.6) },
         ),
@@ -4713,7 +4713,7 @@ export const boardDeck: ArtifactContent = deck(
         section(
             "discussion",
             group(
-                t("05 — Discussion", "label"),
+                t("05 · Discussion", "label"),
                 t("Where we’d value the board’s input.", "h2"),
                 bullets(
                     "Series B timing and the target investor list",
@@ -4738,7 +4738,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 t("HARBORLIGHT FESTIVAL 2026 · SPONSORSHIP PROSPECTUS", "label"),
                 t("Three days on the water. One unforgettable summer.", "h1"),
                 t(
-                    "Harborlight is Oakhaven’s flagship waterfront festival — three days of live music, regional food, and public art on the working piers. We’re inviting a small circle of partners to help us build the 2026 edition, and to reach the 65,000 people who’ll spend a long weekend with us.",
+                    "Harborlight is Oakhaven’s flagship waterfront festival: three days of live music, regional food, and public art on the working piers. We’re inviting a small circle of partners to help us build the 2026 edition, and to reach the 65,000 people who’ll spend a long weekend with us.",
                     "subtitle",
                 ),
                 badge("AUG 14–16, 2026 · PIER 9, OAKHAVEN"),
@@ -4758,7 +4758,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                         "body",
                     ),
                     t(
-                        "It is independently produced, fiercely local, and sold out three years running. Partners aren’t buying a logo placement — they’re buying a place in the weekend people remember.",
+                        "It is independently produced, fiercely local, and sold out three years running. Partners aren’t buying a logo placement. They’re buying a place in the weekend people remember.",
                         "body",
                     ),
                 ),
@@ -4811,7 +4811,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 t("WHY PARTNER WITH US", "label"),
                 t("A weekend of goodwill you can’t buy in a feed.", "h2"),
                 t(
-                    "People arrive at Harborlight relaxed, generous, and ready to discover. That’s a context most marketing never gets near. Our partners don’t interrupt the experience — they make it better: shade and water on a hot pier, the charging lockers that save a night, the ferry that gets everyone home. Sponsorship here reads as hosting, not advertising, and the audience remembers who hosted them.",
+                    "People arrive at Harborlight relaxed, generous, and ready to discover. That’s a context most marketing never gets near. Our partners improve the experience rather than interrupting it: shade and water on a hot pier, the charging lockers that save a night, the ferry that gets everyone home. Sponsorship here reads as hosting, not advertising, and the audience remembers who hosted them.",
                     "body",
                 ),
                 button("Talk to our partnerships team"),
@@ -4858,7 +4858,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     "Tier,Investment,Availability,Headline benefit\nPresenting,$120K,1 partner,“Harborlight presented by” lockup across all assets\nStage,$60K,4 partners,Naming rights to a named stage + on-stage moments\nMarket,$28K,8 partners,Premium activation footprint in the food & art market\nCommunity,$9K,12 partners,Logo placement, tickets & a sampling table",
                 ),
                 t(
-                    "Every tier is a starting point — we build the activation around your goals, not a fixed menu.",
+                    "Every tier is a starting point: we build the activation around your goals, not a fixed menu.",
                     "caption",
                 ),
             ),
@@ -4874,7 +4874,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     bullets(
                         "Logo & brand integration across stages, signage, app and the festival website",
                         "A turnkey on-site activation footprint with power, water and load-in handled",
-                        "A VIP hospitality allotment — tickets, the harbor-deck lounge, and artist access",
+                        "A VIP hospitality allotment: tickets, the harbor-deck lounge, and artist access",
                         "Inclusion in the paid, owned and earned media campaign reaching 4M+ people",
                         "Full post-event reporting: footfall, dwell time, sampling and social lift",
                     ),
@@ -4882,7 +4882,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 group(
                     img("harborlight-vip-deck-evening", 0.78),
                     t(
-                        "The harbor-deck hospitality lounge — where partners host clients above the crowd.",
+                        "The harbor-deck hospitality lounge, where partners host clients above the crowd.",
                         "caption",
                     ),
                 ),
@@ -4904,7 +4904,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
         section(
             "quote",
             quote(
-                "Harborlight is the only sponsorship on our calendar where the audience thanks us for being there. We didn’t buy attention — we earned a weekend of it.",
+                "Harborlight is the only sponsorship on our calendar where the audience thanks us for being there. We didn’t buy attention. We earned a weekend of it.",
                 "Priya Anand · VP Brand, Northwater Seltzer · Presenting Partner 2024–25",
             ),
             { background: bgImage("harborlight-fireworks-harbor", 0.62) },
@@ -4919,7 +4919,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     t("THE ASK", "label"),
                     t("Let’s build your 2026 weekend.", "h2"),
                     t(
-                        "Tiers are confirmed on a first-come basis and the presenting slot moves fast — we hold partner conversations through March and lock the roster by April 1. Send us your goals and we’ll come back with a tailored activation plan and a single, simple agreement.",
+                        "Tiers are confirmed on a first-come basis and the presenting slot moves fast. We hold partner conversations through March and lock the roster by April 1. Send us your goals and we’ll come back with a tailored activation plan and a single, simple agreement.",
                         "body",
                     ),
                     button("partners@harborlightfest.org"),
@@ -5193,18 +5193,18 @@ export const annualReport: ArtifactContent = doc(
                     t("A letter from our CEO", "label"),
                     t("We built this year to last.", "h2"),
                     t(
-                        "When we founded Solstice in a garage in 2014, the pitch was simple and a little naïve: a home should make more than it takes. Eleven years later that idea is a business of real scale — and 2025 was the year it stopped being a promise and became a balance sheet.",
+                        "When we founded Solstice in a garage in 2014, the pitch was simple and a little naïve: a home should make more than it takes. Eleven years later that idea is a business of real scale, and 2025 was the year it stopped being a promise and became a balance sheet.",
                         "subtitle",
                     ),
                     t(
-                        "Revenue grew 37% to $548 million. We installed our hundred-thousandth solar roof, shipped our first home battery, and turned tens of thousands of households into a single, dispatchable power plant. We did all of it while bringing operating losses down to their lowest level ever — proof that doing this well and doing this responsibly are the same project, not competing ones.",
+                        "Revenue grew 37% to $548 million. We installed our hundred-thousandth solar roof, shipped our first home battery, and turned tens of thousands of households into a single, dispatchable power plant. We did all of it while bringing operating losses down to their lowest level ever. Doing this well and doing this responsibly are the same project, not competing ones.",
                         "body",
                     ),
                     t(
-                        "None of it happened in a straight line. Interest rates made financing harder, two product launches slipped a quarter, and we learned — again — that the hardest part of energy is not the panel on the roof but the permit on the desk. What did not waver was our team and the families who trusted us. This report is, more than anything, an accounting of that trust.",
+                        "None of it happened in a straight line. Interest rates made financing harder, two product launches slipped a quarter, and we learned (again) that the hardest part of energy is not the panel on the roof but the permit on the desk. What did not waver was our team and the families who trusted us. This report is, more than anything, an accounting of that trust.",
                         "body",
                     ),
-                    t("— Naomi Okonkwo, Co-founder & Chief Executive Officer", "caption"),
+                    t("Naomi Okonkwo, Co-founder & Chief Executive Officer", "caption"),
                 ),
                 img("solstice-ceo-naomi-portrait", 0.82),
             ),
@@ -5253,7 +5253,7 @@ export const annualReport: ArtifactContent = doc(
                 t("Financial highlights", "label"),
                 t("Where the growth came from", "h2"),
                 t(
-                    "Storage was the breakout story of the year — Solstice One nearly doubled the segment — while software and services grew steadily as more homes came onto recurring plans. Wholesale and financing shrank deliberately as we tightened underwriting in a higher-rate environment.",
+                    "Storage was the breakout story of the year (Solstice One nearly doubled the segment) while software and services grew steadily as more homes came onto recurring plans. Wholesale and financing shrank deliberately as we tightened underwriting in a higher-rate environment.",
                     "body",
                 ),
                 table(
@@ -5269,7 +5269,7 @@ export const annualReport: ArtifactContent = doc(
                 t("Product & milestones", "label"),
                 t("A year of shipping", "h2"),
                 t(
-                    "We promised investors three things at the start of 2025: a home battery, a rebuilt app, and a way for customers to earn from the grid. By December all three were live — the first time we have landed an entire roadmap in a single year.",
+                    "We promised investors three things at the start of 2025: a home battery, a rebuilt app, and a way for customers to earn from the grid. By December all three were live, the first time we have landed an entire roadmap in a single year.",
                     "subtitle",
                 ),
                 diagram(
@@ -5287,7 +5287,7 @@ export const annualReport: ArtifactContent = doc(
                     img("solstice-battery-product-wall", 1),
                     t("Solstice One", "h3"),
                     t(
-                        "Our first home battery — 13.5 kWh, whole-home backup, installed in a single day.",
+                        "Our first home battery: 13.5 kWh, whole-home backup, installed in a single day.",
                         "caption",
                     ),
                 ),
@@ -5295,7 +5295,7 @@ export const annualReport: ArtifactContent = doc(
                     img("solstice-app-aurora-dashboard", 1),
                     t("Aurora 3.0", "h3"),
                     t(
-                        "A rebuilt app that turns every roof into a dashboard — and every storm into a plan.",
+                        "A rebuilt app that turns every roof into a dashboard, and every storm into a plan.",
                         "caption",
                     ),
                 ),
@@ -5318,7 +5318,7 @@ export const annualReport: ArtifactContent = doc(
                     t("Our people", "label"),
                     t("The company is the crew.", "h2"),
                     t(
-                        "Solar is still a job done on a ladder, in the sun, with your hands. In 2025 we grew the team to 1,280 — most of them installers, electricians, and care specialists — and brought our in-house apprenticeship to nine cities, training 210 new electricians from the communities we serve.",
+                        "Solar is still a job done on a ladder, in the sun, with your hands. In 2025 we grew the team to 1,280 (most of them installers, electricians, and care specialists) and brought our in-house apprenticeship to nine cities, training 210 new electricians from the communities we serve.",
                         "body",
                     ),
                 ),
@@ -5340,7 +5340,7 @@ export const annualReport: ArtifactContent = doc(
                     t("Sustainability & community", "label"),
                     t("The point was never just the panels.", "h3"),
                     t(
-                        "Energy from the Solstice network avoided 1.1 million tonnes of CO₂ in 2025 — the equivalent of taking 240,000 cars off the road. We recovered and recycled 96% of decommissioned hardware, and the Solstice Community Fund committed $4M to put rooftop solar and storage on 60 schools and clinics in neighborhoods that the energy transition usually reaches last.",
+                        "Energy from the Solstice network avoided 1.1 million tonnes of CO₂ in 2025, the equivalent of taking 240,000 cars off the road. We recovered and recycled 96% of decommissioned hardware, and the Solstice Community Fund committed $4M to put rooftop solar and storage on 60 schools and clinics in neighborhoods that the energy transition usually reaches last.",
                         "body",
                     ),
                 ),
@@ -5359,7 +5359,7 @@ export const annualReport: ArtifactContent = doc(
                     ),
                     bullets(
                         "Open three regional install hubs to cut wait times below ten days",
-                        "Ship Solstice One v2 — 30% more capacity at the same price",
+                        "Ship Solstice One v2: 30% more capacity at the same price",
                         "Enroll 50,000 homes in GridShare, our virtual power plant",
                         "Expand into four new states across the Southeast",
                         "Reach cash-flow-positive operations by the end of FY2026",
@@ -5395,7 +5395,7 @@ export const caseStudy: ArtifactContent = doc(
                 t("CUSTOMER STORY · MARLOW HOSPITALITY GROUP", "label"),
                 t("Scaling hospitality without scaling the chaos", "h1"),
                 t(
-                    "How a 22-restaurant group cut labor costs 18% and opened six new locations in a year — with one platform running the floor behind the scenes.",
+                    "How a 22-restaurant group cut labor costs 18% and opened six new locations in a year, with one platform running the floor behind the scenes.",
                     "subtitle",
                 ),
                 t("A Tempo case study · Hospitality · 12-month engagement", "caption"),
@@ -5411,7 +5411,7 @@ export const caseStudy: ArtifactContent = doc(
                     t("The customer", "label"),
                     t("Twenty-two kitchens, one standard", "h2"),
                     t(
-                        "Marlow Hospitality Group runs some of the most loved tables on the East Coast — from the original Marlow & Sons bistro in Brooklyn to fast-casual counters in three airports. What ties them together isn't a menu; it's a promise that the service feels the same whether you're in seat 4 or location 22.",
+                        "Marlow Hospitality Group runs some of the most loved tables on the East Coast, from the original Marlow & Sons bistro in Brooklyn to fast-casual counters in three airports. What ties them together isn't a menu; it's a promise that the service feels the same whether you're in seat 4 or location 22.",
                         "subtitle",
                     ),
                     t(
@@ -5458,7 +5458,7 @@ export const caseStudy: ArtifactContent = doc(
                 group(
                     t("The cost of standing still", "h3"),
                     t(
-                        "An internal review put the bill at roughly $2.1M a year — overtime that forecasting could have prevented, plus a 74% annual turnover rate fed by schedules that landed late and changed often. With six new locations on the calendar, doing nothing was the most expensive option on the table.",
+                        "An internal review put the bill at roughly $2.1M a year, most of it overtime that forecasting could have prevented, plus a 74% annual turnover rate fed by schedules that landed late and changed often. With six new locations on the calendar, doing nothing was the most expensive option on the table.",
                         "body",
                     ),
                 ),
@@ -5472,7 +5472,7 @@ export const caseStudy: ArtifactContent = doc(
                     t("The approach", "label"),
                     t("Pilot one city, then earn the rest", "h2"),
                     t(
-                        "Rather than a top-down rollout, Tempo started where the pain was sharpest: the four Boston restaurants. We rebuilt their scheduling around demand forecasts drawn from three years of POS data, then let results — not a mandate — sell the other 18 locations.",
+                        "Rather than a top-down rollout, Tempo started where the pain was sharpest: the four Boston restaurants. We rebuilt their scheduling around demand forecasts drawn from three years of POS data, then let results, not a mandate, sell the other 18 locations.",
                         "body",
                     ),
                     diagram("process", "Audit, Pilot in Boston, Roll out by city, Optimize", 200),
@@ -5507,7 +5507,7 @@ export const caseStudy: ArtifactContent = doc(
                 t("The results", "label"),
                 t("Twelve months in", "h2"),
                 t(
-                    "Inside a year, the numbers that had been drifting the wrong way reversed — and the six new restaurants opened on schedule, staffed from day one.",
+                    "Inside a year, the numbers that had been drifting the wrong way reversed, and the six new restaurants opened on schedule, staffed from day one.",
                     "subtitle",
                 ),
                 table(
@@ -5531,7 +5531,7 @@ export const caseStudy: ArtifactContent = doc(
                     t("The results", "label"),
                     t("Labor found its level", "h2"),
                     t(
-                        "The line below is labor as a percentage of sales, month by month across the rollout. As each city came onto Tempo, the cost curve bent — and then held, even through the holiday rush and the six openings.",
+                        "The line below is labor as a percentage of sales, month by month across the rollout. As each city came onto Tempo, the cost curve bent, and then held, even through the holiday rush and the six openings.",
                         "body",
                     ),
                 ),
@@ -5544,8 +5544,8 @@ export const caseStudy: ArtifactContent = doc(
         section(
             "s11",
             quote(
-                "I got my Sundays back, and my GMs got their floors back. Tempo didn't just save us money — it let us open six restaurants without losing the thing that makes Marlow, Marlow.",
-                "— Daniela Marlow, Chief Operating Officer, Marlow Hospitality Group",
+                "I got my Sundays back, and my GMs got their floors back. Tempo didn't just save us money. It let us open six restaurants without losing the thing that makes Marlow, Marlow.",
+                "Daniela Marlow, Chief Operating Officer, Marlow Hospitality Group",
             ),
             { background: bgImage("marlow-chef-plating-closeup", 0.6) },
         ),
@@ -5555,7 +5555,7 @@ export const caseStudy: ArtifactContent = doc(
                 60,
                 group(
                     t("The takeaway", "label"),
-                    t("Run the floor, not the spreadsheet", "h2"),
+                    t("Managers back on the floor", "h2"),
                     t(
                         "Marlow proved what we believe at Tempo: hospitality scales when the back office disappears. Give managers a forecast and a shared workforce, and they'll spend their hours where guests can feel them. See what a 30-minute walkthrough could find in your labor line.",
                         "subtitle",
@@ -5578,7 +5578,7 @@ export const researchReport: ArtifactContent = doc(
                 t("RESEARCH REPORT · THE STATE OF REMOTE WORK 2026", "label"),
                 t("Where Work Lives Now", "h1"),
                 t(
-                    "Six years after the office emptied, the question is no longer whether knowledge work can happen anywhere — it's where it happens best, and what that means for the people, places, and companies caught in between.",
+                    "Six years after the office emptied, the question is no longer whether knowledge work can happen anywhere: it's where it happens best, and what that means for the people, places, and companies caught in between.",
                     "subtitle",
                 ),
                 t(
@@ -5595,13 +5595,13 @@ export const researchReport: ArtifactContent = doc(
                 60,
                 group(
                     t("Executive summary", "label"),
-                    t("Hybrid won — but nobody agrees what it means.", "h2"),
+                    t("Hybrid won, but nobody agrees what it means.", "h2"),
                     t(
                         "The headline of 2026 is settlement, not revolution. The fully-remote surge has cooled and the return-to-office mandates have plateaued; what's left is a durable, messy middle. Fifty-four percent of knowledge workers now split their week between home and an office, and almost none of them define that split the same way.",
                         "subtitle",
                     ),
                     t(
-                        "Across 11,400 respondents we found that flexibility has become the single strongest predictor of retention — outranking pay growth for the first time in the survey's history. But the same flexibility that keeps people is quietly fragmenting how teams collaborate, mentor, and belong. The companies pulling ahead are not the most remote or the most in-person; they are the most deliberate.",
+                        "Across 11,400 respondents we found that flexibility has become the single strongest predictor of retention, outranking pay growth for the first time in the survey's history. But the same flexibility that keeps people is quietly fragmenting how teams collaborate, mentor, and belong. The companies pulling ahead are not the most remote or the most in-person; they are the most deliberate.",
                         "body",
                     ),
                     t(
@@ -5621,7 +5621,7 @@ export const researchReport: ArtifactContent = doc(
                     t("Methodology", "label"),
                     t("How we ran the study", "h2"),
                     t(
-                        "Between February and April 2026 the Northwind Institute surveyed 11,400 full-time knowledge workers and conducted 84 structured interviews with people leaders. Respondents span six industries — technology, finance, healthcare, media, professional services, and the public sector — across 38 countries, weighted to reflect each market's knowledge-economy workforce.",
+                        "Between February and April 2026 the Northwind Institute surveyed 11,400 full-time knowledge workers and conducted 84 structured interviews with people leaders. Respondents span six industries (technology, finance, healthcare, media, professional services, and the public sector) across 38 countries, weighted to reflect each market's knowledge-economy workforce.",
                         "body",
                     ),
                     bullets(
@@ -5638,9 +5638,9 @@ export const researchReport: ArtifactContent = doc(
             "s4",
             group(
                 t("Key findings", "label"),
-                t("Five things the data made clear", "h2"),
+                t("Four findings, and one warning", "h2"),
                 t(
-                    "The numbers this year tell a coherent story: the location debate is over, the calendar debate has just begun. Here is what stood out across the five findings that follow.",
+                    "The numbers this year tell a coherent story: the location debate is over, the calendar debate has just begun. Four findings follow, then the one result that should worry anyone managing early-career staff.",
                     "subtitle",
                 ),
             ),
@@ -5653,7 +5653,7 @@ export const researchReport: ArtifactContent = doc(
                     t("Finding 01 · Where work happens", "label"),
                     t("The week is split, not the workforce", "h2"),
                     t(
-                        "Hybrid is no longer a transitional state on the way back to the office — it is the destination. A majority now work in a blended pattern, while fully-remote roles held steady and fully-in-office work continued its slow decline. The interesting movement is inside hybrid: the median in-office stint fell from 3.0 days to 2.4.",
+                        "Hybrid is no longer a transitional state on the way back to the office. It is the destination. A majority now work in a blended pattern, while fully-remote roles held steady and fully-in-office work continued its slow decline. The interesting movement is inside hybrid: the median in-office stint fell from 3.0 days to 2.4.",
                         "body",
                     ),
                     stat("2.4 days", "median time in-office per week among hybrid workers"),
@@ -5684,7 +5684,7 @@ export const researchReport: ArtifactContent = doc(
                     t("Finding 02 · The office's new job", "label"),
                     t("Buildings became meeting rooms", "h2"),
                     t(
-                        "When people come in, they come in to be together. The share of office time spent in scheduled collaboration jumped sharply, while solo desk work — the thing offices were built for — migrated home. The implication for real estate is stark: companies need less square footage but far more of it configured for groups.",
+                        "When people come in, they come in to be together. The share of office time spent in scheduled collaboration jumped sharply, while solo desk work (the thing offices were built for) migrated home. The implication for real estate is stark: companies need less square footage but far more of it configured for groups.",
                         "body",
                     ),
                     chart("column", "31, 44, 58, 67", 220),
@@ -5698,10 +5698,10 @@ export const researchReport: ArtifactContent = doc(
                 t("Finding 03 · The geography of talent", "label"),
                 quote(
                     "We stopped hiring from a forty-mile radius and started hiring from a forty-country one. Our best engineer last year lives three time zones from anyone she works with.",
-                    "— Priya Raghunathan, VP of Engineering, interviewed for this report",
+                    "Priya Raghunathan, VP of Engineering, interviewed for this report",
                 ),
                 t(
-                    "Remote-capable employers now draw 41% of new hires from outside their headquarters metro — up from 12% in 2020. Talent is dispersing toward lower-cost cities and toward the lives people actually want, and the firms that embraced distributed hiring report the widest candidate pools and the shortest time-to-fill.",
+                    "Remote-capable employers now draw 41% of new hires from outside their headquarters metro, up from 12% in 2020. Talent is dispersing toward lower-cost cities and toward the lives people actually want, and the firms that embraced distributed hiring report the widest candidate pools and the shortest time-to-fill.",
                     "body",
                 ),
             ),
@@ -5713,7 +5713,7 @@ export const researchReport: ArtifactContent = doc(
                 t("Finding 04 · The trade-offs, side by side", "label"),
                 t("No model wins on every axis", "h2"),
                 t(
-                    "When we hold output, retention, mentorship, and cost up against each other, each working model trades one strength for another. Hybrid leads on retention and balance; fully-remote leads on cost and reach; in-office still leads on early-career mentorship. There is no free lunch — only an honest choice about what a team needs most.",
+                    "When we hold output, retention, mentorship, and cost up against each other, each working model trades one strength for another. Hybrid leads on retention and balance; fully-remote leads on cost and reach; in-office still leads on early-career mentorship. There is no free lunch, only an honest choice about what a team needs most.",
                     "body",
                 ),
                 table(
@@ -5731,7 +5731,7 @@ export const researchReport: ArtifactContent = doc(
                         t("Implications · The proximity gap", "label"),
                         t("Mentorship is the quiet casualty", "h3"),
                         t(
-                            "The clearest warning in the data concerns people in their first three years of work. Junior staff in fully-remote roles reported 28% fewer informal coaching moments and were promoted, on average, four months later than in-office peers. Flexibility is a benefit the experienced enjoy and the inexperienced often pay for — unless mentorship is designed in on purpose.",
+                            "The clearest warning in the data concerns people in their first three years of work. Junior staff in fully-remote roles reported 28% fewer informal coaching moments and were promoted, on average, four months later than in-office peers. Flexibility is a benefit the experienced enjoy and the inexperienced often pay for, unless mentorship is designed in on purpose.",
                             "body",
                         ),
                     ),
@@ -5749,10 +5749,10 @@ export const researchReport: ArtifactContent = doc(
                     "subtitle",
                 ),
                 bullets(
-                    "Anchor days, not mandates — coordinate when teams overlap, don't police where they sit",
+                    "Anchor days, not mandates: coordinate when teams overlap, don't police where they sit",
                     "Make the office a collaboration venue, then size and shape the space for that one job",
                     "Write decisions down by default so presence stops being a prerequisite for influence",
-                    "Engineer mentorship explicitly — pair, sponsor, and review on a schedule, not by chance",
+                    "Engineer mentorship explicitly: pair, sponsor, and review on a schedule, not by chance",
                     "Measure outcomes, never hours; retire any metric that rewards being seen",
                 ),
                 diagram("process", "Set anchors, Document, Pair & sponsor, Measure outcomes", 200),
@@ -5763,7 +5763,7 @@ export const researchReport: ArtifactContent = doc(
             "s12",
             group(
                 t(
-                    "The office is no longer the workplace; it is one tool among several for doing work together. The organizations that say this out loud — and redesign around it — are quietly building the most resilient, far-reaching, and loyal teams we have measured in six years of this study.",
+                    "The office is no longer the workplace; it is one tool among several for doing work together. The organizations that say this out loud, and redesign around it, are quietly building the most resilient, far-reaching, and loyal teams we have measured in six years of this study.",
                     "subtitle",
                 ),
             ),
@@ -5801,7 +5801,7 @@ export const marketAnalysis: ArtifactContent = doc(
                 t("MARKET ANALYSIS · 2026 OUTLOOK", "label"),
                 t("Charging the Transition", "h1"),
                 t(
-                    "The plug is the new pump. As electric vehicles cross from early adopters to the mainstream, the race to power them is becoming one of the decade's largest infrastructure build-outs — and one of its most contested markets.",
+                    "The plug is the new pump. As electric vehicles cross from early adopters to the mainstream, the race to power them is becoming one of the decade's largest infrastructure build-outs, and one of its most contested markets.",
                     "subtitle",
                 ),
                 t("Meridian Research · Global EV Infrastructure Practice · June 2026", "caption"),
@@ -5853,7 +5853,7 @@ export const marketAnalysis: ArtifactContent = doc(
                 t("Segments", "label"),
                 t("Where the dollars sit, and where they're moving", "h2"),
                 t(
-                    "The market splits along charging speed and location. Level 2 AC charging dominates by unit volume — it's what sits in homes and workplaces — but ultra-fast DC is capturing revenue share fastest as highway corridors and fleets electrify. Home charging, long an afterthought, is becoming a managed-energy business in its own right.",
+                    "The market splits along charging speed and location. Level 2 AC charging dominates by unit volume (it's what sits in homes and workplaces) but ultra-fast DC is capturing revenue share fastest as highway corridors and fleets electrify. Home charging, long an afterthought, is becoming a managed-energy business in its own right.",
                     "body",
                 ),
                 table(
@@ -5886,7 +5886,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     img("automaker-proprietary-charging-stalls", 1),
                     t("Hyperion (OEM)", "h3"),
                     t(
-                        "An automaker's captive network now opening to other brands — distribution as a moat.",
+                        "An automaker's captive network now opening to other brands: distribution as a moat.",
                         "caption",
                     ),
                 ),
@@ -5901,14 +5901,14 @@ export const marketAnalysis: ArtifactContent = doc(
                     t("Competitive landscape", "label"),
                     t("Four ways players are trying to win", "h2"),
                     t(
-                        "The field is crowded and consolidating at the same time. Differentiation is moving away from hardware — increasingly commoditized — and toward uptime, energy economics, and the driver experience.",
+                        "The field is crowded and consolidating at the same time. Differentiation is moving away from hardware (increasingly commoditized) and toward uptime, energy economics, and the driver experience.",
                         "body",
                     ),
                     bullets(
-                        "Reliability — guaranteed uptime is becoming the headline SLA buyers pay for",
-                        "Energy arbitrage — on-site batteries and smart load management protect margins",
-                        "Network density — winning corridors and fleets before rivals plant hardware",
-                        "Software & roaming — one app, one payment, every network is the experience play",
+                        "Reliability · guaranteed uptime is becoming the headline SLA buyers pay for",
+                        "Energy arbitrage · on-site batteries and smart load management protect margins",
+                        "Network density · winning corridors and fleets before rivals plant hardware",
+                        "Software & roaming · one app, one payment, every network is the experience play",
                     ),
                 ),
             ),
@@ -5919,7 +5919,7 @@ export const marketAnalysis: ArtifactContent = doc(
                 t("Trends", "label"),
                 t("What's reshaping the next five years", "h2"),
                 t(
-                    "Five forces are pulling the market forward and changing what a charging site is. The endpoint isn't a parking lot full of plugs — it's a distributed energy asset that happens to charge cars.",
+                    "Five forces are pulling the market forward and changing what a charging site is. The endpoint isn't a parking lot full of plugs. It's a distributed energy asset that happens to charge cars.",
                     "subtitle",
                 ),
                 diagram(
@@ -5939,7 +5939,7 @@ export const marketAnalysis: ArtifactContent = doc(
                         t("Opportunities", "label"),
                         t("Where the upside concentrates", "h3"),
                         bullets(
-                            "Fleet & depot electrification — sticky, high-utilization contracts",
+                            "Fleet & depot electrification · sticky, high-utilization contracts",
                             "Reliability-as-a-product for networks battling a trust deficit",
                             "Software, payments, and roaming layers that ride on anyone's hardware",
                             "Behind-the-meter storage that turns volatile power prices into margin",
@@ -5952,7 +5952,7 @@ export const marketAnalysis: ArtifactContent = doc(
                         t("Risks", "label"),
                         t("What could stall the curve", "h3"),
                         bullets(
-                            "Utilization risk — too many stalls chasing too few sessions early",
+                            "Utilization risk · too many stalls chasing too few sessions early",
                             "Grid interconnection delays of 12–24 months in key metros",
                             "Subsidy dependence as public incentives taper after 2027",
                             "Standards fragmentation slowing the seamless-roaming promise",
@@ -5965,7 +5965,7 @@ export const marketAnalysis: ArtifactContent = doc(
             "s10",
             quote(
                 "The winners won't be whoever pours the most concrete. They'll be whoever keeps the most plugs working, at the lowest cost of energy, with the fewest taps to pay.",
-                "— Marcus Idowu, Partner, Meridian Research",
+                "Marcus Idowu, Partner, Meridian Research",
             ),
             { background: bgImage("ev-driver-charging-app-payment", 0.6) },
         ),
@@ -5977,7 +5977,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     t("Outlook", "label"),
                     t("Our base case: $148B and a flight to quality", "h2"),
                     t(
-                        "We expect the market to keep compounding above 20% through 2032, but the easy growth phase is ending. As utilization matures, capital will reward operators with reliable hardware, smart energy stacks, and real network density — and punish those who built for subsidies rather than sessions. Expect consolidation to accelerate from 2027 as the long tail of sub-scale networks is acquired or shut.",
+                        "We expect the market to keep compounding above 20% through 2032, but the easy growth phase is ending. As utilization matures, capital will reward operators with reliable hardware, smart energy stacks, and real network density, and punish those who built for subsidies rather than sessions. Expect consolidation to accelerate from 2027 as the long tail of sub-scale networks is acquired or shut.",
                         "body",
                     ),
                     stat("23.6%", "base-case CAGR, 2025–2032"),
@@ -6005,7 +6005,7 @@ export const qbr: ArtifactContent = doc("studio", [
             t("TESSERA · QUARTERLY BUSINESS REVIEW", "label"),
             t("Q2 FY2026 in Review", "h1"),
             t(
-                "A strong quarter on revenue, a soft one on new logos, and a clear read on what to fix before Q3. The numbers, the wins, the misses — and the four decisions we need from this room.",
+                "A strong quarter on revenue, a soft one on new logos, and a clear read on what to fix before Q3. The numbers, the wins, the misses, and the four decisions we need from this room.",
                 "subtitle",
             ),
             t(
@@ -6030,7 +6030,7 @@ export const qbr: ArtifactContent = doc("studio", [
                 t("The quarter at a glance", "label"),
                 t("We beat plan on revenue and missed it on reach.", "h2"),
                 t(
-                    "Q2 was our best revenue quarter ever and our slowest new-logo quarter in a year — at the same time. Existing customers expanded faster than we modeled, carrying net new ARR to 113% of plan. But the top of the funnel cooled: enterprise cycles stretched, the SDR class ramped slowly, and we closed 84 of the 95 new logos we forecast.",
+                    "Q2 was our best revenue quarter ever and our slowest new-logo quarter in a year, at the same time. Existing customers expanded faster than we modeled, carrying net new ARR to 113% of plan. But the top of the funnel cooled: enterprise cycles stretched, the SDR class ramped slowly, and we closed 84 of the 95 new logos we forecast.",
                     "subtitle",
                 ),
                 t(
@@ -6041,7 +6041,7 @@ export const qbr: ArtifactContent = doc("studio", [
             group(
                 img("tessera-product-integration-dashboard-on-monitor", 0.82, 10),
                 t(
-                    "Tessera Flow shipped to general availability in May — the largest release of the quarter.",
+                    "Tessera Flow shipped to general availability in May, the largest release of the quarter.",
                     "caption",
                 ),
             ),
@@ -6051,7 +6051,7 @@ export const qbr: ArtifactContent = doc("studio", [
     section(
         "q3",
         row(
-            stat("$5.1M", "net new ARR — 113% of plan"),
+            stat("$5.1M", "net new ARR · 113% of plan"),
             stat("119%", "net revenue retention, up 4 pts QoQ"),
             stat("81%", "gross margin, holding above target"),
         ),
@@ -6063,7 +6063,7 @@ export const qbr: ArtifactContent = doc("studio", [
             t("Scorecard", "label"),
             t("KPIs vs. targets", "h2"),
             t(
-                "Six metrics define the quarter. Four beat or held; two missed. The pattern is consistent — anything driven by our installed base outperformed, and anything driven by new acquisition came in light.",
+                "Six metrics define the quarter. Four beat or held; two missed. The pattern is consistent: anything driven by our installed base outperformed, and anything driven by new acquisition came in light.",
                 "body",
             ),
             table(
@@ -6086,7 +6086,7 @@ export const qbr: ArtifactContent = doc("studio", [
                 t("Revenue & pipeline", "label"),
                 t("ARR keeps compounding; coverage is thinning.", "h2"),
                 t(
-                    "ARR crossed $48.6M, our sixth straight quarter of double-digit sequential growth, driven almost entirely by expansion. The concern sits one layer down: qualified pipeline entering Q3 is 3.2x of target, below our 4.0x guardrail. We are not short on revenue today — we are short on the future quarters' worth of it.",
+                    "ARR crossed $48.6M, our sixth straight quarter of double-digit sequential growth, driven almost entirely by expansion. The concern sits one layer down: qualified pipeline entering Q3 is 3.2x of target, below our 4.0x guardrail. We are not short on revenue today. We are short on the future quarters' worth of it.",
                     "body",
                 ),
                 stat("3.2x", "Q3 pipeline coverage vs. 4.0x guardrail"),
@@ -6105,7 +6105,7 @@ export const qbr: ArtifactContent = doc("studio", [
             group(
                 img("tessera-customer-success-manager-on-video-call", 1.05, 10),
                 t(
-                    "Northwind Bank went live on Tessera in six weeks — a new record for a Tier 1 account.",
+                    "Northwind Bank went live on Tessera in six weeks, a new record for a Tier 1 account.",
                     "caption",
                 ),
             ),
@@ -6113,7 +6113,7 @@ export const qbr: ArtifactContent = doc("studio", [
                 t("What went right", "label"),
                 t("Four wins worth repeating", "h2"),
                 bullets(
-                    "Closed Northwind Bank at $1.2M ARR — our largest new logo ever, and a reference account in financial services.",
+                    "Closed Northwind Bank at $1.2M ARR, our largest new logo ever and a reference account in financial services.",
                     "Shipped Tessera Flow to GA; 38% of active customers adopted it within three weeks of launch.",
                     "Earned SOC 2 Type II, unblocking nine enterprise deals that had been gated on it.",
                     "Expanded Cobalt Health from two business units to seven, a $640K upsell closed a quarter early.",
@@ -6126,7 +6126,7 @@ export const qbr: ArtifactContent = doc("studio", [
         "q7",
         quote(
             "Our installed base is doing the work of a sales team we haven't hired yet. That's a gift and a warning.",
-            "— Priya Nandakumar, Chief Revenue Officer",
+            "Priya Nandakumar, Chief Revenue Officer",
         ),
         { background: bgImage("tessera-quiet-open-office-evening-warm-light", 0.6) },
     ),
@@ -6135,7 +6135,7 @@ export const qbr: ArtifactContent = doc("studio", [
         "q8",
         group(
             t("What slipped", "label"),
-            t("Three things we missed — and why", "h2"),
+            t("Three things we missed, and why", "h2"),
             callout(
                 "caution",
                 group(
@@ -6147,7 +6147,7 @@ export const qbr: ArtifactContent = doc("studio", [
                 ),
             ),
             t(
-                "Two more slips worth naming plainly: Reverse ETL, promised for May GA, moved to Q3 after a data-residency rework — it cost us at least two competitive evaluations. And CAC payback drifted to 16 months against a 14-month target, a direct consequence of spending into a funnel that converted slower than planned.",
+                "Two more slips worth naming plainly: Reverse ETL, promised for May GA, moved to Q3 after a data-residency rework. It cost us at least two competitive evaluations. And CAC payback drifted to 16 months against a 14-month target, a direct consequence of spending into a funnel that converted slower than planned.",
                 "body",
             ),
         ),
@@ -6166,7 +6166,7 @@ export const qbr: ArtifactContent = doc("studio", [
                 ),
                 quote(
                     "Tessera quietly became the system the rest of our stack reports into. We'd feel its absence in a day.",
-                    "— Director of Data Platform, Cobalt Health",
+                    "Director of Data Platform, Cobalt Health",
                 ),
             ),
             group(
@@ -6182,11 +6182,11 @@ export const qbr: ArtifactContent = doc("studio", [
             t("Looking ahead", "label"),
             t("Priorities for Q3", "h2"),
             t(
-                "One quarter, five moves. Each maps directly to a gap above — the plan is to fix what slipped without slowing what's working.",
+                "One quarter, five moves. Each maps directly to a gap above, and the plan is to fix what slipped without slowing what's working.",
                 "body",
             ),
             bullets(
-                "Rebuild pipeline coverage to 4.0x by mid-quarter — protect outbound spend, accelerate the partner-sourced channel.",
+                "Rebuild pipeline coverage to 4.0x by mid-quarter: protect outbound spend, accelerate the partner-sourced channel.",
                 "Ship Reverse ETL to GA in week six; win back the two stalled evaluations it cost us.",
                 "Fully ramp the new SDR class and stand up a dedicated enterprise security-review fast lane.",
                 "Pull CAC payback back toward 14 months by reweighting spend to the segments that convert.",
@@ -6203,7 +6203,7 @@ export const qbr: ArtifactContent = doc("studio", [
             bullets(
                 "Approve six incremental enterprise AE hires, front-loaded into July to protect H2 capacity.",
                 "Release the $400K field-marketing budget to refill top-of-funnel ahead of Q3.",
-                "Sponsor the three strategic renewals at board level — intros where you have them.",
+                "Sponsor the three strategic renewals at board level: intros where you have them.",
                 "Sign off on the usage-based pricing change for the mid-market tier, effective August 1.",
             ),
             button("Approve the Q3 plan"),
@@ -6213,7 +6213,7 @@ export const qbr: ArtifactContent = doc("studio", [
     section(
         "q12",
         t(
-            "The business is compounding from the inside out — the work now is to make sure the next twelve months of new customers are as healthy as this quarter's revenue. We have the team, the product, and the plan. We need the four yeses above to run it.",
+            "The business is compounding from the inside out. The work now is to make sure the next twelve months of new customers are as healthy as this quarter's revenue. We have the team, the product, and the plan. We need the four yeses above to run it.",
             "subtitle",
         ),
         { background: bgImage("tessera-city-skyline-sunrise-office-window", 0.55) },
@@ -6227,7 +6227,7 @@ export const trendsReport: ArtifactContent = doc("studio", [
             t("INDUSTRY TRENDS REPORT · 2026", "label"),
             t("The Factory Wakes Up", "h1"),
             t(
-                "For thirty years the industrial robot was a caged, single-purpose machine bolted to a floor. In 2026 it is becoming something else — cheaper, sighted, rentable, and increasingly able to share the room with people. This is the year automation stopped being a project and started being a default.",
+                "For thirty years the industrial robot was a caged, single-purpose machine bolted to a floor. In 2026 it is becoming something else: cheaper, sighted, rentable, and increasingly able to share the room with people. This is the year automation stopped being a project and started being a default.",
                 "subtitle",
             ),
             t("Continuum Research · Automation & Robotics Practice · June 2026", "caption"),
@@ -6244,7 +6244,7 @@ export const trendsReport: ArtifactContent = doc("studio", [
                 t("The landscape today", "label"),
                 t("Automation crossed from the margins to the mainstream.", "h2"),
                 t(
-                    "The story of industrial robotics used to be a story about cars — heavy arms welding chassis in a handful of giant plants. That era hasn't ended, but it has been overtaken. The fastest growth now comes from electronics, logistics, food, and metals, and from companies with under five hundred employees that could never have justified automation a decade ago.",
+                    "The story of industrial robotics used to be a story about cars, about heavy arms welding chassis in a handful of giant plants. That era hasn't ended, but it has been overtaken. The fastest growth now comes from electronics, logistics, food, and metals, and from companies with under five hundred employees that could never have justified automation a decade ago.",
                     "subtitle",
                 ),
                 t(
@@ -6279,11 +6279,11 @@ export const trendsReport: ArtifactContent = doc("studio", [
                 t("Trend 01", "label"),
                 t("Collaborative robots go mainstream", "h2"),
                 t(
-                    "Cobots — robots designed to work safely alongside people without a cage — have moved from novelty to backbone. They install in days rather than months, cost a fraction of traditional cells, and don't require a safety guard or a dedicated operator. In 2020 they were one in twelve new installations; on our forecast they cross one in three by 2027.",
+                    "Cobots (robots designed to work safely alongside people without a cage) have moved from novelty to backbone. They install in days rather than months, cost a fraction of traditional cells, and don't require a safety guard or a dedicated operator. In 2020 they were one in twelve new installations; on our forecast they cross one in three by 2027.",
                     "body",
                 ),
                 t(
-                    "What changed is not the robots so much as the buyers. The marginal new customer in 2026 is a mid-sized job shop automating a single repetitive station — palletizing, machine tending, quality inspection — and expecting payback inside a year. Cobots are the only category that meets that bar.",
+                    "What changed is not the robots so much as the buyers. The marginal new customer in 2026 is a mid-sized job shop automating a single repetitive station (palletizing, machine tending, quality inspection) and expecting payback inside a year. Cobots are the only category that meets that bar.",
                     "body",
                 ),
             ),
@@ -6301,7 +6301,7 @@ export const trendsReport: ArtifactContent = doc("studio", [
             group(
                 img("robot-arm-machine-vision-camera-bin-picking-parts", 1.05, 10),
                 t(
-                    "Vision-guided bin picking — the task that AI perception finally solved.",
+                    "Vision-guided bin picking, the task that AI perception finally solved.",
                     "caption",
                 ),
             ),
@@ -6309,7 +6309,7 @@ export const trendsReport: ArtifactContent = doc("studio", [
                 t("Trend 02", "label"),
                 t("Perception gets a brain", "h2"),
                 t(
-                    "The hardest problem in automation was never motion — it was sight. A robot that can only repeat a memorized path is useless the moment a part arrives at the wrong angle. AI-driven vision changed that. Modern perception stacks identify, orient, and grasp jumbled parts from a bin in real time, a task that defeated automation for thirty years.",
+                    "The hardest problem in automation was never motion. It was sight. A robot that can only repeat a memorized path is useless the moment a part arrives at the wrong angle. AI-driven vision changed that. Modern perception stacks identify, orient, and grasp jumbled parts from a bin in real time, a task that defeated automation for thirty years.",
                     "body",
                 ),
                 stat("10x", "improvement in vision-guided bin-picking success since 2021"),
@@ -6329,7 +6329,7 @@ export const trendsReport: ArtifactContent = doc("studio", [
                 t("Trend 03", "label"),
                 t("Robots without the capital expense", "h2"),
                 t(
-                    "Robotics-as-a-Service is doing to automation what cloud did to servers. Instead of a six-figure purchase and a multi-year depreciation schedule, manufacturers rent capacity by the month — hardware, software, maintenance, and uptime guarantees bundled into a single operating-expense line. RaaS contracts signed grew more than tenfold in three years.",
+                    "Robotics-as-a-Service is doing to automation what cloud did to servers. Instead of a six-figure purchase and a multi-year depreciation schedule, manufacturers rent capacity by the month, with hardware, software, maintenance, and uptime guarantees bundled into a single operating-expense line. RaaS contracts signed grew more than tenfold in three years.",
                     "body",
                 ),
                 t(
@@ -6351,7 +6351,7 @@ export const trendsReport: ArtifactContent = doc("studio", [
             t("The labor equation flips", "h2"),
             stat("1.9M", "U.S. manufacturing jobs projected to go unfilled by 2030"),
             t(
-                "For most of the last century automation was framed as a substitute for available labor. In 2026 it is increasingly a response to labor that simply isn't there. An aging workforce, tighter immigration, and a reshoring wave have left factories structurally short-staffed — and robots are filling the dull, dirty, and dangerous roles people no longer take. The political conversation about jobs is, on the factory floor, quietly inverting.",
+                "For most of the last century automation was framed as a substitute for available labor. In 2026 it is increasingly a response to labor that simply isn't there. An aging workforce, tighter immigration, and a reshoring wave have left factories structurally short-staffed, and robots are filling the dull, dirty, and dangerous roles people no longer take. The political conversation about jobs is, on the factory floor, quietly inverting.",
                 "subtitle",
             ),
         ),
@@ -6366,11 +6366,11 @@ export const trendsReport: ArtifactContent = doc("studio", [
                 t("Trend 05", "label"),
                 t("Humanoids cross from demo to pilot", "h2"),
                 t(
-                    "The most hyped category is also the least proven — but in 2026 it stopped being only a hype. General-purpose humanoid robots moved from staged demos to paid pilots inside real warehouses and plants, with announced deployments climbing from a handful in 2022 to roughly ninety this year. None are at scale, and the unit economics remain unproven.",
+                    "The most hyped category is also the least proven, but in 2026 it stopped being only hype. General-purpose humanoid robots moved from staged demos to paid pilots inside real warehouses and plants, with announced deployments climbing from a handful in 2022 to roughly ninety this year. None are at scale, and the unit economics remain unproven.",
                     "body",
                 ),
                 t(
-                    "Our read is to treat humanoids as a five-year bet, not a 2026 purchase. The near-term value is narrow — moving totes, tending machines, simple loading — and the durability and cost questions are real. But the trajectory is steep enough that no operations leader should let the category go un-watched.",
+                    "Our read is to treat humanoids as a five-year bet, not a 2026 purchase. The near-term value is narrow (moving totes, tending machines, simple loading) and the durability and cost questions are real. But the trajectory is steep enough that no operations leader should let the category go un-watched.",
                     "body",
                 ),
             ),
@@ -6384,8 +6384,8 @@ export const trendsReport: ArtifactContent = doc("studio", [
     section(
         "t9",
         quote(
-            "The question on the floor is no longer whether to automate a task. It's which financing model and how soon — and that shift is the whole story of 2026.",
-            "— Lead Analyst, Continuum Automation Practice",
+            "The question on the floor is no longer whether to automate a task. It's which financing model and how soon, and that shift is the whole story of 2026.",
+            "Lead Analyst, Continuum Automation Practice",
         ),
         { background: bgImage("warehouse-logistics-robots-conveyor-blue-light", 0.6) },
     ),
@@ -6400,7 +6400,7 @@ export const trendsReport: ArtifactContent = doc("studio", [
                 group(
                     t("THE PRACTICAL TAKEAWAY", "label"),
                     t(
-                        "If you run operations, the cost of waiting just went up. The combination of cheap cobots, working perception, and rentable capacity means the first automatable station in your plant probably pays back inside a year — and your competitors are doing the math too.",
+                        "If you run operations, the cost of waiting just went up. The combination of cheap cobots, working perception, and rentable capacity means the first automatable station in your plant probably pays back inside a year, and your competitors are doing the math too.",
                         "body",
                     ),
                 ),
@@ -6408,7 +6408,7 @@ export const trendsReport: ArtifactContent = doc("studio", [
             bullets(
                 "Start with one station, not a line. Pick a repetitive, single-task bottleneck and prove payback before scaling.",
                 "Pilot via RaaS to sidestep the capital case and learn before you commit hardware.",
-                "Insist on vision-guided flexibility — fixed automation ages badly as product mix changes.",
+                "Insist on vision-guided flexibility: fixed automation ages badly as product mix changes.",
                 "Watch humanoids, but don't buy yet; budget attention this year, capital in two to three.",
             ),
         ),

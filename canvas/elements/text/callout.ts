@@ -73,7 +73,7 @@ export const calloutElement: ElementSpec<CalloutData> = {
             {
                 type: "text",
                 data: {
-                    text: "Heads up — callouts hold real text you can edit inline.",
+                    text: "Heads up: callouts hold real text you can edit inline.",
                     style: "body",
                 },
             },

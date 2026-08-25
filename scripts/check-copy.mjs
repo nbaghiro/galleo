@@ -35,6 +35,15 @@ const IN_SCOPE = [
     // The prompts are copy too: the model imitates the register it is shown, and 169 em-dashes in
     // here were why it wrote them back out. Structural separators in rendered rows use a middot.
     /^services\/core\/ai\/prompts\//,
+    // The starter-template bodies. This is the copy a person clones and then publishes under their
+    // own name, so it is the most-read prose the product ships; 295 lines of it carried an em-dash
+    // while the rule that bans them scanned everything except this file.
+    /^services\/core\/templates\.ts$/,
+    // Element `create()` defaults and the blueprint placeholders: whatever they say is inserted
+    // into a real document the moment someone drops the element. Comments here use em-dashes
+    // freely and are stripped before the scan, and the one legitimate dash (the `dash` bullet
+    // marker) is a bare glyph, which passes on its own.
+    /^canvas\/elements\//,
 ];
 
 // Not copy: tests, fixtures, and the sample artifacts whose whole job is to look like real
@@ -42,6 +51,10 @@ const IN_SCOPE = [
 const OUT_OF_SCOPE = [
     /__tests__|\.test\.|\.itest\.|testkit/,
     /^app\/views\/theme-demo\.ts$/, // sample agency prose rendered in the theme preview
+    // The visual-eval corpus is measured byte-for-byte between runs, so its prose is a fixed input
+    // rather than copy anyone reads. `services/core/ai/prompts/` above does not reach it, but say
+    // so here rather than leave it to the reader of a path.
+    /^services\/core\/ai\/corpus\//,
 ];
 
 // Lines that carry an em-dash for a reason. Each needs the file AND the reason, so an exception
