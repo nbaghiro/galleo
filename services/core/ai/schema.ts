@@ -20,17 +20,23 @@ const zSectionBackground = z
     .object({
         kind: z.union([
             z.literal("none"),
+            z.literal("tone"),
             z.literal("color"),
             z.literal("gradient"),
             z.literal("image"),
         ]),
+        tone: z
+            .union([z.literal("tint"), z.literal("contrast"), z.literal("accent")])
+            .describe(
+                "with kind 'tone', which theme-relative band this is: 'tint' a quiet wash off the page for an alternating rhythm, 'contrast' the inverted band for a closing ask, 'accent' the brand colour. The ground and the text colours on it are both derived from the theme, so prefer a tone over picking a hex",
+            ),
         color: z.string().optional(),
         gradient: z.object({ from: z.string(), to: z.string(), angle: z.number().optional() }),
         image: z.string(),
         scrim: z.number(),
         dark: z.boolean(),
     })
-    .partial({ color: true, gradient: true, image: true, scrim: true, dark: true });
+    .partial({ tone: true, color: true, gradient: true, image: true, scrim: true, dark: true });
 
 export const zElement = z.object({
     type: z.string().describe("element type from the catalog (text, image, group, stat, chart, …)"),

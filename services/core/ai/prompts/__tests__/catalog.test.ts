@@ -64,6 +64,12 @@ describe("siteAnatomy", () => {
         expect(out).toContain('"frame": { "aspect": 3.2 }');
     });
 
+    it("names the band tones instead of asking for a hex that suits one theme", () => {
+        expect(out).toContain('"kind": "tone", "tone": "tint"');
+        expect(out).toContain('"tone": "contrast"');
+        expect(out).toContain('"tone": "accent"');
+    });
+
     it("ties nav hrefs to section ids the piece actually has", () => {
         expect(out).toContain("#<section id>");
         expect(out).toContain("only works if a section is called");

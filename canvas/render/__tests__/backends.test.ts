@@ -30,6 +30,13 @@ describe("backdropCss", () => {
     it("color → the color", () => {
         expect(backdropCss({ kind: "color", color: "#123456" }, tokens)).toBe("#123456");
     });
+    it("resolves a tone against the theme, so the backdrop matches what the section paints", () => {
+        expect(backdropCss({ kind: "tone", tone: "contrast" }, tokens)).toBe(tokens.ink);
+        expect(backdropCss({ kind: "tone", tone: "accent" }, tokens)).toBe(tokens.accent);
+        expect(backdropCss({ kind: "tone" }, tokens)).toBe(
+            backdropCss({ kind: "tone", tone: "tint" }, tokens),
+        );
+    });
     it("gradient → linear-gradient with a default angle", () => {
         expect(
             backdropCss({ kind: "gradient", gradient: { from: "#fff", to: "#000" } }, tokens),

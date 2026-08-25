@@ -82,6 +82,21 @@ describe("SECTION_CONTROLS visibleWhen", () => {
         expect(field("bgFrom").visibleWhen?.({ bgKind: "gradient" })).toBe(true);
         expect(field("bgFrom").visibleWhen?.({ bgKind: "none" })).toBe(false);
     });
+    it("offers the three theme-relative tones beside the raw kinds", () => {
+        expect(field("bgKind").options?.map((o) => o.value)).toEqual([
+            "none",
+            "tint",
+            "contrast",
+            "accent",
+            "color",
+            "gradient",
+            "image",
+        ]);
+    });
+    it("shows no colour or image field for a tone: the theme decides the ground", () => {
+        for (const key of ["bgColor", "bgFrom", "bgTo", "bgAngle", "bgImage", "bgScrim"])
+            expect(field(key).visibleWhen?.({ bgKind: "tint" }), key).toBe(false);
+    });
 });
 
 describe("ghost builders", () => {

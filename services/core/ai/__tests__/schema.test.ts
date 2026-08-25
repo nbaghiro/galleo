@@ -106,6 +106,27 @@ describe("zSection", () => {
         expect(ok.success).toBe(true);
     });
 
+    it("keeps a theme-relative tone band, which is what the model should reach for first", () => {
+        const ok = zSection.safeParse({
+            id: "cta",
+            root: { type: "text", data: { text: "hi" } },
+            background: { kind: "tone", tone: "contrast" },
+            bleed: true,
+        });
+        expect(ok.success).toBe(true);
+        expect(ok.success && ok.data.background).toEqual({ kind: "tone", tone: "contrast" });
+    });
+
+    it("drops a tone it does not know rather than failing the section", () => {
+        const ok = zSection.safeParse({
+            id: "cta",
+            root: { type: "text", data: { text: "hi" } },
+            background: { kind: "tone", tone: "loud" },
+        });
+        expect(ok.success).toBe(true);
+        expect(ok.success && ok.data.background).toBeUndefined();
+    });
+
     it("keeps `frame`, which is what makes a hero a band and a slide its own shape", () => {
         const ok = zSection.safeParse({
             id: "hero",

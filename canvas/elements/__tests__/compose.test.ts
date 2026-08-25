@@ -1,17 +1,29 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { EngineNode } from "@engine/node";
+import type { SectionBackground, SectionTone } from "@model/artifact";
+import type { Tokens } from "@themes";
 import {
     GUTTER,
     composeSection,
     composedLeafFor,
     composedNodeFor,
     sectionContentTokens,
+    toneGround,
 } from "@elements/compose";
 import { emptyRegion, rowGroup } from "@model/artifact";
 import { layout } from "@engine/layout";
 import { resolveProfile } from "@engine/profile";
-import { commandById, inst, layoutCtx, measure, sectionOf, tokens } from "@canvas/testkit";
+import { THEMES, contrastRatio, luminance } from "@themes";
+import {
+    commandById,
+    inst,
+    layoutCtx,
+    measure,
+    recordingDrawContext,
+    sectionOf,
+    tokens,
+} from "@canvas/testkit";
 
 // section → [inner] → [content]
 const contentOf = (section: EngineNode): EngineNode => section.children![0]!.children![0]!;
@@ -20,14 +32,257 @@ const deckCtx = layoutCtx(800, resolveProfile("deck"));
 const webCtx = layoutCtx(1200, resolveProfile("web"));
 const textRoot = (): ReturnType<typeof inst> => inst("text", { text: "Hello" });
 
+// a real shipped dark theme, so the swap is exercised against tokens someone can actually pick
+const darkTokens = THEMES.carbon!.tokens;
+const CREAM = "#E2DFD3"; // the landing-page logo band
+const bgOf = (background: SectionBackground): ReturnType<typeof sectionOf> =>
+    sectionOf(textRoot(), { background });
+
 describe("sectionContentTokens", () => {
     it("returns the base theme over a light background", () => {
-        const s = sectionOf(textRoot(), { background: { kind: "none" } });
-        expect(sectionContentTokens(s, tokens)).toBe(tokens);
+        expect(sectionContentTokens(bgOf({ kind: "none" }), tokens)).toBe(tokens);
     });
     it("switches to light-on-dark tokens over a dark background", () => {
-        const s = sectionOf(textRoot(), { background: { kind: "color", color: "#111111" } });
-        expect(sectionContentTokens(s, tokens).ink).toBe("#ffffff");
+        expect(sectionContentTokens(bgOf({ kind: "color", color: "#111111" }), tokens).ink).toBe(
+            "#ffffff",
+        );
+    });
+
+    // The bug: the swap used to run one way only, so a light band under a dark theme kept the
+    // theme's light ink and the text vanished into the band.
+    describe("a light band under a dark theme", () => {
+        const swapped = sectionContentTokens(bgOf({ kind: "color", color: CREAM }), darkTokens);
+
+        it("paints near-black ink instead of the theme's light ink", () => {
+            expect(darkTokens.ink).toBe("#EDEDED");
+            expect(swapped.ink).toBe("#0c0c0c");
+            expect(contrastRatio(swapped.ink, CREAM)).toBeGreaterThan(4.5);
+        });
+
+        it("tiers soft/muted/line/surface/bg as rgba black, mirroring the on-dark set", () => {
+            expect(swapped.soft).toBe("rgba(0,0,0,0.86)");
+            expect(swapped.muted).toBe("rgba(0,0,0,0.64)");
+            expect(swapped.line).toBe("rgba(0,0,0,0.24)");
+            expect(swapped.surface).toBe("rgba(0,0,0,0.10)");
+            expect(swapped.bg).toBe("rgba(0,0,0,0.06)");
+        });
+
+        it("drops an accent too light to read on the band, and re-pairs onAccent", () => {
+            expect(luminance(darkTokens.accent)).toBeGreaterThan(0.9); // carbon's near-white accent
+            expect(luminance(swapped.accent)).toBeLessThan(luminance(darkTokens.accent));
+            expect(contrastRatio(swapped.accent, CREAM)).toBeGreaterThan(4.5);
+            expect(swapped.onAccent).toBe("#ffffff");
+        });
+
+        it("keeps an accent that already reads on a light band untouched", () => {
+            const t: Tokens = { ...darkTokens, accent: "#7B2D26", onAccent: "#ffffff" };
+            const out = sectionContentTokens(bgOf({ kind: "color", color: CREAM }), t);
+            expect(out.accent).toBe("#7B2D26");
+            expect(out.onAccent).toBe("#ffffff"); // unchanged accent keeps the theme's own pairing
+        });
+
+        it("reads a gradient by its `from` stop, the way the dark side does", () => {
+            const grad = bgOf({ kind: "gradient", gradient: { from: CREAM, to: "#ffffff" } });
+            expect(sectionContentTokens(grad, darkTokens).ink).toBe("#0c0c0c");
+        });
+    });
+
+    // Everything the old asymmetric swap decided must decide the same way, or stored artifacts
+    // repaint. Only dark-theme + explicit-light-band may move.
+    describe("byte identity for every combination the old swap already handled", () => {
+        const same = (bg: SectionBackground, t: Tokens): void => {
+            expect(sectionContentTokens(bgOf(bg), t)).toBe(t);
+        };
+
+        it("a light theme returns the very same token object for every light band", () => {
+            for (const bg of [
+                { kind: "none" } as const,
+                { kind: "color", color: CREAM } as const,
+                { kind: "color", color: "#ffffff" } as const,
+                { kind: "gradient", gradient: { from: "#ffffff", to: CREAM } } as const,
+                { kind: "color" } as const, // a colour kind with no colour reads as nothing
+            ])
+                same(bg, tokens);
+        });
+
+        it("a section with no background of its own never swaps, under either theme", () => {
+            same({ kind: "none" }, tokens);
+            same({ kind: "none" }, darkTokens);
+            expect(sectionContentTokens(sectionOf(textRoot()), darkTokens)).toBe(darkTokens);
+        });
+
+        it("still swaps to the on-dark set for a dark band under either theme", () => {
+            for (const t of [tokens, darkTokens])
+                expect(sectionContentTokens(bgOf({ kind: "color", color: "#111111" }), t).ink).toBe(
+                    "#ffffff",
+                );
+        });
+
+        it("still treats an image band as dark, since the scrim makes it one", () => {
+            expect(sectionContentTokens(bgOf({ kind: "image", image: "x.png" }), tokens).ink).toBe(
+                "#ffffff",
+            );
+        });
+    });
+
+    describe("the author's `dark` override, now symmetric", () => {
+        it("dark: true forces the on-dark set over a light colour, under either theme", () => {
+            for (const t of [tokens, darkTokens])
+                expect(
+                    sectionContentTokens(bgOf({ kind: "color", color: CREAM, dark: true }), t).ink,
+                ).toBe("#ffffff");
+        });
+
+        it("dark: false forces the light-content set over a dark colour on a dark theme", () => {
+            const bg = { kind: "color", color: "#111111", dark: false } as const;
+            expect(sectionContentTokens(bgOf(bg), darkTokens).ink).toBe("#0c0c0c");
+        });
+
+        it("dark: false is still a no-op on a light theme: the base tokens already read", () => {
+            const bg = { kind: "color", color: "#111111", dark: false } as const;
+            expect(sectionContentTokens(bgOf(bg), tokens)).toBe(tokens);
+        });
+
+        it("an override on a section with no background stays inert", () => {
+            expect(sectionContentTokens(bgOf({ kind: "none", dark: false }), darkTokens)).toBe(
+                darkTokens,
+            );
+        });
+    });
+});
+
+describe("theme-relative tones", () => {
+    const toneSection = (tone: SectionTone): ReturnType<typeof sectionOf> =>
+        bgOf({ kind: "tone", tone });
+    const themes = Object.values(THEMES);
+
+    it("a tint stays inside the page's own range, so the theme's ink still reads on it", () => {
+        for (const th of themes) {
+            const ground = toneGround("tint", th.tokens);
+            const content = sectionContentTokens(toneSection("tint"), th.tokens);
+            expect(content.ink, th.id).toBe(th.tokens.ink); // the page's own ink, not a swap
+            expect(contrastRatio(content.ink, ground), th.id).toBeGreaterThan(7);
+        }
+    });
+
+    it("a tint separates from the surface by the same share of the range in every theme", () => {
+        for (const th of themes) {
+            const delta = Math.abs(
+                luminance(toneGround("tint", th.tokens)) - luminance(th.tokens.surface),
+            );
+            expect(delta, th.id).toBeGreaterThan(0.03);
+        }
+    });
+
+    // Moving the ground toward the ink is contrast the tiers below ink lose, and `muted` runs near
+    // the AA-large floor in several themes: uncompensated, a caption on a dark theme's tint band
+    // drops through it (carbon measured 2.97). The compensation is what this guards.
+    it("hands the tiers below ink back the contrast the band took from them", () => {
+        for (const th of themes) {
+            const ground = toneGround("tint", th.tokens);
+            const content = sectionContentTokens(toneSection("tint"), th.tokens);
+            // muted is the tier that decides this, since it runs nearest the floor: a caption on a
+            // tint band must never read worse than the same caption on the theme's own page
+            const onPage = contrastRatio(th.tokens.muted, th.tokens.surface);
+            expect(contrastRatio(content.muted, ground), `${th.id}/muted`).toBeGreaterThan(onPage);
+            // the tier above it stays comfortably legible rather than merely no worse
+            expect(contrastRatio(content.soft, ground), `${th.id}/soft`).toBeGreaterThan(4.5);
+        }
+    });
+
+    it("keeps a dark theme's caption on a tint band above the legibility floor", () => {
+        const ground = toneGround("tint", darkTokens);
+        const content = sectionContentTokens(toneSection("tint"), darkTokens);
+        // uncompensated this lands at 2.97 against the 3:1 AA-large floor the eval checks read
+        expect(contrastRatio(content.muted, ground)).toBeGreaterThan(3);
+        expect(contrastRatio(darkTokens.muted, ground)).toBeLessThan(3);
+    });
+
+    it("contrast grounds on the theme's own ink and inverts the content with it", () => {
+        for (const th of themes) {
+            const ground = toneGround("contrast", th.tokens);
+            expect(ground, th.id).toBe(th.tokens.ink);
+            const content = sectionContentTokens(toneSection("contrast"), th.tokens);
+            // a light theme's ink is a dark ground, a dark theme's ink is a light one
+            expect(content.ink, th.id).toBe(th.dark ? "#0c0c0c" : "#ffffff");
+            expect(contrastRatio(content.ink, ground), th.id).toBeGreaterThan(4.5);
+        }
+    });
+
+    it("accent grounds on the accent and anchors its content on onAccent", () => {
+        for (const th of themes) {
+            const content = sectionContentTokens(toneSection("accent"), th.tokens);
+            expect(toneGround("accent", th.tokens), th.id).toBe(th.tokens.accent);
+            expect(content.ink, th.id).toBe(th.tokens.onAccent);
+            expect(content.soft, th.id).toContain("0.86");
+            // accent and onAccent trade places, so a mark on the band still separates from it
+            expect(content.accent, th.id).toBe(th.tokens.onAccent);
+            expect(content.onAccent, th.id).toBe(th.tokens.accent);
+        }
+    });
+
+    it("never falls into the luminance guessing the raw-hex swap does", () => {
+        // obsidian's accent is near-white: read as a hex band it would trip the light-band swap and
+        // come out with near-black ink, but the tone knows its own pairing.
+        const obsidian = THEMES.obsidian!.tokens;
+        expect(luminance(obsidian.accent)).toBeGreaterThan(0.85);
+        expect(sectionContentTokens(toneSection("accent"), obsidian).ink).toBe(obsidian.onAccent);
+        // and the same ground written as a colour DOES go through the swap
+        const asHex = bgOf({ kind: "color", color: obsidian.accent });
+        expect(sectionContentTokens(asHex, obsidian).ink).toBe("#0c0c0c");
+    });
+
+    it("a tone band that names none reads as the quietest one rather than failing the section", () => {
+        const bare: SectionBackground = { kind: "tone" };
+        expect(sectionContentTokens(bgOf(bare), darkTokens)).toEqual(
+            sectionContentTokens(toneSection("tint"), darkTokens),
+        );
+        expect(composeSection(bgOf(bare), deckCtx).fill?.color).toBe(
+            toneGround("tint", deckCtx.theme),
+        );
+    });
+
+    it("paints the tone's ground as the section fill", () => {
+        for (const tone of ["tint", "contrast", "accent"] as SectionTone[])
+            expect(composeSection(toneSection(tone), deckCtx).fill?.color).toBe(
+                toneGround(tone, deckCtx.theme),
+            );
+    });
+
+    it("drops the delineation border once the tone's ground is dark", () => {
+        // on the default (light) theme a tint stays light and keeps its hairline; contrast does not
+        expect(composeSection(toneSection("tint"), deckCtx).fill?.border).toBeDefined();
+        expect(composeSection(toneSection("contrast"), deckCtx).fill?.border).toBeUndefined();
+    });
+});
+
+describe("the swapped tokens reach elements that paint from ctx.theme", () => {
+    const chartOnCream = (theme: Tokens): string[] => {
+        const s = sectionOf(inst("chart", { type: "column", values: "3, 7, 5", showGrid: true }), {
+            id: "s1",
+            background: { kind: "color", color: CREAM },
+        });
+        const node = composedNodeFor(
+            s,
+            { section: "s1", path: [] },
+            layoutCtx(800, undefined, theme),
+        )!;
+        const { ctx, calls } = recordingDrawContext();
+        node.surface!.paint(ctx, { x: 0, y: 0, w: 600, h: 240 });
+        return calls
+            .filter((c) => c.op === "text")
+            .map((c) => String((c.style as { fill?: string }).fill ?? ""));
+    };
+
+    it("a chart on a light band under a dark theme paints dark axis text", () => {
+        const fills = chartOnCream(darkTokens);
+        expect(fills.length).toBeGreaterThan(0);
+        for (const fill of fills) expect(fill).toMatch(/^(#0c0c0c|rgba\(0,0,0,)/);
+    });
+
+    it("and keeps the light theme's own axis text exactly as it was", () => {
+        for (const fill of chartOnCream(tokens))
+            expect([tokens.ink, tokens.soft, tokens.muted]).toContain(fill);
     });
 });
 

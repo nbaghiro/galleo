@@ -148,11 +148,16 @@ export const SECTION_CONTROLS: ControlField[] = [
         group: "Width",
     },
     {
+        // The three tones sit beside the raw kinds because they are what a band should normally be:
+        // named against the theme, so the section stays legible in whatever theme it is read under.
         key: "bgKind",
         label: "Background",
         control: "segmented",
         options: [
             { label: "None", value: "none" },
+            { label: "Tint", value: "tint" },
+            { label: "Contrast", value: "contrast" },
+            { label: "Accent", value: "accent" },
             { label: "Color", value: "color" },
             { label: "Gradient", value: "gradient" },
             { label: "Image", value: "image" },

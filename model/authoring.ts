@@ -4,6 +4,7 @@ import type {
     Section,
     SectionBackground,
     SectionFrame,
+    SectionTone,
 } from "@model/artifact";
 import { emptyRegion, rowGroup, withWidth } from "@model/artifact";
 
@@ -171,6 +172,10 @@ export const bgImage = (seedOrSrc: string, scrim = 0.5): SectionBackground => ({
 });
 
 export const bgColor = (color: string): SectionBackground => ({ kind: "color", color });
+
+// Prefer this over bgColor for a band whose job is a step in the page's rhythm rather than one
+// specific colour: a tone re-derives from whatever theme the piece is read under.
+export const bgTone = (tone: SectionTone): SectionBackground => ({ kind: "tone", tone });
 
 // The poster is what every static surface paints (thumbnail, PDF, the editor canvas); without one a
 // YouTube src falls back to the provider's own frame, which is rarely the shot the page wants.

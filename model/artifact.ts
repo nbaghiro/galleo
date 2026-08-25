@@ -14,8 +14,14 @@ export interface ElementInstance {
     id?: Id;
 }
 
+// A band named by its role in the theme rather than by a colour, so re-theming keeps it legible by
+// construction: the ground and the content tokens that read on it are derived from the same tokens.
+export const SECTION_TONES = ["tint", "contrast", "accent"] as const;
+export type SectionTone = (typeof SECTION_TONES)[number];
+
 export interface SectionBackground {
-    kind: "none" | "color" | "gradient" | "image";
+    kind: "none" | "tone" | "color" | "gradient" | "image";
+    tone?: SectionTone; // kind "tone" only; an unreadable value reads as "tint"
     color?: string;
     gradient?: { from: string; to: string; angle?: number };
     image?: string;

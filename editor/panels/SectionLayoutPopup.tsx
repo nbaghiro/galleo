@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
-import type { Section, SectionBackground } from "@model/artifact";
+import type { Section, SectionBackground, SectionTone } from "@model/artifact";
+import { SECTION_TONES } from "@model/artifact";
 import { profileFor } from "@engine/profile";
 import { SECTION_LAYOUTS, type SectionLayout } from "@elements/layouts";
 import { setSectionBackground, setSectionBleed, setSectionPinned } from "@elements/ops";
@@ -9,6 +10,8 @@ import { ScaledSectionCanvas } from "@ui/section";
 import { capture } from "@ui/analytics";
 import { commit, editor, editorTokens } from "@editor/core/store";
 import { SchemaFields, Group } from "./SharedControlFields";
+
+const isTone = (v: string): v is SectionTone => (SECTION_TONES as readonly string[]).includes(v);
 
 export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
     const sec = createMemo(() => editor.artifact.sections.find((s) => s.id === props.section));
@@ -49,6 +52,11 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
             : undefined;
     };
     const setKind = (kind: string): void => {
+        if (isTone(kind)) {
+            capture("background_set", { kind });
+            setBg({ kind: "tone", tone: kind });
+            return;
+        }
         if (kind === "color" || kind === "gradient" || kind === "image")
             capture("background_set", { kind });
         const t = editorTokens();
@@ -69,8 +77,9 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
                 return sec()?.bleed ? "full" : "contained";
             case "pinned":
                 return sec()?.pinned ?? false;
+            // the segmented is flat: a tone shows as itself, not as the kind that stores it
             case "bgKind":
-                return bg().kind;
+                return bg().kind === "tone" ? (bg().tone ?? "tint") : bg().kind;
             case "bgColor":
                 return bg().color;
             case "bgFrom":

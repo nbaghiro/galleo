@@ -1,15 +1,21 @@
 import type { LayoutCtx } from "@elements/spec";
 import type { EngineNode, Rect, Region } from "@engine/node";
-import type { ElementAddress, ElementInstance, Section, SectionBackground } from "@model/artifact";
+import type {
+    ElementAddress,
+    ElementInstance,
+    Section,
+    SectionBackground,
+    SectionTone,
+} from "@model/artifact";
 import type { TextLeaf } from "@engine/node";
 import type { Tokens } from "@themes";
 import { getElement } from "@elements/spec";
-import { elementRegionId, sectionRegionId } from "@model/artifact";
+import { SECTION_TONES, elementRegionId, sectionRegionId } from "@model/artifact";
 import { scaleDrawContext } from "@engine/drawscale";
 import { rampScale } from "@engine/profile";
 import type { ElementLayout, Size } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
-import { fontStack, hexToRgb, hsl2hex, luminance, rgb2hsl } from "@themes";
+import { fontStack, hexA, hexToRgb, hsl2hex, luminance, mix, rgb2hsl } from "@themes";
 
 const card = (title: string, body: string): ElementInstance => ({
     type: "container",
@@ -228,21 +234,44 @@ export function composeElement(
     return applyLayout(node, inst.layout);
 }
 
+const HEX6 = /^#[0-9a-fA-F]{6}$/;
+const NEAR_BLACK = "#0c0c0c";
+
 // lift a too-dark accent to a legible luminance so it reads on a dark/scrimmed bg — by raising
 // HSL lightness, which keeps the hue: a channel-space mix toward white washes the color out, and
 // everything downstream (the accent ramp, tinted washes) then degrades to gray
 const ACCENT_DARK_TRIGGER = 0.45;
 const ACCENT_LIFT_TARGET = 0.62;
 function readableAccentOnDark(hex: string): string {
-    if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
+    if (!HEX6.test(hex)) return hex;
     if (luminance(hex) >= ACCENT_DARK_TRIGGER) return hex;
     const [h, s, l] = rgb2hsl(...hexToRgb(hex));
-    let lift = Math.max(l, 0.62);
+    let lift = Math.max(l, ACCENT_LIFT_TARGET);
     let out = hsl2hex(h, s, lift);
     // a saturated blue is dim at any mid lightness; step until the perceived target is reached
     while (luminance(out) < ACCENT_LIFT_TARGET && lift < 0.9) {
         lift += 0.05;
         out = hsl2hex(h, s, lift);
+    }
+    return out;
+}
+
+// the same move from the other end, for an accent too light to read on a light band: drop the HSL
+// lightness rather than mixing toward black, for the reason above (a channel-space mix muddies the
+// hue and the ramp built from it). The thresholds are the dark ones measured from the other end of
+// the range, so neither side is tuned against the other.
+const ACCENT_LIGHT_TRIGGER = 1 - ACCENT_DARK_TRIGGER;
+const ACCENT_DROP_TARGET = 1 - ACCENT_LIFT_TARGET;
+function readableAccentOnLight(hex: string): string {
+    if (!HEX6.test(hex)) return hex;
+    if (luminance(hex) <= ACCENT_LIGHT_TRIGGER) return hex;
+    const [h, s, l] = rgb2hsl(...hexToRgb(hex));
+    let drop = Math.min(l, ACCENT_DROP_TARGET);
+    let out = hsl2hex(h, s, drop);
+    // a saturated yellow stays bright at any mid lightness; step until the perceived target is met
+    while (luminance(out) > ACCENT_DROP_TARGET && drop > 0.1) {
+        drop -= 0.05;
+        out = hsl2hex(h, s, drop);
     }
     return out;
 }
@@ -253,6 +282,17 @@ function bgIsDark(bg: SectionBackground | undefined): boolean {
     if (bg.kind === "image") return true; // the scrim makes images dark
     if (bg.kind === "color" && bg.color) return luminance(bg.color) < 0.5;
     if (bg.kind === "gradient" && bg.gradient) return luminance(bg.gradient.from) < 0.5;
+    return false;
+}
+
+// Not `!bgIsDark`: a section with no background of its own is neither, it just follows the theme.
+// Only an explicit light band answers true here, read the way bgIsDark reads its own.
+function bgIsLight(bg: SectionBackground | undefined): boolean {
+    if (!bg || bg.kind === "none") return false;
+    if (bg.dark !== undefined) return !bg.dark;
+    if (bg.kind === "image") return false; // the scrim makes images dark
+    if (bg.kind === "color" && bg.color) return luminance(bg.color) >= 0.5;
+    if (bg.kind === "gradient" && bg.gradient) return luminance(bg.gradient.from) >= 0.5;
     return false;
 }
 
@@ -268,13 +308,97 @@ function onDark(t: Tokens): Tokens {
         surface: "rgba(255,255,255,0.10)",
         bg: "rgba(255,255,255,0.06)",
         accent,
-        onAccent: accent !== t.accent ? "#0c0c0c" : t.onAccent,
+        onAccent: accent !== t.accent ? NEAR_BLACK : t.onAccent,
     };
 }
 
-// mirrors composeSection's token swap so callers (e.g. the inline text editor) can match
+// onDark's inverse: the same tiers in black, alpha for alpha, so a band that swaps one way and a
+// band that swaps the other are the same design decision rather than two calibrations
+function onLight(t: Tokens): Tokens {
+    const accent = readableAccentOnLight(t.accent);
+    return {
+        ...t,
+        ink: NEAR_BLACK,
+        soft: "rgba(0,0,0,0.86)",
+        muted: "rgba(0,0,0,0.64)",
+        line: "rgba(0,0,0,0.24)",
+        surface: "rgba(0,0,0,0.10)",
+        bg: "rgba(0,0,0,0.06)",
+        accent,
+        onAccent: accent !== t.accent ? "#ffffff" : t.onAccent,
+    };
+}
+
+// An accent band: the ground is the accent, so its content is anchored on the token the theme
+// already names as what reads on the accent, tiered the way onDark tiers white. Accent and onAccent
+// trade places so an accent-marked eyebrow or a filled button still separates from the ground.
+function onAccentGround(t: Tokens): Tokens {
+    return {
+        ...t,
+        ink: t.onAccent,
+        soft: hexA(t.onAccent, 0.86),
+        muted: hexA(t.onAccent, 0.64),
+        line: hexA(t.onAccent, 0.24),
+        surface: hexA(t.onAccent, 0.1),
+        bg: hexA(t.onAccent, 0.06),
+        accent: t.onAccent,
+        onAccent: t.accent,
+    };
+}
+
+// Whether the base theme is a dark one, read from `ink` rather than `bg`: ink is the token these
+// swaps replace, and it stays a plain hex in every token set, while `bg` may already be a
+// translucent wash (both swaps write one) that `luminance` cannot read.
+const inkIsLight = (t: Tokens): boolean => HEX6.test(t.ink) && luminance(t.ink) >= 0.5;
+
+// How far a tint band travels from the surface toward the ink. Fraction of that whole range rather
+// than a colour, so every theme gets a band of the same perceived strength and none of them can
+// land on a ground its own ink cannot read. Calibrated against the bands the templates hand-picked
+// before tones existed: press sits at 0.118 of its range, orchard at 0.084.
+const TINT_MIX = 0.09;
+
+// An unreadable stored value reads as the quietest tone rather than failing the section
+const toneOf = (bg: SectionBackground): SectionTone =>
+    bg.tone && SECTION_TONES.includes(bg.tone) ? bg.tone : "tint";
+
+/** The ground a tone paints, derived from the theme so every theme yields a legible pair. */
+export function toneGround(tone: SectionTone, t: Tokens): string {
+    if (tone === "accent") return t.accent;
+    if (tone === "contrast") return t.ink; // the inverted band: the page's own ink as a ground
+    return mix(t.surface, t.ink, TINT_MIX);
+}
+
+// A tint keeps the page's own ink, but moving the ground toward that ink is contrast every tier
+// BELOW ink loses, and `muted` runs near the AA-large floor in most themes: left alone it drops
+// through. The tiers travel at twice the ground's rate because they do not start at the same
+// distance from the ink; at 2x every shipped theme reads a caption on a tint band at least as well
+// as the same caption on its page, which is the guarantee that makes a tone safe to pick blind.
+const TINT_TIER_MIX = TINT_MIX * 2;
+function onTint(t: Tokens): Tokens {
+    const toward = (c: string): string => mix(c, t.ink, TINT_TIER_MIX);
+    return { ...t, soft: toward(t.soft), muted: toward(t.muted), line: toward(t.line) };
+}
+
+// The content set that goes with a tone's ground. No luminance guessing: a tone's ground is built
+// from the tokens, so which set reads on it is known from which token it was built from.
+function toneTokens(tone: SectionTone, t: Tokens): Tokens {
+    if (tone === "accent") return onAccentGround(t);
+    // contrast grounds on `ink`, so a light theme's band is dark and a dark theme's band is light
+    if (tone === "contrast") return inkIsLight(t) ? onLight(t) : onDark(t);
+    return onTint(t);
+}
+
+// The one place the contrast swap is decided; composeSection calls it, and so do the callers that
+// must match what it paints (the inline text editor, the live overlay).
 export function sectionContentTokens(section: Section, theme: Tokens): Tokens {
-    return bgIsDark(section.background) ? onDark(theme) : theme;
+    const bg = section.background;
+    if (bg?.kind === "tone") return toneTokens(toneOf(bg), theme);
+    if (bgIsDark(bg)) return onDark(theme);
+    // The inverse case: an explicit light band under a dark theme keeps the theme's light ink and
+    // the text vanishes into the band. Reached both when a preview re-themes stored content to the
+    // viewer's app theme and when an author picks a light band colour while working in a dark theme.
+    if (bgIsLight(bg) && inkIsLight(theme)) return onLight(theme);
+    return theme;
 }
 
 // The engine subtree for an address exactly as the canvas composes it — token ramp, container
@@ -314,7 +438,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     const continuous = ctx.format.kind === "continuous";
     const webBand = ctx.format.id === "web"; // full-bleed band, content stays in a centered column
     const innerMax = ctx.format.maxContentWidth ?? 1180;
-    const contentTheme = bgIsDark(bg) ? onDark(ctx.theme) : ctx.theme;
+    const contentTheme = sectionContentTokens(section, ctx.theme);
     // The section's own gutters scale here rather than in scaleTokens, because contentW is what
     // children size against (stacksAtWidth, rowShares): scaling padding afterwards would leave them
     // measured against a width the section no longer has. Autofit rides the same factor for the
@@ -368,15 +492,19 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         node.children = [inner, ...docked];
     }
 
+    // a tone's ground is a colour we derived, so reading it back is not the luminance guess about an
+    // arbitrary hex that bgIsDark makes; it is the same token arithmetic answered a second time
+    const toneFill = bg?.kind === "tone" ? toneGround(toneOf(bg), ctx.theme) : null;
+    const darkGround = toneFill ? luminance(toneFill) < 0.5 : bgIsDark(bg);
     // border only on a light bg: over dark a hairline reads as an awkward frame
     const framed = !bleed && !continuous;
     const shadow = framed ? ctx.theme.shadow : undefined;
     const border =
-        framed && !bgIsDark(bg)
-            ? { color: ctx.theme.line, width: ctx.theme.border ?? 1 }
-            : undefined;
+        framed && !darkGround ? { color: ctx.theme.line, width: ctx.theme.border ?? 1 } : undefined;
 
-    if (bg?.kind === "image" && bg.image) {
+    if (toneFill) {
+        node.fill = { color: toneFill, radius, border, shadow };
+    } else if (bg?.kind === "image" && bg.image) {
         node.image = {
             src: bg.image,
             fit: "cover",

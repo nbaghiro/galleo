@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ElementInstance } from "@model/artifact";
 import { childrenRaw } from "@model/artifact";
-import { bgImage, img, split, stat, t } from "@model/authoring";
+import { bgImage, bgTone, img, split, stat, t } from "@model/authoring";
 
 const imgData = (e: ElementInstance): { src?: string; radius?: number; fit?: string } =>
     e.data as { src?: string; radius?: number; fit?: string };
@@ -42,6 +42,14 @@ describe("bgImage", () => {
     });
     it("builds a picsum URL from a seed", () => {
         expect(bgImage("hero").image).toBe("https://picsum.photos/seed/hero/1700/1100");
+    });
+});
+
+describe("bgTone", () => {
+    it("names the band against the theme rather than fixing a colour", () => {
+        expect(bgTone("tint")).toEqual({ kind: "tone", tone: "tint" });
+        expect(bgTone("contrast")).toEqual({ kind: "tone", tone: "contrast" });
+        expect(bgTone("accent")).toEqual({ kind: "tone", tone: "accent" });
     });
 });
 

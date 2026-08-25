@@ -582,6 +582,18 @@ describe("narrowOps", () => {
         expect(applied.ok && applied.content.sections[0]?.pinned).toBe(true);
     });
 
+    // A background is a shell field too, and `tone` is one this layer never enumerates: it has to
+    // ride to the row on the whole-section set rather than being narrowed away or rebuilt.
+    it("carries a background tone through a section set untouched", () => {
+        const before = dataDoc();
+        const background = { kind: "tone", tone: "contrast" } as const;
+        const next: Section = { ...before.sections[0]!, background };
+        const ops = narrowOps(before, [{ kind: "set", section: next }]);
+        expect(ops).toEqual([{ kind: "set", section: next }]);
+        const applied = applySectionOps(before, ops);
+        expect(applied.ok && applied.content.sections[0]?.background).toEqual(background);
+    });
+
     it("keeps a set that changes notes and element data together", () => {
         const before = dataDoc();
         const edited = withText(before, "s1", 0, "changed");

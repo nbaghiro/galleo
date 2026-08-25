@@ -1,6 +1,6 @@
 import type { BeatRole, Surface } from "./ai";
 import { BEAT_ROLES } from "./ai";
-import type { ArtifactAccess } from "./artifact";
+import type { ArtifactAccess, SectionTone } from "./artifact";
 import type { AddOnId, CreditPackId, ExportFormat, FeatureKey, Interval, PlanId } from "./billing";
 import type { AiTask } from "./credits";
 import type { MediaSource } from "./media";
@@ -387,7 +387,7 @@ export interface Events {
     // only, so whether a model or a person chose them, and what it started from, are not on the
     // wire. Both would need the theme editor to say so when it saves.
     custom_theme_created: { how?: "editor" | "ai"; based_on_theme_id?: string };
-    background_set: { kind: "color" | "gradient" | "image" };
+    background_set: { kind: "color" | "gradient" | "image" | SectionTone };
     format_switched: { from: Surface; to: Surface; section_count: number };
     editor_session_ended: {
         ms: number;

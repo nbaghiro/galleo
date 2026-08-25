@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { ElementInstance, Section } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
-import { diagnoseSection, diagnoseSections, SPARSE_BELOW } from "@canvas/render/diagnose";
+import {
+    CONTRAST_FLOOR,
+    diagnoseSection,
+    diagnoseSections,
+    SPARSE_BELOW,
+} from "@canvas/render/diagnose";
 import type { MeasureText } from "@engine/node";
+import type { Tokens } from "@themes";
+import { THEMES, THEME_LIST, contrastRatio } from "@themes";
 import { measure } from "@canvas/testkit";
 import "@elements/register";
 
@@ -122,6 +129,56 @@ describe("contrast on a dark colour band", () => {
         const fit = diagnoseSection(band("b1"), 1280, measure, undefined, DOC);
         expect(fit.minContrast).not.toBeNull();
         expect(fit.minContrast!).toBeGreaterThan(3);
+    });
+});
+
+// The mirror of the case above, and the one the swap used to get wrong: under a dark theme a light
+// band now swaps to near-black ink with rgba-BLACK tiers. Those stand down for the same reason the
+// white ones do, and the ink that is readable has to measure as legible rather than as the dark
+// theme's own light ink on cream.
+describe("contrast on a light colour band under a dark theme", () => {
+    const CREAM = "#E2DFD3";
+    const dark = THEMES.carbon!.tokens;
+    const band = (id: string): Section => ({
+        ...section(id, [
+            { type: "text", data: { text: "A lead line", style: "subtitle" } },
+            text("A line that reads dark once the tokens swap"),
+        ]),
+        background: { kind: "color", color: CREAM },
+    });
+
+    it("reads the swapped band as legible rather than as a false failure", () => {
+        const fit = diagnoseSection(band("l1"), 1280, measure, dark, DOC);
+        expect(fit.minContrast).not.toBeNull();
+        expect(fit.minContrast!).toBeGreaterThan(CONTRAST_FLOOR);
+    });
+
+    it("and would have failed on the same section before the swap was symmetric", () => {
+        // what the old behaviour painted: the dark theme's own light ink, straight onto the cream
+        expect(contrastRatio(dark.ink, CREAM)).toBeLessThan(CONTRAST_FLOOR);
+    });
+});
+
+describe("a theme-relative tone band", () => {
+    const themed = (tone: "tint" | "contrast" | "accent", theme: Tokens): number | null =>
+        diagnoseSection(
+            {
+                ...section("t1", [text("A line on a tone band")]),
+                background: { kind: "tone", tone },
+            },
+            1280,
+            measure,
+            theme,
+            DOC,
+        ).minContrast;
+
+    it("reads as legible in every shipped theme, which is the point of naming a tone", () => {
+        for (const th of THEME_LIST)
+            for (const tone of ["tint", "contrast", "accent"] as const) {
+                const ratio = themed(tone, th.tokens);
+                if (ratio !== null)
+                    expect(ratio, `${th.id}/${tone}`).toBeGreaterThanOrEqual(CONTRAST_FLOOR);
+            }
     });
 });
 

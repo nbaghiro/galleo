@@ -25,6 +25,7 @@ import type { Tokens } from "@themes";
 import { hexA } from "@themes";
 import type { FormatDescriptor } from "@model/geometry";
 import { pagedSize, sectionFrame } from "@engine/profile";
+import { toneGround } from "@elements/compose";
 
 // raster supersampling factor for crisp export
 export const EXPORT_SCALE = 2;
@@ -845,6 +846,7 @@ export async function renderSlidePage(
 
 export function backdropCss(bg: SectionBackground | undefined, tokens: Tokens): string {
     if (!bg || bg.kind === "none") return tokens.bg;
+    if (bg.kind === "tone") return toneGround(bg.tone ?? "tint", tokens);
     if (bg.kind === "image" && bg.image) {
         const s = bg.scrim ?? 0;
         const url = `url("${bg.image}")`;

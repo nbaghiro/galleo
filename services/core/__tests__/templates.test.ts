@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ElementInstance } from "@model/artifact";
-import { sectionLinkId } from "@model/artifact";
+import { SECTION_TONES, sectionLinkId } from "@model/artifact";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { template, templateBody } from "@services/core/templates";
@@ -76,5 +76,31 @@ describe("the links a template ships with", () => {
             for (const section of templateBody(entry.id)!.sections)
                 if (section.pinned)
                     expect(section.background?.kind, `${entry.id}/${section.id}`).toBe("color");
+    });
+});
+
+// A flat band is the one background a template can name against the theme instead of against a
+// colour, and a hex there is what breaks the gallery preview: it re-themes the body to the viewer's
+// app theme, so a cream band under a dark theme used to keep the dark theme's light ink. An image
+// band carries its own scrim and is not part of this.
+describe("the bands a template ships with", () => {
+    it("names every flat band as a tone rather than as a hex", () => {
+        const raw: string[] = [];
+        for (const entry of TEMPLATE_INDEX)
+            for (const section of templateBody(entry.id)!.sections) {
+                const kind = section.background?.kind;
+                if (kind === "color" || kind === "gradient")
+                    raw.push(`${entry.id}/${section.id} (${kind})`);
+            }
+        expect(raw).toEqual([]);
+    });
+
+    it("uses tones the renderer knows", () => {
+        for (const entry of TEMPLATE_INDEX)
+            for (const section of templateBody(entry.id)!.sections)
+                if (section.background?.kind === "tone")
+                    expect(SECTION_TONES, `${entry.id}/${section.id}`).toContain(
+                        section.background.tone,
+                    );
     });
 });
