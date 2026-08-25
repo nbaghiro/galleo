@@ -58,6 +58,9 @@ test("duplicate makes a sibling copy", async ({ page }) => {
     await paintedText(page, "Unique phrase here").click();
     await page.keyboard.press("Escape");
     const matches = stage(page).getByText("Unique phrase here", { exact: true });
+    // Leaving the text editor repaints the section, so the count has to settle before it is the
+    // baseline: reading it mid-repaint gives 0, and the assertion below then expects 0 of them.
+    await expect(matches).not.toHaveCount(0);
     const before = await matches.count();
     await page.keyboard.press("ControlOrMeta+d");
     // every painted layer of the text doubles, whatever the wrapper structure is
