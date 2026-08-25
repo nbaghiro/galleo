@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { Button } from "@ui/button";
+import { Button, IconButton } from "@ui/button";
 import { TextArea } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Dropdown } from "@ui/select";
@@ -378,11 +378,16 @@ export const Intake: Component = () => {
 const GalleryPane: Component<{ onBack: () => void }> = (props) => (
     <div class="flex h-full flex-col">
         <div class="flex flex-none items-center gap-2 border-b border-line px-4 py-2.5 md:px-6">
-            <Button variant="ghost" size="sm" onClick={() => props.onBack()}>
-                <Icon name="chevronLeft" size={13} /> Back
-            </Button>
-            <span class="text-[13.5px] font-semibold tracking-tight">Templates</span>
-            <span class="font-mono text-[10px] text-muted">pick one and make it yours</span>
+            <IconButton size="sm" tone="muted" title="Back" onClick={() => props.onBack()}>
+                <Icon name="chevronLeft" size={14} />
+            </IconButton>
+            {/* the two labels share a baseline with each other, and the pair is centred against the
+                button: `items-center` alone centres three boxes of three different heights, which
+                leaves the mono line sitting off the title it qualifies */}
+            <div class="flex items-baseline gap-2">
+                <span class="text-[13.5px] font-semibold tracking-tight">Templates</span>
+                <span class="font-mono text-[10px] text-muted">pick one and make it yours</span>
+            </div>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto">
             <TemplateGallery onCreated={closeGenerate} from="generate" />
