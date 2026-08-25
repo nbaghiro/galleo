@@ -24,7 +24,7 @@ import { sectionLinkId } from "@model/artifact";
 import type { Tokens } from "@themes";
 import { hexA } from "@themes";
 import type { FormatDescriptor } from "@model/geometry";
-import { pagedSize, sectionFrame } from "@engine/profile";
+import { containedWidth, pagedSize, sectionBleeds, sectionFrame } from "@engine/profile";
 import { toneGround } from "@elements/compose";
 
 // raster supersampling factor for crisp export
@@ -947,10 +947,8 @@ export function sectionLayoutWidth(
     profile: FormatDescriptor,
     fullW: number,
 ): number {
-    const bleed = (section.bleed ?? false) || profile.bleedSections === true;
-    return bleed
-        ? fullW
-        : Math.min(fullW - (profile.stackInset ?? 64), profile.maxContentWidth ?? 1080);
+    const bleed = sectionBleeds(section, profile) || profile.bleedSections === true;
+    return bleed ? fullW : containedWidth(profile, fullW);
 }
 
 /** Windowed: off-screen sections still lay out (tops/height exact) but build no DOM or regions. */

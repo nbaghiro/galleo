@@ -285,6 +285,7 @@ export const portfolio: ArtifactContent = web(
                 button("See the work", "#work"),
             ),
             {
+                bleed: true,
                 background: bgImage("halvorsen-hero-architecture", 0.55),
                 frame: { aspect: 16 / 7 },
             },
@@ -439,7 +440,7 @@ export const portfolio: ArtifactContent = web(
                 ),
                 img("halvorsen-studio-materials-flatlay", 0.92),
             ),
-            { background: bgImage("halvorsen-contact-texture", 0.4) },
+            { bleed: true, background: bgImage("halvorsen-contact-texture", 0.4) },
         ),
         section(
             "footer",
@@ -496,6 +497,7 @@ export const personalSite: ArtifactContent = web(
                 button("Read the essays", "#writing"),
             ),
             {
+                bleed: true,
                 background: bgImage("wren-halloran-hero-desk-window", 0.55),
                 frame: { aspect: 16 / 8 },
             },
@@ -715,7 +717,7 @@ export const personalSite: ArtifactContent = web(
                 ),
                 button("Email me", "mailto:wren@quietmachines.co"),
             ),
-            { background: bgImage("wren-contact-window-light", 0.45) },
+            { bleed: true, background: bgImage("wren-contact-window-light", 0.45) },
         ),
         section(
             "footer",
@@ -872,6 +874,7 @@ export const eventInvite: ArtifactContent = web(
                 button("RSVP by 1 August", "#rsvp"),
             ),
             {
+                bleed: true,
                 background: bgImage("wedding-hero-olive-grove-dusk", 0.55),
                 frame: { aspect: 16 / 7 },
             },
@@ -962,7 +965,7 @@ export const eventInvite: ArtifactContent = web(
                     variant: "outline",
                 }),
             ),
-            { background: bgImage("wedding-venue-quinta-hillside", 0.5) },
+            { bleed: true, background: bgImage("wedding-venue-quinta-hillside", 0.5) },
         ),
 
         section(
@@ -1311,6 +1314,7 @@ export const productLaunch: ArtifactContent = web(
                 button("Pre-order · $249", "#preorder"),
             ),
             {
+                bleed: true,
                 background: bgImage("aer-hero-living-room", 0.58),
                 frame: { aspect: 16 / 7 },
             },
@@ -1596,6 +1600,7 @@ export const landingPage: ArtifactContent = web(
                 ),
             ),
             {
+                bleed: true,
                 background: bgImage("northwind-hero-workspace", 0.52),
                 frame: { aspect: 16 / 8 },
             },
@@ -1908,6 +1913,7 @@ export const eventPage: ArtifactContent = web(
                 ),
             ),
             {
+                bleed: true,
                 background: bgImage("frequency-lisbon-stage-lights", 0.58),
                 frame: { aspect: 16 / 7 },
             },
@@ -2243,6 +2249,7 @@ export const waitlistPage: ArtifactContent = web(
                 button("Join the waitlist", "#join"),
             ),
             {
+                bleed: true,
                 background: bgImage("vanta-dark-desk-single-light", 0.62),
                 frame: { aspect: 16 / 9 },
             },

@@ -546,4 +546,49 @@ describe("dock", () => {
         const node = composeSection(plain as never, webCtx);
         expect(node.children).toHaveLength(1);
     });
+
+    // a page has no scroll for chrome to hang over, and autofit fills the frame to its padding,
+    // so a float would land on the headline
+    it("leaves the row in the flow on a paged format, ahead of the content", () => {
+        const node = composeSection(sec() as never, deckCtx);
+        expect(node.children).toHaveLength(1);
+        const content = node.children![0]!.children![0]!;
+        expect(content.children).toHaveLength(2);
+        expect(content.children!.some((c) => c.float)).toBe(false);
+        const { commands } = layout(node, { x: 0, y: 0, w: 800, h: 100000 }, measure);
+        const [brand, headline] = commands.filter((c) => c.kind === "text");
+        expect(brand!.text.text).toBe("Brand");
+        expect(brand!.box.y + brand!.box.h).toBeLessThanOrEqual(headline!.box.y);
+    });
+});
+
+describe("the reading column", () => {
+    const docCtx = layoutCtx(1000, resolveProfile("doc"));
+    const photo: SectionBackground = { kind: "image", image: "p.png" };
+    const contentBox = (node: EngineNode, w: number): { x: number; w: number } => {
+        const { commands } = layout(node, { x: 0, y: 0, w, h: 100000 }, measure);
+        const text = commands.find((c) => c.kind === "text")!;
+        return { x: text.box.x, w: text.box.w };
+    };
+
+    it("a doc's full-width band holds the column its contained neighbours sit in", () => {
+        // the band lays out at the board width, a contained section at the column width
+        const band = composeSection(
+            sectionOf(textRoot(), { bleed: true, background: photo }),
+            layoutCtx(1440, resolveProfile("doc")),
+        );
+        const contained = composeSection(sectionOf(textRoot()), docCtx);
+        const inColumn = contentBox(contained, 1000);
+        expect(contentBox(band, 1440)).toEqual({ x: inColumn.x + 220, w: inColumn.w });
+    });
+
+    it("a site's column is the profile cap, on every section", () => {
+        const wide = layoutCtx(1440, resolveProfile("web"));
+        const plain = contentBox(composeSection(sectionOf(textRoot()), wide), 1440);
+        const band = contentBox(
+            composeSection(sectionOf(textRoot(), { bleed: true, background: photo }), wide),
+            1440,
+        );
+        expect(plain).toEqual(band);
+    });
 });

@@ -12,7 +12,7 @@ import type { Tokens } from "@themes";
 import { getElement } from "@elements/spec";
 import { SECTION_TONES, elementRegionId, sectionRegionId } from "@model/artifact";
 import { scaleDrawContext } from "@engine/drawscale";
-import { rampScale } from "@engine/profile";
+import { containedWidth, rampScale, sectionBleeds } from "@engine/profile";
 import type { ElementLayout, Size } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
 import { fontStack, hexA, hexToRgb, hsl2hex, luminance, mix, rgb2hsl } from "@themes";
@@ -434,21 +434,28 @@ export function composedLeafFor(
 
 export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     const bg = section.background;
-    const bleed = section.bleed ?? false;
+    const bleed = sectionBleeds(section, ctx.format);
     const continuous = ctx.format.kind === "continuous";
-    const webBand = ctx.format.id === "web"; // full-bleed band, content stays in a centered column
-    const innerMax = ctx.format.maxContentWidth ?? 1180;
+    // A band spanning the host keeps its content in the reading column, so a full-width photo does
+    // not drag its text wider than the sections above and below it. On a site that is every section.
+    const spansHost = continuous && (bleed || ctx.format.bleedSections === true);
     const contentTheme = sectionContentTokens(section, ctx.theme);
     // The section's own gutters scale here rather than in scaleTokens, because contentW is what
     // children size against (stacksAtWidth, rowShares): scaling padding afterwards would leave them
     // measured against a width the section no longer has. Autofit rides the same factor for the
     // same reason.
     const k = rampScale(ctx.format, ctx.availWidth) * (ctx.fitScale ?? 1);
+    // A site has no contained sections to line up with, so its column is the profile's own cap. A doc
+    // has: a band lays out at the full width, so `containedWidth` here is the exact width its
+    // contained neighbours get, and taking their side padding off it leaves the column they share.
+    const innerMax = ctx.format.bleedSections
+        ? (ctx.format.maxContentWidth ?? 1180)
+        : containedWidth(ctx.format, ctx.availWidth) - SECTION_PAD * 2 * k;
     const sidePad = (bleed ? BLEED_PAD_X : SECTION_PAD) * k;
     const gutter = GUTTER * k;
     const outerW = ctx.availWidth - sidePad * 2;
     // exact for the top-level row; a nested row inherits it and stacks a step late, self-correcting
-    const contentW = Math.max(0, (webBand ? Math.min(outerW, innerMax) : outerW) - gutter * 2);
+    const contentW = Math.max(0, (spansHost ? Math.min(outerW, innerMax) : outerW) - gutter * 2);
     const cctx: LayoutCtx = { ...ctx, theme: contentTheme, availWidth: contentW };
 
     const content = scaleTokens(
@@ -456,7 +463,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         k,
     );
     const inner: EngineNode = {
-        w: webBand ? grow(undefined, innerMax) : grow(),
+        w: spansHost ? grow(undefined, innerMax) : grow(),
         h: fit(),
         padding: pad(gutter),
         children: [content],
@@ -474,7 +481,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         w: grow(),
         h: band ? fit(band) : fit(),
         alignY: band ? "center" : undefined,
-        alignX: webBand ? "center" : undefined,
+        alignX: spansHost ? "center" : undefined,
         padding: bleed
             ? { top: 64 * k, bottom: 64 * k, left: sidePad, right: sidePad }
             : pad(sidePad),
@@ -488,8 +495,15 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         (c) => c.float?.y === "start" && c.float.z === 1,
     );
     if (docked.length) {
-        content.children = (content.children ?? []).filter((c) => !docked.includes(c));
-        node.children = [inner, ...docked];
+        if (continuous) {
+            content.children = (content.children ?? []).filter((c) => !docked.includes(c));
+            node.children = [inner, ...docked];
+        } else {
+            // A page has no scroll for chrome to hang over and autofit fills the frame to its
+            // padding, so the float would land on the headline. The row stays in the flow as the
+            // slide's first line instead: a static nav strip is honest slide furniture, overlap is not.
+            for (const d of docked) d.float = undefined;
+        }
     }
 
     // a tone's ground is a colour we derived, so reading it back is not the luminance guess about an

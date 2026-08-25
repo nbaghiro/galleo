@@ -2,7 +2,7 @@ import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import type { Section, SectionBackground, SectionTone } from "@model/artifact";
 import { SECTION_TONES } from "@model/artifact";
-import { profileFor } from "@engine/profile";
+import { profileFor, sectionBleeds } from "@engine/profile";
 import { SECTION_LAYOUTS, type SectionLayout } from "@elements/layouts";
 import { setSectionBackground, setSectionBleed, setSectionPinned } from "@elements/ops";
 import { SECTION_CONTROLS } from "@elements/spec";
@@ -19,12 +19,17 @@ export const SectionLayoutPopup: Component<{ section: string }> = (props) => {
     const frame = (): "slide" | "natural" =>
         profile().kind === "continuous" ? "natural" : "slide";
     const applicable = (s: Section): SectionLayout[] => SECTION_LAYOUTS.filter((l) => l.applies(s));
-    // pinning needs a scroll to stick against, which only a continuous format has
-    const controls = createMemo(() =>
-        profile().kind === "continuous"
-            ? SECTION_CONTROLS
-            : SECTION_CONTROLS.filter((c) => c.key !== "pinned"),
-    );
+    // Pinning needs a scroll to stick against, which only a continuous format has, and a width the
+    // format will not honour is a control that does nothing: a doc bleeds only a section that paints
+    // a band, so ask `sectionBleeds` what the flag would buy here rather than restating its rule.
+    const controls = createMemo(() => {
+        const s = sec();
+        return SECTION_CONTROLS.filter(
+            (c) =>
+                (c.key !== "pinned" || profile().kind === "continuous") &&
+                (c.key !== "bleed" || !s || sectionBleeds({ ...s, bleed: true }, profile())),
+        );
+    });
 
     const apply = (l: SectionLayout): void => {
         commit({

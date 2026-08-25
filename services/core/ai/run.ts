@@ -192,6 +192,8 @@ export async function* runGenerate(
             section = {
                 ...section,
                 background: { kind: "image", image: input.prompt, scrim: 0.5 },
+                // a site marks its bands, so the page still reads as one column as a document
+                ...(input.surface === "web" ? { bleed: true } : {}),
             };
         }
         if (beat.image) {

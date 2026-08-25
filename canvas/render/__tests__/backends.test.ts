@@ -73,6 +73,21 @@ describe("sectionLayoutWidth", () => {
         expect(sectionLayoutWidth(s, doc, 430)).toBe(430 - 64);
         expect(sectionLayoutWidth(s, previewContentProfile(doc, 430, true), 430)).toBe(430);
     });
+    it("a doc holds one column: a tone band stays in it, a photo band still spans", () => {
+        const doc = resolveProfile("doc");
+        const tint = sectionOf(inst("text", {}), {
+            bleed: true,
+            background: { kind: "tone", tone: "tint" },
+        });
+        const photo = sectionOf(inst("text", {}), {
+            bleed: true,
+            background: { kind: "image", image: "p.png" },
+        });
+        expect(sectionLayoutWidth(tint, doc, 1440)).toBe(sectionLayoutWidth(s, doc, 1440));
+        expect(sectionLayoutWidth(photo, doc, 1440)).toBe(1440);
+        // the same two on a site are one width, which is why the flags drift there
+        expect(sectionLayoutWidth(tint, web, 1440)).toBe(sectionLayoutWidth(photo, web, 1440));
+    });
 });
 
 describe("sectionFrameHeight", () => {

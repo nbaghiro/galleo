@@ -1,5 +1,5 @@
 import type { FormatDescriptor } from "@model/geometry";
-import type { Id, PageSize, Section } from "@model/artifact";
+import type { Id, PageSize, Section, SectionBackground } from "@model/artifact";
 
 // `width`/`height` drive paged framing (Present/Export); `maxContentWidth` drives the editor canvas.
 
@@ -107,6 +107,36 @@ export function rampScale(profile: FormatDescriptor, availWidth: number): number
     const r = profile.ramp;
     if (!r || availWidth >= r.reference) return base;
     return base * Math.max(r.min, availWidth / r.reference);
+}
+
+/** The width a contained section lays out at: the reading column, held off the board's edges. */
+export function containedWidth(profile: FormatDescriptor, fullW: number): number {
+    return Math.min(fullW - (profile.stackInset ?? 64), profile.maxContentWidth ?? 1080);
+}
+
+// A background that paints the section edge to edge. A `tone` is derived theme rhythm and an absent
+// one paints the page's own surface, so neither is a statement worth a break in the reading column.
+const paintsBand = (bg: SectionBackground | undefined): boolean =>
+    !!bg &&
+    ((bg.kind === "image" && !!bg.image) ||
+        (bg.kind === "color" && !!bg.color) ||
+        (bg.kind === "gradient" && !!bg.gradient));
+
+/**
+ * The section's authored `bleed`, as this format honours it: full width, the wider band padding, no
+ * card frame. On a site every section is a band anyway (`bleedSections`, applied by the callers) and
+ * on a deck each section is its own page, so both take the flag as authored.
+ *
+ * A doc is the one format with a shared reading column running down the whole piece, and a band that
+ * spans the page beside contained neighbours reads as a misalignment rather than a statement. So a
+ * doc honours it only for a section that both declares itself a band — `bleed`, or the `frame.aspect`
+ * that already makes a hero one — and paints one: a photo, a colour or a gradient. A tone band keeps
+ * the column with its neighbours, which is what a site's alternating tints degrade into.
+ */
+export function sectionBleeds(section: Section, profile: FormatDescriptor): boolean {
+    if (profile.bleedSections || profile.kind === "paged") return section.bleed ?? false;
+    const declared = (section.bleed ?? false) || (section.frame?.aspect ?? 0) > 0;
+    return declared && paintsBand(section.background);
 }
 
 // The paged frame in logical px; the artifact's page size arrives via the profile, and a section's

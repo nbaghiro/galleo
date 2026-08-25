@@ -83,6 +83,11 @@ describe("siteExemplar", () => {
         expect(byId("interlude").frame?.aspect).toBeCloseTo(3.2, 2);
     });
 
+    // the lesson the anatomy states in prose: a section with a background is a band and says so
+    it("marks every section that carries a background, and only those", () => {
+        for (const s of sections) expect(!!s.bleed).toBe(!!s.background);
+    });
+
     // an href pointing at an id this page does not have would teach a broken link
     it("points every internal href at a section that exists", () => {
         const ids = new Set(sections.map((s) => s.id));

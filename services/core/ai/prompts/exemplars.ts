@@ -126,6 +126,7 @@ const SITE: Section[] = [
                 "a dim operations room at night, screens glowing, wide shot",
                 0.55,
             ),
+            bleed: true,
             frame: { aspect: 2.29 },
         },
     ),

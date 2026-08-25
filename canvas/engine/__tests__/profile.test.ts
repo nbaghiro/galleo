@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
     PROFILES,
+    containedWidth,
     pagedSize,
     previewContentProfile,
     profileFor,
     rampScale,
     resolveProfile,
+    sectionBleeds,
     sectionFrame,
     stacksAtWidth,
 } from "@engine/profile";
@@ -143,6 +145,65 @@ describe("sectionFrame", () => {
     it("a section aspect still overrides the height on a custom page", () => {
         const square = profileFor(content("deck", { width: 1080, height: 1080 }));
         expect(sectionFrame(section(2), square)).toEqual({ w: 1080, h: 540 });
+    });
+});
+
+describe("containedWidth", () => {
+    it("is the reading column, held off the board by the profile's inset", () => {
+        expect(containedWidth(resolveProfile("doc"), 1440)).toBe(1000); // capped
+        expect(containedWidth(resolveProfile("doc"), 800)).toBe(736); // inset-bound
+        expect(containedWidth(resolveProfile("deck"), 800)).toBe(784); // a deck keeps a sliver
+    });
+});
+
+describe("sectionBleeds", () => {
+    const deck = resolveProfile("deck");
+    const doc = resolveProfile("doc");
+    const web = resolveProfile("web");
+    const banded = (extra: Partial<Section>): Section => ({ ...section(), ...extra });
+    const image = { kind: "image" as const, image: "p.png" };
+
+    it("takes the flag as authored on a deck and on a site", () => {
+        for (const profile of [deck, web]) {
+            expect(sectionBleeds(banded({ bleed: true }), profile)).toBe(true);
+            expect(
+                sectionBleeds(
+                    banded({ bleed: true, background: { kind: "tone", tone: "tint" } }),
+                    profile,
+                ),
+            ).toBe(true);
+            expect(sectionBleeds(banded({ background: image }), profile)).toBe(false);
+        }
+    });
+
+    it("a doc keeps a tone band in the reading column, however it was flagged", () => {
+        expect(
+            sectionBleeds(banded({ bleed: true, background: { kind: "tone", tone: "tint" } }), doc),
+        ).toBe(false);
+        // and a bleed with nothing to paint is a wider column and nothing else
+        expect(sectionBleeds(banded({ bleed: true }), doc)).toBe(false);
+        expect(sectionBleeds(banded({ bleed: true, background: { kind: "none" } }), doc)).toBe(
+            false,
+        );
+    });
+
+    it("a doc bleeds a band that paints one, flagged or framed", () => {
+        expect(sectionBleeds(banded({ bleed: true, background: image }), doc)).toBe(true);
+        expect(
+            sectionBleeds(
+                banded({ bleed: true, background: { kind: "color", color: "#111" } }),
+                doc,
+            ),
+        ).toBe(true);
+        // a hero declares itself a band with its frame, which is how a site writes one
+        expect(sectionBleeds({ ...section(2.3), background: image }, doc)).toBe(true);
+        // …but a frame alone paints nothing
+        expect(sectionBleeds(section(2.3), doc)).toBe(false);
+    });
+
+    it("a phone doc bleeds every section, since it has no gutter to hold", () => {
+        const phone = previewContentProfile(doc, 430, true);
+        expect(sectionBleeds(banded({ bleed: true }), phone)).toBe(true);
     });
 });
 

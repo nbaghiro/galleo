@@ -70,6 +70,13 @@ describe("siteAnatomy", () => {
         expect(out).toContain('"tone": "accent"');
     });
 
+    // on a site every section spans the width either way, so an unmarked band only shows up once
+    // the same artifact is read as a doc, where the marked ones are the only full-width sections
+    it("asks for `bleed` on every band and on nothing else", () => {
+        expect(out).toContain("carries a `background` and on no section that does not");
+        expect(out).toContain("opened as a document");
+    });
+
     it("ties nav hrefs to section ids the piece actually has", () => {
         expect(out).toContain("#<section id>");
         expect(out).toContain("only works if a section is called");

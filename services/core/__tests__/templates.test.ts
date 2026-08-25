@@ -103,4 +103,18 @@ describe("the bands a template ships with", () => {
                         section.background.tone,
                     );
     });
+
+    // A site section is a band exactly when it paints one. On web the flag barely shows (the
+    // format bleeds everything), so this is what keeps a format switch to doc reading as one
+    // column with photo bands breaking wide, never a mix of unmarked widths.
+    it("a web section carries bleed exactly when it carries a background", () => {
+        for (const entry of TEMPLATE_INDEX) {
+            const art = templateBody(entry.id)!;
+            if (art.format !== "web") continue;
+            for (const section of art.sections) {
+                const paints = !!section.background && section.background.kind !== "none";
+                expect(!!section.bleed, `${entry.id}/${section.id}`).toBe(paints);
+            }
+        }
+    });
 });

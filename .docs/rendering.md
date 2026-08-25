@@ -194,6 +194,31 @@ profile, which keeps it out of collab, undo and the save path. `layoutSlide`/`se
 construction; the editor holds one section's scale steady while an inline edit is open in it
 (`freezeFit`), and the inspector goes on showing authored sizes. Full design: `.docs/planning/autofit.md`.
 
+### 3.4 Bands and the reading column (`sectionBleeds`, `containedWidth`)
+
+`Section.bleed` marks a section as a **band**: the full host width, the wider `BLEED_PAD_X` gutters, no
+card frame. What that means depends on the format, and `sectionBleeds(section, profile)` is the single
+place that decides it, so `sectionLayoutWidth` (the width the stack lays the section out at) and
+`composeSection` (its padding, its frame, the column its content sits in) can never disagree.
+
+- **Web** sets `bleedSections`, so every section already spans the host and the flag only picks the
+  padding. That is why it drifts on a site: seven of the eight site templates leave it off their hero and
+  nothing on the page looks different for it.
+- **Deck** gives every section its own page. There is no shared column to break, so the flag stands as
+  authored.
+- **Doc** is the one format with a reading column running the length of the piece, and a band that spans
+  the page beside contained neighbours reads as a misalignment rather than a statement. A doc therefore
+  honours the flag only for a section that both _declares_ itself a band (`bleed`, or the `frame.aspect`
+  that already makes a hero one) and _paints_ one (`image` / `color` / `gradient`). A `tone` band is theme
+  rhythm and a `bleed` with no background paints nothing at all; both keep the column.
+
+A section that does span the host still holds its **content** in the reading column (`spansHost` in
+`composeSection`): on a site that column is the profile's `maxContentWidth`, on a doc it is exactly what a
+contained neighbour gets (`containedWidth` less their side padding), so a full-width photo in a doc
+carries a headline that lines up with the paragraph above it. This is what a site degrades into when the
+same artifact is switched to Doc: one column for every text section and every tint band, full width for
+the photo bands only.
+
 ## 4. Compose — Section → EngineNode (`canvas/elements/compose.ts`)
 
 A section's content is **one recursive tree** — `section.root`, a container (`group` laid out as a `row`
@@ -214,6 +239,11 @@ turns it into an engine tree:
   path through `elementIdMap` (`@elements/ops`), which walks the same registry-aware children compose
   tags region ids from.
 - **Contrast.** Over a dark section background, content tokens flip to a light-on-dark set.
+- **Docked chrome.** A child carrying `layout.dock: "top"` (a site's topbar) is hoisted out of the content
+  flow onto the section node on a **continuous** format, so it anchors to the band's top edge while the
+  rest centres below it. A **paged** format keeps it in the flow as the section's first row instead: a
+  slide has no scroll for chrome to hang over, and autofit fills the frame to its padding, so the float
+  would land on the headline.
 
 Named **layout presets** (`full` / `split-6040` / `three-up` …) are just convenience helpers that set the
 root row's column count + width ratios — not a stored mode the section is "in".

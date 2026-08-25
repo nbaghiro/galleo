@@ -50,7 +50,12 @@ export const zSection = z.object({
         "the section's content as ONE element: a `group` with direction 'row' for side-by-side columns (each child carries layout.width, e.g. {pct:60}), 'col' to stack — nestable to any depth; or a single element for a full-width section",
     ),
     background: zSectionBackground.optional().catch(undefined),
-    bleed: z.boolean().optional(),
+    bleed: z
+        .boolean()
+        .optional()
+        .describe(
+            "true when the section is a band rather than a block in the reading column: it carries a `background` of its own and spans the page edge to edge. Set it on every section that has a background, the hero included, and leave it off every section that does not. A page whose bands are marked consistently still reads as one column when the same artifact is opened as a document",
+        ),
     frame: z
         .object({ aspect: z.number() })
         .describe(
