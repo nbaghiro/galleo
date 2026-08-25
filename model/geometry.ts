@@ -24,6 +24,9 @@ export interface ElementLayout {
     height?: "fit" | "fill"; // fill = stretch to the row's cross-height
     align?: "start" | "center" | "end"; // self cross-axis alignment
     radius?: number; // corner radius override on the element's frame (fill/image)
+    // section chrome: lifted out of the content flow and anchored to the section's own band, so a
+    // topbar hugs a hero's top edge while the content centres below it
+    dock?: "top";
 }
 
 export type FormatKind = "paged" | "continuous";

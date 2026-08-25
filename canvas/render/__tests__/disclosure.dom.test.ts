@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@elements/register";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { ArtifactContent } from "@model/artifact";
+import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import type { SectionLayer } from "@canvas/render/backends";
 import { createSectionStackCache, paintSectionStack } from "@canvas/render/backends";
 import { affordanceEdit, seedViewerPatches, withViewerPatches } from "@elements/ops";
@@ -89,21 +89,26 @@ describe("a viewer toggle in a continuous format", () => {
 });
 
 describe("a popup on load", () => {
-    const authoredOpen = artifactOf([
-        sectionOf(
-            inst("popup", {
-                label: "Details",
-                open: true,
-                children: [inst("text", { text: "The floating panel's own line." })],
-            }),
-            { id: "s1" },
-        ),
-    ]);
+    const withPanel = (open: boolean): ElementInstance =>
+        inst("popup", {
+            label: "Details",
+            open,
+            children: [inst("text", { text: "The floating panel's own line." })],
+        });
+    const authoredOpen = artifactOf([sectionOf(withPanel(true), { id: "s1" })]);
 
-    it("paints the panel in flow for whoever renders the stored state", () => {
+    it("paints the trigger alone even where the author left it open: no surface flows the panel", () => {
         const host = document.createElement("div");
-        paintSectionStack(host, authoredOpen.sections, web, tokens, { fullW: 900 });
-        expect(host.textContent).toContain("The floating panel's own line.");
+        const { height } = paintSectionStack(host, authoredOpen.sections, web, tokens, {
+            fullW: 900,
+        });
+        expect(host.textContent).toContain("Details");
+        expect(host.textContent).not.toContain("The floating panel's own line.");
+        // and the section is no taller for it, which is what made a pinned nav unusable
+        const shutHost = document.createElement("div");
+        const shut = [sectionOf(withPanel(false), { id: "s2" })];
+        const flat = paintSectionStack(shutHost, shut, web, tokens, { fullW: 900 });
+        expect(height).toBe(flat.height);
     });
 
     it("starts shut for a reader, leaving only the trigger under the live overlay", () => {

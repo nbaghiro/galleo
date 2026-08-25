@@ -105,6 +105,26 @@ describe("an elastic frame", () => {
     });
 });
 
+// A dark colour band swaps the section's tokens to the on-dark set, where `soft` and `muted` are
+// rgba rather than hex. Reading those as the theme's own (dark) ink judged white text on a dark band
+// as dark-on-dark and failed every such section at ~1:1.
+describe("contrast on a dark colour band", () => {
+    // `subtitle` takes the `soft` tone, which on-dark is rgba
+    const band = (id: string): Section => ({
+        ...section(id, [
+            { type: "text", data: { text: "A lead line", style: "subtitle" } },
+            text("A line that reads white once the tokens swap"),
+        ]),
+        background: { kind: "color", color: "#16140F" },
+    });
+
+    it("judges only the text whose colour it can actually read", () => {
+        const fit = diagnoseSection(band("b1"), 1280, measure, undefined, DOC);
+        expect(fit.minContrast).not.toBeNull();
+        expect(fit.minContrast!).toBeGreaterThan(3);
+    });
+});
+
 describe("diagnoseSections", () => {
     it("keeps each section's id, so a result maps back to its beat", () => {
         const fits = diagnoseSections(

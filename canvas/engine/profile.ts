@@ -81,7 +81,7 @@ export function profileFor(content: { format?: Id; page?: PageSize }): FormatDes
 }
 
 // fallbacks when a viewport-sized profile ("fill"/"auto") is asked for a page
-const SLIDE_W = 1280;
+export const SLIDE_W = 1280;
 const SLIDE_H = 720;
 
 export function pagedSize(profile: FormatDescriptor): { w: number; h: number } {

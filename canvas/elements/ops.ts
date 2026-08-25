@@ -9,6 +9,7 @@ import type {
     ArtifactMusic,
 } from "@model/artifact";
 import type { ElementLayout } from "@model/geometry";
+import type { Region } from "@engine/node";
 import { getElement } from "@elements/spec";
 import {
     LAYOUT_PRESETS,
@@ -18,6 +19,7 @@ import {
     contentWithElementIds,
     elementRegionId,
     emptyRegion,
+    parseHitRegion,
     parseTarget,
     rowGroup,
     withFreshElementIds,
@@ -677,6 +679,40 @@ export function affordanceEdit(
     return null;
 }
 
+/** One reader's override of an authored default, keyed by element region id. Never written back. */
+export interface ViewerToggle {
+    key: string;
+    patch: Record<string, unknown>;
+}
+
+/**
+ * What a viewer's press at `point` (stage coordinates) does to a painted `hit:` region. The deepest
+ * region wins, since `emit` reports parents before their children. Regions describe the static
+ * layout, so `shiftFor` carries a press on a pinned layer back to where its region was recorded.
+ * An element that mounts a live overlay of its own owns its presses: the painted affordance under
+ * it is the editor's authored toggle, and the two must never race.
+ */
+export function viewerToggleAt(
+    art: ArtifactContent,
+    regions: readonly Region[],
+    point: { x: number; y: number },
+    shiftFor?: (sectionId: string) => number,
+): ViewerToggle | null {
+    for (let i = regions.length - 1; i >= 0; i--) {
+        const region = regions[i]!;
+        const hit = parseHitRegion(region.id);
+        if (!hit) continue;
+        const b = region.box;
+        const y = point.y - (shiftFor?.(hit.address.section) ?? 0);
+        if (point.x < b.x || point.x > b.x + b.w || y < b.y || y > b.y + b.h) continue;
+        const inst = getElementAt(art, hit.address);
+        if (inst && isLive(inst.type)) return null;
+        const edit = affordanceEdit(art, hit.action, hit.address);
+        return edit ? { key: elementRegionId(edit.address), patch: edit.patch } : null;
+    }
+    return null;
+}
+
 /** The affordance written into the document, which is what pressing one means in the editor. */
 export function applyAffordance(
     art: ArtifactContent,
@@ -694,6 +730,7 @@ export function applyAffordance(
 
 export interface LiveElement {
     id: string; // the region id its paint carries, which is how the overlay finds its box
+    address: ElementAddress; // for a component that composes addressed children (the popup panel)
     type: string;
     data: Record<string, unknown>;
 }
@@ -708,7 +745,12 @@ export function liveElements(art: ArtifactContent): LiveElement[] {
     const out: LiveElement[] = [];
     const walk = (inst: ElementInstance, addr: ElementAddress): void => {
         if (isLive(inst.type))
-            out.push({ id: elementRegionId(addr), type: inst.type, data: asData(inst) });
+            out.push({
+                id: elementRegionId(addr),
+                address: addr,
+                type: inst.type,
+                data: asData(inst),
+            });
         childrenOf(inst)?.forEach((kid, i) =>
             walk(kid, { section: addr.section, path: [...addr.path, i] }),
         );
@@ -719,8 +761,10 @@ export function liveElements(art: ArtifactContent): LiveElement[] {
 
 /**
  * The overrides a playback surface starts with: a live element's disclosure is chrome the reader
- * opens, so it begins shut however the author stored it. Only the ones actually left open are
- * patched, since a no-op override would rebuild that section's data on every repaint.
+ * opens, so it begins shut however the author stored it. Nothing in flow depends on this any more
+ * (a popup's panel floats on every surface), but the trigger still paints its state, so without it
+ * a reader would meet a chevron pointing at a panel that is not there. Only the ones actually left
+ * open are patched, since a no-op override would rebuild that section's data on every repaint.
  */
 export function seedViewerPatches(art: ArtifactContent): Map<string, Record<string, unknown>> {
     const out = new Map<string, Record<string, unknown>>();

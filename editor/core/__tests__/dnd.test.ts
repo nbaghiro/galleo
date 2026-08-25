@@ -591,3 +591,56 @@ describe("moveMany", () => {
         expect(moveManyPayload(co[0]!, [co[0]!, { section: "s1", path: [1, 0] }])).toBeNull();
     });
 });
+
+// A popup's panel floats over the canvas, so the popup's own region is its trigger and the box its
+// children occupy is published separately. Slots have to follow the children.
+describe("a container whose children paint outside its own box", () => {
+    const popupArt = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(
+                colGroup([
+                    txt("in flow"),
+                    inst("popup", {
+                        label: "More",
+                        open: true,
+                        children: [txt("one"), txt("two")],
+                    }),
+                ]),
+            ),
+        ]);
+    // trigger at the top, panel floating well below it
+    const popupRegions = (): Region[] => [
+        reg("section:s1", 0, 0, 400, 400),
+        reg("el:s1", 0, 0, 400, 120),
+        reg("el:s1:0", 20, 20, 360, 40),
+        reg("el:s1:1", 20, 70, 90, 38),
+        reg("content:s1:1", 20, 116, 260, 100),
+        reg("el:s1:1.0", 34, 130, 232, 30),
+        reg("el:s1:1.1", 34, 172, 232, 30),
+    ];
+
+    it("drops between the panel's children rather than around the trigger", () => {
+        const target = targetAt(popupArt(), popupRegions(), 150, 168);
+        expect(target).toEqual({
+            section: "s1",
+            op: "insert",
+            path: [1],
+            index: 1,
+            before: false,
+            direction: "col",
+        });
+    });
+
+    it("still lands a drop on the trigger's own row in the section, not in the panel", () => {
+        expect(targetAt(popupArt(), popupRegions(), 200, 40)?.path).toEqual([]);
+    });
+
+    it("moves a panel child out into the section", () => {
+        const art = popupArt();
+        const from = { section: "s1", path: [1, 0] };
+        const target = targetAt(art, popupRegions(), 60, 25, { kind: "move", from });
+        expect(target).not.toBeNull();
+        const out = applyDrop(art, target!, { kind: "move", from });
+        expect(collectTexts(out.content.sections[0]!.root)).toEqual(["one", "in flow", "two"]);
+    });
+});

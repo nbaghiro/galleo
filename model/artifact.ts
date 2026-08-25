@@ -352,6 +352,12 @@ export function parseHitRegion(id: string): { action: string; address: ElementAd
     return { action: p[1], address: { section: p[2], path } };
 }
 
+// The box a container's children actually occupy, when that is not the container's own box: a
+// popup's panel floats over the canvas while the trigger stays in flow. Only drop-slot geometry
+// reads it, and parseTarget ignores the prefix, so it is never a selection or an affordance.
+export const contentRegionId = (a: ElementAddress): string =>
+    `content:${a.section}:${a.path.join(".")}`;
+
 // Sub-element geometry an element paints for itself (a chart's bars): `index` addresses the row the
 // data editor shows, so one id serves hover in both directions. parseTarget ignores the prefix, so a
 // datum is never a selection; several regions may share one id (a grouped bar's per-series rects).
@@ -367,6 +373,16 @@ export function parseDatumRegion(id: string): { element: string; index: number }
     const index = Number(id.slice(cut + 1));
     if (!element || !Number.isInteger(index) || index < 0) return null;
     return { element, index };
+}
+
+// An href of the form `#<section id>` names a section of the same artifact rather than a URL, which
+// is what a nav link and a hero CTA are. One definition, because three layers read it: the DOM
+// backend (an internal anchor keeps no target/rel), the playback surfaces (scroll instead of
+// navigate), and the editor (cmd-click jumps).
+export function sectionLinkId(href: string | null | undefined): string | null {
+    if (!href || !href.startsWith("#")) return null;
+    const id = href.slice(1).trim();
+    return id && !id.includes(":") ? id : null;
 }
 
 // most specific wins: deeper element > element > section
@@ -871,6 +887,7 @@ interface RawEl {
 }
 interface RawSection {
     id?: string;
+    pinned?: boolean;
     background?: { image?: string };
     root?: RawEl;
 }
@@ -1044,7 +1061,8 @@ export function mediaRefKinds(draft: unknown): Map<string, "image" | "video"> {
 
 function coverOf(draft: unknown): Cover {
     const d = asDraft(draft);
-    const sec = d.sections?.[0];
+    // a pinned section is chrome (a nav bar), so the cover comes from the first real one
+    const sec = d.sections?.find((s) => !s?.pinned) ?? d.sections?.[0];
     if (!sec) return {};
     const texts: { style?: string; text?: string }[] = [];
     let image = d.background?.image ?? sec.background?.image;

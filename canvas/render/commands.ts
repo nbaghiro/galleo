@@ -392,9 +392,9 @@ export function layoutNode(
     node: EngineNode,
     width: number,
     measure: MeasureText,
-): { commands: RenderCommand[]; height: number } {
-    const { commands } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
-    return { commands, height: bottom(commands) };
+): { commands: RenderCommand[]; regions: Region[]; height: number } {
+    const { commands, regions } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
+    return { commands, regions, height: bottom(commands) };
 }
 
 // must stay identical across measure + both backends so widths agree

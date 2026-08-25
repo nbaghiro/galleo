@@ -128,7 +128,13 @@ export const buttonElement: ElementSpec<ButtonData> = {
             control: "segmented",
             options: BUTTON_SHAPES.map((v) => ({ value: v, label: SHAPE_LABELS[v] })),
         },
-        { key: "href", label: "Link", control: "text", placeholder: "https://…", group: "Link" },
+        {
+            key: "href",
+            label: "Link",
+            control: "text",
+            placeholder: "https://… or #section-id",
+            group: "Link",
+        },
         { key: "icon", label: "Leading icon", control: "icon", group: "Icon" },
     ],
 };

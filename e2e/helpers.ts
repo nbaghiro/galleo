@@ -18,12 +18,21 @@ export const colOf = (children: El[]): El => ({
     type: "group",
     data: { direction: "col", children },
 });
-export const sec = (id: string, root: El): { id: string; root: El } => ({ id, root });
+export interface SecOpts {
+    pinned?: boolean;
+    frame?: { aspect?: number };
+    background?: Record<string, unknown>;
+    bleed?: boolean;
+}
+
+export const sec = (id: string, root: El, opts?: SecOpts): Sec => ({ id, root, ...opts });
+
+export type Sec = { id: string; root: El } & SecOpts;
 
 export async function makeArtifact(
     request: APIRequestContext,
     title: string,
-    sections: { id: string; root: El }[],
+    sections: Sec[],
     format = "deck",
 ): Promise<string> {
     const res = await request.post("/api/artifacts", {

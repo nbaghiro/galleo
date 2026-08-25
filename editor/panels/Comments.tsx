@@ -30,6 +30,7 @@ import {
     regions,
     selection,
     stageEl,
+    stagePoint,
 } from "@editor/core/store";
 import { drag } from "@editor/core/dnd";
 import { liveEdit } from "./Selection";
@@ -177,13 +178,14 @@ export const CommentLayer: Component = () => {
         const stage = stageEl();
         if (!stage) return;
         const move = (e: PointerEvent): void => {
-            const r = stage.getBoundingClientRect();
+            const at = stagePoint(e.clientX, e.clientY);
+            if (!at) return;
             setHoveredSection(
                 sectionAtY(
                     editor.sectionTops,
                     editor.artifact.sections.map((s) => s.id),
-                    e.clientY - r.top,
-                    r.height,
+                    at[1],
+                    stage.clientHeight, // layout height: the tops it is compared against are too
                 ),
             );
         };

@@ -51,16 +51,20 @@ import {
     currentArtifactId,
     duplicateSectionAt,
     editor,
+    editorAccent,
     editorTheme,
     editorTokens,
     ensureAllSections,
     extras,
     features,
     leftOpen,
+    MINIMAP_DEFAULT_W,
+    minimapWidth,
     moveSectionBy,
     multiSelected,
     present,
     redo,
+    resetZoom,
     removeSectionAt,
     renameArtifact,
     requestHome,
@@ -71,12 +75,17 @@ import {
     selectedAddresses,
     selection,
     setLeftOpen,
+    setMinimapWidth,
     setRightTab,
     takeDropSelection,
     setSlideFrame,
     slideFrame,
     switchFormat,
     undo,
+    zoom,
+    zoomBy,
+    ZOOM_MAX,
+    ZOOM_MIN,
 } from "./core/store";
 
 export const Editor: Component = () => {
@@ -121,6 +130,7 @@ export const Editor: Component = () => {
                             <Minimap />
                         </Show>
                         <Panel />
+                        <ZoomPill />
                     </Show>
                     <Show when={isPhone()}>
                         <PhoneChrome />
@@ -275,6 +285,51 @@ const BackdropCornerButton: Component = () => {
         </Show>
     );
 };
+
+// A view scale on the painted stack, so it reads as chrome rather than a document property: no
+// layout changes, nothing re-wraps, and the percent is the way back to 1:1.
+//
+// It is ambient state first and a control second, so at rest it is a number and nothing else: the
+// steppers are clipped to zero width and open on hover, and at 100% the chip itself fades out,
+// since a canvas at its own scale has nothing to report. Its corner stays hoverable, which is how
+// it is found again. The offset above the corner is the one the library uses to clear the chat
+// bubble, so the two stack rather than overlap at any width.
+const ZOOM_STEPPER =
+    "grid w-0 cursor-pointer place-items-center overflow-hidden text-muted transition-[width] duration-150 hover:text-ink disabled:cursor-default disabled:opacity-40 group-hover:w-4 motion-reduce:transition-none";
+
+const ZoomPill: Component = () => (
+    <div class="group absolute bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-6 z-chrome">
+        <div
+            data-testid="zoom-pill"
+            class="flex items-center gap-0.5 rounded-full border border-line bg-panel/80 px-1.5 py-0.5 font-mono text-[11px] font-medium leading-none text-muted shadow-sm backdrop-blur-md transition-opacity duration-150 motion-reduce:transition-none"
+            classList={{ "opacity-0 group-hover:opacity-100": zoom() === 1 }}
+        >
+            <button
+                class={ZOOM_STEPPER}
+                disabled={zoom() <= ZOOM_MIN}
+                title="Zoom out"
+                onClick={() => zoomBy(-1)}
+            >
+                <Icon name="minus" size={12} />
+            </button>
+            <button
+                class="cursor-pointer tabular-nums hover:text-ink"
+                title="Reset to 100%"
+                onClick={() => resetZoom()}
+            >
+                {Math.round(zoom() * 100)}%
+            </button>
+            <button
+                class={ZOOM_STEPPER}
+                disabled={zoom() >= ZOOM_MAX}
+                title="Zoom in"
+                onClick={() => zoomBy(1)}
+            >
+                <Icon name="plus" size={12} />
+            </button>
+        </div>
+    </div>
+);
 
 // Topbar tool action: a labeled Button on desktop, a bordered IconButton below lg. The label used
 // to display:none away inside one Button, but a bare svg mis-sizes an icon-row's baseline line.
@@ -539,47 +594,98 @@ const SectionList: Component<{ root: () => HTMLElement | undefined; cols?: boole
     );
 };
 
+// Drag the rail's right edge to trade rail width for canvas width; double-click puts it back. Same
+// grip idiom as the canvas' own RegionDividers, since it is the same gesture on a different edge.
+const MinimapResizer: Component = () => {
+    const onDown = (e: PointerEvent): void => {
+        e.preventDefault();
+        e.stopPropagation();
+        const startX = e.clientX;
+        const startW = minimapWidth();
+        // one write per frame: every thumb re-lays out on a width change, and the canvas repaints
+        let raf = 0;
+        let pendingX = startX;
+        const move = (ev: PointerEvent): void => {
+            pendingX = ev.clientX;
+            if (raf) return;
+            raf = requestAnimationFrame(() => {
+                raf = 0;
+                setMinimapWidth(startW + (pendingX - startX));
+            });
+        };
+        const up = (): void => {
+            if (raf) cancelAnimationFrame(raf);
+            setMinimapWidth(startW + (pendingX - startX));
+            window.removeEventListener("pointermove", move);
+            window.removeEventListener("pointerup", up);
+        };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+    };
+    return (
+        <div
+            data-testid="minimap-resizer"
+            class="group absolute -right-1 top-0 flex h-full w-2 justify-center"
+            style={{ cursor: "col-resize", "touch-action": "none" }}
+            title="Drag to resize · double-click to reset"
+            onPointerDown={onDown}
+            onDblClick={() => setMinimapWidth(MINIMAP_DEFAULT_W)}
+        >
+            <div
+                class="h-full w-0.5 rounded-full opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+                style={{ background: editorAccent() }}
+            />
+        </div>
+    );
+};
+
 const Minimap: Component = () => {
     let asideEl: HTMLElement | undefined; // IO root for thumbnail visibility
     return (
-        <FloatingPanel
-            as="aside"
-            pad="md"
-            shadow="panel"
-            ref={(el) => (asideEl = el)}
-            class="absolute left-3 top-1/2 z-panel flex max-h-[calc(100%-44px)] w-45.5 -translate-y-1/2 flex-col gap-3 overflow-y-auto"
+        <div
+            class="absolute left-3 top-1/2 z-panel flex max-h-[calc(100%-44px)] -translate-y-1/2"
+            style={{ width: `${minimapWidth()}px` }}
         >
-            <div class="flex items-center justify-between pl-1">
-                <Eyebrow mono={false}>Sections</Eyebrow>
-                <div class="flex items-center gap-0.5">
-                    {/* paged only: a doc/site has no page shape to hold sections to */}
-                    <Show when={resolveProfile(editor.artifact.format).kind === "paged"}>
+            <FloatingPanel
+                as="aside"
+                pad="md"
+                shadow="panel"
+                ref={(el) => (asideEl = el)}
+                class="flex min-w-0 flex-1 flex-col gap-3 overflow-y-auto"
+            >
+                <div class="flex items-center justify-between pl-1">
+                    <Eyebrow mono={false}>Sections</Eyebrow>
+                    <div class="flex items-center gap-0.5">
+                        {/* paged only: a doc/site has no page shape to hold sections to */}
+                        <Show when={resolveProfile(editor.artifact.format).kind === "paged"}>
+                            <IconButton
+                                size="xs"
+                                tone="muted"
+                                active={slideFrame()}
+                                title={
+                                    slideFrame()
+                                        ? "Fit sections to content"
+                                        : "Frame sections as slides"
+                                }
+                                onClick={() => setSlideFrame((v) => !v)}
+                            >
+                                <Icon name="deck" size={12} />
+                            </IconButton>
+                        </Show>
                         <IconButton
                             size="xs"
                             tone="muted"
-                            active={slideFrame()}
-                            title={
-                                slideFrame()
-                                    ? "Fit sections to content"
-                                    : "Frame sections as slides"
-                            }
-                            onClick={() => setSlideFrame((v) => !v)}
+                            title="Hide"
+                            onClick={() => setLeftOpen(false)}
                         >
-                            <Icon name="deck" size={12} />
+                            <Icon name="close" size={12} />
                         </IconButton>
-                    </Show>
-                    <IconButton
-                        size="xs"
-                        tone="muted"
-                        title="Hide"
-                        onClick={() => setLeftOpen(false)}
-                    >
-                        <Icon name="close" size={12} />
-                    </IconButton>
+                    </div>
                 </div>
-            </div>
-            <SectionList root={() => asideEl} />
-        </FloatingPanel>
+                <SectionList root={() => asideEl} />
+            </FloatingPanel>
+            <MinimapResizer />
+        </div>
     );
 };
 

@@ -14,7 +14,6 @@ import {
     commitOver,
     currentArtifactId,
     currentTitle,
-    HANDLE_BAND,
     HANDLE_H,
     handleTop,
     renameArtifact,
@@ -50,6 +49,19 @@ import {
     startThemePreview,
     themeForPersist,
     undo,
+    clampMinimapWidth,
+    clampZoom,
+    MINIMAP_DEFAULT_W,
+    MINIMAP_MAX_W,
+    MINIMAP_MIN_W,
+    setMinimapWidth,
+    minimapWidth,
+    setZoom,
+    toStage,
+    zoom,
+    zoomBy,
+    ZOOM_MAX,
+    ZOOM_MIN,
 } from "@editor/core/store";
 
 // the store is module-level singletons: editSeq accumulates across tests, so assertions use deltas
@@ -651,42 +663,144 @@ describe("the autofit freeze", () => {
 
 // Where the margin handles sit against the element they belong to. Both the drag grip and the
 // comment chip read this, which is the point: they own a side each and nothing else, so the pair
-// cannot drift apart again the way it did when each carried its own numbers.
+// cannot drift apart the way it did when each carried its own numbers.
 describe("handleTop", () => {
     const box = (y: number, h: number) => ({ y, h });
 
-    // The reported bug. A 20px pill top-anchored in a 24px one-line box left an uneven sliver under
-    // it, and the glyph inside a single line is optically centred, so the handle read as high.
-    it("centres in a one-line box, where there is no slack to hide an offset", () => {
-        expect(handleTop(box(100, 24))).toBe(102);
+    // Flush is the whole rule. An earlier version centred the pill inside a band at the top of every
+    // box, which read as a stray 10px of padding on anything taller than the band.
+    it("sits flush with the top of the box", () => {
+        expect(handleTop(box(100, 24))).toBe(100);
+        expect(handleTop(box(100, 100))).toBe(100);
+        expect(handleTop(box(100, 400))).toBe(100);
     });
 
-    it("sits flush when the box is exactly the pill's height", () => {
+    it("is flush at exactly the pill's height, with nothing left over", () => {
         expect(handleTop(box(100, HANDLE_H))).toBe(100);
     });
 
-    // A pill taller than its box would centre to a negative offset and hang above it.
-    it("never lifts a handle above the box it belongs to", () => {
-        expect(handleTop(box(100, 8))).toBe(100);
+    // The one exception: flush would leave a pill taller than its box hanging out of the bottom,
+    // pointing at nothing. Centring makes it overhang evenly instead.
+    it("centres on a box too short to hold the pill", () => {
+        expect(handleTop(box(100, 12))).toBe(96);
+        expect(handleTop(box(100, 0))).toBe(90);
     });
 
-    // A tall block rests just inside its top corner rather than centring down the middle of it.
-    it("rests at the band's offset once the box is taller than the band", () => {
-        const resting = 100 + (HANDLE_BAND - HANDLE_H) / 2;
-        expect(handleTop(box(100, HANDLE_BAND))).toBe(resting);
-        expect(handleTop(box(100, 400))).toBe(resting);
+    it("never insets a handle from the top of a box that can hold it", () => {
+        for (const h of [20, 21, 24, 30, 40, 41, 80, 400]) expect(handleTop(box(0, h))).toBe(0);
+    });
+});
+
+// The rail's width is a number the canvas reserves, so the range is a real constraint rather than a
+// styling preference: below the floor the thumbnails stop reading, above the ceiling the canvas is
+// what pays for it.
+describe("minimap width", () => {
+    it("holds the width inside the rail's range and rounds it to whole px", () => {
+        expect(clampMinimapWidth(MINIMAP_DEFAULT_W)).toBe(MINIMAP_DEFAULT_W);
+        expect(clampMinimapWidth(20)).toBe(MINIMAP_MIN_W);
+        expect(clampMinimapWidth(1200)).toBe(MINIMAP_MAX_W);
+        expect(clampMinimapWidth(200.6)).toBe(201);
     });
 
-    // A band rather than a threshold, so a box growing past it slides rather than jumping: that is
-    // the whole reason for the min() instead of an if.
-    it("is continuous across the band edge", () => {
-        const under = handleTop(box(0, HANDLE_BAND - 1));
-        const over = handleTop(box(0, HANDLE_BAND + 1));
-        expect(over - under).toBeLessThan(1);
+    // a stored value that was never a number must not collapse the rail to its floor
+    it("falls back to the default for anything that is not a width", () => {
+        expect(clampMinimapWidth(Number.NaN)).toBe(MINIMAP_DEFAULT_W);
+        expect(clampMinimapWidth(Number.POSITIVE_INFINITY)).toBe(MINIMAP_DEFAULT_W);
     });
 
-    it("rises monotonically with the box, never doubling back", () => {
-        const tops = [20, 24, 30, 36, 40, 80, 400].map((h) => handleTop(box(0, h)));
-        for (let i = 1; i < tops.length; i++) expect(tops[i]!).toBeGreaterThanOrEqual(tops[i - 1]!);
+    it("clamps what the drag writes, so a gesture past either end settles at it", () => {
+        setMinimapWidth(1000);
+        expect(minimapWidth()).toBe(MINIMAP_MAX_W);
+        setMinimapWidth(0);
+        expect(minimapWidth()).toBe(MINIMAP_MIN_W);
+        setMinimapWidth(MINIMAP_DEFAULT_W);
+        expect(minimapWidth()).toBe(MINIMAP_DEFAULT_W);
+    });
+});
+
+// Zoom is a view scale on the painted stack, not a layout change: the engine keeps laying out at the
+// same width, so everything the canvas publishes stays in unscaled layout coordinates and anything
+// read off the DOM has to come back into that space before it is compared against them.
+describe("canvas zoom", () => {
+    it("holds the scale inside the range and snaps it to whole percents", () => {
+        expect(clampZoom(1)).toBe(1);
+        expect(clampZoom(0.2)).toBe(ZOOM_MIN);
+        expect(clampZoom(9)).toBe(ZOOM_MAX);
+        expect(clampZoom(Number.NaN)).toBe(1);
+    });
+
+    // 0.7 + 0.1 is 0.7999999999999999, which would render as 80% and then step to 89%
+    it("keeps stepping off binary floating point out of the percentage", () => {
+        setZoom(0.7);
+        zoomBy(1);
+        expect(zoom()).toBe(0.8);
+        zoomBy(1);
+        expect(zoom()).toBe(0.9);
+    });
+
+    it("stops at each end rather than running past it", () => {
+        setZoom(ZOOM_MIN);
+        zoomBy(-1);
+        expect(zoom()).toBe(ZOOM_MIN);
+        setZoom(ZOOM_MAX);
+        zoomBy(1);
+        expect(zoom()).toBe(ZOOM_MAX);
+        setZoom(1);
+    });
+
+    // getBoundingClientRect already carries the transform, so the origin lands the point in zoomed
+    // pixels; the division is what puts it back where regions, hitboxes and drop slots are measured
+    it("divides the scale back out of a viewport point", () => {
+        const rect = { left: 100, top: 50 };
+        expect(toStage(rect, 1, 160, 90)).toEqual([60, 40]);
+        expect(toStage(rect, 2, 220, 130)).toEqual([60, 40]);
+        expect(toStage(rect, 0.5, 130, 70)).toEqual([60, 40]);
+    });
+});
+
+// The scale someone reads a deck at belongs to the reader and the screen, not to the document, so it
+// is stored per artifact on the device rather than on the row.
+describe("zoom persistence", () => {
+    let store: Map<string, string>;
+    beforeEach(() => {
+        store = new Map();
+        vi.stubGlobal("localStorage", {
+            getItem: (k: string) => store.get(k) ?? null,
+            setItem: (k: string, v: string) => void store.set(k, v),
+            removeItem: (k: string) => void store.delete(k),
+        });
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        setZoom(1);
+    });
+
+    it("restores the scale each artifact was last read at", () => {
+        inRoot(() => {
+            loadArtifactContent("deck-a", makeArt(["a"]));
+            setZoom(1.4);
+            loadArtifactContent("deck-b", makeArt(["a"]));
+            expect(zoom()).toBe(1);
+            loadArtifactContent("deck-a", makeArt(["a"]));
+            expect(zoom()).toBe(1.4);
+        });
+    });
+
+    // 100% is the default, so an artifact left there is an absent entry rather than a stored 1
+    it("stores nothing for an artifact back at 100%", () => {
+        inRoot(() => {
+            loadArtifactContent("deck-a", makeArt(["a"]));
+            setZoom(1.4);
+            setZoom(1);
+            expect(JSON.parse(store.get("galleo:canvas-zoom") ?? "null")).toEqual({});
+        });
+    });
+
+    it("survives a stored record that is not one", () => {
+        inRoot(() => {
+            store.set("galleo:canvas-zoom", "[oops");
+            loadArtifactContent("deck-a", makeArt(["a"]));
+            expect(zoom()).toBe(1);
+        });
     });
 });

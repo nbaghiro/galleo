@@ -22,6 +22,10 @@ export function classifySwipe(s: SwipeSample): SwipeIntent {
     return s.dx < 0 ? "next" : "prev";
 }
 
+// A press that travelled further than this is a text selection or a scroll, not a tap on an
+// affordance. Shared so every view-only surface reads the same gesture as a tap.
+export const TAP_SLOP = 6;
+
 export type TapZone = "prev" | "next";
 
 // Narrow enough that the common "tap to advance" still dominates, wide enough to hit with a thumb.

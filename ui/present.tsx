@@ -1,8 +1,8 @@
 import type { ArtifactContent } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Region } from "@engine/node";
-import { elementRegionId, MUSIC_VOLUME, parseHitRegion, scriptStale } from "@model/artifact";
-import { affordanceEdit, seedViewerPatches, withViewerPatches } from "@elements/ops";
+import { MUSIC_VOLUME, parseTarget, scriptStale, sectionLinkId } from "@model/artifact";
+import { seedViewerPatches, viewerToggleAt, withViewerPatches } from "@elements/ops";
 import type { Component, JSX } from "solid-js";
 import {
     createEffect,
@@ -20,6 +20,7 @@ import { motionFor, resolveTheme } from "@themes";
 import {
     createSectionStackCache,
     paintSectionStack,
+    PINNED_Z,
     type SectionLayer,
     type StackWindow,
 } from "@canvas/render/backends";
@@ -29,6 +30,8 @@ import {
     firstSlideOf,
     locateSlide,
     pagedSteps,
+    pinnedShift,
+    sectionScrollTop,
     sectionSlideCount,
     slideElement,
     type Step,
@@ -40,7 +43,7 @@ import { backdropHostStyle, SlideProgress } from "./section";
 import { FloatingBar } from "./overlay";
 import { Z } from "./z";
 import { IconButton, Spinner } from "./button";
-import { classifySwipe, pressOnContent, tapZone } from "./gesture";
+import { classifySwipe, pressOnContent, TAP_SLOP, tapZone } from "./gesture";
 import { isCoarsePointer, isPhone, prefersReducedMotion } from "./viewport";
 import { buildGroups, runBuild, runTransition } from "./motion";
 import { asFormat as asSurface } from "@model/analytics";
@@ -55,6 +58,8 @@ import {
 } from "./narration";
 
 const MINI_W = 250; // overview thumb width
+// how long after a link click a fullscreen exit still counts as the browser's, not the presenter's
+const LINK_EXIT_MS = 1500;
 
 // "enter" builds the content without a slide transition; "none" is a repaint (resize, re-paginate).
 type MotionCue = "none" | "forward" | "back" | "enter";
@@ -105,6 +110,7 @@ export const PresentSurface: Component<{
     let overlay!: HTMLDivElement;
     let host!: HTMLDivElement;
     let sectionTops: number[] = []; // continuous mode: y offset of each section, from the last paint
+    let sectionHeights: number[] = []; // same paint, so a pinned nav's cover is measurable
     const [index, setIndex] = createSignal(0);
     const [showOverview, setShowOverview] = createSignal(false);
     const [showNotes, setShowNotes] = createSignal(false);
@@ -161,6 +167,15 @@ export const PresentSurface: Component<{
     const [liveRegions, setLiveRegions] = createSignal<Region[]>([]);
     // the profile the boxes under the overlay were laid out at, not the artifact's own
     const [liveFormat, setLiveFormat] = createSignal<FormatDescriptor>(profileFor(props.artifact));
+    // A pinned layer slides out from under its own slot as the page scrolls; the overlay is anchored
+    // to the static layout, so it has to be carried the same distance.
+    const [scrolled, setScrolled] = createSignal(0);
+    const liveOffsetY = (regionId: string): number => {
+        if (paged()) return 0;
+        const t = parseTarget(regionId);
+        if (t?.kind !== "element") return 0;
+        return pinnedShift(props.artifact.sections, sectionTops, scrolled(), t.address.section);
+    };
 
     const renderPaged = (motion: MotionCue): void => {
         if (!host) return;
@@ -258,7 +273,10 @@ export const PresentSurface: Component<{
             paintHost = document.createElement("div");
             paintHost.style.cssText = "position:absolute;inset:0";
             overlayHost = document.createElement("div");
-            overlayHost.style.cssText = "position:absolute;inset:0;pointer-events:none";
+            // Above the pinned layers: `stage` opens no stacking context, so an auto-z overlay
+            // sits UNDER a stuck nav and every press on a live element in one falls through to
+            // the painted stack (and from there to the viewer-toggle scan).
+            overlayHost.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:${PINNED_Z + 1}`;
             stage.append(paintHost, overlayHost);
         }
         setLiveHost(overlayHost);
@@ -267,7 +285,7 @@ export const PresentSurface: Component<{
         const viewH = host.clientHeight || window.innerHeight;
         const win = stackWindow(host.scrollTop, viewH);
         lastWindow = win;
-        const { tops, height, layers, regions } = paintSectionStack(
+        const { tops, heights, height, layers, regions } = paintSectionStack(
             paintHost,
             shownContent().sections,
             prof,
@@ -276,6 +294,7 @@ export const PresentSurface: Component<{
         );
         observeReveals(layers);
         sectionTops = tops;
+        sectionHeights = heights;
         stackRegions = regions;
         setLiveRegions(regions);
         setPaintedH(height);
@@ -283,26 +302,20 @@ export const PresentSurface: Component<{
         reportScrollProgress();
     };
 
-    // A viewer's press on a `hit:` region. The deepest painted region wins, since `emit` reports
-    // parents before their children.
+    // A viewer's press on a `hit:` region, resolved against the static layout the regions describe.
     const toggleAt = (e: PointerEvent): void => {
         if (!stage) return;
         const r = stage.getBoundingClientRect();
-        const px = e.clientX - r.left;
-        const py = e.clientY - r.top;
-        for (let i = stackRegions.length - 1; i >= 0; i--) {
-            const region = stackRegions[i]!;
-            const b = region.box;
-            if (px < b.x || px > b.x + b.w || py < b.y || py > b.y + b.h) continue;
-            const hit = parseHitRegion(region.id);
-            if (!hit) continue;
-            const edit = affordanceEdit(shownContent(), hit.action, hit.address);
-            if (!edit) return;
-            const key = elementRegionId(edit.address);
-            viewerPatches.set(key, { ...viewerPatches.get(key), ...edit.patch });
-            renderContinuous();
-            return;
-        }
+        const shown = shownContent();
+        const hit = viewerToggleAt(
+            shown,
+            stackRegions,
+            { x: e.clientX - r.left, y: e.clientY - r.top },
+            (sectionId) => pinnedShift(shown.sections, sectionTops, scrolled(), sectionId),
+        );
+        if (!hit) return;
+        viewerPatches.set(hit.key, { ...viewerPatches.get(hit.key), ...hit.patch });
+        renderContinuous();
     };
     // The grid is painted rather than composed, because each cell is a real slide render scaled down:
     // a Solid list of them would mean a component per section over the same imperative backend.
@@ -343,6 +356,7 @@ export const PresentSurface: Component<{
     const resetViewerState = (): void => {
         if (lastArtifact === props.artifact) return;
         lastArtifact = props.artifact;
+        setScrolled(0);
         viewerPatches.clear();
         for (const [key, patch] of seedViewerPatches(props.artifact)) viewerPatches.set(key, patch);
     };
@@ -391,7 +405,36 @@ export const PresentSurface: Component<{
             const to = firstSlideOf(slideCounts(), at);
             cue = to === index() ? "none" : to > index() ? "forward" : "back";
             setIndex(to);
-        } else host?.scrollTo({ top: sectionTops[at] ?? 0, behavior: "smooth" });
+            return;
+        }
+        const top = sectionScrollTop(
+            props.artifact.sections,
+            sectionTops,
+            sectionHeights,
+            sectionId,
+        );
+        host?.scrollTo({ top: top ?? 0, behavior: "smooth" });
+    };
+
+    // Chrome leaves element fullscreen by itself when a `target="_blank"` link opens a tab, and
+    // that arrives as an ordinary fullscreenchange. Without this the host would read it as the
+    // presenter quitting and tear the session down behind the new tab. Captured on the document
+    // rather than the host: a popup's panel is painted into a portal, so its anchors never reach
+    // the delegate below (see onDocClick in onMount).
+    let externalNavAt = 0;
+    const noteExternalNav = (target: EventTarget | null): void => {
+        const href = (target as Element | null)?.closest?.("a")?.getAttribute("href");
+        if (href && !sectionLinkId(href)) externalNavAt = performance.now();
+    };
+
+    // A `#section` link is a move within the piece, so it never navigates: the delegate sits on the
+    // host because the stack's anchors are painted into it rather than rendered by Solid.
+    const onContentClick = (e: MouseEvent): void => {
+        const a = (e.target as Element | null)?.closest?.("a");
+        const id = a && sectionLinkId(a.getAttribute("href"));
+        if (!id) return;
+        e.preventDefault();
+        goToSection(id);
     };
     const player = createNarrationPlayer({
         source: () => props.narration,
@@ -501,8 +544,6 @@ export const PresentSurface: Component<{
         if (paged() && showOverview()) return;
         down = { x: e.clientX, y: e.clientY, t: e.timeStamp };
     };
-    // a press that travelled is a text selection or a scroll, not a tap on an affordance
-    const TAP_SLOP = 6;
     const onPointerUp = (e: PointerEvent): void => {
         if (!paged()) {
             const start = down;
@@ -586,16 +627,23 @@ export const PresentSurface: Component<{
             else if (e.key === "Escape") props.onExit?.();
         };
         const onResize = (): void => render("none");
-        // Esc leaves fullscreen natively without a keydown, so a host that opened it treats that as a close
+        const onDocClick = (e: MouseEvent): void => noteExternalNav(e.target);
+        // Esc leaves fullscreen natively without a keydown, so a host that opened it treats that as
+        // a close. A tab opened from a link is not that: the browser dropped fullscreen on its own,
+        // and both signals are read because fullscreenchange and the focus loss race per browser.
         const onFsChange = (): void => {
-            if (!document.fullscreenElement) props.onFullscreenExit?.();
+            if (document.fullscreenElement) return;
+            if (performance.now() - externalNavAt < LINK_EXIT_MS || !document.hasFocus()) return;
+            props.onFullscreenExit?.();
         };
         window.addEventListener("keydown", onKey);
         window.addEventListener("resize", onResize);
+        document.addEventListener("click", onDocClick, true);
         document.addEventListener("fullscreenchange", onFsChange);
         onCleanup(() => {
             window.removeEventListener("keydown", onKey);
             window.removeEventListener("resize", onResize);
+            document.removeEventListener("click", onDocClick, true);
             document.removeEventListener("fullscreenchange", onFsChange);
         });
     });
@@ -628,8 +676,10 @@ export const PresentSurface: Component<{
                 style={hostStyle()}
                 onPointerDown={onPointerDown}
                 onPointerUp={onPointerUp}
+                onClick={onContentClick}
                 onScroll={() => {
                     if (paged()) return;
+                    setScrolled(host?.scrollTop ?? 0);
                     reportScrollProgress();
                     onScrollWindow();
                 }}
@@ -644,6 +694,8 @@ export const PresentSurface: Component<{
                             surface={props.where === "publish" ? "publish" : "present"}
                             theme={tokens()}
                             format={liveFormat()}
+                            offsetY={liveOffsetY}
+                            onSectionLink={goToSection}
                         />
                     </Portal>
                 )}

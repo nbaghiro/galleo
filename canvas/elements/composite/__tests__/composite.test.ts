@@ -118,6 +118,14 @@ describe("other composites", () => {
         expect(n.direction).toBe("col");
         expect(kids(n)).toHaveLength(2);
     });
+    // The name and role are grow-width text: a fit column around them measures to nothing, and the
+    // attribution laid out at zero width, painting nothing under the avatar.
+    it("gives the attribution a width to lay out in", () => {
+        const attribution = kids(nodeOf("testimonial"))[1]!;
+        const names = kids(attribution)[1]!;
+        expect(attribution.w.mode).toBe("grow");
+        expect(names.w.mode).toBe("grow");
+    });
     it("feature stacks icon + heading + body", () => {
         const n = nodeOf("feature");
         expect(n.direction).toBe("col");

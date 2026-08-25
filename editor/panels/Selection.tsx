@@ -34,7 +34,7 @@ import {
     selectedAddresses,
     selection,
     setSelection,
-    stageEl,
+    stagePoint,
     stopEditing,
 } from "@editor/core/store";
 import { startDrag, drag, movableAncestor, moveManyPayload } from "@editor/core/dnd";
@@ -181,12 +181,12 @@ export const ResizeHandles: Component = () => {
         e.preventDefault();
         e.stopPropagation();
         const c = ctx();
-        const stage = stageEl();
-        if (!c || !stage) return;
-        const rect = stage.getBoundingClientRect();
+        if (!c) return;
         const start = c.box;
         const move = (ev: PointerEvent): void => {
-            const h = Math.max(8, ev.clientY - rect.top - start.y);
+            const at = stagePoint(ev.clientX, ev.clientY);
+            if (!at) return;
+            const h = Math.max(8, at[1] - start.y);
             const dataPatch: Record<string, unknown> = {};
             if (c.hCfg) {
                 const step = c.hCfg.step ?? 1;
@@ -244,7 +244,7 @@ interface Divider {
     x: number; // centre, canvas coords
     top: number;
     h: number;
-    apply: (stageX: number) => LiveEdit; // stageX = clientX − stage.left
+    apply: (stageX: number) => LiveEdit; // stageX in stage layout coords, see stagePoint
 }
 
 export const union = (a: Rect, b: Rect): Rect => {
@@ -360,11 +360,9 @@ export const RegionDividers: Component = () => {
     const onDown = (e: PointerEvent, d: Divider): void => {
         e.preventDefault();
         e.stopPropagation();
-        const stage = stageEl();
-        if (!stage) return;
-        const rect = stage.getBoundingClientRect();
         const move = (ev: PointerEvent): void => {
-            setLiveEdit(d.apply(ev.clientX - rect.left));
+            const at = stagePoint(ev.clientX, ev.clientY);
+            if (at) setLiveEdit(d.apply(at[0]));
         };
         const up = (): void => {
             const edit = liveEdit();

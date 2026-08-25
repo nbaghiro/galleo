@@ -20,6 +20,7 @@ import {
     SECTION_GAP,
 } from "./commands";
 import type { Section, SectionBackground } from "@model/artifact";
+import { sectionLinkId } from "@model/artifact";
 import type { Tokens } from "@themes";
 import { hexA } from "@themes";
 import type { FormatDescriptor } from "@model/geometry";
@@ -34,8 +35,10 @@ function appendRuns(el: HTMLElement, runs: Run[]): void {
         const span: HTMLElement = document.createElement(run.link ? "a" : "span");
         if (run.link) {
             span.setAttribute("href", run.link);
-            span.setAttribute("target", "_blank");
-            span.setAttribute("rel", "noopener noreferrer");
+            if (!sectionLinkId(run.link)) {
+                span.setAttribute("target", "_blank");
+                span.setAttribute("rel", "noopener noreferrer");
+            }
             span.style.color = "inherit"; // the theme's ink, not the UA's link blue
         }
         span.textContent = run.text;
@@ -426,8 +429,15 @@ function applyLink(el: HTMLElement, c: RenderCommand): void {
     const href = c.link;
     if (!href) return;
     el.setAttribute("href", href);
-    el.setAttribute("target", "_blank");
-    el.setAttribute("rel", "noopener noreferrer");
+    // an internal `#section` link stays in the page, so it gets neither a new tab nor its rel guard;
+    // the playback surfaces intercept it and scroll, the editor jumps
+    if (sectionLinkId(href)) {
+        el.removeAttribute("target");
+        el.removeAttribute("rel");
+    } else {
+        el.setAttribute("target", "_blank");
+        el.setAttribute("rel", "noopener noreferrer");
+    }
     el.style.textDecoration = "none"; // the UA underline would repaint every linked box
     el.draggable = false;
     if (named(c)) {
@@ -888,7 +898,7 @@ function profileCacheKey(profile: FormatDescriptor): string {
 }
 
 // section-local → stage coords; a sub-element shape (a chart wedge) travels with its box
-function offsetRegion(r: Region, dx: number, dy: number): Region {
+export function offsetRegion(r: Region, dx: number, dy: number): Region {
     const box = { x: r.box.x + dx, y: r.box.y + dy, w: r.box.w, h: r.box.h };
     if (!r.shape) return { ...r, box };
     const points = r.shape.points.map(([px, py]): [number, number] => [px + dx, py + dy]);
@@ -897,6 +907,11 @@ function offsetRegion(r: Region, dx: number, dy: number): Region {
 
 // Retention beyond the paint window, so a small scroll oscillation doesn't thrash DOM.
 const KEEP_MARGIN = 400;
+
+// A pinned layer stays in flow to stick, so it needs a z of its own to ride over the absolutely
+// positioned sections around it. Anything a surface floats over the stack (the live overlay) must
+// be stacked above this, or a press on it lands on the painted layer instead.
+export const PINNED_Z = 1;
 
 export interface StackWindow {
     top: number;
@@ -1084,7 +1099,7 @@ export function paintSectionStack(
             layer.style.top = pin ? "0px" : `${y}px`;
             layer.style.marginLeft = pin ? `${x}px` : "";
             layer.style.marginTop = pin ? `${Math.max(0, y - flowY)}px` : "";
-            layer.style.zIndex = pin ? "1" : "";
+            layer.style.zIndex = pin ? `${PINNED_Z}` : "";
             layer.style.width = `${layoutW}px`;
             layer.style.height = `${entry.height}px`;
             layer.style.opacity = opts.dimId === section.id ? "0.4" : "1"; // reset each paint (layers cache)

@@ -1,11 +1,18 @@
 import type { EngineNode, TextLeaf } from "@engine/node";
 import type { ElementAddress, Section } from "@model/artifact";
 import type { LayoutCtx } from "@elements/spec";
-import { composedLeafFor, composedNodeFor, sectionContentTokens } from "@elements/compose";
-import { getElementAt } from "@elements/ops";
+import {
+    composedLeafFor,
+    composedNodeFor,
+    nodeById,
+    sectionContentTokens,
+} from "@elements/compose";
+import { childrenOf, getElementAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
+import { elementRegionId } from "@model/artifact";
+import { panelHugWidth, panelNode, panelWidth, popupData } from "@elements/composite/popup";
 import { profileFor } from "@engine/profile";
-import { ctxFor } from "@canvas/render/commands";
+import { ctxFor, measureText } from "@canvas/render/commands";
 import { sectionLayoutWidth } from "@canvas/render/backends";
 import { canvasContentWidth, editor, editorTokens, sectionFitScale } from "./store";
 
@@ -22,8 +29,62 @@ function paintedCtx(section: Section | undefined): LayoutCtx {
     return section ? { ...ctx, fitScale: sectionFitScale(section.id) } : ctx;
 }
 
+// A popup's panel floats over the canvas instead of painting in flow, so its subtree reaches the
+// screen through an overlay rather than through composeSection. One definition of that subtree, so
+// the overlay's paint and the chrome that has to match it (the inline text editor) cannot drift.
+
+const isOpenPopup = (type: string, data: unknown): boolean =>
+    type === "popup" && (data as { open?: unknown }).open === true;
+
+/** Every popup the author left open, in tree order. Cheap: no compose until a panel is asked for. */
+export function openPopups(): ElementAddress[] {
+    const out: ElementAddress[] = [];
+    const walk = (address: ElementAddress): void => {
+        const inst = getElementAt(editor.artifact, address);
+        if (!inst) return;
+        if (isOpenPopup(inst.type, inst.data)) out.push(address);
+        childrenOf(inst)?.forEach((_, i) =>
+            walk({ section: address.section, path: [...address.path, i] }),
+        );
+    };
+    for (const s of editor.artifact.sections) walk({ section: s.id, path: [] });
+    return out;
+}
+
+export interface Panel {
+    width: number;
+    node: EngineNode; // addressed, so its regions are the ones the editor publishes
+}
+
+/** The floating panel for a popup address, at the width the canvas paints it. */
+export function panelFor(popup: ElementAddress): Panel | null {
+    const inst = getElementAt(editor.artifact, popup);
+    if (!inst || inst.type !== "popup") return null;
+    const section = editor.artifact.sections.find((s) => s.id === popup.section);
+    const theme = section ? sectionContentTokens(section, editorTokens()) : editorTokens();
+    const data = popupData(inst.data as Record<string, unknown>);
+    const max = panelWidth(canvasContentWidth());
+    const ctx = ctxFor(max, theme, profileFor(editor.artifact));
+    const node = panelNode(data, ctx, popup);
+    return { width: panelHugWidth(data, node, measureText, canvasContentWidth()), node };
+}
+
+// the nearest ancestor whose open panel is what actually paints this address, if any
+function panelNodeFor(address: ElementAddress): EngineNode | null {
+    for (let n = address.path.length - 1; n >= 0; n--) {
+        const popup: ElementAddress = { section: address.section, path: address.path.slice(0, n) };
+        const inst = getElementAt(editor.artifact, popup);
+        if (!inst || !isOpenPopup(inst.type, inst.data)) continue;
+        const panel = panelFor(popup);
+        return panel ? nodeById(panel.node, elementRegionId(address)) : null;
+    }
+    return null;
+}
+
 // the engine subtree for an address as painted (ramp, restyling, contrast swap included)
 export function paintedNodeFor(address: ElementAddress): EngineNode | null {
+    const panelled = panelNodeFor(address);
+    if (panelled) return panelled;
     const section = editor.artifact.sections.find((s) => s.id === address.section);
     return section ? composedNodeFor(section, address, paintedCtx(section)) : null;
 }
@@ -35,6 +96,8 @@ export function paintedLeafFor(address: ElementAddress): TextLeaf | null {
     const inst = getElementAt(editor.artifact, address);
     const spec = inst ? getElement(inst.type) : undefined;
     if (!inst || !spec) return null;
+    const panelled = panelNodeFor(address)?.text;
+    if (panelled) return panelled;
     const section = editor.artifact.sections.find((s) => s.id === address.section);
     const composed = section ? composedLeafFor(section, address, paintedCtx(section)) : null;
     if (composed) return composed;

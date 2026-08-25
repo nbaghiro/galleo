@@ -125,9 +125,13 @@ const groupAxis = (inst?: ElementInstance): "row" | "col" =>
         ? "row"
         : "col";
 
+// A container whose children paint outside its own box (a popup's floating panel) publishes the box
+// they actually occupy; slots follow the children, not the trigger they hang off.
 const regionBox = (regions: Region[], sid: string, path: number[]): Rect | null => {
-    const id = path.length ? `el:${sid}:${path.join(".")}` : `el:${sid}`;
-    return regions.find((r) => r.id === id)?.box ?? null;
+    const p = path.join(".");
+    const id = path.length ? `el:${sid}:${p}` : `el:${sid}`;
+    const content = regions.find((r) => r.id === `content:${sid}:${p}`);
+    return (content ?? regions.find((r) => r.id === id))?.box ?? null;
 };
 
 // sorted along the axis; groups lay out in order, so sorted order is tree order

@@ -74,3 +74,14 @@ describe("decoration over the corpus", () => {
         });
     });
 });
+
+// `frame.aspect` now floors a continuous section's height as well as shaping a paged page. The eval
+// numbers only stay comparable while no corpus section carries one, so state that rather than
+// assume it.
+describe("the band the corpus does not use", () => {
+    it("no corpus section frames itself, so composing one is byte-identical to before", () => {
+        for (const [name, content] of Object.entries(CORPUS))
+            for (const section of content.sections)
+                expect(section.frame, `${name}/${section.id}`).toBeUndefined();
+    });
+});

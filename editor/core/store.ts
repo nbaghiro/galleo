@@ -37,7 +37,7 @@ import {
     sectionWithElementIds,
     targetsEqual,
 } from "@model/artifact";
-import { isDesktop } from "@ui/viewport";
+import { isDesktop, isPhone } from "@ui/viewport";
 import type { NarrationSource, SoundtrackSource } from "@ui/narration";
 import { capture } from "@ui/analytics";
 import { asFormat, charsBucket, type ElementCategory } from "@model/analytics";
@@ -110,21 +110,18 @@ export const HANDLE_H = 20;
 // The pill plus slack. Each handle's container is a hover bridge spanning the gap to its element,
 // and the extra height is what catches a pointer wobbling vertically while it crosses.
 export const HANDLE_BRIDGE_H = 26;
-// About two pills: the band at the top of a box that a handle belongs to, which for a one-line
-// element is the whole of it.
-export const HANDLE_BAND = 40;
-
 /**
- * Where a handle's pill sits against the box it belongs to.
+ * Where a handle's pill sits against the box it belongs to: flush with its top edge, which is what
+ * "the handle for this block" means and what puts the pair level with its first line of content.
+ * The selection outline is drawn at the box itself, so flush here reads as flush on screen.
  *
- * Top-anchoring is right for a tall block and wrong for a short one: a 20px pill in a 24px one-line
- * box leaves an uneven sliver under it, and the glyph inside a single line is optically centred, so
- * the handle reads as sitting high. Centring in the first `HANDLE_BAND` pixels answers both: a
- * short box centres outright, a tall one rests just inside its top corner. A band rather than a
- * threshold so nothing jumps as a box grows past a magic number.
+ * One exception, and only one: a box shorter than the pill, where flush would leave the handle
+ * hanging out of the bottom. There it centres, so it overhangs evenly instead of pointing at
+ * nothing. An earlier version centred inside a band at the top of every box, which fixed a one-line
+ * element and inset every tall one by 10px for no reason anybody could see.
  */
 export function handleTop(box: { y: number; h: number }): number {
-    return box.y + Math.max(0, Math.min(box.h, HANDLE_BAND) - HANDLE_H) / 2;
+    return box.y + Math.min(0, (box.h - HANDLE_H) / 2);
 }
 
 // View-only: author a paged artifact at its slide shape instead of at each section's natural height.
@@ -1179,6 +1176,7 @@ export function loadArtifactContent(id: string, art: ArtifactContent): void {
     savedThemeUnderPreview = null;
     setPreviewingTheme(false);
     setCurrentArtifactId(id);
+    setZoomSignal(readZooms()[id] ?? 1); // the view scale this artifact was last read at
     setPending(new Map());
     stubs.clear();
     resolved.clear();
@@ -1435,6 +1433,119 @@ export const [leftOpen, setLeftOpen] = createSignal(isDesktop());
 // the open flyout: a category, "search", "inspector", or null
 export const [rightTab, setRightTab] = createSignal<string | null>(null);
 
+// ---- the section rail's width ----------------------------------------------------------------
+// Drag-resized, and the canvas reserves it, so a wider rail costs canvas and a narrower one buys it
+// back. Per device rather than per account, like the library layout and the slide frame.
+
+export const MINIMAP_MIN_W = 140;
+export const MINIMAP_MAX_W = 480;
+export const MINIMAP_DEFAULT_W = 182;
+const MINIMAP_KEY = "galleo:minimap-width";
+
+export const clampMinimapWidth = (px: number): number =>
+    Number.isFinite(px)
+        ? Math.round(Math.max(MINIMAP_MIN_W, Math.min(MINIMAP_MAX_W, px)))
+        : MINIMAP_DEFAULT_W;
+
+let storedMinimapWidth = MINIMAP_DEFAULT_W;
+try {
+    const raw = localStorage.getItem(MINIMAP_KEY);
+    if (raw) storedMinimapWidth = clampMinimapWidth(Number(raw));
+} catch {
+    /* storage unavailable — use the default */
+}
+
+const [minimapWidth, setMinimapWidthSignal] = createSignal(storedMinimapWidth);
+export { minimapWidth };
+
+export function setMinimapWidth(px: number): void {
+    const next = clampMinimapWidth(px);
+    setMinimapWidthSignal(next);
+    try {
+        localStorage.setItem(MINIMAP_KEY, String(next));
+    } catch {
+        /* storage unavailable */
+    }
+}
+
+// ---- canvas zoom -----------------------------------------------------------------------------
+// A view scale on the painted stack, not a layout change: the engine keeps laying out at the same
+// width, so nothing re-wraps and the zoom is one CSS transform on the stage. Everything the canvas
+// publishes (regions, hitboxes, drop slots, section tops) stays in unscaled layout coordinates,
+// which is why every client→stage conversion goes through `stagePoint` below.
+
+export const ZOOM_MIN = 0.5;
+export const ZOOM_MAX = 2;
+export const ZOOM_STEP = 0.1;
+const ZOOM_KEY = "galleo:canvas-zoom";
+// artifacts remembered; the least recently set falls off rather than the record growing forever
+const ZOOM_KEPT = 40;
+
+/** Held inside the range and snapped to whole percents, so stepping never lands on 0.7000000001. */
+export const clampZoom = (z: number): number =>
+    Number.isFinite(z) ? Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(z * 100) / 100)) : 1;
+
+function readZooms(): Record<string, number> {
+    const out: Record<string, number> = {};
+    try {
+        const raw: unknown = JSON.parse(localStorage.getItem(ZOOM_KEY) ?? "{}");
+        if (!raw || typeof raw !== "object") return out;
+        for (const [id, z] of Object.entries(raw as Record<string, unknown>))
+            if (typeof z === "number") out[id] = clampZoom(z);
+    } catch {
+        /* storage unavailable, or the entry is not a record — start clean */
+    }
+    return out;
+}
+
+const [zoomSetting, setZoomSignal] = createSignal(1);
+
+/**
+ * What the stage is actually scaled by. Phone chrome carries no zoom control (pinch is the
+ * platform's own), so a scale carried over from a wider window would be a mode with no way out:
+ * the setting is kept, and the stage reads 1:1 until there is a control again.
+ */
+export const zoom = (): number => (isPhone() ? 1 : zoomSetting());
+
+export function setZoom(z: number): void {
+    const next = clampZoom(z);
+    setZoomSignal(next);
+    const id = currentArtifactId();
+    if (!id) return;
+    try {
+        const all = readZooms();
+        delete all[id]; // re-inserted below, so key order is least-recently-set first
+        if (next !== 1) all[id] = next;
+        const keys = Object.keys(all);
+        for (const k of keys.slice(0, Math.max(0, keys.length - ZOOM_KEPT))) delete all[k];
+        localStorage.setItem(ZOOM_KEY, JSON.stringify(all));
+    } catch {
+        /* storage unavailable */
+    }
+}
+
+export const zoomBy = (steps: number): void => setZoom(zoomSetting() + steps * ZOOM_STEP);
+export const resetZoom = (): void => setZoom(1);
+
+/**
+ * Viewport coordinates → stage layout coordinates. `rect` is the stage's client rect, which already
+ * carries the zoom transform, so subtracting its origin lands in zoomed pixels and the division is
+ * what puts the point back in the space regions and drop slots are measured in.
+ */
+export const toStage = (
+    rect: { left: number; top: number },
+    z: number,
+    clientX: number,
+    clientY: number,
+): [number, number] => [(clientX - rect.left) / z, (clientY - rect.top) / z];
+
+/** The same conversion against the live stage; null before the canvas has mounted one. */
+export function stagePoint(clientX: number, clientY: number): [number, number] | null {
+    const stage = stageEl();
+    if (!stage) return null;
+    return toStage(stage.getBoundingClientRect(), zoom(), clientX, clientY);
+}
+
 /**
  * A drag closes the flyout so it stops covering the drop targets, and the selection the drop makes
  * must not spring it back open on top of what was just placed. The flag is consumed by the
@@ -1453,6 +1564,7 @@ export const takeDropSelection = (): boolean => {
 export function jumpToSection(index: number): void {
     const el = canvasEl();
     if (!el) return;
-    const top = editor.sectionTops[index] ?? 0;
+    // tops are layout coordinates; the scroller measures the zoomed stack
+    const top = (editor.sectionTops[index] ?? 0) * zoom();
     el.scrollTo({ top: Math.max(0, top - 18), behavior: "smooth" });
 }

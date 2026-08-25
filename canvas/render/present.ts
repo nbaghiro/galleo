@@ -93,6 +93,40 @@ export const stepHoldMs = (trackMs: number, of: number): number =>
     Math.max(1, Math.round(trackMs / Math.max(1, of)));
 
 /**
+ * Where a continuous surface scrolls to put a section under the reader: its painted top, less the
+ * height of whatever is pinned above it. Every pinned layer sticks at the same offset, so the
+ * tallest one above the target is what would otherwise cover the first line of it. Null when no
+ * section carries the id, which is how a link to a deleted section stays inert.
+ */
+export function sectionScrollTop(
+    sections: readonly { id: string; pinned?: boolean }[],
+    tops: readonly number[],
+    heights: readonly number[],
+    id: string,
+): number | null {
+    const at = sections.findIndex((s) => s.id === id);
+    if (at < 0) return null;
+    let cover = 0;
+    for (let i = 0; i < at; i++) if (sections[i]?.pinned) cover = Math.max(cover, heights[i] ?? 0);
+    return Math.max(0, (tops[at] ?? 0) - cover);
+}
+
+/**
+ * How far a pinned section has been carried below its own slot by the scroll. Overlays anchored to
+ * the static layout (a live player, a popup trigger) have to follow the layer they sit on.
+ */
+export function pinnedShift(
+    sections: readonly { id: string; pinned?: boolean }[],
+    tops: readonly number[],
+    scrollTop: number,
+    sectionId: string,
+): number {
+    const at = sections.findIndex((s) => s.id === sectionId);
+    if (at < 0 || !sections[at]?.pinned) return 0;
+    return Math.max(0, scrollTop - (tops[at] ?? 0));
+}
+
+/**
  * Regions recovered from a page's commands. A paged render fragments and reframes commands rather
  * than carrying the layout's own region list, but each command still holds the id its node was
  * tagged with, which is everything an overlay needs to find its box.

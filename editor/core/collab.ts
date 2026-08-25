@@ -30,6 +30,7 @@ import {
     regions,
     setEditAccess,
     stopEditing,
+    zoom,
 } from "./store";
 
 // The collaboration seam, shaped like the comment seam beside it: the app owns the socket and pushes
@@ -430,8 +431,11 @@ export function followScroll(
 export function scrollFollowing(focus: CursorBox, force = false): void {
     const el = canvasEl();
     if (!el) return;
-    const to = followScroll(focus, { top: el.scrollTop, height: el.clientHeight }, force);
-    if (to !== null) el.scrollTo({ top: to, behavior: "smooth" });
+    // the focus box is layout geometry; the scroller measures the zoomed stack
+    const z = zoom();
+    const view = { top: el.scrollTop / z, height: el.clientHeight / z };
+    const to = followScroll(focus, view, force);
+    if (to !== null) el.scrollTo({ top: to * z, behavior: "smooth" });
 }
 
 // ---- the lease, as the editor asks about it --------------------------------------------------

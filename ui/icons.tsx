@@ -265,6 +265,7 @@ const PATHS: Record<string, () => JSX.Element> = {
         </>
     ),
     plus: () => <path d="M12 5v14M5 12h14" />,
+    minus: () => <path d="M5 12h14" />,
     duplicate: () => (
         <>
             <rect x="9" y="9" width="11" height="11" rx="2.5" />

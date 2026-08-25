@@ -119,7 +119,10 @@ function typography(
 
     let minContrast: number | null = null;
     for (const t of texts) {
-        const fg = hex(t.text.color) ?? hex(theme.ink);
+        // A colour the leaf carries but we cannot read (the on-dark tokens are rgba) stands down
+        // like an image does. Falling back to the theme's ink there judged white-on-a-dark-band text
+        // as dark-on-dark, which failed every section with a dark COLOUR background.
+        const fg = t.text.color ? hex(t.text.color) : hex(theme.ink);
         const bg = behind(t.box);
         if (!fg || !bg) continue; // an image or gradient behind it: not ours to judge here
         const ratio = contrastRatio(fg, bg);

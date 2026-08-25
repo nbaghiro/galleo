@@ -193,3 +193,102 @@ describe("composeElement (via composeSection)", () => {
         expect(content.fill?.color).toBe("#f6dede");
     });
 });
+
+describe("a continuous section's frame reads as a band", () => {
+    const W = 1200;
+    const band = (aspect?: number, ctx = webCtx): EngineNode =>
+        composeSection(
+            sectionOf(textRoot(), { id: "s1", ...(aspect ? { frame: { aspect } } : {}) }),
+            ctx,
+        );
+    const heightOf = (section: EngineNode, w = W): number =>
+        layout(section, { x: 0, y: 0, w, h: 100000 }, measure).commands.reduce(
+            (m, c) => Math.max(m, c.box.y + c.box.h),
+            0,
+        );
+
+    it("opens at least as tall as the aspect asks for", () => {
+        expect(heightOf(band(16 / 7))).toBeCloseTo((W * 7) / 16, 0);
+    });
+
+    it("centres its content in the band it made", () => {
+        const node = band(16 / 7);
+        expect(node.alignY).toBe("center");
+        const inner = node.children![0]!;
+        const { commands } = layout(node, { x: 0, y: 0, w: W, h: 100000 }, measure);
+        const text = commands.find((c) => c.kind === "text")!;
+        const mid = (W * 7) / 16 / 2;
+        expect(Math.abs(text.box.y + text.box.h / 2 - mid)).toBeLessThan(2);
+        expect(inner.h.mode).toBe("fit"); // the band is the section's own height, not the child's
+    });
+
+    it("grows past the band rather than clipping content that needs the room", () => {
+        const tall = sectionOf(
+            inst("text", { text: "word ".repeat(1200) }),
+            { id: "s1", frame: { aspect: 16 / 3 } }, // a shallow band, so the copy is what decides
+        );
+        const h = heightOf(composeSection(tall, webCtx));
+        expect(h).toBeGreaterThan((W * 3) / 16);
+    });
+
+    it("changes nothing for a section with no frame", () => {
+        const plain = band();
+        expect(plain.h).toEqual({ mode: "fit", min: undefined, max: undefined });
+        expect(plain.alignY).toBeUndefined();
+        expect(heightOf(plain)).toBeLessThan(400);
+    });
+
+    it("leaves the paged path alone: there the frame is the page, not a floor", () => {
+        const paged = band(16 / 7, deckCtx);
+        expect(paged.alignY).toBeUndefined();
+        expect(paged.h).toEqual({ mode: "fit", min: undefined, max: undefined });
+        expect(heightOf(paged, 800)).toBe(heightOf(band(undefined, deckCtx), 800));
+    });
+
+    it("ignores a frame that names no aspect, or a nonsense one", () => {
+        const framed = (frame: { aspect?: number }): EngineNode =>
+            composeSection(sectionOf(textRoot(), { id: "s1", frame }), webCtx);
+        for (const frame of [{}, { aspect: 0 }, { aspect: -2 }])
+            expect(framed(frame).h).toEqual({ mode: "fit", min: undefined, max: undefined });
+    });
+});
+
+describe("dock", () => {
+    const nav = {
+        type: "container",
+        data: {
+            direction: "row",
+            children: [{ type: "text", data: { text: "Brand", style: "label" } }],
+        },
+        layout: { dock: "top" as const },
+    };
+    const hero = { type: "text", data: { text: "Headline", style: "h1" } };
+    const sec = (frame?: { aspect: number }) => ({
+        id: "s1",
+        root: { type: "container", data: { children: [nav, hero] } },
+        bleed: true,
+        ...(frame ? { frame } : {}),
+    });
+    const webCtx = { ...deckCtx, format: resolveProfile("web") };
+
+    it("hoists a docked child to the section band, out of the content flow", () => {
+        const node = composeSection(sec({ aspect: 16 / 7 }) as never, webCtx);
+        // the docked row rides the section node itself, beside the inner gutter box
+        expect(node.children).toHaveLength(2);
+        const float = node.children!.find((c) => c.float);
+        expect(float?.float).toMatchObject({ y: "start", z: 1 });
+        // and the content no longer contains it
+        const inner = node.children!.find((c) => !c.float)!;
+        const content = inner.children![0]!;
+        expect((content.children ?? []).some((c) => c.float)).toBe(false);
+    });
+
+    it("keeps an undocked root intact", () => {
+        const plain = {
+            id: "s2",
+            root: { type: "container", data: { children: [hero] } },
+        };
+        const node = composeSection(plain as never, webCtx);
+        expect(node.children).toHaveLength(1);
+    });
+});

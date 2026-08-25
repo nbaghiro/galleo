@@ -169,6 +169,7 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
         node.aspect = undefined;
     }
     if (layout.align) node.alignSelf = layout.align;
+    if (layout.dock === "top") node.float = { x: "start", y: "start", z: 1 };
     if (layout.radius !== undefined) {
         if (node.image) node.image.radius = layout.radius;
         else if (node.fill) node.fill.radius = layout.radius;
@@ -191,7 +192,11 @@ function rowShares(inst: ElementInstance, kids: ElementInstance[]): number[] | n
     return pct.every((p) => p !== null) ? (pct as number[]) : kids.map(() => 1 / kids.length);
 }
 
-function composeElement(inst: ElementInstance, ctx: LayoutCtx, addr: ElementAddress): EngineNode {
+export function composeElement(
+    inst: ElementInstance,
+    ctx: LayoutCtx,
+    addr: ElementAddress,
+): EngineNode {
     const id = elementRegionId(addr);
     const spec = getElement(inst.type);
     if (!spec) {
@@ -280,16 +285,17 @@ export function composedNodeFor(
     address: ElementAddress,
     ctx: LayoutCtx,
 ): EngineNode | null {
-    const id = elementRegionId(address);
-    const find = (n: EngineNode): EngineNode | null => {
-        if (n.id === id) return n;
-        for (const c of n.children ?? []) {
-            const hit = find(c);
-            if (hit) return hit;
-        }
-        return null;
-    };
-    return find(composeSection(section, ctx));
+    return nodeById(composeSection(section, ctx), elementRegionId(address));
+}
+
+/** The node carrying a region id, anywhere in a composed tree. */
+export function nodeById(root: EngineNode, id: string): EngineNode | null {
+    if (root.id === id) return root;
+    for (const c of root.children ?? []) {
+        const hit = nodeById(c, id);
+        if (hit) return hit;
+    }
+    return null;
 }
 
 // the text leaf at an address; an overlay styled from the child's own spec would render at the
@@ -334,10 +340,16 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
 
     // continuous (doc/web) merges sections seamlessly → no card radius/border
     const radius = bleed || continuous ? 0 : ctx.theme.radius;
+    // `frame.aspect` is the page shape a paged format cuts to. A continuous one has no page, so the
+    // same field reads as a minimum band: a hero opens at 16:7 of the viewport and centres in it,
+    // and content taller than the band still grows past it.
+    const aspect = section.frame?.aspect;
+    const band = continuous && aspect && aspect > 0 ? ctx.availWidth / aspect : 0;
     const node: EngineNode = {
         id: sectionRegionId(section.id),
         w: grow(),
-        h: fit(),
+        h: band ? fit(band) : fit(),
+        alignY: band ? "center" : undefined,
         alignX: webBand ? "center" : undefined,
         padding: bleed
             ? { top: 64 * k, bottom: 64 * k, left: sidePad, right: sidePad }
@@ -346,6 +358,15 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
         clip: { x: true },
         children: [inner],
     };
+    // A docked child (layout.dock) is section chrome: hoisted out of the content flow so it anchors
+    // to the band's own box, while the rest centres in the band without it.
+    const docked = (content.children ?? []).filter(
+        (c) => c.float?.y === "start" && c.float.z === 1,
+    );
+    if (docked.length) {
+        content.children = (content.children ?? []).filter((c) => !docked.includes(c));
+        node.children = [inner, ...docked];
+    }
 
     // border only on a light bg: over dark a hairline reads as an awkward frame
     const framed = !bleed && !continuous;

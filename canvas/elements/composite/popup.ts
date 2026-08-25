@@ -1,18 +1,22 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
-import type { DrawContext, EngineNode, Rect } from "@engine/node";
-import type { ElementInstance } from "@model/artifact";
+import type { DrawContext, EngineNode, MeasureText, Rect } from "@engine/node";
+import { intrinsicWidth } from "@engine/layout";
+import type { ElementAddress, ElementInstance } from "@model/artifact";
 import type { PopupVariant } from "@model/elements";
-import { getElement, register } from "@elements/spec";
+import { register } from "@elements/spec";
 import { bool, oneOf, str } from "@elements/coerce";
+import { composeElement } from "@elements/compose";
 import { hitRegionId, parseTarget } from "@model/artifact";
 import { POPUP_VARIANTS } from "@model/elements";
 import { fit, fixed, grow } from "@model/geometry";
 import { fontStack, hexA } from "@themes";
 import { t } from "@elements/composite/shared";
 
-// `open` is ordinary authored data, so the editor and every static surface (export, thumbnails, the
-// corpus) paint the panel in flow below the trigger exactly as stored. Playback seeds it shut and
-// floats the same subtree in a portal instead (the popup live component in ui/live).
+// The panel never paints in flow, on any surface: it would stretch its section and clip to the
+// trigger's slot, which in a pinned nav is unusable. `layout` paints the trigger alone and `open`
+// only turns the chevron; the floating panel is `panelNode`, composed and painted by whichever
+// surface can float it (the portal in ui/live for playback, the canvas overlay in the editor).
+// Exports and thumbnails therefore show the closed trigger: a popup's content is transient UI.
 export interface PopupData {
     children: ElementInstance[];
     label?: string;
@@ -32,7 +36,27 @@ const TRIGGER_H = 38;
 const CHEVRON = 13;
 const DEFAULT_LABEL = "Details";
 export const PANEL_MIN_W = 260;
+const MENU_MIN_W = 180;
 export const PANEL_MAX_W = 400;
+
+/** The floating panel's width: as wide as it asks for, inside what the surface can give it. */
+export const panelWidth = (avail: number): number =>
+    Math.max(PANEL_MIN_W, Math.min(PANEL_MAX_W, avail));
+
+// The engine assigns the container width to the root outright, so a panel that should hug its
+// content is sized here, above the layout call: a menu takes its widest item (the buttons are
+// fit-width, so the intrinsic is real), a content panel keeps the full clamp since wrapped text's
+// intrinsic is its unwrapped width.
+export function panelHugWidth(
+    d: PopupData,
+    node: EngineNode,
+    measure: MeasureText,
+    avail: number,
+): number {
+    const max = panelWidth(avail);
+    if (variantOf(d) !== "menu") return max;
+    return Math.max(MENU_MIN_W, Math.min(Math.ceil(intrinsicWidth(node, measure)), max));
+}
 
 const PANEL_PAD: Record<PopupVariant, number> = { panel: 18, menu: 8 };
 const PANEL_GAP: Record<PopupVariant, number> = { panel: 12, menu: 4 };
@@ -116,37 +140,28 @@ function panelBox(d: PopupData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode 
     };
 }
 
-const composeKids = (d: PopupData, ctx: LayoutCtx): EngineNode[] =>
-    d.children.map((inst): EngineNode => {
-        const spec = getElement(inst.type);
-        return spec ? spec.layout(inst.data, ctx) : { w: grow(), h: fit(10) };
-    });
-
-/** The panel alone, for the surface that portals it: no region ids, so nothing in it is addressable. */
-export function panelNode(d: PopupData, ctx: LayoutCtx): EngineNode {
+/**
+ * The floating panel alone, addressed at the popup that owns it, so its children carry the same
+ * region ids `composeElement` would have given them in flow. That is what lets the editor's overlay
+ * publish them and get selection, drops, comments and inline editing with no per-feature code.
+ */
+export function panelNode(d: PopupData, ctx: LayoutCtx, at: ElementAddress): EngineNode {
     const pad = PANEL_PAD[variantOf(d)] * 2;
     const inner: LayoutCtx = { ...ctx, availWidth: Math.max(0, ctx.availWidth - pad) };
-    return panelBox(d, inner, composeKids(d, inner));
+    const kids = d.children.map((child, i) =>
+        composeElement(child, inner, { section: at.section, path: [...at.path, i] }),
+    );
+    return panelBox(d, inner, kids);
 }
 
-function arrangePopup(d: PopupData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
-    const open = d.open === true;
-    const chip = trigger(d, ctx, open);
-    // a child's address is this element's own, one level down, which is whose `open` the press moves
-    const target = parseTarget(kids[0]?.id ?? "");
-    if (target?.kind === "element")
-        chip.id = hitRegionId("disclose", {
-            section: target.address.section,
-            path: target.address.path.slice(0, -1),
-        });
-    return {
-        w: grow(undefined, PANEL_MAX_W),
-        h: fit(),
-        direction: "col",
-        gap: 10,
-        alignX: "start",
-        children: open ? [chip, panelBox(d, ctx, kids)] : [chip],
-    };
+function arrangePopup(d: PopupData, ctx: LayoutCtx): EngineNode {
+    const chip = trigger(d, ctx, d.open === true);
+    // composeElement hands its own region down, which is the element whose `open` a press moves
+    const target = parseTarget(ctx.region ?? "");
+    if (target?.kind === "element") chip.id = hitRegionId("disclose", target.address);
+    // fit, not grow: the trigger's box is what the floating panel anchors under and what a click
+    // on the popup selects, so it hugs the chip rather than the row slot the chip sits in
+    return { w: fit(), h: fit(), direction: "col", alignX: "start", children: [chip] };
 }
 
 const VARIANT_LABELS: Record<PopupVariant, string> = { panel: "Panel", menu: "Menu" };
@@ -166,7 +181,7 @@ export const popupElement: ElementSpec<PopupData> = {
             t("The extra line a reader asks for, kept out of the way until they do.", "body"),
         ],
     }),
-    layout: (d, ctx) => arrangePopup(d, ctx, composeKids(d, ctx)),
+    layout: arrangePopup,
     container: {
         children: (d) => d.children,
         arrange: arrangePopup,
@@ -181,7 +196,9 @@ export const popupElement: ElementSpec<PopupData> = {
             control: "segmented",
             options: POPUP_VARIANTS.map((v) => ({ value: v, label: VARIANT_LABELS[v] })),
         },
-        { key: "open", label: "Open by default", control: "toggle" },
+        // the panel floats over the canvas rather than in flow, so this opens it for editing; a
+        // reader always starts with it shut, and an export prints the trigger alone
+        { key: "open", label: "Show panel", control: "toggle" },
     ],
 };
 register(popupElement);

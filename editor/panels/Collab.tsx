@@ -103,12 +103,9 @@ export const CollabLayer: Component = () => {
     });
 
     // peer chrome is hidden during a drag, like every other overlay: the stack is frozen and the
-    // boxes are stale. The notice is not peer chrome and not placed against the stack, so it sits
-    // outside both gates: a solo session says things too ("this edits in place", "thread resolved").
+    // boxes are stale.
     return (
         <>
-            <EditorNotice />
-            <FollowBanner />
             <Show when={collabActive() && !drag()}>
                 <For each={[...held(), ...selected()]}>{(o) => <PeerOutline outline={o} />}</For>
                 <For each={remoteCursors()}>
@@ -136,6 +133,20 @@ export const CollabLayer: Component = () => {
         </>
     );
 };
+
+/**
+ * The two pieces of collaboration chrome placed against the viewport rather than the stack, which
+ * is why they render outside the canvas stage: the stage carries the zoom transform, and a
+ * transformed ancestor is a containing block, so `fixed` inside it would scale and drift with it.
+ * Neither is peer chrome, and neither is gated on a drag: a solo session says things too ("this
+ * edits in place", "thread resolved").
+ */
+export const CollabViewportChrome: Component = () => (
+    <>
+        <EditorNotice />
+        <FollowBanner />
+    </>
+);
 
 // Following says so at the edge of the viewport rather than over the content, the way a mode should:
 // a frame in the followed person's colour, and one line naming them with the way out. Fixed to the

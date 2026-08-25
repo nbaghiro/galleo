@@ -7,6 +7,8 @@ import {
     firstSlideOf,
     locateSlide,
     pagedSteps,
+    pinnedShift,
+    sectionScrollTop,
     sectionSlideCount,
     slideElement,
     stepHoldMs,
@@ -133,6 +135,50 @@ describe("the step model", () => {
     });
 });
 
+describe("where a section link lands", () => {
+    const sections = [{ id: "nav", pinned: true }, { id: "hero" }, { id: "work" }];
+    const tops = [0, 120, 800];
+    const heights = [120, 680, 400];
+
+    it("scrolls to the section's own top when nothing is pinned above it", () => {
+        expect(sectionScrollTop(sections.slice(1), [0, 680], [680, 400], "work")).toBe(680);
+    });
+
+    it("clears the pinned band, so the nav does not cover the first line of the target", () => {
+        expect(sectionScrollTop(sections, tops, heights, "work")).toBe(680);
+    });
+
+    it("never scrolls above the top, and a pin below the target does not count", () => {
+        expect(sectionScrollTop(sections, tops, heights, "hero")).toBe(0);
+        expect(sectionScrollTop(sections, tops, heights, "nav")).toBe(0);
+        const pinLater = [{ id: "hero" }, { id: "nav", pinned: true }];
+        expect(sectionScrollTop(pinLater, [0, 700], [700, 120], "hero")).toBe(0);
+    });
+
+    it("stays inert for an id no section carries", () => {
+        expect(sectionScrollTop(sections, tops, heights, "gone")).toBeNull();
+    });
+});
+
+describe("what a pin carries with it", () => {
+    const sections = [{ id: "nav", pinned: true }, { id: "hero" }];
+
+    it("is zero until the scroll passes the pinned section's own slot", () => {
+        expect(pinnedShift(sections, [0, 120], 0, "nav")).toBe(0);
+        expect(pinnedShift(sections, [40, 160], 25, "nav")).toBe(0);
+    });
+
+    it("tracks the scroll once the layer sticks", () => {
+        expect(pinnedShift(sections, [0, 120], 900, "nav")).toBe(900);
+        expect(pinnedShift(sections, [40, 160], 900, "nav")).toBe(860);
+    });
+
+    it("leaves an unpinned section, and an unknown one, where they were painted", () => {
+        expect(pinnedShift(sections, [0, 120], 900, "hero")).toBe(0);
+        expect(pinnedShift(sections, [0, 120], 900, "gone")).toBe(0);
+    });
+});
+
 describe("commandRegions", () => {
     it("recovers a box per painted id, merging the radius of a node that paints twice", () => {
         const regions = commandRegions([
@@ -169,5 +215,28 @@ describe("a slide's live overlay anchor", () => {
         expect(region).toBeDefined();
         expect(region!.box.w).toBeGreaterThan(0);
         expect(region!.box.h).toBeGreaterThan(0);
+    });
+
+    // A popup's own wrapper paints nothing, so a paged render (which recovers regions from painted
+    // commands) carries only the trigger's `hit:` id. The live overlay falls back to it, and this is
+    // the shape that fallback reads.
+    it("carries a popup's trigger box under its hit id, not its element id", () => {
+        const slide = slideElement(
+            sectionOf(
+                inst("popup", {
+                    label: "Explore",
+                    variant: "menu",
+                    children: [inst("button", { label: "Pricing", href: "#pricing" })],
+                }),
+                { id: "s1" },
+            ),
+            tokens,
+            deck,
+        );
+        expect(slide.regions.find((r) => r.id === "el:s1:")).toBeUndefined();
+        const hit = slide.regions.find((r) => r.id === "hit:disclose:s1:");
+        expect(hit).toBeDefined();
+        expect(hit!.box.w).toBeGreaterThan(0);
+        expect(hit!.box.h).toBeGreaterThan(0);
     });
 });

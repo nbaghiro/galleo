@@ -116,6 +116,69 @@ describe("link semantics on the render command", () => {
     });
 });
 
+describe("a link to a section of the same piece", () => {
+    const anchor = (link: string): HTMLElement =>
+        paintOne({
+            kind: "text",
+            box: { x: 0, y: 0, w: 80, h: 20 },
+            text: { text: "Work", fontId: "f", size: 12, wrap: "none" },
+            link,
+        });
+
+    it("paints in place: the href stays, the new-tab pair does not", () => {
+        const el = anchor("#work");
+        expect(el.tagName).toBe("A");
+        expect(el.getAttribute("href")).toBe("#work");
+        expect(el.getAttribute("target")).toBeNull();
+        expect(el.getAttribute("rel")).toBeNull();
+    });
+
+    it("leaves an external link exactly as it was", () => {
+        const el = anchor("https://galleo.app");
+        expect(el.getAttribute("target")).toBe("_blank");
+        expect(el.getAttribute("rel")).toBe("noopener noreferrer");
+    });
+
+    it("a run link follows the same grammar", () => {
+        const runEl = (href: string): HTMLElement => {
+            const el = paintOne({
+                kind: "text",
+                box: { x: 0, y: 0, w: 200, h: 20 },
+                text: {
+                    text: "see the work",
+                    fontId: "f",
+                    size: 12,
+                    wrap: "words",
+                    runs: toRuns("see the work", [{ from: 4, to: 12, type: "link", value: href }]),
+                },
+            });
+            return el.querySelector("a") as HTMLElement;
+        };
+        expect(runEl("#work").getAttribute("target")).toBeNull();
+        expect(runEl("https://galleo.app").getAttribute("target")).toBe("_blank");
+    });
+
+    it("clears the new-tab pair when a reused anchor stops pointing outward", () => {
+        const host = document.createElement("div");
+        const cache = createSectionStackCache();
+        const draw = (href: string): HTMLElement | null => {
+            paintSectionStack(
+                host,
+                [sectionOf(inst("button", { label: "Go", href }), { id: "s1" })],
+                deck,
+                tokens,
+                { fullW: 800, cache },
+            );
+            return host.querySelector("a");
+        };
+        expect(draw("https://galleo.app")?.getAttribute("rel")).toBe("noopener noreferrer");
+        const inward = draw("#work");
+        expect(inward?.getAttribute("href")).toBe("#work");
+        expect(inward?.getAttribute("target")).toBeNull();
+        expect(inward?.getAttribute("rel")).toBeNull();
+    });
+});
+
 describe("heading + alt semantics", () => {
     it("the text element carries the heading rank of h1/h2/h3 and nothing else", () => {
         const level = (style: string): number | undefined =>

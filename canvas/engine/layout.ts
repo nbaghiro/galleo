@@ -83,7 +83,9 @@ function distribute(spans: Span[], avail: number): number[] {
     return size;
 }
 
-function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
+// Exported for callers that size a floating container to its content before laying it out: the
+// solver assigns the container width to the root unconditionally, so hugging happens above it.
+export function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
     if (n.text) return measure(n.text, Number.POSITIVE_INFINITY).width;
     if (n.image?.natural) return n.image.natural.w;
     const kids = n.children ?? [];

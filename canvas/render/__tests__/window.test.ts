@@ -33,6 +33,32 @@ describe("stackWindow", () => {
     });
 });
 
+// The editor scales its stage with a CSS transform, so the scroller reports zoomed pixels while
+// every section top the window is compared against is a layout pixel. Dividing the scrolled band
+// back out is the whole of what keeps the materialized band over what is really on screen; without
+// it a zoomed-out canvas paints a fraction of the sections it is showing.
+describe("stackWindow over a scaled stage", () => {
+    // what editor/Canvas.tsx feeds it: the scroller's own numbers, with the zoom divided out
+    const band = (scrollTop: number, viewH: number, z: number): { top: number; bottom: number } =>
+        stackWindow(scrollTop / z, viewH / z);
+
+    it("brackets the same layout band whatever the stage is scaled to", () => {
+        // scrolled to layout y=1000 with 800 layout px on screen, said in each scale's own pixels
+        for (const z of [0.5, 1, 1.8]) {
+            const w = band(1000 * z, 800 * z, z);
+            expect(w.top).toBeCloseTo(1000 - 800 * OVERSCAN);
+            expect(w.bottom).toBeCloseTo(1000 + 800 + 800 * OVERSCAN);
+        }
+    });
+
+    // one viewport of screen shows four times the document at half the scale as at double it
+    it("widens as the stage shrinks", () => {
+        const near = band(0, 800, 2);
+        const far = band(0, 800, 0.5);
+        expect(far.bottom - far.top).toBeCloseTo((near.bottom - near.top) * 4);
+    });
+});
+
 describe("windowMoved", () => {
     const w = stackWindow(1000, 900);
     it("always repaints when there is no previous window", () => {

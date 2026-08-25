@@ -1,6 +1,7 @@
 import { asFormat, RENDER_SLOW_MS } from "@model/analytics";
 import { capture } from "@ui/analytics";
 import type { Rect, Region } from "@engine/node";
+import type { Tokens } from "@themes";
 import { inRegion } from "@engine/node";
 import { pickArtifactBackground } from "./core/media";
 import type { ElementAddress, Target, Section } from "@model/artifact";
@@ -10,10 +11,12 @@ import { applyAffordance, getElementAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import {
+    contentRegionId,
     elementRegionId,
     parseDatumRegion,
     parseHitRegion,
     parseTarget,
+    sectionLinkId,
     specificity,
     targetsEqual,
 } from "@model/artifact";
@@ -22,6 +25,7 @@ import type { CollabCursor, ElementRef } from "@model/collab";
 import {
     backdropCss,
     createSectionStackCache,
+    offsetRegion,
     paint,
     paintSectionStack,
     scaledHostCss,
@@ -37,7 +41,8 @@ import {
     type Slot,
 } from "@canvas/render/window";
 import { layoutPlaceholder } from "@canvas/render/placeholder";
-import { measureText, layoutSection, layoutSlide } from "@canvas/render/commands";
+import { measureText, layoutNode, layoutSection, layoutSlide } from "@canvas/render/commands";
+import { openPopups, panelFor } from "./core/leaf";
 import { openDataEditor } from "./panels/DataEditor";
 import {
     activeSlot,
@@ -63,6 +68,7 @@ import {
     jumpToSection,
     knownHeight,
     leftOpen,
+    minimapWidth,
     noteElementAdded,
     noteElementMoved,
     pending as pendingSections,
@@ -85,7 +91,9 @@ import {
     slideFrame,
     startEditing,
     stopEditing,
+    toStage,
     toggleExtra,
+    zoom,
 } from "./core/store";
 import { EmptyRegionAdd, ContextMenu, openContextMenu } from "./panels/Insert";
 import { DropIndicators, LiftVeil } from "./panels/DropIndicators";
@@ -97,20 +105,38 @@ import { SectionGenStage } from "./panels/GenOverlays";
 import { ElementGenStage } from "./panels/GenOverlays";
 import { TextEditor } from "./panels/TextEditor";
 import { CommentLayer } from "./panels/Comments";
-import { CollabLayer } from "./panels/Collab";
+import { CollabLayer, CollabViewportChrome } from "./panels/Collab";
 import { LiveLayer } from "@ui/live";
 import { collabActive, cursorForPoint, elementRefFor, sendPresence } from "./core/collab";
 
 const RAIL_GAP = 28;
-const PANEL_L = 200;
+// the rail's own left offset (left-3) plus a little air between it and the first section
+const PANEL_L_GAP = 18;
 const RAIL_R = 64;
+const panelL = (): number => minimapWidth() + PANEL_L_GAP;
 // phone: no rails to clear — a sliver of gutter, sections take essentially the full width
 const PHONE_PAD = 6;
+
+const PANEL_GAP = 8; // between a popup's trigger and its floating panel
+const PANEL_EDGE = 12; // slack the panel keeps from the stage edge
+// A floating panel covers whatever it is over, so its regions outrank them however deep those sit;
+// hit-testing resolves by specificity, not by paint order.
+const PANEL_SPEC = 100;
 
 export const Canvas: Component = () => {
     let scrollEl!: HTMLElement;
     let stageEl!: HTMLDivElement;
     let paintHost!: HTMLDivElement;
+    let panelHost!: HTMLDivElement;
+
+    // The laid-out stack's height, in layout coordinates. The sizer around the stage carries the
+    // zoomed height, which is what gives the scroller its true range at any zoom.
+    const [stackHeight, setStackHeight] = createSignal(0);
+
+    // The scroller is unscaled and the stage inside it is not, so anything the scroller reports has
+    // to divide the zoom out before it is compared against tops, slots or the paint window.
+    const layoutScrollTop = (): number => scrollEl.scrollTop / zoom();
+    const layoutViewH = (): number => (scrollEl.clientHeight || 800) / zoom();
 
     // Precomputed per draw so hover is a numeric box test, not a re-parse of every region id.
     let liveHits: { target: Target; spec: number; box: Rect }[] = [];
@@ -125,6 +151,118 @@ export const Canvas: Component = () => {
     // so a frame re-lays-out only the changed section (see paintSectionStack)
     const stackCache = createSectionStackCache();
 
+    // One host per open popup, keyed by its region id, holding what that paint was made of so a
+    // draw that changed nothing costs nothing.
+    interface PanelEntry {
+        el: HTMLDivElement;
+        data: unknown;
+        section: Section; // its own contrast swap, so a dark band repaints the panel
+        theme: Tokens;
+        key: string; // what the compose depends on beyond those: profile, width, hidden text
+        width: number;
+        regions: Region[];
+        height: number;
+    }
+    const panels = new Map<string, PanelEntry>();
+
+    const insidePanel = (popup: ElementAddress, addr: ElementAddress): boolean =>
+        addr.section === popup.section &&
+        addr.path.length > popup.path.length &&
+        popup.path.every((v, i) => v === addr.path[i]);
+
+    /**
+     * Every open popup's panel, painted over the stack and reported as ordinary regions. That is
+     * what gives the panel selection rings, hover, drop slots, the context menu, comments and
+     * inline text editing with no per-feature code: they all read the regions the canvas publishes.
+     */
+    const drawPanels = (
+        regions: Region[],
+        profileId: string,
+        editAddr: ElementAddress | null,
+    ): Region[] => {
+        const open = openPopups();
+        if (!open.length && !panels.size) return [];
+        const stageW = stageEl.clientWidth || canvasContentWidth();
+        // the visible band in stage coordinates, which the stack's gutter offsets from the
+        // scroller's; the stage rect carries the zoom, so the band divides back out of it
+        const z = zoom();
+        const stageTop = stageEl.getBoundingClientRect().top;
+        const view = scrollEl.getBoundingClientRect();
+        const viewTop = (view.top - stageTop) / z;
+        const viewBottom = (view.bottom - stageTop) / z;
+        const theme = editorTokens();
+        const out: Region[] = [];
+        const live = new Set<string>();
+        for (const address of open) {
+            const id = elementRegionId(address);
+            const anchor = regions.find((r) => r.id === id)?.box;
+            if (!anchor) continue; // windowed out of the stack: nothing to anchor to
+            const inst = getElementAt(editor.artifact, address);
+            const section = editor.artifact.sections.find((s) => s.id === address.section);
+            if (!inst || !section) continue;
+            // the stack painter hides the edited element's text under the inline editor; a panel
+            // child is edited the same way, so its own paint has to hide it too
+            const hideKey =
+                editAddr && insidePanel(address, editAddr) ? elementRegionId(editAddr) : "";
+            const key = `${profileId}:${canvasContentWidth()}:${hideKey}`;
+            let entry = panels.get(id);
+            if (
+                !entry ||
+                entry.data !== inst.data ||
+                entry.section !== section ||
+                entry.theme !== theme ||
+                entry.key !== key
+            ) {
+                const panel = panelFor(address);
+                if (!panel) continue;
+                const laid = layoutNode(panel.node, panel.width, measureText);
+                const paintedW = laid.commands[0]?.box.w ?? panel.width;
+                const commands = hideKey
+                    ? laid.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
+                    : laid.commands;
+                const el = entry?.el ?? document.createElement("div");
+                paint(commands, el);
+                if (el.parentElement !== panelHost) panelHost.appendChild(el);
+                entry = {
+                    el,
+                    data: inst.data,
+                    section,
+                    theme,
+                    key,
+                    width: paintedW,
+                    regions: laid.regions,
+                    height: laid.height,
+                };
+                panels.set(id, entry);
+            }
+            live.add(id);
+            // under the trigger, flipped above when it would run off the bottom of the viewport
+            const x = Math.max(PANEL_EDGE, Math.min(anchor.x, stageW - entry.width - PANEL_EDGE));
+            const below = anchor.y + anchor.h + PANEL_GAP;
+            const above = anchor.y - PANEL_GAP - entry.height;
+            const y = below + entry.height > viewBottom && above >= viewTop ? above : below;
+            // paint() forces relative on its host, so the float is (re)stated after it, not before
+            entry.el.style.position = "absolute";
+            entry.el.style.pointerEvents = "auto";
+            entry.el.style.left = `${x}px`;
+            entry.el.style.top = `${y}px`;
+            entry.el.style.width = `${entry.width}px`;
+            entry.el.style.height = `${entry.height}px`;
+            // the box the panel's children occupy, so drop slots aim at the panel and not the chip
+            out.push({
+                id: contentRegionId(address),
+                box: { x, y, w: entry.width, h: entry.height },
+            });
+            for (const r of entry.regions) out.push(offsetRegion(r, x, y));
+        }
+        for (const [id, entry] of panels)
+            if (!live.has(id)) {
+                entry.el.remove();
+                panels.delete(id);
+            }
+        return out;
+    };
+
     // the band of the stage that is materialized
     let lastWindow: StackWindow | null = null;
 
@@ -134,15 +272,16 @@ export const Canvas: Component = () => {
         const profile = profileFor(editor.artifact);
         // a bleeding format (site) covers the backdrop entirely on phone; others keep the sliver
         const phonePad = profile.bleedSections ? 0 : PHONE_PAD;
-        const padL = isPhone() ? phonePad : leftOpen() ? PANEL_L : RAIL_GAP;
+        const padL = isPhone() ? phonePad : leftOpen() ? panelL() : RAIL_GAP;
         const padR = isPhone() ? phonePad : RAIL_R;
         const fullW = Math.max(isPhone() ? 280 : 360, (scrollEl.clientWidth || 800) - padL - padR);
         setCanvasContentWidth(fullW); // so minimap thumbnails match this width
         // hide the painted text of the edited element; the live overlay shows it
         const editAddr = editing();
         const editId = editAddr ? elementRegionId(editAddr) : null;
-        const viewH = scrollEl.clientHeight || 800;
-        const win = stackWindow(scrollEl.scrollTop, viewH);
+        // the window is layout geometry, so the scrolled band divides the zoom back out
+        const viewH = layoutViewH();
+        const win = stackWindow(layoutScrollTop(), viewH);
         lastWindow = win;
         const waiting = pendingSections();
         const beforeTops = editor.sectionTops;
@@ -188,7 +327,7 @@ export const Canvas: Component = () => {
                 format: asFormat(editor.artifact.format),
                 where: presenting() ? "present" : "editor",
             });
-        stageEl.style.height = `${height}px`;
+        setStackHeight(height);
         const drawn = preview ?? editor.artifact.sections;
         for (const [i, sec] of drawn.entries())
             if (!waiting.has(sec.id)) rememberHeight(sec.id, fullW, heights[i] ?? 0);
@@ -199,17 +338,22 @@ export const Canvas: Component = () => {
         // fetching runs on its own clock (see scheduleFetch): painting must never wait on the network
         if (waiting.size) scheduleFetch(viewH);
         if (!preview || track) {
-            setRegions(regions);
+            const panelRegions = drawPanels(regions, profile.id, editAddr);
+            setRegions(panelRegions.length ? [...regions, ...panelRegions] : regions);
             const hits: { target: Target; spec: number; box: Rect }[] = [];
             const aff: { action: string; address: ElementAddress; box: Rect }[] = [];
             const marks: Region[] = [];
-            for (const r of regions) {
-                const t = parseTarget(r.id);
-                if (t) hits.push({ target: t, spec: specificity(t), box: r.box });
-                const h = parseHitRegion(r.id);
-                if (h) aff.push({ ...h, box: r.box });
-                if (parseDatumRegion(r.id)) marks.push(r);
-            }
+            const collect = (list: Region[], boost: number): void => {
+                for (const r of list) {
+                    const t = parseTarget(r.id);
+                    if (t) hits.push({ target: t, spec: specificity(t) + boost, box: r.box });
+                    const h = parseHitRegion(r.id);
+                    if (h) aff.push({ ...h, box: r.box });
+                    if (parseDatumRegion(r.id)) marks.push(r);
+                }
+            };
+            collect(regions, 0);
+            collect(panelRegions, PANEL_SPEC);
             liveHits = hits;
             affordances = aff;
             datums = marks;
@@ -218,13 +362,14 @@ export const Canvas: Component = () => {
 
     const anchorScroll = (before: number[], after: number[]): void => {
         if (before.length !== after.length) return;
-        const top = scrollEl.scrollTop;
+        const top = layoutScrollTop();
         let shift = 0;
         for (let i = 0; i < before.length; i++) {
             if (before[i]! >= top) break; // only what sat above the viewport can move it
             shift = after[i]! - before[i]!;
         }
-        if (shift) scrollEl.scrollTop = top + shift;
+        // the shift is layout px; the scroller moves in zoomed ones
+        if (shift) scrollEl.scrollTop += shift * zoom();
     };
 
     // fetch only once scrolling settles, so a fling across the stack costs one request, not dozens
@@ -248,14 +393,16 @@ export const Canvas: Component = () => {
 
     const fetchNow = (viewH: number, prefetch: boolean): void => {
         if (!pendingSections().size) return;
-        const view = { top: scrollEl.scrollTop, bottom: scrollEl.scrollTop + viewH };
+        const top = layoutScrollTop();
+        const view = { top, bottom: top + viewH };
         const lead = prefetch ? Math.sign(velocity || 1) * viewH : 0;
         const want = planSectionRequests({ slots: slotsNow(), view, lead, max: PREFETCH_MAX });
         if (want.length) void requestSections(want);
     };
 
     const scheduleFetch = (viewH: number): void => {
-        const view = { top: scrollEl.scrollTop, bottom: scrollEl.scrollTop + viewH };
+        const top = layoutScrollTop();
+        const view = { top, bottom: top + viewH };
         // nothing readable on screen: don't make the viewer wait out the settle
         if (viewIsCold(slotsNow(), view)) fetchNow(viewH, false);
         window.clearTimeout(settleTimer);
@@ -280,10 +427,8 @@ export const Canvas: Component = () => {
         });
     };
 
-    const point = (e: { clientX: number; clientY: number }): [number, number] => {
-        const r = stageEl.getBoundingClientRect();
-        return [e.clientX - r.left, e.clientY - r.top];
-    };
+    const point = (e: { clientX: number; clientY: number }): [number, number] =>
+        toStage(stageEl.getBoundingClientRect(), zoom(), e.clientX, e.clientY);
 
     const hitTest = (px: number, py: number): Target | null => {
         let best: Target | null = null;
@@ -465,23 +610,38 @@ export const Canvas: Component = () => {
         setStageEl(stageEl);
         // on canvas a click selects; cmd/ctrl-click follows the link, as design tools do
         const onLinkClick = (e: MouseEvent): void => {
+            const a = (e.target as HTMLElement | null)?.closest("a");
+            if (!a) return;
+            const id = sectionLinkId(a.getAttribute("href"));
+            // a `#section` link has nowhere to navigate on the canvas, so it never gets to try;
+            // cmd-click follows it the only way it can, by scrolling to the section
+            if (id) {
+                e.preventDefault();
+                const at = editor.artifact.sections.findIndex((s) => s.id === id);
+                if ((e.metaKey || e.ctrlKey) && at >= 0) jumpToSection(at);
+                return;
+            }
             if (e.metaKey || e.ctrlKey) return;
-            if ((e.target as HTMLElement | null)?.closest("a")) e.preventDefault();
+            e.preventDefault();
         };
         paintHost.addEventListener("click", onLinkClick, true);
-        onCleanup(() => paintHost.removeEventListener("click", onLinkClick, true));
+        panelHost.addEventListener("click", onLinkClick, true);
+        onCleanup(() => {
+            paintHost.removeEventListener("click", onLinkClick, true);
+            panelHost.removeEventListener("click", onLinkClick, true);
+        });
         const ro = new ResizeObserver(() => scheduleDraw(null, false));
         ro.observe(scrollEl);
         // repaint only once the materialized band moves, so scrolling inside the overscan costs nothing
         const onScroll = (): void => {
-            const viewH = scrollEl.clientHeight || 800;
+            const viewH = layoutViewH();
+            const top = layoutScrollTop();
             const now = performance.now();
             const dt = now - lastScrollAt;
-            if (dt > 0 && lastScrollAt) velocity = (scrollEl.scrollTop - lastScrollTop) / dt;
-            lastScrollTop = scrollEl.scrollTop;
+            if (dt > 0 && lastScrollAt) velocity = (top - lastScrollTop) / dt;
+            lastScrollTop = top;
             lastScrollAt = now;
-            if (windowMoved(lastWindow, stackWindow(scrollEl.scrollTop, viewH), viewH))
-                scheduleDraw(null, false);
+            if (windowMoved(lastWindow, stackWindow(top, viewH), viewH)) scheduleDraw(null, false);
             else if (pendingSections().size) scheduleFetch(viewH);
         };
         scrollEl.addEventListener("scroll", onScroll, { passive: true });
@@ -519,6 +679,8 @@ export const Canvas: Component = () => {
         editSeq();
         currentArtifactId();
         leftOpen();
+        minimapWidth(); // the rail's width is what the canvas reserves on the left
+        zoom(); // the paint window is measured in layout px, so the scale moves its edges
         editing();
         editorTokens();
         slideFrame();
@@ -639,7 +801,7 @@ export const Canvas: Component = () => {
             background: backdropCss(editor.artifact.background, tk),
             "background-size": "cover",
             "background-position": "center",
-            "padding-left": `${isPhone() ? phonePad : leftOpen() ? PANEL_L : RAIL_GAP}px`,
+            "padding-left": `${isPhone() ? phonePad : leftOpen() ? panelL() : RAIL_GAP}px`,
             "padding-right": `${isPhone() ? phonePad : RAIL_R}px`,
             "--sb": tk.line,
             "--sb-strong": tk.muted,
@@ -659,36 +821,67 @@ export const Canvas: Component = () => {
             onContextMenu={onContextMenu}
             onPointerLeave={onPointerLeaveCanvas}
         >
-            <div ref={stageEl} class="relative w-full">
-                <div ref={paintHost} class="absolute inset-0 select-none" />
-                <LiveLayer
-                    content={editor.artifact}
-                    regions={regions}
-                    surface="editor"
-                    theme={editorTokens()}
-                    format={profileFor(editor.artifact)}
-                    selectedId={selectedRegionId}
-                />
-                <Overlay />
-                <LiftVeil />
-                <DropIndicators />
-                {/* precision-pointer affordances; at phone width the reflowed layout no longer
-                    matches the geometry they edit, so the section sheet + presets stand in */}
-                <Show when={!isPhone()}>
-                    <DragHandle />
-                    <ResizeHandles />
-                    <RegionDividers />
-                    <SectionActions />
-                </Show>
-                <SectionGenStage />
-                <SectionGenPopup />
-                <ElementGenStage />
-                <ContextBar />
-                <CommentLayer />
-                <CollabLayer />
-                <EmptyRegionAdd />
-                <TextEditor />
+            {/* The sizer carries the zoomed footprint, so the scroller's range reaches the true
+                bottom (and leaves no dead space below 100%). The stage inside it keeps its unscaled
+                layout width, which is what makes zoom a pure view scale: nothing re-wraps, and every
+                overlay below is an absolutely positioned child that rides the transform for free.
+                Centred only while it fits: auto margins go NEGATIVE on a box wider than its
+                container, and scrollable overflow never extends leftwards, so centring past 100%
+                would put the left of the stack somewhere no scroll position can reach. */}
+            <div
+                class="relative"
+                classList={{ "mx-auto": zoom() <= 1 }}
+                style={{
+                    width: `${zoom() * 100}%`,
+                    height: `${stackHeight() * zoom()}px`,
+                }}
+            >
+                <div
+                    ref={stageEl}
+                    class="absolute left-0 top-0 origin-top-left"
+                    style={{
+                        width: `${100 / zoom()}%`,
+                        height: `${stackHeight()}px`,
+                        transform: `scale(${zoom()})`,
+                    }}
+                >
+                    <div ref={paintHost} class="absolute inset-0 select-none" />
+                    {/* popup panels float over the stack: after paintHost so they cover it, before
+                        the chrome below (which carries a z-* utility) so nothing of the editor is
+                        buried. Only the panels take the pointer, so the bare stage stays clickable */}
+                    <div ref={panelHost} class="pointer-events-none absolute inset-0 select-none" />
+                    <LiveLayer
+                        content={editor.artifact}
+                        regions={regions}
+                        surface="editor"
+                        theme={editorTokens()}
+                        format={profileFor(editor.artifact)}
+                        selectedId={selectedRegionId}
+                    />
+                    <Overlay />
+                    <LiftVeil />
+                    <DropIndicators />
+                    {/* precision-pointer affordances; at phone width the reflowed layout no longer
+                        matches the geometry they edit, so the section sheet + presets stand in */}
+                    <Show when={!isPhone()}>
+                        <DragHandle />
+                        <ResizeHandles />
+                        <RegionDividers />
+                        <SectionActions />
+                    </Show>
+                    <SectionGenStage />
+                    <SectionGenPopup />
+                    <ElementGenStage />
+                    <ContextBar />
+                    <CommentLayer />
+                    <CollabLayer />
+                    <EmptyRegionAdd />
+                    <TextEditor />
+                </div>
             </div>
+            {/* viewport-fixed, so it must stay outside the stage: a transformed ancestor would make
+                it a containing block and the zoom would drag both off the viewport */}
+            <CollabViewportChrome />
             <ContextMenu />
         </main>
     );
@@ -727,6 +920,9 @@ export const Thumb: Component<{
         const theme = editorTokens();
         const profile = profileFor(editor.artifact);
         const layoutW = sectionLayoutWidth(props.section, profile, canvasContentWidth());
+        // the rail's width is measured off `wrap`, so nothing here tracks it: read it so a resize
+        // re-lays-out even where the canvas width stayed put (it clamps at its own floor)
+        minimapWidth();
         const w = wrap.clientWidth || 150;
         const scale = w / layoutW;
         // mirrors the stack's mode, so the minimap is a true zoomed-out copy of what's on canvas

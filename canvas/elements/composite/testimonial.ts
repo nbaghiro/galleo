@@ -24,15 +24,17 @@ export const testimonialElement = composite(
         children: [
             at(kids, 0),
             {
-                w: fit(),
+                w: grow(),
                 h: fit(),
                 direction: "row",
                 gap: 12,
                 alignY: "center",
                 children: [
                     at(kids, 1),
+                    // grow, not fit: the name and role are grow-width text, so a fit column around
+                    // them measures to nothing and the attribution paints at zero width
                     {
-                        w: fit(),
+                        w: grow(),
                         h: fit(),
                         direction: "col",
                         gap: 2,

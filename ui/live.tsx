@@ -1,15 +1,15 @@
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js";
 import type { Rect, Region } from "@engine/node";
-import type { ArtifactContent } from "@model/artifact";
+import type { ArtifactContent, ElementAddress } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { PlayerOpts } from "@model/media";
 import type { Tokens } from "@themes";
-import { parseTarget } from "@model/artifact";
+import { elementRegionId, parseHitRegion, parseTarget, sectionLinkId } from "@model/artifact";
 import { embedFor } from "@model/media";
 import { liveElements, type LiveElement } from "@elements/ops";
 import { sectionContentTokens } from "@elements/compose";
-import { PANEL_MAX_W, PANEL_MIN_W, panelNode, popupData } from "@elements/composite/popup";
+import { panelHugWidth, panelNode, panelWidth, popupData } from "@elements/composite/popup";
 import { ctxFor, layoutNode, measureText } from "@canvas/render/commands";
 import { paint } from "@canvas/render/backends";
 import { Popover } from "./overlay";
@@ -23,6 +23,8 @@ export type LiveSurface = "editor" | "present" | "publish";
 
 export interface LiveProps {
     data: Record<string, unknown>;
+    // the element's own address, for a component that composes addressed children (the popup panel)
+    address: ElementAddress;
     box: Rect;
     radius?: number;
     surface: LiveSurface;
@@ -31,6 +33,9 @@ export interface LiveProps {
     // (the popup's panel) paints what the canvas beneath it would have
     theme: Tokens;
     format: FormatDescriptor;
+    // a component that paints anchors of its own into a portal is outside the host's click
+    // delegation, so an internal `#section` link is handed back here instead of navigating
+    onSectionLink?: (sectionId: string) => void;
 }
 
 const registry = new Map<string, Component<LiveProps>>();
@@ -106,10 +111,7 @@ registerLive("embed", (props) => {
 
 const PANEL_MARGIN = 12; // viewport slack the floating panel keeps on either side
 
-const panelWidth = (): number =>
-    Math.max(PANEL_MIN_W, Math.min(PANEL_MAX_W, window.innerWidth - PANEL_MARGIN * 2));
-
-// The trigger paints in flow like any other element; this covers it and floats the same authored
+// The trigger paints in flow like any other element; this covers it and floats the authored panel
 // subtree, laid out again and painted into a portal where nothing can clip it.
 const Popup: Component<LiveProps> = (props) => {
     const [open, setOpen] = createSignal(false);
@@ -117,8 +119,10 @@ const Popup: Component<LiveProps> = (props) => {
     let anchor: HTMLDivElement | undefined;
     const laid = createMemo(() => {
         if (!open()) return null;
-        const w = panelWidth();
-        const node = panelNode(popupData(props.data), ctxFor(w, props.theme, props.format));
+        const data = popupData(props.data);
+        const max = panelWidth(window.innerWidth - PANEL_MARGIN * 2);
+        const node = panelNode(data, ctxFor(max, props.theme, props.format), props.address);
+        const w = panelHugWidth(data, node, measureText, window.innerWidth - PANEL_MARGIN * 2);
         return { w, ...layoutNode(node, w, measureText) };
     });
     createEffect(() => {
@@ -128,6 +132,18 @@ const Popup: Component<LiveProps> = (props) => {
     });
     const toggle = (): void => {
         setOpen((v) => !v);
+    };
+    // The panel is painted into a portal, so the surface's own delegate never sees these anchors.
+    // Following one is leaving the menu either way: an external link still opens its own tab, an
+    // internal one moves the page instead of navigating.
+    const onPanelClick = (e: MouseEvent): void => {
+        const a = (e.target as Element | null)?.closest?.("a");
+        if (!a) return;
+        setOpen(false);
+        const id = sectionLinkId(a.getAttribute("href"));
+        if (!id) return;
+        e.preventDefault();
+        props.onSectionLink?.(id);
     };
     return (
         <>
@@ -155,6 +171,7 @@ const Popup: Component<LiveProps> = (props) => {
             >
                 <div
                     ref={setHost}
+                    onClick={onPanelClick}
                     style={{
                         width: `${laid()?.w ?? 0}px`,
                         height: `${laid()?.height ?? 0}px`,
@@ -179,10 +196,25 @@ const LiveItem: Component<{
     theme: Tokens;
     format: FormatDescriptor;
     selectedId?: () => string | null;
+    offsetY?: (regionId: string) => number;
+    onSectionLink?: (sectionId: string) => void;
 }> = (props) => {
-    const region = createMemo(() => props.regions().find((r) => r.id === props.item.id) ?? null);
+    // A paged surface recovers its regions from painted commands, and a popup's own wrapper paints
+    // nothing — its trigger carries the `hit:` id, and that box is the one to anchor to anyway.
+    const region = createMemo(() => {
+        const rs = props.regions();
+        return (
+            rs.find((r) => r.id === props.item.id) ??
+            rs.find((r) => {
+                const hit = parseHitRegion(r.id);
+                return !!hit && elementRegionId(hit.address) === props.item.id;
+            }) ??
+            null
+        );
+    });
     const Live = liveComponentFor(props.item.type);
     if (!Live) return null;
+    const shift = (): number => props.offsetY?.(props.item.id) ?? 0;
     return (
         <Show when={region()}>
             {(r) => (
@@ -196,16 +228,19 @@ const LiveItem: Component<{
                         height: `${r().box.h}px`,
                         "border-radius": `${r().radius ?? 8}px`,
                         "pointer-events": "none",
+                        ...(shift() ? { transform: `translateY(${shift()}px)` } : {}),
                     }}
                 >
                     <Live
                         data={props.item.data}
+                        address={props.item.address}
                         box={r().box}
                         radius={r().radius}
                         surface={props.surface}
                         theme={props.theme}
                         format={props.format}
                         selected={props.selectedId?.() === props.item.id}
+                        onSectionLink={props.onSectionLink}
                     />
                 </div>
             )}
@@ -220,6 +255,9 @@ export const LiveLayer: Component<{
     theme: Tokens;
     format: FormatDescriptor;
     selectedId?: () => string | null;
+    // playback only: how far the layer an element sits on has been carried by a pin
+    offsetY?: (regionId: string) => number;
+    onSectionLink?: (sectionId: string) => void;
 }> = (props) => {
     // Identity-cached per element: a repaint hands back an equal-but-new descriptor, and a fresh
     // one through <For> would remount the player and restart playback.
@@ -256,6 +294,8 @@ export const LiveLayer: Component<{
                     theme={themeFor(item.id)}
                     format={props.format}
                     selectedId={props.selectedId}
+                    offsetY={props.offsetY}
+                    onSectionLink={props.onSectionLink}
                 />
             )}
         </For>

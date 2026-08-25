@@ -114,6 +114,11 @@ export const Popover: Component<{
         onCleanup(pushScope("popover", { exclusive: true, onEscape: () => props.onClose() }));
     });
 
+    // Element fullscreen paints the fullscreen subtree and nothing else, so a panel portaled to
+    // <body> over a fullscreen present surface is in the DOM and simply never appears. Read as the
+    // Portal is created, which is the moment the panel opens.
+    const portalMount = (): Node => document.fullscreenElement ?? document.body;
+
     // both portaled nodes carry it: pressing the scrim dismisses this popover, not whatever owns it
     const stamp = (): Record<string, string> => ({
         ...(props.toolbar ? { "data-galleo-toolbar": "true" } : {}),
@@ -123,7 +128,7 @@ export const Popover: Component<{
     return (
         <Show when={props.open && rect()}>
             {(r) => (
-                <Portal>
+                <Portal mount={portalMount()}>
                     <div
                         {...stamp()}
                         class="fixed inset-0 z-popover"
@@ -222,14 +227,22 @@ export const Modal: Component<{
     const phoneFull = (): boolean => isPhone() && ["lg", "xl", "full"].includes(props.size ?? "md");
     onMount(() => {
         const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-        if (props.animate !== false && !reduced)
-            panel.animate(
+        if (props.animate !== false && !reduced) {
+            const entrance = panel.animate(
                 [
                     { opacity: 0, transform: "translateY(8px) scale(0.98)" },
                     { opacity: 1, transform: "none" },
                 ],
                 { duration: 190, easing: "cubic-bezier(.2,.7,.2,1)", fill: "both" },
             );
+            // release it once settled: a filling transform animation keeps the panel a containing
+            // block for fixed descendants, which re-anchors a nested Modal to this panel instead of
+            // the viewport (the final frame is the natural style, so cancelling is invisible)
+            entrance.finished.then(
+                () => entrance.cancel(),
+                () => undefined,
+            );
+        }
         installKeyDispatcher();
         const disposeScope = pushScope("modal", {
             exclusive: true,
