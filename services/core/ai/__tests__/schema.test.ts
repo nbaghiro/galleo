@@ -1,4 +1,10 @@
 import { describe, it, expect } from "vitest";
+import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import { applySectionOps } from "@model/artifact";
+import { applyPatch } from "@model/ai";
+import { isArtifactContent, isSectionOp } from "@services/core/artifacts";
+import { resolveImages } from "@services/core/ai/images";
+import { extractJson } from "@services/core/ai/schema";
 import {
     zElement,
     zSection,
@@ -27,6 +33,26 @@ describe("zElement", () => {
             layout: { width: { pct: 60 } },
         });
         expect(ok.success).toBe(true);
+    });
+
+    it("accepts `dock` on the layout — the site topbar's one structural field", () => {
+        const ok = zElement.safeParse({
+            type: "container",
+            data: { direction: "row", children: [] },
+            layout: { dock: "top" },
+        });
+        expect(ok.success).toBe(true);
+        expect(ok.success && ok.data.layout?.dock).toBe("top");
+    });
+
+    it("drops a layout it cannot read rather than failing the whole element", () => {
+        const ok = zElement.safeParse({
+            type: "text",
+            data: { text: "hi" },
+            layout: { dock: "bottom" },
+        });
+        expect(ok.success).toBe(true);
+        expect(ok.success && ok.data.layout).toBeUndefined();
     });
 
     it("rejects a malformed element missing `type`", () => {
@@ -80,6 +106,26 @@ describe("zSection", () => {
         expect(ok.success).toBe(true);
     });
 
+    it("keeps `frame`, which is what makes a hero a band and a slide its own shape", () => {
+        const ok = zSection.safeParse({
+            id: "hero",
+            root: { type: "text", data: { text: "hi" } },
+            frame: { aspect: 2.29 },
+        });
+        expect(ok.success).toBe(true);
+        expect(ok.success && ok.data.frame).toEqual({ aspect: 2.29 });
+    });
+
+    it("drops a frame it cannot read rather than failing the section", () => {
+        const ok = zSection.safeParse({
+            id: "hero",
+            root: { type: "text", data: { text: "hi" } },
+            frame: { aspect: "16/7" },
+        });
+        expect(ok.success).toBe(true);
+        expect(ok.success && ok.data.frame).toBeUndefined();
+    });
+
     it("rejects a section missing `id`", () => {
         const bad = zSection.safeParse({ root: { type: "text", data: {} } });
         expect(bad.success).toBe(false);
@@ -93,6 +139,95 @@ describe("zSection", () => {
     it("rejects a section whose `root` is a malformed element (missing type)", () => {
         const bad = zSection.safeParse({ id: "s1", root: { data: { text: "no type" } } });
         expect(bad.success).toBe(false);
+    });
+});
+
+// The site anatomy is only real if it survives the walk from the model's reply to the stored row.
+// Nothing on that path may REBUILD a section: every step spreads, or guards without parsing.
+describe("a hero rides from the model's reply to stored content intact", () => {
+    const REPLY = JSON.stringify({
+        id: "hero",
+        root: {
+            type: "container",
+            data: {
+                direction: "col",
+                children: [
+                    {
+                        type: "container",
+                        layout: { dock: "top" },
+                        data: {
+                            direction: "row",
+                            children: [
+                                {
+                                    type: "text",
+                                    data: { text: "Kestrel", style: "label" },
+                                    layout: { width: "fill" },
+                                },
+                                {
+                                    type: "button",
+                                    data: { label: "Pricing", href: "#pricing" },
+                                    layout: { width: "fit" },
+                                },
+                            ],
+                        },
+                    },
+                    { type: "image", data: { src: "a dim operations room at night" } },
+                ],
+            },
+        },
+        background: { kind: "image", image: "a dim operations room at night", scrim: 0.55 },
+        bleed: true,
+        frame: { aspect: 2.29 },
+    });
+
+    const navOf = (s: Section): ElementInstance =>
+        (s.root.data as { children: ElementInstance[] }).children[0]!;
+
+    const parse = (): Section => {
+        const parsed = zSection.safeParse(extractJson(REPLY));
+        if (!parsed.success) throw new Error("the reply did not parse");
+        return { ...parsed.data, id: "hero" }; // what writeSectionTool builds
+    };
+
+    it("survives the image walk, which rewrites srcs and touches nothing else", async () => {
+        // an `ai` source with a generator never reaches the network
+        const resolved = await resolveImages(parse(), {
+            source: "ai",
+            generate: async () => "https://cdn.test/room.jpg",
+        });
+        expect(resolved.frame).toEqual({ aspect: 2.29 });
+        expect(navOf(resolved).layout?.dock).toBe("top");
+        expect(resolved.background).toEqual({
+            kind: "image",
+            image: "https://cdn.test/room.jpg",
+            scrim: 0.55,
+        });
+    });
+
+    it("survives applyPatch, the op stream a generation is accumulated from", () => {
+        const built = applyPatch({ format: "web", theme: "studio", sections: [] }, [
+            { op: "addSection", afterId: null, section: parse() },
+        ]);
+        const hero = built.sections[0]!;
+        expect(hero.frame).toEqual({ aspect: 2.29 });
+        expect(navOf(hero).layout?.dock).toBe("top");
+        expect(isArtifactContent(built)).toBe(true);
+    });
+
+    it("survives the section-op write path, which guards the op rather than rebuilding it", () => {
+        const op = { kind: "insert" as const, index: 0, section: parse() };
+        expect(isSectionOp(op)).toBe(true);
+        const empty: ArtifactContent = { format: "web", theme: "studio", sections: [] };
+        const next = applySectionOps(empty, [op]);
+        expect(next.ok).toBe(true);
+        const hero = next.ok ? next.content.sections[0]! : parse();
+        expect(hero.frame).toEqual({ aspect: 2.29 });
+        expect(navOf(hero).layout?.dock).toBe("top");
+        expect((navOf(hero).data as { children: ElementInstance[] }).children[1]).toEqual({
+            type: "button",
+            data: { label: "Pricing", href: "#pricing" },
+            layout: { width: "fit" },
+        });
     });
 });
 

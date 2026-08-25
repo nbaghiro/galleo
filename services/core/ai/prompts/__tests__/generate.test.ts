@@ -96,11 +96,12 @@ describe("outlineParts", () => {
 });
 
 describe("sectionParts", () => {
-    it("embeds the full arc, flagging the current beat", () => {
+    // the ids are load-bearing, not decoration: a nav link or a hero CTA has to name a real one
+    it("embeds the full arc with every section id, flagging the current beat", () => {
         const out = sectionParts(input, outline.beats[1]!, outline);
-        expect(out.prompt).toContain("1. Cover");
-        expect(out.prompt).toContain("2. Middle  ← writing this");
-        expect(out.prompt).not.toContain("1. Cover  ← writing this");
+        expect(out.prompt).toContain("1. [s1] Cover");
+        expect(out.prompt).toContain("2. [s2] Middle  ← writing this");
+        expect(out.prompt).not.toContain("1. [s1] Cover  ← writing this");
     });
     it("echoes the beat's assigned layout", () => {
         expect(sectionParts(input, outline.beats[1]!, outline).prompt).toContain("split-6040");
@@ -159,6 +160,55 @@ describe("sectionParts", () => {
         const out = sectionParts(input, outline.beats[1]!, outline, { note: "more numbers" });
         expect(out.prompt).toContain("previous attempt");
         expect(out.prompt).toContain("more numbers");
+    });
+});
+
+// The anatomy is a website's, so it rides the surface: teaching a deck about docked topbars would
+// spend tokens on a thing a slide has no room for.
+describe("the site anatomy reaches exactly the web prompts", () => {
+    const webInput: GenerateInput = { ...input, surface: "web" };
+    const webContent: ArtifactContent = { ...content, format: "web" };
+    const has = (s: string): boolean => s.includes("## How a site is built");
+
+    it("is in the outline plan for web and absent for a deck", () => {
+        expect(has(outlineParts(webInput).system)).toBe(true);
+        expect(has(outlineParts(input).system)).toBe(false);
+    });
+
+    it("is in the section writer for web and absent for a deck", () => {
+        expect(has(sectionParts(webInput, outline.beats[0]!, outline).system)).toBe(true);
+        expect(has(sectionParts(input, outline.beats[0]!, outline).system)).toBe(false);
+    });
+
+    it("reaches the chat paths that add and rewrite a section on a site", () => {
+        const sInput: SectionInput = {
+            instruction: "add pricing",
+            afterId: "s1",
+            content: webContent,
+        };
+        expect(has(sectionPlanParts(sInput).system)).toBe(true);
+        expect(has(insertSectionParts(sInput, outline.beats[1]!).system)).toBe(true);
+        expect(
+            has(editSectionParts(webContent, webContent.sections[0]!, "add a nav link").system),
+        ).toBe(true);
+    });
+
+    it("hands the web section writer a whole-page exemplar too", () => {
+        const web = sectionParts(webInput, outline.beats[0]!, outline).system;
+        expect(web).toContain("A whole site in miniature");
+        expect(web).toContain('"dock":"top"');
+        expect(sectionParts(input, outline.beats[0]!, outline).system).not.toContain(
+            "A whole site in miniature",
+        );
+    });
+
+    it("tells a rewrite and a re-layout to carry the frame and the docked row through", () => {
+        expect(
+            editSectionParts(webContent, webContent.sections[0]!, "punch up the headline").prompt,
+        ).toContain("docked row");
+        expect(relayoutSectionParts(webContent, webContent.sections[0]!, "Grid.").prompt).toContain(
+            "docked row",
+        );
     });
 });
 

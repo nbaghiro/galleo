@@ -28,9 +28,36 @@ describe("chooseArc", () => {
     it("falls back to marketing for a bare web surface", () => {
         expect(chooseArc(undefined, "web")).toBe(ARCS.marketing);
     });
+    it("routes an invitation goal to the event arc, ahead of the web fallback", () => {
+        for (const goal of ["an event page", "wedding invite", "rsvp page", "our conference"])
+            expect(chooseArc(goal, "web")).toBe(ARCS.event);
+    });
+    it("routes a portfolio or personal-site goal to the creative arc", () => {
+        for (const goal of ["my portfolio", "a personal site", "resume site"])
+            expect(chooseArc(goal, "web")).toBe(ARCS.creative);
+    });
     it("falls back to the generic arc when nothing matches", () => {
         expect(chooseArc(undefined, "deck")).toBe(ARCS.generic);
         expect(chooseArc("whatever", "deck")).toBe(ARCS.generic);
+    });
+});
+
+// Every arc a web brief can land on has to describe the page a site actually is, or the outline
+// plans a document and the section writer never gets the chance to build the chrome.
+describe("the web arcs describe the site anatomy", () => {
+    for (const key of ["marketing", "event", "creative"] as const) {
+        it(`${key} opens on the docked topbar and keeps the band rhythm`, () => {
+            const { arc, tells } = ARCS[key];
+            expect(arc).toContain("topbar");
+            expect(`${arc} ${tells}`).toContain("band");
+        });
+    }
+
+    it("marketing prices with the composite and answers with the faq element", () => {
+        expect(ARCS.marketing.arc).toContain("`pricing`");
+        expect(ARCS.marketing.arc).toContain("`faq`");
+        expect(ARCS.marketing.arc).toContain("`tabs`");
+        expect(ARCS.marketing.tells).toContain("#section-id");
     });
 });
 

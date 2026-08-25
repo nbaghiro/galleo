@@ -30,8 +30,14 @@ export const ARCS = {
     marketing: {
         key: "marketing",
         label: "Marketing site / landing page",
-        arc: "hero (with a button) → the problem → stat band → the product → feature highlight → how it works (diagram) → features (three-up cards) → social proof (quote + stats) → pricing (table) → FAQ (two-col) → final CTA (button)",
-        tells: "web; second-person benefit-forward voice; a button in the hero AND a button in the closing CTA (the bookend); inline feature badges ('ON-DEVICE'); reassurance callouts ('Ships free · 60-night trial').",
+        arc: "hero band carrying the docked topbar (its nav items name the sections below) → the problem → a tinted logo or stat band → the product, image-led split → the feature areas in `tabs` → a slim image interlude → how it works (diagram) → proof: `testimonial` row, then a stat band over an image → pricing, three `pricing` tiers side by side → FAQ (`faq`, collapsible) → the closing CTA band in its own colour → footer row (justify between)",
+        tells: "web; second-person benefit-forward voice; the first section carries the topbar, a 16:7 frame and a full-bleed image, and every nav item links to a real `#section-id`; a button in the hero AND one in the closing band, both pointing down the page (the bookend); the section backgrounds alternate surface, tinted, image rather than repeating; composites (`pricing`, `feature`, `testimonial`) instead of hand-rolled cards; inline feature badges ('ON-DEVICE'); reassurance under the CTA ('Ships free · 60-night trial').",
+    },
+    event: {
+        key: "event",
+        label: "Event / invitation page",
+        arc: "hero band with the docked topbar, the date, city and venue sitting under the title → what the day is → the programme (a `timeline` or `roadmap` diagram) → who is speaking (a row of `profile`s) → an image band of the venue → tickets, as `pricing` tiers → practical questions (`faq`, collapsible) → the RSVP band → footer row with the address",
+        tells: "web; warm and concrete, never breathless; the date, time and place appear in the hero and again in the footer; the topbar's pill CTA is the RSVP and every button on the page links down to it; ticket tiers rather than a price table; the FAQ answers travel, access, dietary needs and refunds; one image band of the actual place, not a stock crowd.",
     },
     proposal: {
         key: "proposal",
@@ -41,9 +47,9 @@ export const ARCS = {
     },
     creative: {
         key: "creative",
-        label: "Personal / creative / editorial",
-        arc: "hero → statement → selected work or chapters (image-led, alternating full images and image+prose splits) → a feature → a lyric quote break → contact / close",
-        tells: "doc or web; first-person, literary, intimate voice; imagery- and quote-driven with almost no charts/tables; status badges on work ('FEATURED', 'SHIPPING'); photo-essay beats wrap an image with a lyrical caption.",
+        label: "Portfolio / personal / editorial",
+        arc: "hero band with the docked topbar → statement → selected work or chapters (image-led, alternating full image bands with image+prose splits) → one project in depth (`tabs`, or a slim 16:5 image interlude between the beats) → a lyric quote break → about, with a `profile` → contact / close (a CTA band) → footer row",
+        tells: "doc or web; first-person, literary, intimate voice; imagery- and quote-driven with almost no charts or tables; as a site it still opens on a docked topbar over a 16:7 hero, keeps the alternating band rhythm, and links each nav item to the piece of work it names; status badges on work ('FEATURED', 'SHIPPING'); photo-essay beats wrap an image with a lyrical caption.",
     },
     generic: {
         key: "generic",
@@ -59,7 +65,10 @@ export function chooseArc(goal?: string, surface?: Surface): Arc {
     if (g.includes("sell") || g.includes("sale"))
         return surface === "web" ? ARCS.marketing : ARCS.sales;
     if (g.includes("report")) return ARCS.report;
+    if (["event", "invite", "rsvp", "conference", "wedding"].some((k) => g.includes(k)))
+        return ARCS.event;
     if (g.includes("announce")) return ARCS.marketing;
+    if (["portfolio", "resume", "personal site"].some((k) => g.includes(k))) return ARCS.creative;
     if (surface === "web") return ARCS.marketing;
     if (g.includes("teach") || g.includes("inform")) return ARCS.report;
     return ARCS.generic;

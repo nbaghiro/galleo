@@ -3,7 +3,7 @@ import type { ArtifactContent, ElementInstance, Section } from "@model/artifact"
 import { BLOCK_KINDS } from "@model/elements";
 import type { Beat, Outline } from "@services/core/ai/schema";
 import { PERSONA, surfaceVoice } from "./persona";
-import { describeTheme, elementCatalog, layoutCatalog } from "./catalog";
+import { describeTheme, elementCatalog, layoutCatalog, siteAnatomy } from "./catalog";
 import { RUBRIC, VOICE, lengthGuidance } from "./rubric";
 import { arcGuidance } from "./arcs";
 import {
@@ -19,11 +19,11 @@ import {
     stack,
     writtenContext,
 } from "./system";
-import { sectionExemplars } from "./exemplars";
+import { sectionExemplars, siteExemplar } from "./exemplars";
 import type { PromptParts } from "./system";
 
 const OUTLINE_JOB = `## Your job
-Plan the artifact: your reading of the brief, a title, a backdrop, and an ordered list of beats (sections). Start by stating what you take the piece to be, its \`goal\` (what it has to achieve), \`audience\` (who it's for), and \`tone\` (how it should sound), inferred from the prompt and any source material; these are shown to the user and every section is written against them, so make them specific rather than generic. The backdrop is the artifact's full-bleed background image, describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim). Never a generic abstract texture. Give the piece a real narrative arc that fits the topic, the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: an id (s1, s2, …), a short working label, its narrative role, the layout you intend (\`layout\`, a named preset: full · split-6040 · split-4060 · two-col · three-up), and, crucially, design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text, the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image. Then WRITE THE STORY, not a table of contents, for every beat give all three of: \`brief\` (one line naming the section's job), \`takeaway\` (a full sentence stating the one thing the reader leaves with), and \`points\` (the 2–4 concrete moves it makes, in order, the actual claims, numbers, comparisons, or steps. Never topic labels like "benefits" or "overview"). Decide the real substance here: what each section actually argues, and with what. A section written from "Traction" is generic; one written from "1,900 studios joined in five months, four in five still active at week eight, and the curve steepened after the referral launch" is not. Make consecutive beats build on each other rather than restating the same idea. Give the opening (scene) and closing (close) sections a full-bleed background image, set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
+Plan the artifact: your reading of the brief, a title, a backdrop, and an ordered list of beats (sections). Start by stating what you take the piece to be, its \`goal\` (what it has to achieve), \`audience\` (who it's for), and \`tone\` (how it should sound), inferred from the prompt and any source material; these are shown to the user and every section is written against them, so make them specific rather than generic. The backdrop is the artifact's full-bleed background image, describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim). Never a generic abstract texture. Give the piece a real narrative arc that fits the topic, the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: a short url-safe id (\`s1\`, \`s2\`, … is fine, and on a website a word naming what the section holds, since that id is what a nav link points at), a short working label, its narrative role, the layout you intend (\`layout\`, a named preset: full · split-6040 · split-4060 · two-col · three-up), and, crucially, design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text, the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image. Then WRITE THE STORY, not a table of contents, for every beat give all three of: \`brief\` (one line naming the section's job), \`takeaway\` (a full sentence stating the one thing the reader leaves with), and \`points\` (the 2–4 concrete moves it makes, in order, the actual claims, numbers, comparisons, or steps. Never topic labels like "benefits" or "overview"). Decide the real substance here: what each section actually argues, and with what. A section written from "Traction" is generic; one written from "1,900 studios joined in five months, four in five still active at week eight, and the curve steepened after the referral launch" is not. Make consecutive beats build on each other rather than restating the same idea. Give the opening (scene) and closing (close) sections a full-bleed background image, set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
 
 // one clip for both readers of the source, so the planner and the writers see the same window
 const SOURCE_CLIP = 6000;
@@ -62,6 +62,7 @@ export function outlineParts(
             ["theme", describeTheme(input.theme)],
             ["job", OUTLINE_JOB],
             ["layouts", layoutCatalog()],
+            input.surface === "web" && ["site anatomy", siteAnatomy()],
             ["rubric", RUBRIC],
             ["output", OUTPUT_NOTE],
         ),
@@ -93,8 +94,11 @@ function blockLine(beat: Beat): string | undefined {
 
 function placement(beat: Beat, outline: Outline): string {
     const idx = outline.beats.findIndex((b) => b.id === beat.id);
+    // ids, not just labels: a nav link or a hero CTA has to name a real section of this same piece
     const arc = outline.beats
-        .map((b, i) => `${i + 1}. ${b.label}${b.id === beat.id ? "  ← writing this" : ""}`)
+        .map(
+            (b, i) => `${i + 1}. [${b.id}] ${b.label}${b.id === beat.id ? "  ← writing this" : ""}`,
+        )
         .join("\n");
     return heading(
         "This section",
@@ -133,9 +137,11 @@ function sectionSystem(surface: Surface, theme: string): string {
         ["theme", describeTheme(theme)],
         ["elements", elementCatalog()],
         ["layouts", layoutCatalog()],
+        surface === "web" && ["site anatomy", siteAnatomy()],
         ["rules", SECTION_RULES],
         ["voice", VOICE],
         ["exemplars", sectionExemplars(surface)],
+        surface === "web" && ["site exemplar", siteExemplar()],
         ["output", SECTION_OUTPUT],
     );
 }
@@ -192,6 +198,7 @@ export function sectionPlanParts(input: SectionInput): PromptParts {
             surfaceVoice(surface),
             describeTheme(input.content.theme),
             layoutCatalog(),
+            surface === "web" && siteAnatomy(),
             PLAN_ONE_JOB,
             OUTPUT_NOTE,
         ),
@@ -249,7 +256,7 @@ export function editSectionParts(
             heading("What to change", instruction),
             neighbors(content, section.id),
             heading("The section as it is now", "```json\n" + JSON.stringify(section) + "\n```"),
-            `Rewrite section "${section.id}" to satisfy the instruction, keep its id (and its layout, unless the change requires a different one), and return the full revised section as JSON.`,
+            `Rewrite section "${section.id}" to satisfy the instruction, keep its id (and its layout, unless the change requires a different one), and return the full revised section as JSON. Its \`frame\`, \`background\`, \`bleed\` and any docked row (\`layout.dock\`, the site's topbar) come back unchanged unless the instruction is about them; a rewrite that quietly drops the topbar takes the whole site's navigation with it.`,
         ),
     };
 }
@@ -281,7 +288,7 @@ export function relayoutSectionParts(
         prompt: stack(
             heading(
                 "What to do",
-                "Re-lay-out this section: keep WHAT it says, change HOW it is arranged. This is a layout pass, not a rewrite.",
+                "Re-lay-out this section: keep WHAT it says, change HOW it is arranged. This is a layout pass, not a rewrite. Carry the section's own `frame`, `background` and `bleed` through unchanged, and if it holds a docked row (`layout.dock`), that row is site chrome: return it as it came, still the first child of the root and still docked.",
             ),
             heading(
                 "Arrangement direction",

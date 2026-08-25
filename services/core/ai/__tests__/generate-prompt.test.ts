@@ -84,8 +84,12 @@ describe("the piece so far reaches every later section write", () => {
     });
     it("excludes the beat being written, so a regeneration isn't anchored by its old take", () => {
         const out = sectionParts(brief(), outline.beats[1]!, outline, { content: built });
-        expect(out.prompt).toContain("[s1]");
-        expect(out.prompt).not.toContain("[s2]");
+        // the arc below names every id, so read the written block alone
+        const from = out.prompt.indexOf("The piece so far");
+        const written = out.prompt.slice(from, out.prompt.indexOf("## This section", from));
+        expect(written).toContain("[s1]");
+        expect(written).not.toContain("[s2]");
+        expect(out.prompt).not.toContain("We call failures 41 days out");
     });
     it("says nothing when nothing is written yet", () => {
         expect(sectionParts(brief(), outline.beats[0]!, outline).prompt).not.toContain(

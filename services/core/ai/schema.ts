@@ -8,6 +8,11 @@ const zElementLayout = z
         height: z.union([z.literal("fit"), z.literal("fill")]),
         align: z.union([z.literal("start"), z.literal("center"), z.literal("end")]),
         radius: z.number(),
+        dock: z
+            .literal("top")
+            .describe(
+                "section chrome: lifts this element out of the section's content flow and anchors it to the top edge of the section's own band, so a site's topbar hugs the hero while the hero copy stays centred below it. Only ever on a DIRECT child of the first section's root container, and only once in a piece",
+            ),
     })
     .partial();
 
@@ -40,10 +45,21 @@ export const zSection = z.object({
     ),
     background: zSectionBackground.optional().catch(undefined),
     bleed: z.boolean().optional(),
+    frame: z
+        .object({ aspect: z.number() })
+        .describe(
+            "the section's shape as width divided by height, written as a decimal. A paged format (deck) reads it as that slide's own page shape. A continuous one (doc, web) has no page, so the same number reads as a MINIMUM band height the content centres inside: a hero band opens at 2.3 (16:7) to 1.78 (16:9), a slim image interlude runs about 3.2 (16:5). Content taller than the band still grows past it. Omit the field and the section is exactly as tall as its content",
+        )
+        .optional()
+        .catch(undefined),
 });
 
 export const zBeat = z.object({
-    id: z.string().describe("the section id this beat becomes (s1, s2, …)"),
+    id: z
+        .string()
+        .describe(
+            "the section id this beat becomes: short, unique, and url-safe (lowercase letters, digits and dashes, no spaces or colons). `s1`, `s2`, … is fine; on a website name it after what it holds (`hero`, `features`, `pricing`, `faq`), since that id is what a nav link points at",
+        ),
     label: z.string().describe("a 2–5 word working title for the section"),
     role: z.string().describe("narrative role: scene | tension | turn | proof | momentum | close"),
     layout: z

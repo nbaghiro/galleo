@@ -1,6 +1,8 @@
 import { LAYOUT_PRESETS } from "@model/artifact";
 import {
     BULLET_MARKERS,
+    BUTTON_SHAPES,
+    BUTTON_SIZES,
     BUTTON_VARIANTS,
     CALLOUT_TONES,
     CARD_STYLES,
@@ -217,9 +219,30 @@ export const ELEMENTS: readonly ElementSchema[] = [
         type: "video",
         label: "Video",
         category: "media",
-        when: "an embeddable video (YouTube/Vimeo/mp4)",
+        when: "an embeddable video (YouTube/Vimeo/mp4). In a published doc or site it is a real player the reader presses, so reach for it whenever a demo, a walkthrough, or a founder's thirty seconds says the thing faster than prose; every static surface (the editor canvas, a thumbnail, an export) paints the poster instead",
         fields: [
-            { key: "src", type: "string", desc: "the video URL (YouTube, Vimeo, or mp4)" },
+            {
+                key: "src",
+                type: "string",
+                desc: "the video URL (YouTube, Vimeo, or mp4). Only a real one you know; there is no way to source a clip from a description",
+            },
+            {
+                key: "poster",
+                type: "string",
+                desc: "the still frame every static surface paints: a short plain-language phrase for the shot you want, written the same way as an image `src`. A YouTube link falls back to the provider's own thumbnail, and anything else paints a bare dark box, so set one",
+            },
+            {
+                key: "aspect",
+                type: "number",
+                default: 1.78,
+                desc: "width ÷ height of the player frame; 1.78 is 16:9",
+            },
+            {
+                key: "controls",
+                type: "boolean",
+                default: true,
+                desc: "show the player's own transport controls",
+            },
             { key: "autoplay", type: "boolean", desc: "start playing muted on view" },
             { key: "loop", type: "boolean", desc: "loop playback" },
         ],
@@ -360,6 +383,66 @@ export const ELEMENTS: readonly ElementSchema[] = [
         ],
     },
     {
+        type: "feature",
+        label: "Feature",
+        category: "composite",
+        container: true,
+        when: "one capability or benefit as a titled block; three of them in a row `container` is the standard feature grid, and it beats hand-rolling the same thing out of cards",
+        fields: [
+            childrenField(
+                "two or three `text` elements in order: an optional eyebrow (style 'label'), the title (style 'h3'), then a sentence or two (style 'body')",
+            ),
+        ],
+    },
+    {
+        type: "pricing",
+        label: "Pricing tier",
+        category: "composite",
+        container: true,
+        when: "one priced plan. Two to four of them side by side in a row `container` is how a page shows pricing; a `table` of the same tiers reads as a spreadsheet",
+        fields: [
+            childrenField(
+                "five, in order: the tier name (`text`, style 'label'), the price (`text`, style 'h1', e.g. '$49'), the line under it (`text`, style 'caption'), what is included (a `bullets` with marker 'check'), and the action (a `button` with an href)",
+            ),
+        ],
+    },
+    {
+        type: "testimonial",
+        label: "Testimonial",
+        category: "composite",
+        container: true,
+        when: "one customer's own words, with a face and an attribution",
+        fields: [
+            childrenField(
+                "exactly four, read by position: the quote (`text`, style 'quote'), the face ({ type: 'avatar', data: { size: 52, src: '<a generic person description>' } }), the name (`text`, style 'body'), then the role and company (`text`, style 'caption')",
+            ),
+        ],
+    },
+    {
+        type: "profile",
+        label: "Profile",
+        category: "composite",
+        container: true,
+        when: "one person in a team, a speaker line-up, or an author note, centred under their portrait",
+        fields: [
+            childrenField(
+                "in order: the face ({ type: 'avatar', data: { size: 88, src: '<a generic person description>' } }), the name (`text`, style 'h3', align 'center'), the role (`text`, style 'caption', align 'center'), and optionally one more caption line",
+            ),
+        ],
+    },
+    {
+        type: "cta",
+        label: "Call-to-action card",
+        category: "composite",
+        container: true,
+        when: "the tinted card that asks for the single action the piece exists to get; use it where the ask needs a panel of its own rather than a whole banded section",
+        fields: [
+            childrenField(
+                "three, in order: the headline (`text`, style 'h2', align 'center'), one supporting line (`text`, style 'body', align 'center'), and the `button`",
+            ),
+        ],
+    },
+    {
         type: "faq",
         label: "FAQ",
         category: "composite",
@@ -428,7 +511,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "open",
                 type: "boolean",
                 default: false,
-                desc: "whether the panel shows in flow by default, which is what a static render (export, print) prints. A reader always starts with it shut",
+                desc: "whether the panel is open on the editing canvas, where it floats over the page rather than taking room in it. A reader always starts with it shut, and a static render (export, print) shows the trigger alone",
             },
         ],
     },
@@ -457,7 +540,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "justify",
                 type: "enum",
                 values: FLEX_JUSTIFY,
-                desc: "row only: spread the leftover width between / around / evenly instead of packing the children together",
+                desc: "row only: spread the leftover width between / around / evenly instead of packing the children together. `between` pins the first child to the left edge and the last to the right, which is how a footer row is built; `evenly` is the logo strip",
             },
             {
                 key: "surface",
@@ -472,7 +555,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         type: "button",
         label: "Button",
         category: "interactive",
-        when: "a call to action, 'Get started', 'Book a demo'",
+        when: "a call to action, 'Get started', 'Book a demo'; also every item in a site's nav bar",
         fields: [
             { key: "label", type: "string", required: true, desc: "the button text" },
             {
@@ -480,12 +563,26 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 values: BUTTON_VARIANTS,
                 default: "filled",
-                desc: "filled, outline, soft, or ghost",
+                desc: "filled, outline, soft, or ghost. A nav item is `ghost`, so the bar reads as links rather than a row of buttons",
+            },
+            {
+                key: "size",
+                type: "enum",
+                values: BUTTON_SIZES,
+                default: "md",
+                desc: "`sm` for a nav item, `md` for the page's ordinary actions, `lg` for the one button a hero or a closing band is built around",
+            },
+            {
+                key: "shape",
+                type: "enum",
+                values: BUTTON_SHAPES,
+                default: "rounded",
+                desc: "`pill` is what marks the nav bar's own call to action apart from the ghost links beside it; `sharp` suits a blockier theme",
             },
             {
                 key: "href",
                 type: "string",
-                desc: "the URL the button opens; set it only when you know a real destination",
+                desc: "where the button goes: a full URL, which opens in a new tab, or `#<section id>` to scroll to another section of this same piece. Set a URL only when you know a real destination; a section link is always safe, since you know the ids you wrote",
             },
         ],
     },
@@ -544,6 +641,24 @@ export function layoutCatalog(): string {
         'A section is `{ id, root }`, where `root` is one element tree. For side-by-side columns, make `root` a `container` with `direction: "row"` whose children each carry `layout: { width: { pct } }` (their column share, summing to ~100). To stack, use `direction: "col"`. Nest to any depth. For a full-width section, `root` is a single element. These named presets are handy starting splits (custom widths are fine too):',
         "",
         rows,
+    ].join("\n");
+}
+
+// Web only. The layering the site templates were built from, taught once in prose the way
+// `layoutCatalog` teaches column widths: `dock`, `frame.aspect`, and the `#id` link grammar are
+// universal fields, so they belong here rather than repeated in each element's own entry.
+export function siteAnatomy(): string {
+    return [
+        "## How a site is built",
+        "A website is not a document with wider margins. Four things are what make a page read as a real site, and each one is authorable from the fields above.",
+        "",
+        '**1. One docked topbar, in the first section only.** Make the first section\'s `root` a `container` (direction \'col\') whose FIRST child is a `container` with `"direction": "row"` and `"layout": { "dock": "top" }`. Docking lifts that row out of the content flow and anchors it to the top edge of the section\'s band, so the hero copy still centres below it. It has to be a direct child of that root container, and no other section gets one. Inside the row, in order: the brand or site name as a `text` (style \'label\') carrying `"layout": { "width": "fill" }`, which takes the slack and pushes everything after it hard right; then each nav item carrying `"layout": { "width": "fit" }`. A nav item is a `button` with `"variant": "ghost"` and `"size": "sm"`; the last one is the bar\'s call to action, `"variant": "filled"`, `"size": "sm"`, `"shape": "pill"`. Past about five links, fold the extras into one `popup` with `"variant": "menu"` whose children are those same ghost buttons.',
+        "",
+        "**2. Every nav item names a real section.** An `href` of `#<section id>` scrolls the reader to that section of this same page, so the ids you write are the link targets: `#pricing` only works if a section is called `pricing`. Give sections meaningful ids (`hero`, `features`, `pricing`, `faq`, `contact`) rather than s1 and s2, and label each nav item with the words that section's own headline uses. Keep external URLs to one or two, for a real destination you actually know. The hero's own button links DOWN the page to the section that answers it, and the closing band repeats that link, which is the bookend.",
+        "",
+        '**3. The hero is a band, and the page keeps a rhythm after it.** Give the first section `"frame": { "aspect": 2.3 }` (16:7, and 1.78 is 16:9 if it should sit shorter) with a full-bleed background image and a `scrim` around 0.55: on a scrolling page that number is a minimum height, so the section opens as a tall band with its content centred in it. A slim interlude between two dense sections is the same trick at `"frame": { "aspect": 3.2 }` (16:5): a full-bleed photo with one line of type over it and nothing else. Then alternate the section backgrounds down the page instead of running ten identical bands: default surface, then a tinted one (`"background": { "kind": "color", "color": "<a soft tint that suits the theme>" }, "bleed": true`), then an image band, then plain again. The band before the footer carries a colour of its own and holds the last ask.',
+        "",
+        '**4. Use the blocks a reader can act on.** `faq` with `"collapse": "collapsible"` for the questions someone has before signing up, `tabs` for two to four takes on one feature area, `video` where a demo explains it faster than a paragraph, `pricing` tiers side by side in a row rather than a pricing table, `testimonial` for a customer\'s words, `profile` for the people, `feature` for a capability grid. Close on a footer section: one row `container` with `"justify": "between"`, each column a `fit`-width stack of a label and its caption lines.',
     ].join("\n");
 }
 
