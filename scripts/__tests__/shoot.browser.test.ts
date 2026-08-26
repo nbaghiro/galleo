@@ -16,6 +16,9 @@ describe("headless capture", () => {
             // a blank or failed render collapses to a few hundred bytes
             for (const s of cap.shots) expect(s.png.length).toBeGreaterThan(2000);
             expect(cap.strip.length).toBeGreaterThan(2000);
+            // the slice carries a photo element and an image background; zero proves the capture
+            // collected both kinds of URL and waited for them instead of racing the network
+            expect(cap.missingImages).toBe(0);
             expect(cap.shapes).toHaveLength(3);
             // the page runs @canvas/render/fit-checks itself, so these are the /eval UI's checks
             // rather than a second implementation: every section must come back covered

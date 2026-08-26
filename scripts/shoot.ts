@@ -36,6 +36,10 @@ const PAGE = (bundle: string, css: string): string => `<!doctype html>
 const REQUIRED_FONTS = ["Fraunces", "Hanken Grotesk", "DM Mono"];
 
 const FONT_TIMEOUT_MS = 20_000;
+// Images get longer than fonts: a capture may hold dozens of remote photos, and the page retries
+// stragglers itself. Past this the shot degrades (voids where the missing photos sit) rather than
+// failing the run, since layout never depended on them.
+const IMAGE_TIMEOUT_MS = 45_000;
 
 export interface Shot {
     id: string;
@@ -46,6 +50,8 @@ export interface Capture {
     shots: Shot[];
     /** The whole stack in one image: the seams between sections show only here. */
     strip: Buffer;
+    /** Images that never arrived within the deadline; the shot shows voids where they belong. */
+    missingImages: number;
     /** `@canvas/render/fit-checks` run inside the page, so these are the same checks the /eval UI
      *  reports rather than a second implementation of them. */
     checks: EvalCheck[];
@@ -117,6 +123,11 @@ async function capture(page: Page, content: ArtifactContent, meta?: GenMeta): Pr
         (c) => window.__galleo.paint(c as ArtifactContent),
         content as unknown,
     );
+    // the paint returns before its photos do; screenshotting without this races the network
+    const missingImages = await page.evaluate(
+        (ms) => window.__galleo.imagesSettled(ms as number),
+        IMAGE_TIMEOUT_MS as unknown,
+    );
     const checks = await page.evaluate(
         ([c, m]) => window.__galleo.checks(c as ArtifactContent, m as GenMeta | undefined),
         [content, meta] as unknown[],
@@ -135,5 +146,5 @@ async function capture(page: Page, content: ArtifactContent, meta?: GenMeta): Pr
         if (!(await el.count())) continue;
         shots.push({ id: b.id, png: await el.screenshot() });
     }
-    return { shots, strip, checks, shapes };
+    return { shots, strip, checks, shapes, missingImages };
 }

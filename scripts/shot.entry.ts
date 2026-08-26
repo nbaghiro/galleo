@@ -27,6 +27,7 @@ declare global {
             checks: (content: ArtifactContent, meta?: GenMeta) => EvalCheck[];
             shapes: (content: ArtifactContent) => SectionShape[];
             fontsLoaded: (families: string[]) => Promise<string[]>;
+            imagesSettled: (deadlineMs: number) => Promise<number>;
             width: number;
         };
     }
@@ -62,6 +63,48 @@ async function fontsLoaded(families: string[]): Promise<string[]> {
         missing = missing.filter((f) => widthIn(`32px "${f}", monospace`) === base);
     }
     return missing;
+}
+
+/**
+ * Resolves once every image the paint produced has actually arrived, or the deadline passes. The
+ * backend draws photos as CSS `background-image` divs, which fire no load events, so a screenshot
+ * taken straight after paint races the network and captures voids where photos belong: the judge
+ * then scores imagery nobody would ship. Each URL is pushed through a real `Image()` (a cache hit
+ * resolves instantly) and failures retry with backoff, because picsum rate-limits bursts and one
+ * dropped request should cost a retry, not the capture. Returns how many URLs never arrived; a
+ * missing image changes pixels, never layout, so unlike a missing font it degrades the shot
+ * instead of invalidating the run.
+ */
+async function imagesSettled(deadlineMs: number): Promise<number> {
+    const started = performance.now();
+    const urls = new Set<string>();
+    for (const el of document.querySelectorAll<HTMLElement>("#stage, #stage *"))
+        for (const m of (el.style.backgroundImage || "").matchAll(/url\("(.*?)"\)/g))
+            urls.add(m[1]!);
+    for (const img of document.images) if (img.src) urls.add(img.src);
+    const load = (u: string): Promise<boolean> =>
+        new Promise((done) => {
+            const probe = new Image();
+            probe.onload = () => done(true);
+            probe.onerror = () => done(false);
+            probe.src = u;
+        });
+
+    let pending = [...urls];
+    for (let round = 0; pending.length; round++) {
+        const remaining = deadlineMs - (performance.now() - started);
+        if (remaining <= 0) break;
+        const settled = await Promise.race([
+            Promise.all(pending.map(async (u) => ((await load(u)) ? null : u))),
+            // deadline mid-round: whatever is still in flight stays pending
+            new Promise<null>((r) => setTimeout(() => r(null), remaining)),
+        ]);
+        if (settled === null) break;
+        pending = settled.filter((u): u is string => u !== null);
+        if (pending.length)
+            await new Promise((r) => setTimeout(r, Math.min(1200 * (round + 1), 5000)));
+    }
+    return pending.length;
 }
 
 /** Paints the stack into the page and reports where each section landed, for per-section crops. */
@@ -111,4 +154,4 @@ const shapes = (content: ArtifactContent): SectionShape[] =>
         profileFor(content),
     );
 
-window.__galleo = { paint: paintStack, checks, shapes, fontsLoaded, width: WIDTH };
+window.__galleo = { paint: paintStack, checks, shapes, fontsLoaded, imagesSettled, width: WIDTH };
