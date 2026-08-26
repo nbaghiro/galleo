@@ -1439,7 +1439,7 @@ export const [rightTab, setRightTab] = createSignal<string | null>(null);
 // back. Per device rather than per account, like the library layout and the slide frame.
 
 export const MINIMAP_MIN_W = 140;
-export const MINIMAP_MAX_W = 480;
+export const MINIMAP_MAX_W = 340;
 export const MINIMAP_DEFAULT_W = 182;
 const MINIMAP_KEY = "galleo:minimap-width";
 

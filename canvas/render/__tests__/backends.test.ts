@@ -71,7 +71,7 @@ describe("sectionLayoutWidth", () => {
     it("a doc bled for a phone fills the board, unlike the same doc on desktop", () => {
         const doc = resolveProfile("doc");
         expect(sectionLayoutWidth(s, doc, 430)).toBe(430 - 64);
-        expect(sectionLayoutWidth(s, previewContentProfile(doc, 430, true), 430)).toBe(430);
+        expect(sectionLayoutWidth(s, previewContentProfile(doc, true), 430)).toBe(430);
     });
     it("a doc holds one column: a tone band stays in it, a photo band still spans", () => {
         const doc = resolveProfile("doc");

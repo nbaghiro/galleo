@@ -150,22 +150,9 @@ export function sectionFrame(
     return { w, h: aspect && aspect > 0 ? Math.round(w / aspect) : h };
 }
 
-// A doc's content width grows with the viewport, floored at the editor width, capped for readability.
-const PREVIEW_DOC_MAX = 1440;
-const PREVIEW_VIEWPORT_FRACTION = 0.78;
-export function previewContentProfile(
-    base: FormatDescriptor,
-    fullW: number,
-    bleed = false,
-): FormatDescriptor {
-    if (base.kind !== "continuous") return base;
-    // a phone has no room for the reading gutter, so a doc bleeds edge-to-edge like a site
-    if (bleed) return base.bleedSections ? base : { ...base, bleedSections: true };
-    if (base.id === "web") return base;
-    const editorMax = base.maxContentWidth ?? 1000;
-    const wide = Math.min(
-        PREVIEW_DOC_MAX,
-        Math.max(editorMax, Math.round(fullW * PREVIEW_VIEWPORT_FRACTION)),
-    );
-    return wide === editorMax ? base : { ...base, maxContentWidth: wide };
+// A preview lays a doc out at the editor's own reading column, so the two agree line for line; the
+// one divergence is a phone, which has no room for the gutter and bleeds edge-to-edge like a site.
+export function previewContentProfile(base: FormatDescriptor, bleed = false): FormatDescriptor {
+    if (base.kind !== "continuous" || !bleed) return base;
+    return base.bleedSections ? base : { ...base, bleedSections: true };
 }

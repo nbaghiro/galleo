@@ -263,9 +263,11 @@ export const EditorView: Component = () => {
                       ...(canEdit()
                           ? {
                                 enable: async () => {
+                                    // written for this piece from its own subject, not the house
+                                    // preset: a bed that fits is the point of composing one at all
                                     const { trackId, track } = await api.composeSoundtrack(
                                         artifactId,
-                                        { content: editor.artifact },
+                                        { custom: true, content: editor.artifact },
                                     );
                                     commit(
                                         setArtifactMusic(editor.artifact, { on: true, trackId }),

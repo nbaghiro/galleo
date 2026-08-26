@@ -202,34 +202,26 @@ describe("sectionBleeds", () => {
     });
 
     it("a phone doc bleeds every section, since it has no gutter to hold", () => {
-        const phone = previewContentProfile(doc, 430, true);
+        const phone = previewContentProfile(doc, true);
         expect(sectionBleeds(banded({ bleed: true }), phone)).toBe(true);
     });
 });
 
 describe("previewContentProfile", () => {
-    it("returns paged (deck) and web formats untouched", () => {
-        expect(previewContentProfile(PROFILES.deck!, 2000)).toBe(PROFILES.deck);
-        expect(previewContentProfile(PROFILES.web!, 2000)).toBe(PROFILES.web);
-    });
-    it("keeps the doc at its editor width when the viewport is narrow", () => {
-        expect(previewContentProfile(PROFILES.doc!, 800)).toBe(PROFILES.doc); // floored at editorMax
-    });
-    it("grows the doc with the viewport", () => {
-        expect(previewContentProfile(PROFILES.doc!, 1500).maxContentWidth).toBe(1170); // round(1500·0.78)
-    });
-    it("caps the doc width at the readability ceiling", () => {
-        expect(previewContentProfile(PROFILES.doc!, 3000).maxContentWidth).toBe(1440);
+    it("keeps every format at its editor width, so preview and editor agree line for line", () => {
+        expect(previewContentProfile(PROFILES.deck!)).toBe(PROFILES.deck);
+        expect(previewContentProfile(PROFILES.doc!)).toBe(PROFILES.doc);
+        expect(previewContentProfile(PROFILES.web!)).toBe(PROFILES.web);
     });
 
     it("bleeds a doc edge-to-edge when asked, leaving desktop untouched", () => {
-        expect(previewContentProfile(PROFILES.doc!, 430, true).bleedSections).toBe(true);
-        expect(previewContentProfile(PROFILES.doc!, 1500, false).bleedSections).toBeUndefined();
+        expect(previewContentProfile(PROFILES.doc!, true).bleedSections).toBe(true);
+        expect(previewContentProfile(PROFILES.doc!, false).bleedSections).toBeUndefined();
     });
 
     it("is a no-op for formats that already bleed or never do", () => {
-        expect(previewContentProfile(PROFILES.web!, 430, true)).toBe(PROFILES.web);
-        expect(previewContentProfile(PROFILES.deck!, 430, true)).toBe(PROFILES.deck);
+        expect(previewContentProfile(PROFILES.web!, true)).toBe(PROFILES.web);
+        expect(previewContentProfile(PROFILES.deck!, true)).toBe(PROFILES.deck);
     });
 });
 

@@ -265,8 +265,7 @@ export const PresentSurface: Component<{
     const renderContinuous = (): void => {
         if (!host) return;
         const fullW = host.clientWidth || window.innerWidth;
-        // preview isn't bound to the editor's fixed reading-column width, so a doc widens with the viewport
-        const prof = previewContentProfile(profile(), fullW, isPhone());
+        const prof = previewContentProfile(profile(), isPhone());
         setLiveFormat(prof);
         if (!stage || !paintHost || !overlayHost) {
             stage = document.createElement("div");
@@ -840,7 +839,7 @@ export const PresentSurface: Component<{
                             is the one state with its own mark, and it is a wait, so it is a
                             spinner, the same as narration recording. */}
                         <Show when={!bed.busy()} fallback={<Spinner size={13} tone="current" />}>
-                            <Icon name="music" size={15} />
+                            <Icon name="music" size={15} classList={{ sounding: bed.playing() }} />
                         </Show>
                     </IconButton>
                 </Show>
@@ -865,15 +864,16 @@ export const PresentSurface: Component<{
                         }
                         onClick={() => player.toggle()}
                     >
-                        {/* Three states, three icons: nothing recorded yet offers to record (a
-                            mic, not a play triangle that would lie about what the press does), the
-                            recording itself is a wait, and a piece that has audio plays it. */}
+                        {/* Nothing recorded yet offers to record (a mic, not a play triangle that
+                            would lie about what the press does); recording is a wait; audio that
+                            exists and is not running offers to play it. While it speaks the mic
+                            comes back and breathes, which is the same thing the music note does:
+                            the glyph says which sound it is, the motion says it is happening. */}
                         <Show when={!waiting()} fallback={<Spinner size={14} tone="current" />}>
                             <Icon
-                                name={
-                                    player.playing() ? "pause" : player.prepared() ? "play" : "mic"
-                                }
+                                name={player.prepared() && !player.playing() ? "play" : "mic"}
                                 size={16}
+                                classList={{ sounding: player.playing() }}
                             />
                         </Show>
                     </IconButton>

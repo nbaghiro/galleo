@@ -26,7 +26,8 @@ const bedSource = (a: () => Artifact): SoundtrackSource | undefined => {
     return {
         load: () => api.soundtrack(a().id),
         enable: async () => {
-            const { trackId, track } = await api.composeSoundtrack(a().id, {});
+            // written for this piece from its own subject, rather than the shared house preset
+            const { trackId, track } = await api.composeSoundtrack(a().id, { custom: true });
             await api.saveArtifact(a().id, {
                 draftContent: setArtifactMusic(asContent(a().draftContent), { on: true, trackId }),
             });
