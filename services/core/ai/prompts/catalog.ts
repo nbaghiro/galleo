@@ -79,12 +79,26 @@ interface ElementSchema {
     fields: readonly FieldSpec[];
 }
 
+// The face slot, written once because both elements that carry one need the same three things said.
+// "generic" used to stand here and it was read literally: a team of four came back as four copies of
+// "a professional person", which the stock search then answered with four near-identical strangers.
+// The real-person line is not decoration: a name here reaches an image generator as a likeness.
+const FACE_SRC =
+    "a few words describing an imagined person (rough age, hair, dress, expression). Vary them across the people in one section so a team does not come back as the same face four times, and match them to the piece: a kitchen crew and a law firm do not look alike. Never a real person's name, and never a public figure: this is a stand-in the reader replaces with their own photo";
+
 const childrenField = (desc: string): FieldSpec => ({
     key: "children",
     type: "children",
     required: true,
     desc,
 });
+
+// Types the model may write but never as a section's own child: they are named inside another
+// element's field description (a `profile` says its first child is an `avatar`) and have no entry
+// of their own, because a top-level one would invite them to be used standalone. Declared here so
+// the whole vocabulary is one list: `structureIssues` holds a reply to it, and without this an
+// avatar written exactly as `profile` asks for it reads as an invented type.
+export const NESTED_TYPES: readonly string[] = ["avatar"];
 
 export const ELEMENTS: readonly ElementSchema[] = [
     {
@@ -414,7 +428,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         when: "one customer's own words, with a face and an attribution",
         fields: [
             childrenField(
-                "exactly four, read by position: the quote (`text`, style 'quote'), the face ({ type: 'avatar', data: { size: 52, src: '<a generic person description>' } }), the name (`text`, style 'body'), then the role and company (`text`, style 'caption')",
+                `exactly four, read by position: the quote (\`text\`, style 'quote'), the face ({ type: 'avatar', data: { size: 52, src } }), the name (\`text\`, style 'body'), then the role and company (\`text\`, style 'caption'). The avatar's \`src\` is ${FACE_SRC}`,
             ),
         ],
     },
@@ -426,7 +440,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         when: "one person in a team, a speaker line-up, or an author note, centred under their portrait",
         fields: [
             childrenField(
-                "in order: the face ({ type: 'avatar', data: { size: 88, src: '<a generic person description>' } }), the name (`text`, style 'h3', align 'center'), the role (`text`, style 'caption', align 'center'), and optionally one more caption line",
+                `in order: the face ({ type: 'avatar', data: { size: 88, src } }), the name (\`text\`, style 'h3', align 'center'), the role (\`text\`, style 'caption', align 'center'), and optionally one more caption line. The avatar's \`src\` is ${FACE_SRC}`,
             ),
         ],
     },
@@ -641,6 +655,16 @@ export function layoutCatalog(): string {
         'A section is `{ id, root }`, where `root` is one element tree. For side-by-side columns, make `root` a `container` with `direction: "row"` whose children each carry `layout: { width: { pct } }` (their column share, summing to ~100). To stack, use `direction: "col"`. Nest to any depth. For a full-width section, `root` is a single element. These named presets are handy starting splits (custom widths are fine too):',
         "",
         rows,
+        "",
+        // The authoring surface the solver actually reads (applyLayout in canvas/elements/compose.ts).
+        // Left undocumented, the writer reached for width alone and side-by-side cards came out at
+        // whatever height their copy happened to make them.
+        "Each child's own `layout` says how it sits in its parent:",
+        '- `width`: `{ pct }` for a share of the row, `"fill"` to take whatever is left, `"fit"` to shrink to its content. Give EVERY column in a row a share or give none of them: one missing share drops the whole row back to equal columns.',
+        '- `height: "fill"`: stretch this child to the full height of its row, which is how side-by-side cards and panels are kept level when their copy runs to different lengths. The row takes its height from the columns that do NOT fill, so leave it off the tallest one: a row where every column fills has no height to share and collapses to nothing.',
+        "- `align`: `start` / `center` / `end`, this one child's cross-axis position, overriding whatever the container sets for the rest.",
+        "",
+        "A row stacks itself into a column on narrow screens, so never write a second mobile variant of a section. For more cells than one row should hold, nest: a `col` container of row containers, which is also how an uneven grid is built (a 2-up above a 3-up).",
     ].join("\n");
 }
 

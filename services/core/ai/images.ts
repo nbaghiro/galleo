@@ -88,6 +88,33 @@ async function findStock(phrase: string, orientation: string): Promise<MediaItem
     return null;
 }
 
+/**
+ * What a slot wants, which is more than its shape. A face slot is a person the piece presents as a
+ * team member, a speaker or a customer, and both halves of the resolver have to be told: a stock
+ * search for "a smiling founder" returns a scene with people in it, and a generator handed the same
+ * phrase at 16:9 paints one. Neither survives being cropped into a 72px circle.
+ */
+export interface Slot {
+    orientation: string;
+    face?: boolean;
+}
+
+// An avatar is the only slot the tree identifies as a person by construction, since it renders as a
+// fixed square masked to a circle whatever its data says. A person in a plain `image` reads as a
+// person from its phrase alone, which is the writer's job to get right, not ours to guess.
+const FACE_TYPES = new Set(["avatar"]);
+
+// What a face slot is actually asking for. Kept as prose the generator reads rather than a style
+// preset, because the framing (head and shoulders, plain ground, eyes to camera) is the whole
+// difference between a portrait and a photo that happens to contain a person.
+const FACE_PROMPT =
+    "Head-and-shoulders portrait photograph of a fictional person, plain uncluttered background, soft even light, sharp focus on the face, looking at the camera. The person:";
+
+// Stock search matches keywords, so the shape of the picture has to be one of them. Appended
+// rather than prepended: `toQuery` keeps the first N words, and the short fallback query has to
+// still be about the person. Leading with these left it searching for "portrait headshot smiling".
+const FACE_TERMS = "portrait headshot";
+
 type ImageSource = "stock" | "ai";
 
 export interface ImageOptions {
@@ -101,16 +128,18 @@ export interface ImageOptions {
 
 export async function resolveImage(
     phrase: string,
-    orientation: string,
+    slot: string | Slot,
     opts: ImageOptions,
     ref?: string,
 ): Promise<string> {
     if (phrase.startsWith("http")) return phrase;
+    const want: Slot = typeof slot === "string" ? { orientation: slot } : slot;
     if (opts.source === "ai" && opts.generate) {
-        const made = await opts.generate(phrase, orientation, ref).catch(() => null);
+        const asked = want.face ? `${FACE_PROMPT} ${phrase}` : phrase;
+        const made = await opts.generate(asked, want.orientation, ref).catch(() => null);
         if (made) return made;
     }
-    const stock = await findStock(phrase, orientation);
+    const stock = await findStock(want.face ? `${phrase} ${FACE_TERMS}` : phrase, want.orientation);
     if (stock) return opts.adopt ? await opts.adopt(stock).catch(() => stock.url) : stock.url;
     warn(`[ai:image] no image for "${clip(phrase, 60)}" — using placeholder`);
     return picsum(phrase);
@@ -120,7 +149,7 @@ export async function resolveImage(
 // once through the shared walk: two passes, since the map itself is synchronous.
 async function resolveTree<T>(
     tree: T,
-    aspectFor: (url: string) => string,
+    slotFor: (url: string) => Slot,
     opts: ImageOptions,
 ): Promise<T> {
     const phrases = mediaRefs(tree).filter((p) => !p.startsWith("http"));
@@ -128,7 +157,7 @@ async function resolveTree<T>(
     const resolved = new Map<string, string>();
     await Promise.all(
         phrases.map(async (p) => {
-            resolved.set(p, await resolveImage(p, aspectFor(p), opts));
+            resolved.set(p, await resolveImage(p, slotFor(p), opts));
         }),
     );
     return mapMediaRefs(tree, (url) => resolved.get(url) ?? url) as T;
@@ -139,23 +168,30 @@ export async function resolveElement(
     el: ElementInstance,
     opts: ImageOptions,
 ): Promise<ElementInstance> {
-    const aspects = aspectIndex(el);
-    return resolveTree(el, (url) => aspects.get(url) ?? "landscape", opts);
+    const slots = slotIndex(el);
+    return resolveTree(el, (url) => slots.get(url) ?? { orientation: "landscape" }, opts);
 }
 
 export async function resolveImages(section: Section, opts: ImageOptions): Promise<Section> {
-    const aspects = aspectIndex(section.root);
-    return resolveTree(section, (url) => aspects.get(url) ?? "landscape", opts);
+    const slots = slotIndex(section.root);
+    return resolveTree(section, (url) => slots.get(url) ?? { orientation: "landscape" }, opts);
 }
 
-// the orientation to search at comes from the element the phrase sits on
-function aspectIndex(root: ElementInstance): Map<string, string> {
-    const out = new Map<string, string>();
+// What each phrase in the tree is being asked for, read off the element it sits on.
+function slotIndex(root: ElementInstance): Map<string, Slot> {
+    const out = new Map<string, Slot>();
     const walk = (el: ElementInstance): void => {
         const data = el.data as Record<string, unknown> | undefined;
         if (!data) return;
         const src = data.src;
-        if (typeof src === "string" && src) out.set(src, orientOf(data.aspect));
+        const face = FACE_TYPES.has(el.type);
+        if (typeof src === "string" && src)
+            // An avatar is a fixed square masked to a circle, so its shape is structural and its
+            // own data cannot say otherwise. Everything else takes the aspect the writer gave it.
+            out.set(src, {
+                orientation: face ? "square" : orientOf(data.aspect),
+                ...(face ? { face: true } : {}),
+            });
         for (const v of Object.values(data))
             if (Array.isArray(v))
                 for (const kid of v)
