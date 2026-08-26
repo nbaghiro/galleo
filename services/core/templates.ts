@@ -6561,7 +6561,8 @@ export const trendsReport: ArtifactContent = doc(
 // must stay in sync (the index is the client-facing half, this is the body half)
 // ---- everyday documents
 
-// A dish line: name left, price right, an optional note under. The between-row is what a menu is.
+// A between-row line: name left, value right, an optional note under. What a menu is (dishes and
+// prices), and a concert program too (pieces and durations).
 const dish = (name: string, price: string, note?: string): ElementInstance =>
     group(
         row({ justify: "between", align: "start" }, t(name, "h3"), fitW(t(price, "h3"))),
@@ -7114,6 +7115,342 @@ export const guestGuide: ArtifactContent = doc(
     bgImage(pic(210, 1700, 1100), 0.3),
 );
 
+export const recipeCollection: ArtifactContent = doc(
+    "orchard",
+    [
+        section(
+            "cover",
+            group(
+                t("A FAMILY COOKBOOK · SECOND PRINTING", "label"),
+                t("Kept Recipes", "h1"),
+                t(
+                    "Four dishes our family makes so often the cards wore out. Written down properly at last, with the shortcuts and the warnings.",
+                    "subtitle",
+                ),
+                t("Collected by Ada Okafor · Winter 2026", "caption"),
+            ),
+            { background: bgImage(pic(23, 1700, 1100), 0.6) },
+        ),
+        section(
+            "before",
+            split(
+                60,
+                group(
+                    t("BEFORE YOU START", "label"),
+                    t(
+                        "These are home recipes, not restaurant ones. The measurements are honest but the vegetables are not, so taste as you go and trust your own salt. Where a step can be done a day ahead, it says so; where it says do not walk away, someone once walked away.",
+                        "body",
+                    ),
+                    t("Ada, for everyone who asked", "caption"),
+                ),
+                img(pic(312), 0.82),
+            ),
+        ),
+        section(
+            "r1",
+            group(
+                t("NO 1 · BREAKFAST", "label"),
+                t("Roasted strawberries on yogurt", "h2"),
+                t("Serves 2 · 25 minutes, mostly oven", "caption"),
+                split(
+                    40,
+                    img(pic(493), 1.05),
+                    group(
+                        t("INGREDIENTS", "label"),
+                        bullets(
+                            "A pound of strawberries, hulled and halved",
+                            "A spoonful of honey, plus more at the table",
+                            "A squeeze of lemon and a pinch of salt",
+                            "Thick yogurt, the kind a spoon stands up in",
+                            "Toasted almonds or granola, for the top",
+                        ),
+                    ),
+                ),
+                t("METHOD", "label"),
+                t(
+                    "1. Heat the oven to 375. Toss the berries with honey, lemon, and salt on a lined tray.",
+                    "body",
+                ),
+                t(
+                    "2. Roast 18 to 20 minutes until slumped and jammy at the edges. Cool five minutes; the juice thickens as it sits.",
+                    "body",
+                ),
+                t(
+                    "3. Spoon over cold yogurt, scrape every bit of the pan syrup on top, and finish with the crunch.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "r2",
+            group(
+                t("NO 2 · LUNCH", "label"),
+                t("The Tuesday salad", "h2"),
+                t("Serves 4 · 20 minutes", "caption"),
+                split(
+                    40,
+                    img(pic(488), 1.05),
+                    group(
+                        t("INGREDIENTS", "label"),
+                        bullets(
+                            "Two heads of the crunchiest lettuce around",
+                            "A cucumber, a handful of radishes, and whatever the fridge offers",
+                            "Chickpeas, rinsed, or yesterday's chicken",
+                            "Feta, crumbled rudely",
+                            "Dressing: olive oil, lemon, a small spoon of mustard, garlic",
+                        ),
+                    ),
+                ),
+                t("METHOD", "label"),
+                t(
+                    "1. Chop everything the same size, smaller than you think. This is the whole secret.",
+                    "body",
+                ),
+                t("2. Shake the dressing in a jar until it turns cloudy and thick.", "body"),
+                t(
+                    "3. Dress just before eating, season loudly, and serve with bread you toasted in the same bowl's spirit.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "pantry",
+            group(
+                t("THE PANTRY RULES", "label"),
+                t("Buy less, but buy the good one.", "h2"),
+                t(
+                    "One good olive oil for finishing and a cheap one for the pan. Salt is flaky unless the recipe says otherwise. Lemons are not optional. Spices older than a year are potpourri and should be treated as such.",
+                    "body",
+                ),
+            ),
+            { background: bgImage(pic(517, 1700, 1100), 0.55) },
+        ),
+        section(
+            "r3",
+            group(
+                t("NO 3 · DINNER", "label"),
+                t("Red lentil dal, the quiet version", "h2"),
+                t("Serves 4, or 2 with the right leftovers · 45 minutes", "caption"),
+                split(
+                    40,
+                    img(pic(490), 1.05),
+                    group(
+                        t("INGREDIENTS", "label"),
+                        bullets(
+                            "A cup and a half of red lentils, rinsed until the water runs clear",
+                            "An onion, softened slowly, and four cloves of garlic",
+                            "Ginger, cumin, turmeric, and one whole dried chili",
+                            "A tin of tomatoes and a tin of coconut milk",
+                            "Butter and lime at the end; do not skip the lime",
+                        ),
+                    ),
+                ),
+                t("METHOD", "label"),
+                t(
+                    "1. Soften the onion in butter longer than feels reasonable, then wake the garlic, ginger, and spices in it for one fragrant minute.",
+                    "body",
+                ),
+                t(
+                    "2. Add lentils, tomatoes, coconut milk, and two cups of water. Simmer low, lid ajar, 25 minutes, stirring when you pass by.",
+                    "body",
+                ),
+                t(
+                    "3. Season, then finish with the last of the butter and the lime. Rice or flatbread, and the chili on the side for the brave.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "r4",
+            group(
+                t("NO 4 · THE TIN", "label"),
+                t("Olive oil shortbread with lime", "h2"),
+                t("Makes 24 · An hour, half of it waiting", "caption"),
+                split(
+                    40,
+                    img(pic(835), 1.05),
+                    group(
+                        t("INGREDIENTS", "label"),
+                        bullets(
+                            "Two cups of flour and half a cup of sugar",
+                            "Three quarters of a cup of good olive oil",
+                            "Zest of two limes, juice of one",
+                            "A firm pinch of salt, and sugar for rolling",
+                        ),
+                    ),
+                ),
+                t("METHOD", "label"),
+                t(
+                    "1. Stir dry, add oil and zest, and press into a shaggy dough. Chill 30 minutes; it firms as the flour drinks.",
+                    "body",
+                ),
+                t(
+                    "2. Roll into a log, slice thick coins, roll the edges in sugar, and bake at 350 for 14 minutes until barely gold.",
+                    "body",
+                ),
+                t(
+                    "3. Brush the tops with lime juice while warm. They keep a week in the tin, in theory.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "swaps",
+            group(
+                t("SWAPS THAT WORK", "label"),
+                bullets(
+                    "Any berry roasts like the strawberries; rhubarb wants an extra spoon of honey",
+                    "The dal takes spinach in the last five minutes without complaint",
+                    "Lemon stands in for lime in the shortbread, and no one has ever noticed",
+                    "The salad dressing is also a marinade; this is the family's oldest secret",
+                ),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("Add your own on the blank pages.", "h2"),
+                t("For the grandchildren, who should double the garlic.", "caption"),
+            ),
+            { background: bgImage(pic(225, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(98, 1700, 1100), 0.3),
+);
+
+export const eventProgram: ArtifactContent = doc(
+    "royal",
+    [
+        section(
+            "cover",
+            group(
+                t("THE ORPHEUM HALL · BENEFIT CONCERT", "label"),
+                t("Winter Songbook", "h1"),
+                t(
+                    "An evening of songs for the hall that keeps them. Every seat tonight goes toward the roof restoration.",
+                    "subtitle",
+                ),
+                t("Saturday, 6 December · Doors at 7, music at 7:30", "caption"),
+            ),
+            { background: bgImage(pic(819, 1700, 1100), 0.5) },
+        ),
+        section(
+            "welcome",
+            group(
+                t("WELCOME", "label"),
+                t(
+                    "Thank you for climbing our stairs on a cold night. You are sitting in an eighty-nine-year-old room that has held big bands, poets, union meetings, and four thousand weddings' worth of first dances. It has also, lately, held rain. Tonight is for the roof: three sets, one interval, and songs you are welcome to take home with you.",
+                    "body",
+                ),
+                t("Petra Lindqvist, director", "caption"),
+            ),
+        ),
+        section(
+            "program",
+            group(
+                t("THE PROGRAM", "label"),
+                dish("River Songs", "15 min", "Etta Vaughn · guitar and voice"),
+                dish("Three Nocturnes", "12 min", "Jonas Mehl · piano"),
+                dish("The Weather Rounds", "10 min", "The house band, all hands"),
+                t(
+                    "A twenty-minute interval. The bar is in the cloakroom, honor system, proceeds to the roof.",
+                    "caption",
+                ),
+                dish("Hollow Moon", "14 min", "Vaughn & Mehl, duo"),
+                dish("Last Boat Home", "8 min", "Everyone on stage, and you, if you know it"),
+            ),
+        ),
+        section(
+            "performers",
+            row(
+                group(
+                    img(pic(836), 0.8),
+                    t("Etta Vaughn", "h3"),
+                    t(
+                        "Songwriter and collector of other people's choruses. Three records, one van.",
+                        "caption",
+                    ),
+                ),
+                group(
+                    img(pic(1082), 0.8),
+                    t("Jonas Mehl", "h3"),
+                    t(
+                        "Pianist. Plays the nocturnes on the hall's own 1931 grand, freshly tuned for tonight.",
+                        "caption",
+                    ),
+                ),
+                group(
+                    img(pic(453), 0.8),
+                    t("The house band", "h3"),
+                    t(
+                        "Seven regulars who have closed this room a hundred times and never twice the same way.",
+                        "caption",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "hall",
+            group(
+                t("Eighty-nine years of this room.", "h2"),
+                t(
+                    "The ceiling you hear tonight is the original fir, which is the whole problem and the whole point.",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(936, 1700, 1100), 0.5) },
+        ),
+        section(
+            "appeal",
+            split(
+                60,
+                group(
+                    t("THE ROOF FUND", "label"),
+                    t("Where tonight's money goes.", "h2"),
+                    t(
+                        "New slates over the stage house, flashing on the north gable, and repairs to the organ loft where the water got in. We are $61,000 from watertight, and the winter is not waiting. Every ticket, every honor-system pour, and every donation goes to the same ledger, which hangs in the lobby for anyone to read.",
+                        "body",
+                    ),
+                    button("Give to the roof fund", "https://orpheumhall.org/roof"),
+                ),
+                img(pic(953), 0.82),
+            ),
+        ),
+        section(
+            "thanks",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("WITH THANKS", "label")),
+                        fitW(t("The Calloway family · Anonymous, twice", "caption")),
+                        fitW(t("Hartwell Plumbing, who fixed what the rain broke", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("AND TO", "label")),
+                        fitW(t("The volunteer ushers, twenty strong", "caption")),
+                        fitW(t("Rosa's Bakery, for the interval shortbread", "caption")),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("Sing the last one with us.", "h2"),
+                t(
+                    "Photos are welcome; flash is not. Share the night with #wintersongbook",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(117, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(546, 1700, 1100), 0.35),
+);
+
 const BODIES: Record<string, ArtifactContent> = {
     "startup-pitch": startupPitch,
     "sales-deck": salesDeck,
@@ -7149,6 +7486,8 @@ const BODIES: Record<string, ArtifactContent> = {
     "travel-itinerary": travelItinerary,
     "real-estate-listing": realEstateListing,
     "guest-guide": guestGuide,
+    "recipe-collection": recipeCollection,
+    "event-program": eventProgram,
 };
 
 export function templateBody(id: string): ArtifactContent | null {

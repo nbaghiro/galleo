@@ -223,4 +223,16 @@ export const TEMPLATE_INDEX: readonly TemplateEntry[] = [
         description:
             "A welcome book for your place: getting in, wifi, house notes, and local picks.",
     },
+    {
+        id: "recipe-collection",
+        name: "Recipe Collection",
+        category: "Everyday documents",
+        description: "Recipes worth keeping: ingredients, method, and the notes that matter.",
+    },
+    {
+        id: "event-program",
+        name: "Event Program",
+        category: "Everyday documents",
+        description: "A printed program: the running order, the performers, and the thanks.",
+    },
 ];
