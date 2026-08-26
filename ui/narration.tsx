@@ -492,6 +492,58 @@ export const NarrationAudio: Component<{ mount: (el: HTMLAudioElement) => void }
 );
 
 /** The spoken line, with the current word lifted. Off by default; the surface toggles it. */
+/**
+ * What a bed has instead of captions. Narration can show its words; music can only show that it is
+ * sounding, so this is a row of levels over the control bar: small, dim, and behind the work rather
+ * than in front of it.
+ *
+ * The heights and beats are fixed rather than read off the audio. A real analyser would need Web
+ * Audio around an element that currently just plays a URL, and at this size nobody is checking
+ * whether the bars match the music: what has to be true is that it moves while sound is coming out
+ * and stops when it is not.
+ */
+const LEVELS = [
+    { h: 6, beat: "1.15s", delay: "-0.20s" },
+    { h: 10, beat: "0.95s", delay: "-0.65s" },
+    { h: 7, beat: "1.30s", delay: "0s" },
+    { h: 13, beat: "0.85s", delay: "-0.40s" },
+    { h: 9, beat: "1.10s", delay: "-0.75s" },
+    { h: 15, beat: "1.00s", delay: "-0.10s" },
+    { h: 8, beat: "1.25s", delay: "-0.55s" },
+    { h: 12, beat: "0.90s", delay: "-0.30s" },
+    { h: 6, beat: "1.20s", delay: "-0.70s" },
+    { h: 11, beat: "1.05s", delay: "-0.45s" },
+    { h: 7, beat: "0.95s", delay: "-0.05s" },
+];
+
+export const SoundtrackLevels: Component<{ playing: () => boolean }> = (props) => (
+    <Show when={props.playing()}>
+        {/* clears the control bar by riding the same offset it does: a fixed value would drift
+            wherever a home indicator pushes the bar up */}
+        <div
+            class="pointer-events-none absolute inset-x-0 z-raised flex justify-center"
+            style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom) + 3.5rem)" }}
+        >
+            {/* no plate behind it: a drop shadow is what keeps the bars legible over a light
+                section, and it costs nothing of the work underneath */}
+            <div class="flex items-end gap-1 [filter:drop-shadow(0_1px_2px_rgb(0_0_0/0.55))]">
+                <For each={LEVELS}>
+                    {(bar) => (
+                        <span
+                            class="bed-level w-[3px] rounded-full bg-white/60"
+                            style={{
+                                height: `${bar.h}px`,
+                                "--bed-beat": bar.beat,
+                                "animation-delay": bar.delay,
+                            }}
+                        />
+                    )}
+                </For>
+            </div>
+        </div>
+    </Show>
+);
+
 export const NarrationCaption: Component<{
     caption: () => { words: string[]; at: number } | null;
 }> = (props) => (

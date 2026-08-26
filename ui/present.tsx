@@ -53,6 +53,7 @@ import {
     createSoundtrackPlayer,
     NarrationAudio,
     NarrationCaption,
+    SoundtrackLevels,
     type NarrationSource,
     type SoundtrackSource,
 } from "./narration";
@@ -710,6 +711,9 @@ export const PresentSurface: Component<{
                     </p>
                 </div>
             </Show>
+            {/* the bed's own indicator, under the captions and over the bar: it needs no toggle
+                because it says one thing and stops saying it when the music stops */}
+            <SoundtrackLevels playing={bed.playing} />
             <Show when={showCaption()}>
                 <NarrationCaption caption={player.caption} />
             </Show>

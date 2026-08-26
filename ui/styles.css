@@ -102,6 +102,29 @@ select:-webkit-autofill {
     scrollbar-width: thin;
     scrollbar-color: var(--sb, var(--color-line)) transparent;
 }
+/* A bed has no words to caption, so what stands in for them is the sound itself: a row of bars
+   rising and falling. Each is offset so the row reads as levels moving rather than as one shape
+   pulsing, and the whole thing is small and dim enough to sit over someone's work. */
+@keyframes bed-level {
+    0%,
+    100% {
+        transform: scaleY(0.28);
+    }
+    50% {
+        transform: scaleY(1);
+    }
+}
+.bed-level {
+    transform-origin: center;
+    animation: bed-level var(--bed-beat, 1.1s) ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .bed-level {
+        animation: none;
+        transform: scaleY(0.6);
+    }
+}
+
 /* Sound is the one thing a still control cannot show. A slow breathe on the glyph says the button
    is producing something right now, where a colour alone reads the same as a toggle that is merely
    switched on. Deliberately gentle and slow: this sits in front of an audience. */
