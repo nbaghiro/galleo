@@ -1,4 +1,5 @@
 import type { ArtifactContent } from "@model/artifact";
+import type { Soundtrack, WorkspaceBed } from "@model/speech";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Region } from "@engine/node";
 import { MUSIC_VOLUME, parseTarget, scriptStale, sectionLinkId } from "@model/artifact";
@@ -40,7 +41,7 @@ import {
 import { Portal } from "solid-js/web";
 import { LiveLayer } from "./live";
 import { backdropHostStyle, SlideProgress } from "./section";
-import { FloatingBar } from "./overlay";
+import { FloatingBar, Popover } from "./overlay";
 import { Z } from "./z";
 import { IconButton, Spinner } from "./button";
 import { classifySwipe, pressOnContent, TAP_SLOP, tapZone } from "./gesture";
@@ -53,7 +54,6 @@ import {
     createSoundtrackPlayer,
     NarrationAudio,
     NarrationCaption,
-    SoundtrackLevels,
     type NarrationSource,
     type SoundtrackSource,
 } from "./narration";
@@ -69,6 +69,27 @@ type MotionCue = "none" | "forward" | "back" | "enter";
 export interface PresentHandle {
     reloadNarration(): Promise<void>;
 }
+
+/** One line in the bed picker: small, quiet, and legible over whatever is behind the bar. */
+const BedRow: Component<{
+    label: string;
+    hint?: string;
+    chosen?: boolean;
+    onPick: () => void;
+}> = (props) => (
+    <button
+        class="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12px] text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+        onClick={() => props.onPick()}
+    >
+        <span class="w-3 flex-none text-accent">{props.chosen ? "\u2713" : ""}</span>
+        <span class="min-w-0 flex-1 truncate">{props.label}</span>
+        <Show when={props.hint}>
+            <span class="flex-none text-[10px] text-white/40">{props.hint}</span>
+        </Show>
+    </button>
+);
+
+const none = (): Promise<null> => Promise.resolve(null);
 
 export const PresentSurface: Component<{
     artifact: ArtifactContent;
@@ -459,6 +480,31 @@ export const PresentSurface: Component<{
         onError: (m) => setPlayError(m),
     });
     const [showCaption, setShowCaption] = createSignal(false);
+    // the bed picker hangs off the music button; the shelf loads the first time it opens
+    const [pickingBed, setPickingBed] = createSignal(false);
+    const [shelf, setShelf] = createSignal<WorkspaceBed[]>([]);
+    let musicBtn: HTMLButtonElement | undefined;
+
+    const openBedPicker = (): void => {
+        setPickingBed(true);
+        const list = props.soundtrack?.shelf;
+        if (list)
+            void list()
+                .then(setShelf)
+                .catch(() => setShelf([]));
+    };
+
+    /** Choosing is the same act whichever row was pressed: swap what plays, close, report. */
+    const pickBed = (run: () => Promise<Soundtrack | null>): void => {
+        setPickingBed(false);
+        bed.setBusy(true);
+        void run()
+            .then((next) => bed.put(next))
+            .catch((e: unknown) =>
+                setPlayError(e instanceof Error ? e.message : "That music could not be started."),
+            )
+            .finally(() => bed.setBusy(false));
+    };
     // a press landed on a section that was never recorded, and it is being read in now
     const waiting = (): boolean => player.recording();
 
@@ -702,8 +748,8 @@ export const PresentSurface: Component<{
             <Show when={paged() && !showOverview()}>
                 <SlideProgress index={index()} total={total()} />
             </Show>
+            {/* narration is an element; the bed is a Web Audio graph and needs none */}
             <NarrationAudio mount={player.mount} />
-            <NarrationAudio mount={bed.mount} />
             <Show when={playError()}>
                 <div class="pointer-events-none absolute inset-x-0 bottom-24 z-raised flex justify-center px-6">
                     <p class="rounded-lg bg-black/70 px-3 py-2 text-[12px] text-[#ff9d9d] backdrop-blur-sm">
@@ -711,9 +757,6 @@ export const PresentSurface: Component<{
                     </p>
                 </div>
             </Show>
-            {/* the bed's own indicator, under the captions and over the bar: it needs no toggle
-                because it says one thing and stops saying it when the music stops */}
-            <SoundtrackLevels playing={bed.playing} />
             <Show when={showCaption()}>
                 <NarrationCaption caption={player.caption} />
             </Show>
@@ -816,9 +859,8 @@ export const PresentSurface: Component<{
                     </IconButton>
                     <span class="mx-1 h-4 w-px bg-white/15" />
                 </Show>
-                {/* A piece that already has a bed is playing it by now, so this turns it off. A
-                    piece with none shows the same button to whoever may edit: pressing it is what
-                    turns music on, and there is nowhere else in present to ask. */}
+                {/* Music never starts on its own, so this is always the way in: pressing it opens
+                    the list of beds, and pressing it again while one plays stops it. */}
                 <Show when={bed.offered()}>
                     <IconButton
                         size={ctrl()}
@@ -835,7 +877,8 @@ export const PresentSurface: Component<{
                                     ? "Music off"
                                     : "Background music"
                         }
-                        onClick={() => bed.toggle()}
+                        ref={(el) => (musicBtn = el)}
+                        onClick={() => (bed.playing() ? bed.stop() : openBedPicker())}
                     >
                         {/* Always the music note, whether the bed exists yet or not: the button is
                             about music, and an AI glyph here described how it gets made rather than
@@ -846,6 +889,44 @@ export const PresentSurface: Component<{
                             <Icon name="music" size={15} classList={{ sounding: bed.playing() }} />
                         </Show>
                     </IconButton>
+                    {/* Deliberately bare and dark: it sits over someone's work, so it borrows the
+                        bar's own surface rather than opening a panel of its own. */}
+                    <Popover
+                        anchor={() => musicBtn}
+                        open={pickingBed()}
+                        onClose={() => setPickingBed(false)}
+                        align="center"
+                        fixedWidth={196}
+                        bare
+                        panelClass="rounded-xl bg-black/70 p-1 backdrop-blur-md"
+                    >
+                        <BedRow
+                            label="No music"
+                            chosen={!bed.current()}
+                            onPick={() => pickBed(() => props.soundtrack?.choose?.(null) ?? none())}
+                        />
+                        <For each={shelf()}>
+                            {(b) => (
+                                <BedRow
+                                    label={b.name}
+                                    chosen={bed.current() === b.id}
+                                    onPick={() =>
+                                        pickBed(() => props.soundtrack?.choose?.(b.id) ?? none())
+                                    }
+                                />
+                            )}
+                        </For>
+                        <Show when={props.soundtrack?.composeForPiece}>
+                            <div class="my-1 h-px bg-white/12" />
+                            <BedRow
+                                label="Write one for this piece"
+                                hint="uses credits"
+                                onPick={() =>
+                                    pickBed(() => props.soundtrack?.composeForPiece?.() ?? none())
+                                }
+                            />
+                        </Show>
+                    </Popover>
                 </Show>
                 {/* One control until it is running: starting narration is the only thing to say
                     at that point. Once it speaks, pause and captions are the two things worth

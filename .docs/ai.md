@@ -930,6 +930,15 @@ There is no speaker-notes editor. Notes are written by the model, on demand, and
 notes pane; `SectionNotes.source` still distinguishes writing a person did, because rows predating
 this exist and must never be rewritten under them.
 
+**Narration follows the content; the bed does not.** A script is the words, so background preparation
+(`services/core/prepare.ts`) rewrites every section whose fingerprint has moved, and does it in one
+pass so a rewritten section still belongs to the argument its neighbours are making. A piece that
+gains a beat has its whole arc refreshed rather than only the newcomer, since the section before an
+insert would otherwise still hand over to whatever used to follow it. A bed is a mood, derived from
+the opening lines, so chasing edits would recompose a whole piece of music because slide nine gained
+a comma: it is composed once and left alone. Audio for a section that no longer exists, or for a
+script since rewritten, is pruned on the same pass.
+
 Synthesis itself is `services/core/ai/speech.ts`: always the `with-timestamps` endpoint, since the
 character alignment cannot be reconstructed afterwards and is what the caption overlay and the
 per-page step timing are built from. The cache key is

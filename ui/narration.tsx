@@ -1,6 +1,6 @@
 import type { Accessor, Component } from "solid-js";
 import { createEffect, createMemo, createSignal, on, onCleanup, For, Show } from "solid-js";
-import type { NarrationManifest, NarrationTrack, Soundtrack } from "@model/speech";
+import type { NarrationManifest, NarrationTrack, Soundtrack, WorkspaceBed } from "@model/speech";
 import { wordAt, wordSpans } from "@model/speech";
 import { duckedVolume } from "@model/artifact";
 import type { Surface } from "@model/ai";
@@ -32,6 +32,12 @@ export interface SoundtrackSource {
      * playback alone, which is all a link viewer should have over someone else's piece.
      */
     enable?(): Promise<Soundtrack | null>;
+    /** The workspace's shelf, so a piece can be given a different one without leaving present. */
+    shelf?(): Promise<WorkspaceBed[]>;
+    /** Put this bed on the piece, or take music off it entirely with null. */
+    choose?(bedId: string | null): Promise<Soundtrack | null>;
+    /** Commission one for this piece from what it says. */
+    composeForPiece?(): Promise<Soundtrack | null>;
 }
 
 /**
@@ -58,17 +64,77 @@ export function createSoundtrackPlayer(opts: {
     playing: Accessor<boolean>;
     /** True while the first press is building the bed. */
     busy: Accessor<boolean>;
+    /** Which bed is on the piece, so a picker can mark it. */
+    current: Accessor<string | undefined>;
+    setBusy(v: boolean): void;
+    /** Play this bed instead, or stop when the piece has none. */
+    put(next: Soundtrack | null): void;
     toggle(): void;
     stop(): void;
-    mount(el: HTMLAudioElement): void;
 } {
     const [track, setTrack] = createSignal<Soundtrack | null>(null);
     const [playing, setPlaying] = createSignal(false);
     const [busy, setBusy] = createSignal(false);
-    let audio: HTMLAudioElement | undefined;
     let startedAt = 0;
     let ducked = false;
 
+    /**
+     * Played through Web Audio rather than an <audio loop>.
+     *
+     * An element loops by seeking back to zero, and an MP3 carries encoder padding at both ends, so
+     * the seam is real silence: a bed that should run underneath a talk instead stops and restarts
+     * every time round. A buffer source loops sample-accurately, and `loopStart` can be moved past
+     * whatever silence the decoder left at the head of the file.
+     */
+    let ctx: AudioContext | undefined;
+    let gain: GainNode | undefined;
+    let source: AudioBufferSourceNode | undefined;
+    let buffer: AudioBuffer | undefined;
+    let decodedFor: string | undefined; // the url the buffer belongs to
+    let loopFrom = 0;
+
+    const audioCtx = (): AudioContext | undefined => {
+        if (ctx) return ctx;
+        try {
+            ctx = new AudioContext();
+            gain = ctx.createGain();
+            gain.gain.value = duckedVolume(opts.volume(), opts.speaking());
+            gain.connect(ctx.destination);
+            return ctx;
+        } catch {
+            return undefined; // no Web Audio here: the control simply never plays
+        }
+    };
+
+    /**
+     * Where the music actually begins. A decoder hands back the encoder's padding as leading
+     * silence, and looping over it inserts that silence every pass. Scanning the first moments for
+     * the first sample that is audible costs microseconds and removes the gap at its source.
+     */
+    const firstSound = (buf: AudioBuffer): number => {
+        const data = buf.getChannelData(0);
+        const limit = Math.min(data.length, Math.floor(buf.sampleRate * 0.5));
+        for (let i = 0; i < limit; i++) if (Math.abs(data[i]!) > 0.003) return i / buf.sampleRate;
+        return 0;
+    };
+
+    const decode = async (url: string): Promise<AudioBuffer | undefined> => {
+        if (decodedFor === url && buffer) return buffer;
+        const c = audioCtx();
+        if (!c) return undefined;
+        const bytes = await fetch(url, { credentials: "same-origin" }).then((r) => r.arrayBuffer());
+        buffer = await c.decodeAudioData(bytes);
+        decodedFor = url;
+        loopFrom = firstSound(buffer);
+        return buffer;
+    };
+
+    /**
+     * Reads what the piece has and stops there. Music never starts on its own: an earlier build
+     * played the bed as soon as a surface opened, on the grounds that the artifact had already been
+     * switched on, but that setting is sticky and the sound is not asked for again, so reopening a
+     * deck to check a slide filled the room. The button is the only way in.
+     */
     createEffect(
         on(
             () => opts.source(),
@@ -86,28 +152,51 @@ export function createSoundtrackPlayer(opts: {
         ),
     );
 
-    // the gain follows the voice, so the bed sits under it rather than fighting it
+    // The gain follows the voice, so the bed sits under it rather than fighting it. Ramped rather
+    // than set: a step change in level is heard as a click, where a quarter second reads as a mix.
     createEffect(() => {
         const speaking = opts.speaking();
         if (speaking && playing()) ducked = true;
         const level = duckedVolume(opts.volume(), speaking);
-        if (audio) audio.volume = level;
+        if (!gain || !ctx) return;
+        gain.gain.cancelScheduledValues(ctx.currentTime);
+        gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(level, ctx.currentTime + 0.25);
     });
+
+    // Fetching and decoding take a moment, and a stop or a different bed can land inside it. The
+    // token is what tells a resolved decode that nobody is waiting for it any more.
+    let startToken = 0;
 
     const start = (): void => {
         const t = track();
-        if (!audio || !t || playing()) return;
-        if (audio.src !== t.url) audio.src = t.url;
-        void audio.play().catch(() => setPlaying(false));
+        if (!t || playing()) return;
+        const c = audioCtx();
+        if (!c || !gain) return;
+        const token = ++startToken;
+        void (async () => {
+            try {
+                const buf = await decode(t.url);
+                if (!buf || token !== startToken) return;
+                // a context built before any gesture starts suspended; the press is the gesture
+                if (c.state === "suspended") await c.resume();
+                if (token !== startToken) return;
+                source = c.createBufferSource();
+                source.buffer = buf;
+                source.loop = true;
+                // past whatever silence the decoder left at the head, so the seam has none
+                source.loopStart = loopFrom;
+                source.loopEnd = buf.duration;
+                source.connect(gain!);
+                source.start(0, loopFrom);
+                // only now: the control should light when there is sound, not when there is intent
+                setPlaying(true);
+                if (!startedAt) startedAt = Date.now();
+            } catch {
+                setPlaying(false);
+            }
+        })();
     };
-
-    /**
-     * A piece with music on starts playing it when the surface opens: the switch is the artifact's,
-     * so making the viewer press a second one would be asking twice. Entering present is a click, so
-     * the document is usually activated and this is allowed; where it is not, the promise rejects,
-     * nothing happens, and the bar's button is the way in.
-     */
-    createEffect(on(track, (t) => t && start()));
 
     // One event per listen, on the way out, as narration does: a session is a row, not a stream.
     const report = (): void => {
@@ -125,7 +214,13 @@ export function createSoundtrackPlayer(opts: {
     };
 
     const stop = (): void => {
-        audio?.pause();
+        startToken++; // abandon a decode still in flight
+        try {
+            source?.stop();
+        } catch {
+            /* already stopped, which is the state we wanted */
+        }
+        source = undefined;
         setPlaying(false);
         report();
     };
@@ -158,26 +253,34 @@ export function createSoundtrackPlayer(opts: {
             .finally(() => setBusy(false));
     };
 
-    const mount = (el: HTMLAudioElement): void => {
-        audio = el;
-        el.loop = true;
-        el.volume = duckedVolume(opts.volume(), opts.speaking());
-        el.addEventListener("play", () => {
-            setPlaying(true);
-            if (!startedAt) startedAt = Date.now();
-        });
-        el.addEventListener("pause", () => setPlaying(false));
+    /**
+     * Swap what is playing, or stop if the piece now has nothing.
+     *
+     * This one does start playing, and it is the only path besides the button that does: picking a
+     * bed out of the list is someone asking to hear it. Opening a piece that already has music on
+     * is not, which is why nothing starts from `load`.
+     */
+    const put = (next: Soundtrack | null): void => {
+        stop();
+        setTrack(next);
+        if (next) start();
     };
 
-    onCleanup(stop);
+    onCleanup(() => {
+        stop();
+        void ctx?.close();
+    });
+
     return {
         ready: () => !!track(),
         offered: () => !!track() || !!opts.source()?.enable,
+        current: () => track()?.id,
         playing,
         busy,
+        setBusy,
+        put,
         toggle,
         stop,
-        mount,
     };
 }
 
@@ -492,58 +595,6 @@ export const NarrationAudio: Component<{ mount: (el: HTMLAudioElement) => void }
 );
 
 /** The spoken line, with the current word lifted. Off by default; the surface toggles it. */
-/**
- * What a bed has instead of captions. Narration can show its words; music can only show that it is
- * sounding, so this is a row of levels over the control bar: small, dim, and behind the work rather
- * than in front of it.
- *
- * The heights and beats are fixed rather than read off the audio. A real analyser would need Web
- * Audio around an element that currently just plays a URL, and at this size nobody is checking
- * whether the bars match the music: what has to be true is that it moves while sound is coming out
- * and stops when it is not.
- */
-const LEVELS = [
-    { h: 6, beat: "1.15s", delay: "-0.20s" },
-    { h: 10, beat: "0.95s", delay: "-0.65s" },
-    { h: 7, beat: "1.30s", delay: "0s" },
-    { h: 13, beat: "0.85s", delay: "-0.40s" },
-    { h: 9, beat: "1.10s", delay: "-0.75s" },
-    { h: 15, beat: "1.00s", delay: "-0.10s" },
-    { h: 8, beat: "1.25s", delay: "-0.55s" },
-    { h: 12, beat: "0.90s", delay: "-0.30s" },
-    { h: 6, beat: "1.20s", delay: "-0.70s" },
-    { h: 11, beat: "1.05s", delay: "-0.45s" },
-    { h: 7, beat: "0.95s", delay: "-0.05s" },
-];
-
-export const SoundtrackLevels: Component<{ playing: () => boolean }> = (props) => (
-    <Show when={props.playing()}>
-        {/* clears the control bar by riding the same offset it does: a fixed value would drift
-            wherever a home indicator pushes the bar up */}
-        <div
-            class="pointer-events-none absolute inset-x-0 z-raised flex justify-center"
-            style={{ bottom: "calc(1.25rem + env(safe-area-inset-bottom) + 3.5rem)" }}
-        >
-            {/* no plate behind it: a drop shadow is what keeps the bars legible over a light
-                section, and it costs nothing of the work underneath */}
-            <div class="flex items-end gap-1 [filter:drop-shadow(0_1px_2px_rgb(0_0_0/0.55))]">
-                <For each={LEVELS}>
-                    {(bar) => (
-                        <span
-                            class="bed-level w-[3px] rounded-full bg-white/60"
-                            style={{
-                                height: `${bar.h}px`,
-                                "--bed-beat": bar.beat,
-                                "animation-delay": bar.delay,
-                            }}
-                        />
-                    )}
-                </For>
-            </div>
-        </div>
-    </Show>
-);
-
 export const NarrationCaption: Component<{
     caption: () => { words: string[]; at: number } | null;
 }> = (props) => (

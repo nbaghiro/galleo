@@ -176,9 +176,11 @@ way and for the same reason: `@ui` may not fetch.
 - **The notes strip**: the preset picker and the bespoke action only, never playback.
 - **Export**: nothing at all, the same as narration. Export has no audio and this does not change that.
 
-**Autoplay still needs a gesture.** Browsers block audio without one, so a musical artifact opens on
-the same play-first state a narrated one does. Worth being honest about in the copy: "auto-playing" is
-one click away from true, always, and no amount of design changes that.
+**Autoplay was dropped.** It was built (a piece with music on started its bed as the surface opened)
+and then removed: the setting is sticky and the sound is not asked for again, so reopening a deck to
+check one slide filled the room with music nobody had requested this time. Browsers would have made
+it a gesture away regardless, but the deciding argument was that nobody wants it. The bar button is
+the only way music starts.
 
 ## 9. Entitlement and the switch
 

@@ -5,15 +5,23 @@ import type { ArtifactContent } from "@model/artifact";
 import { asContent } from "@model/artifact";
 import { featuresFor } from "@model/billing";
 import { gateShared, isResponse, requireWorkspace, type WorkspaceEnv } from "./middleware";
-import { isArtifactContent } from "@services/core/artifacts";
-import { audioFor, manifestFor, prepare, trackFor } from "@services/core/narration";
+import { isArtifactContent, updateArtifact } from "@services/core/artifacts";
+import { audioFor, manifestFor, prepare, trackFor, unitsFor } from "@services/core/narration";
 import {
     audioFor as bedAudio,
+    BedError,
+    bedBelongsTo,
     composeForArtifact,
+    composeForWorkspace,
     ensurePreset,
+    makeDefault,
     presets,
+    renameShelved,
     rowToTrack,
+    shelfFor,
+    shelve,
     soundtrackFor,
+    unshelve,
 } from "@services/core/soundtrack";
 import { DEFAULT_PRESET } from "@model/speech";
 import { DEFAULT_MS, MusicError, musicReady } from "@services/core/ai/music";
@@ -53,7 +61,6 @@ const audioUrl =
     };
 
 /** One unit is 1000 characters, so a run bills up to the nearest one and a cached run bills none. */
-const unitsFor = (chars: number): number => (chars > 0 ? Math.ceil(chars / 1000) : 0);
 
 /** Reads the stored content directly; the gate has already resolved who may see it. */
 async function contentOf(artifactId: string): Promise<ArtifactContent> {
@@ -64,7 +71,7 @@ async function contentOf(artifactId: string): Promise<ArtifactContent> {
     return asContent(row?.draftContent);
 }
 
-async function serveBed(trackId: string, artifactId: string): Promise<Response> {
+async function serveBed(trackId: string, artifactId?: string): Promise<Response> {
     const row = await bedAudio(trackId, artifactId);
     if (!row) return new Response("not found", { status: 404 });
     return new Response(Buffer.from(row.data, "base64"), {
@@ -230,6 +237,108 @@ narration.get("/music/presets", requireWorkspace, async (c) =>
     c.json({ presets: await presets() }),
 );
 
+/**
+ * The workspace's music shelf, the same surface its voice shelf has: what it keeps, what it reaches
+ * for by default, and a way to commission a new one from a description.
+ */
+const bedUrlFor = (id: string): string => `/api/music/beds/${id}`;
+
+narration.get("/music/shelf", requireWorkspace, async (c) =>
+    c.json({ beds: await shelfFor(c.get("ws").id, bedUrlFor) }),
+);
+
+/** One shelved bed's bytes. Shelf membership is the permission, so a stranger's id serves nothing. */
+narration.get("/music/beds/:id", requireWorkspace, async (c) => {
+    const shelf = await shelfFor(c.get("ws").id, bedUrlFor);
+    const wanted = c.req.param("id");
+    if (!shelf.some((b) => b.id === wanted)) return c.json({ error: "not found" }, 404);
+    return await serveBed(wanted);
+});
+
+const zShelve = z.object({ presetId: z.string().optional(), name: z.string().optional() });
+
+/** Put a house preset on the shelf, building it if this deployment has never used it. */
+narration.post("/music/shelf", requireWorkspace, async (c) => {
+    if (!musicReady()) return c.json({ error: "music is not configured on this server" }, 503);
+    const ws = c.get("ws");
+    if (!featuresFor(ws).backgroundMusic)
+        return c.json({ error: "Background music needs a higher plan.", upgrade: true }, 402);
+    const body = await readJson(c, zShelve);
+    if (!body?.presetId) return c.json({ error: "which preset" }, 400);
+
+    const held = await reserve(ws, c.get("user").id, "compose-soundtrack", {
+        size: { musicMinutes: 1 },
+        rates: ratesFor(ws, {}),
+        role: c.get("role"),
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
+
+    return held.settle(async (billed) => {
+        try {
+            const out = await ensurePreset(body.presetId!);
+            billed({ music: out.chars ? Math.max(1, Math.ceil(out.chars / 60_000)) : 0 });
+            await shelve(ws.id, out.row.id, { ...(body.name ? { name: body.name } : {}) });
+            return c.json({ beds: await shelfFor(ws.id, bedUrlFor) });
+        } catch (e) {
+            billed({ music: 0 });
+            const status = e instanceof MusicError ? e.status : 502;
+            return c.json({ error: e instanceof Error ? e.message : "music failed" }, status);
+        }
+    });
+});
+
+const zCompose = z.object({ description: z.string().optional() });
+
+/** Commission a bed from a written description: the music half of designing a voice. */
+narration.post("/music/shelf/compose", requireWorkspace, async (c) => {
+    if (!musicReady()) return c.json({ error: "music is not configured on this server" }, 503);
+    const ws = c.get("ws");
+    if (!featuresFor(ws).backgroundMusic)
+        return c.json({ error: "Background music needs a higher plan.", upgrade: true }, 402);
+    const body = await readJson(c, zCompose);
+    const said = body?.description?.trim();
+    if (!said) return c.json({ error: "say what it should sound like" }, 400);
+
+    const held = await reserve(ws, c.get("user").id, "compose-soundtrack", {
+        size: { musicMinutes: 1 },
+        rates: ratesFor(ws, {}),
+        role: c.get("role"),
+        surface: "direct",
+    });
+    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
+
+    return held.settle(async (billed) => {
+        try {
+            const out = await composeForWorkspace(ws.id, said);
+            billed({ music: out.ms ? Math.max(1, Math.ceil(out.ms / 60_000)) : 0 });
+            return c.json({ beds: await shelfFor(ws.id, bedUrlFor) });
+        } catch (e) {
+            billed({ music: 0 });
+            const status = e instanceof MusicError || e instanceof BedError ? e.status : 502;
+            return c.json({ error: e instanceof Error ? e.message : "music failed" }, status);
+        }
+    });
+});
+
+const zBedPatch = z.object({ name: z.string().optional(), makeDefault: z.boolean().optional() });
+
+narration.patch("/music/shelf/:id", requireWorkspace, async (c) => {
+    const ws = c.get("ws").id;
+    const body = await readJson(c, zBedPatch);
+    if (!body) return c.json({ error: "invalid body" }, 400);
+    const id = c.req.param("id");
+    if (body.name !== undefined) await renameShelved(ws, id, body.name.trim().slice(0, 60));
+    if (body.makeDefault) await makeDefault(ws, id);
+    return c.json({ beds: await shelfFor(ws, bedUrlFor) });
+});
+
+narration.delete("/music/shelf/:id", requireWorkspace, async (c) => {
+    const ws = c.get("ws").id;
+    await unshelve(ws, c.req.param("id"));
+    return c.json({ beds: await shelfFor(ws, bedUrlFor) });
+});
+
 const zBed = z.object({
     content: z.custom<ArtifactContent>(isArtifactContent).optional(),
     preset: z.string().optional(), // absent with `custom` false means the default preset
@@ -293,6 +402,37 @@ narration.post("/artifacts/:id/soundtrack", requireWorkspace, async (c) => {
             const status = e instanceof MusicError ? e.status : 502;
             return c.json({ error: e instanceof Error ? e.message : "music failed" }, status);
         }
+    });
+});
+
+const zChoose = z.object({ bedId: z.string().nullable().optional() });
+
+/** Put a bed from the workspace's shelf on one piece, or take music off it with null. */
+narration.post("/artifacts/:id/soundtrack/choose", requireWorkspace, async (c) => {
+    const id = c.req.param("id");
+    const gate = await gateShared(c, id, "edit");
+    if (isResponse(gate)) return gate;
+    const body = await readJson(c, zChoose);
+    if (!body) return c.json({ error: "invalid body" }, 400);
+
+    const content = await contentOf(id);
+    const bedId = body.bedId ?? null;
+    if (bedId) {
+        // Two ways a piece may play a bed: the workspace keeps it on the shelf, or it was written
+        // for this piece. The second is not shelved and never will be, so checking only the shelf
+        // refused an artifact the music it had just commissioned for itself.
+        const shelf = await shelfFor(gate.ws.id, bedUrlFor);
+        const allowed = shelf.some((b) => b.id === bedId) || (await bedBelongsTo(bedId, id));
+        if (!allowed) return c.json({ error: "that music is not this workspace's" }, 404);
+    }
+    const next = bedId ? { on: true, trackId: bedId } : { on: false };
+    await updateArtifact(gate.ws.id, id, { draftContent: { ...content, music: next } });
+    return c.json({
+        track: await soundtrackFor(
+            { ...content, music: next },
+            id,
+            (t) => `/api/artifacts/${id}/soundtrack/${t}`,
+        ),
     });
 });
 

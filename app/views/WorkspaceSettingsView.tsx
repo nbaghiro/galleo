@@ -7,11 +7,12 @@ import { sellsSeats } from "@model/billing";
 import { Avatar } from "@ui/avatar";
 import { CreditActivity, previewEntries } from "@app/components/CreditActivity";
 import { VoiceShelf } from "@app/components/VoiceShelf";
+import { MusicShelf } from "@app/components/MusicShelf";
 import { SettingsSection as Section, useSettingsTab } from "@app/components/settings";
 import { Tabs } from "@ui/tabs";
 import { can } from "@app/stores/features";
 import { Button, Eyebrow, Spinner } from "@ui/button";
-import { TextField } from "@ui/inputs";
+import { TextField, Toggle } from "@ui/inputs";
 import { Dropdown } from "@ui/select";
 import { Meter } from "@ui/status";
 import { ConfirmModal } from "@ui/overlay";
@@ -486,6 +487,17 @@ export const WorkspaceSettingsView: Component = () => {
                                         <Section title="Policies">
                                             <div class="rounded-xl border border-line bg-panel px-4 py-1">
                                                 <PolicyRow
+                                                    label="Get pieces ready to narrate"
+                                                    hint="Writes the speaker notes and records the voice in the background, so present plays straight away. It spends credits on pieces nobody has played yet."
+                                                >
+                                                    <Toggle
+                                                        value={state().workspace.prepareAudio}
+                                                        onChange={(v) =>
+                                                            void savePolicy({ prepareAudio: v })
+                                                        }
+                                                    />
+                                                </PolicyRow>
+                                                <PolicyRow
                                                     label="Default access to new work"
                                                     hint="What everyone else in the workspace gets on an artifact that sets no level of its own. The person who made it, and admins, always keep full access."
                                                 >
@@ -540,6 +552,12 @@ export const WorkspaceSettingsView: Component = () => {
                                     <Section title="Voice">
                                         <VoiceShelf canDesign={can("voiceDesign")} />
                                     </Section>
+
+                                    <Show when={can("backgroundMusic")}>
+                                        <Section title="Music">
+                                            <MusicShelf />
+                                        </Section>
+                                    </Show>
                                 </Show>
 
                                 <Show when={tab() === "billing"}>

@@ -266,6 +266,28 @@ export const EditorView: Component = () => {
                 artifactId && allowed
                     ? {
                           load: () => api.soundtrack(artifactId),
+                          shelf: () => api.musicShelf(),
+                          // through the editor's own commit, so the choice is an edit like any other
+                          choose: async (bedId: string | null) => {
+                              const track = await api.setArtifactBed(artifactId, bedId);
+                              commit(
+                                  setArtifactMusic(
+                                      editor.artifact,
+                                      bedId ? { on: true, trackId: bedId } : { on: false },
+                                  ),
+                              );
+                              return track;
+                          },
+                          composeForPiece: async () => {
+                              const { trackId } = await api.composeSoundtrack(artifactId, {
+                                  custom: true,
+                                  content: editor.artifact,
+                              });
+                              const track = await api.setArtifactBed(artifactId, trackId);
+                              commit(setArtifactMusic(editor.artifact, { on: true, trackId }));
+                              void loadBilling();
+                              return track;
+                          },
                           // starting music from the present bar writes through the editor's own commit,
                           // so the open picker and the undo stack see it like any other edit
                           ...(canEdit()

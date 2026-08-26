@@ -443,7 +443,7 @@ export interface Events {
     // Background music. The preset id is ours rather than the customer's words, so it travels; a
     // custom bed's prompt is derived from their content and never does.
     soundtrack_chosen: {
-        source: "preset" | "custom";
+        source: "preset" | "workspace" | "custom";
         preset?: string;
         cached: boolean; // the deployment already had this bed, so nothing was generated
         credits_charged: number;
@@ -452,7 +452,7 @@ export interface Events {
     soundtrack_played: {
         where: "present" | "publish";
         artifact_format: Surface;
-        source: "preset" | "custom";
+        source: "preset" | "workspace" | "custom";
         with_narration: boolean; // whether it spent the session ducked under a voice
         ms: number;
     };

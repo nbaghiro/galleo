@@ -88,11 +88,16 @@ function completion(p: string): string {
     const notesFor = /Write notes for these sections\n(.+)/.exec(p);
     if (notesFor)
         return JSON.stringify({
-            notes: [...notesFor[1]!.matchAll(/\[([^\]]+)\]/g)].map((m) => ({
-                sectionId: m[1],
-                spoken: `Scripted script for ${m[1]}.`,
-                cues: [],
-            })),
+            notes: (() => {
+                const ids = [...notesFor[1]!.matchAll(/\[([^\]]+)\]/g)].map((m) => m[1]);
+                // the count rides in the text so a test can tell "written alone" from "written as
+                // part of a pass", which is the whole difference continuity depends on
+                return ids.map((id) => ({
+                    sectionId: id,
+                    spoken: `Scripted script for ${id} of ${ids.length}.`,
+                    cues: [],
+                }));
+            })(),
         });
     if (/section ideas/.test(p))
         return JSON.stringify({

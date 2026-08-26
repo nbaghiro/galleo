@@ -45,7 +45,7 @@ export const musicReady = (): boolean => !!process.env.ELEVENLABS_API_KEY;
  * Written as beds, not as songs. Every one says what it must NOT do, because the failure mode of a
  * generated backing track is a tune that competes with the person talking over it.
  */
-const BED_RULES =
+export const BED_RULES =
     "Instrumental only, no vocals, no lyrics. Give it a clear repeating musical idea with warmth " +
     "and gentle momentum, played so it can be heard rather than sitting in the far background. " +
     "Keep the level even throughout: no long silences, no sudden drops, nothing that spikes. " +

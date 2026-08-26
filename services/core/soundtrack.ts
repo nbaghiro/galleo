@@ -1,12 +1,13 @@
 import { and, eq, isNull, ne } from "drizzle-orm";
 import type { ArtifactContent, Id } from "@model/artifact";
-import type { Soundtrack } from "@model/speech";
+import type { Soundtrack, WorkspaceBed } from "@model/speech";
 import { DEFAULT_PRESET } from "@model/speech";
 import { THEMES } from "@themes";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { themeById } from "@services/core/themes";
 import {
+    BED_RULES,
     clampMs,
     compose,
     DEFAULT_MS,
@@ -208,10 +209,25 @@ export async function soundtrackFor(
     return row ? rowToTrack(row, urlFor(row.id)) : null;
 }
 
+/**
+ * Whether a bed was written for this piece. The other way to be allowed to play one is to have it on
+ * the workspace's shelf, which the caller checks separately: a bed composed for one artifact is
+ * never shelved, so shelf membership alone would refuse a piece its own music.
+ */
+export async function bedBelongsTo(bedId: string, artifactId: string): Promise<boolean> {
+    const [row] = await db
+        .select({ source: schema.soundtracks.source, artifactId: schema.soundtracks.artifactId })
+        .from(schema.soundtracks)
+        .where(eq(schema.soundtracks.id, bedId));
+    return row?.source === "custom" && row.artifactId === artifactId;
+}
+
 /** One bed's bytes. Presets are install-wide, so a custom row is the only one tied to an artifact. */
 export async function audioFor(
     trackId: string,
-    artifactId: string,
+    // absent for a shelf bed, which belongs to a workspace rather than to a piece; a custom bed is
+    // then refused, since the artifact it belongs to cannot match "no artifact"
+    artifactId?: string,
 ): Promise<{ data: string; mime: string } | null> {
     const [row] = await db
         .select()
@@ -231,3 +247,240 @@ export const orphanedPresets = async (): Promise<number> => {
         .where(and(eq(schema.soundtracks.source, "custom"), isNull(schema.soundtracks.artifactId)));
     return rows.length;
 };
+
+// ---- The workspace's shelf -------------------------------------------------------------------
+//
+// The same shape the voice shelf has, for the same reason: a house preset belongs to the whole
+// deployment, so what one workspace did with it (named it, made it the default) is a fact about the
+// pairing rather than about the bed.
+
+export class BedError extends Error {
+    constructor(
+        message: string,
+        readonly status: 402 | 404 | 502 | 503,
+    ) {
+        super(message);
+    }
+}
+
+/** What a shelved bed is called: the workspace's own name for it, else what it is. */
+const bedName = (row: typeof schema.soundtracks.$inferSelect, renamed: string | null): string => {
+    if (renamed?.trim()) return renamed.trim();
+    const preset = row.preset ? presetById(row.preset) : undefined;
+    if (preset) return preset.name;
+    return row.prompt.slice(0, 60);
+};
+
+export async function shelfFor(
+    workspaceId: string,
+    urlFor: (id: Id) => string,
+): Promise<WorkspaceBed[]> {
+    const rows = await db
+        .select({ bed: schema.soundtracks, link: schema.workspaceSoundtracks })
+        .from(schema.workspaceSoundtracks)
+        .innerJoin(
+            schema.soundtracks,
+            eq(schema.soundtracks.id, schema.workspaceSoundtracks.soundtrackId),
+        )
+        .where(eq(schema.workspaceSoundtracks.workspaceId, workspaceId));
+    return rows
+        .map(({ bed, link }) => ({
+            ...rowToTrack(bed, urlFor(bed.id)),
+            name: bedName(bed, link.name),
+            isDefault: link.isDefault,
+        }))
+        .sort((a, b) => Number(b.isDefault) - Number(a.isDefault) || a.name.localeCompare(b.name));
+}
+
+const clearDefault = async (workspaceId: string): Promise<void> => {
+    await db
+        .update(schema.workspaceSoundtracks)
+        .set({ isDefault: false })
+        .where(
+            and(
+                eq(schema.workspaceSoundtracks.workspaceId, workspaceId),
+                eq(schema.workspaceSoundtracks.isDefault, true),
+            ),
+        );
+};
+
+/** The first bed on an empty shelf becomes the default, so a workspace is never left without one. */
+export async function shelve(
+    workspaceId: string,
+    soundtrackId: string,
+    opts: { name?: string; makeDefault?: boolean } = {},
+): Promise<void> {
+    const held = await db
+        .select({ id: schema.workspaceSoundtracks.soundtrackId })
+        .from(schema.workspaceSoundtracks)
+        .where(eq(schema.workspaceSoundtracks.workspaceId, workspaceId));
+    const asDefault = opts.makeDefault || held.length === 0;
+    if (asDefault) await clearDefault(workspaceId);
+    await db
+        .insert(schema.workspaceSoundtracks)
+        .values({ workspaceId, soundtrackId, name: opts.name, isDefault: asDefault })
+        .onConflictDoUpdate({
+            target: [
+                schema.workspaceSoundtracks.workspaceId,
+                schema.workspaceSoundtracks.soundtrackId,
+            ],
+            set: { ...(opts.name ? { name: opts.name } : {}), isDefault: asDefault },
+        });
+}
+
+export async function renameShelved(
+    workspaceId: string,
+    soundtrackId: string,
+    name: string,
+): Promise<void> {
+    await db
+        .update(schema.workspaceSoundtracks)
+        .set({ name })
+        .where(
+            and(
+                eq(schema.workspaceSoundtracks.workspaceId, workspaceId),
+                eq(schema.workspaceSoundtracks.soundtrackId, soundtrackId),
+            ),
+        );
+}
+
+export async function makeDefault(workspaceId: string, soundtrackId: string): Promise<void> {
+    await clearDefault(workspaceId);
+    await db
+        .update(schema.workspaceSoundtracks)
+        .set({ isDefault: true })
+        .where(
+            and(
+                eq(schema.workspaceSoundtracks.workspaceId, workspaceId),
+                eq(schema.workspaceSoundtracks.soundtrackId, soundtrackId),
+            ),
+        );
+}
+
+/**
+ * Take a bed off the shelf. Unlike a voice, a workspace may keep none: a piece with no bed simply
+ * plays no music, where a piece with no voice cannot be narrated at all. Removing the default
+ * promotes whatever is left rather than leaving a shelf that has beds but no default.
+ */
+export async function unshelve(workspaceId: string, soundtrackId: string): Promise<void> {
+    const held = await db
+        .select({
+            id: schema.workspaceSoundtracks.soundtrackId,
+            isDefault: schema.workspaceSoundtracks.isDefault,
+        })
+        .from(schema.workspaceSoundtracks)
+        .where(eq(schema.workspaceSoundtracks.workspaceId, workspaceId));
+    const row = held.find((h) => h.id === soundtrackId);
+    if (!row) return;
+    await db
+        .delete(schema.workspaceSoundtracks)
+        .where(
+            and(
+                eq(schema.workspaceSoundtracks.workspaceId, workspaceId),
+                eq(schema.workspaceSoundtracks.soundtrackId, soundtrackId),
+            ),
+        );
+    // a workspace-composed bed exists only for its shelf, so taking it off is deleting it
+    await db
+        .delete(schema.soundtracks)
+        .where(
+            and(
+                eq(schema.soundtracks.id, soundtrackId),
+                eq(schema.soundtracks.source, "workspace"),
+            ),
+        );
+    if (!row.isDefault) return;
+    const next = held.find((h) => h.id !== soundtrackId);
+    if (next) await makeDefault(workspaceId, next.id);
+}
+
+/**
+ * A bed composed from a description someone typed, which is the music half of designing a voice.
+ * Shelved on the way out, so the thing they just paid for is theirs to reuse.
+ */
+export async function composeForWorkspace(
+    workspaceId: string,
+    description: string,
+    fetchFn?: typeof fetch,
+): Promise<{ row: typeof schema.soundtracks.$inferSelect; ms: number }> {
+    const said = description.trim().slice(0, 400);
+    if (!said) throw new BedError("say what it should sound like", 502);
+    const prompt = `${said}. ${BED_RULES}`;
+    const hash = musicHash(prompt, DEFAULT_MS, MUSIC_MODEL);
+
+    const [held] = await db
+        .select()
+        .from(schema.soundtracks)
+        .where(
+            and(eq(schema.soundtracks.workspaceId, workspaceId), eq(schema.soundtracks.hash, hash)),
+        );
+    if (held) {
+        await shelve(workspaceId, held.id, { name: said });
+        return { row: held, ms: 0 };
+    }
+
+    const out = await compose(prompt, DEFAULT_MS, fetchFn);
+    const [row] = await db
+        .insert(schema.soundtracks)
+        .values({
+            source: "workspace",
+            workspaceId,
+            prompt,
+            hash,
+            modelId: MUSIC_MODEL,
+            mime: out.mime,
+            data: out.audio.toString("base64"),
+            bytes: out.audio.byteLength,
+            ms: out.ms,
+        })
+        .returning();
+    if (!row) throw new BedError("the bed could not be saved", 502);
+    await shelve(workspaceId, row.id, { name: said });
+    return { row, ms: out.ms };
+}
+
+/** The bed this workspace reaches for when a piece names none of its own. */
+export async function defaultBed(
+    workspaceId: string,
+): Promise<typeof schema.soundtracks.$inferSelect | undefined> {
+    const [row] = await db
+        .select({ bed: schema.soundtracks })
+        .from(schema.workspaceSoundtracks)
+        .innerJoin(
+            schema.soundtracks,
+            eq(schema.soundtracks.id, schema.workspaceSoundtracks.soundtrackId),
+        )
+        .where(
+            and(
+                eq(schema.workspaceSoundtracks.workspaceId, workspaceId),
+                eq(schema.workspaceSoundtracks.isDefault, true),
+            ),
+        );
+    return row?.bed;
+}
+
+/**
+ * Fill every demo workspace's shelf, the music half of `seedShelf` in core/voices.ts.
+ *
+ * The presets are install-wide, and the seed never clears the catalog (it deletes a workspace's
+ * artifacts and themes, not the beds every workspace shares), so the composing happens once per
+ * environment and every reseed after that just re-inserts the shelf rows. Without a music-capable
+ * key this is a no-op and the demo simply opens with an empty shelf, exactly as narration does.
+ */
+export async function seedMusicShelf(
+    workspaces: readonly { id: string; music: boolean }[],
+    fetchFn: typeof fetch = fetch,
+): Promise<number> {
+    if (!process.env.ELEVENLABS_API_KEY || !workspaces.length) return 0;
+    const shelves = workspaces.filter((w) => w.music);
+    if (!shelves.length) return 0;
+
+    let composed = 0;
+    for (const preset of MUSIC_PRESETS) {
+        const out = await ensurePreset(preset.id, fetchFn);
+        if (out.chars) composed++; // zero means this deployment already had it
+        // the default preset lands first, so it is the one `shelve` makes the default
+        for (const ws of shelves) await shelve(ws.id, out.row.id);
+    }
+    return composed;
+}

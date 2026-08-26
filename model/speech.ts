@@ -91,14 +91,26 @@ export interface DesignedCandidate {
     ms: number;
 }
 
-/** The instrumental bed a piece plays while it is presented. */
+/**
+ * The instrumental bed a piece plays while it is presented.
+ *
+ * `preset` is one of the house set, generated once for the whole deployment; `workspace` was
+ * composed from a description someone typed and is reusable across their pieces; `custom` was
+ * written for one artifact from what that piece says.
+ */
 export interface Soundtrack {
     id: Id;
-    source: "preset" | "custom";
+    source: "preset" | "workspace" | "custom";
     preset?: string;
     prompt: string;
     ms: number;
     url: string;
+}
+
+/** A bed on a workspace's shelf: the catalog row plus what this workspace did with it. */
+export interface WorkspaceBed extends Soundtrack {
+    name: string; // the preset's label, or the description it was composed from, or a rename
+    isDefault: boolean;
 }
 
 /**

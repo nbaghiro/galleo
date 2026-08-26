@@ -227,6 +227,76 @@ describe("POST /artifacts/:id/soundtrack", () => {
     });
 });
 
+describe("POST /artifacts/:id/soundtrack/choose", () => {
+    /**
+     * The exact sequence "Write one for this piece" runs: compose a bed scoped to this artifact,
+     * then put it on the artifact. A bed written for one piece is never on the workspace's shelf, so
+     * checking shelf membership alone refused the piece the music it had just paid for.
+     */
+    it("accepts a bed this piece just had written for it", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const artifactId = await seedArtifact(workspaceId);
+        const made = await authed(
+            userId,
+            `/artifacts/${artifactId}/soundtrack`,
+            jsonInit("POST", { custom: true }),
+        );
+        const { trackId } = (await made.json()) as { trackId: string };
+
+        const res = await authed(
+            userId,
+            `/artifacts/${artifactId}/soundtrack/choose`,
+            jsonInit("POST", { bedId: trackId }),
+        );
+        expect(res.status).toBe(200);
+        expect(((await res.json()) as { track: Soundtrack }).track.id).toBe(trackId);
+    });
+
+    it("takes music off the piece when given nothing", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const artifactId = await seedArtifact(workspaceId);
+        const made = await authed(
+            userId,
+            `/artifacts/${artifactId}/soundtrack`,
+            jsonInit("POST", { custom: true }),
+        );
+        const { trackId } = (await made.json()) as { trackId: string };
+        await authed(
+            userId,
+            `/artifacts/${artifactId}/soundtrack/choose`,
+            jsonInit("POST", { bedId: trackId }),
+        );
+
+        const off = await authed(
+            userId,
+            `/artifacts/${artifactId}/soundtrack/choose`,
+            jsonInit("POST", { bedId: null }),
+        );
+        expect(off.status).toBe(200);
+        expect((await off.json()) as { track: null }).toEqual({ track: null });
+    });
+
+    // another piece's bed is still refused: belonging to THIS artifact is what earns it
+    it("refuses a bed written for a different piece", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const mine = await seedArtifact(workspaceId);
+        const theirs = await seedArtifact(workspaceId);
+        const made = await authed(
+            userId,
+            `/artifacts/${theirs}/soundtrack`,
+            jsonInit("POST", { custom: true }),
+        );
+        const { trackId } = (await made.json()) as { trackId: string };
+
+        const res = await authed(
+            userId,
+            `/artifacts/${mine}/soundtrack/choose`,
+            jsonInit("POST", { bedId: trackId }),
+        );
+        expect(res.status).toBe(404);
+    });
+});
+
 describe("GET /artifacts/:id/soundtrack", () => {
     it("is nothing until the artifact turns music on", async () => {
         const { userId, workspaceId } = await seedUser({ plan: "pro" });

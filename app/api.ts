@@ -55,6 +55,7 @@ import type {
     NarrationManifest,
     NarrationTrack,
     Soundtrack,
+    WorkspaceBed,
     VoiceQuery,
     WorkspaceVoice,
 } from "@model/speech";
@@ -150,6 +151,7 @@ export interface WorkspaceState {
         defaultArtifactAccess: ArtifactAccess;
         publishPolicy: PublishPolicy;
         memberCreditCap: number | null;
+        prepareAudio: boolean;
     };
     role: WorkspaceRole;
     members: WorkspaceMember[];
@@ -514,6 +516,33 @@ export const api = {
                 body: JSON.stringify(body),
             },
         ),
+    // the workspace's music shelf, the same surface its voices have
+    // put a shelved bed (or none) on one piece
+    setArtifactBed: (id: string, bedId: string | null) =>
+        req<{ track: Soundtrack | null }>(`/artifacts/${id}/soundtrack/choose`, {
+            method: "POST",
+            body: JSON.stringify({ bedId }),
+        }).then((r) => r.track),
+    musicShelf: () => req<{ beds: WorkspaceBed[] }>("/music/shelf").then((r) => r.beds),
+    shelveBed: (presetId: string) =>
+        req<{ beds: WorkspaceBed[] }>("/music/shelf", {
+            method: "POST",
+            body: JSON.stringify({ presetId }),
+        }).then((r) => r.beds),
+    composeBed: (description: string) =>
+        req<{ beds: WorkspaceBed[] }>("/music/shelf/compose", {
+            method: "POST",
+            body: JSON.stringify({ description }),
+        }).then((r) => r.beds),
+    patchBed: (id: string, patch: { name?: string; makeDefault?: boolean }) =>
+        req<{ beds: WorkspaceBed[] }>(`/music/shelf/${id}`, {
+            method: "PATCH",
+            body: JSON.stringify(patch),
+        }).then((r) => r.beds),
+    removeBed: (id: string) =>
+        req<{ beds: WorkspaceBed[] }>(`/music/shelf/${id}`, { method: "DELETE" }).then(
+            (r) => r.beds,
+        ),
     voices: () => req<{ voices: WorkspaceVoice[] }>("/voices").then((r) => r.voices),
     voiceLibrary: (q: VoiceQuery) => {
         const p = new URLSearchParams();
@@ -832,6 +861,7 @@ export const api = {
         defaultArtifactAccess?: ArtifactAccess;
         publishPolicy?: PublishPolicy;
         memberCreditCap?: number | null;
+        prepareAudio?: boolean;
     }) => req<{ ok: true }>("/workspace", { method: "PATCH", body: JSON.stringify(patch) }),
     // null clears the artifact back to inheriting the workspace default
     setArtifactAccess: (id: string, access: ArtifactAccess | null) =>
