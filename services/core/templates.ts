@@ -6559,6 +6559,561 @@ export const trendsReport: ArtifactContent = doc(
 
 // keyed by the same ids as @model/workspace's TEMPLATE_INDEX; a missing key is a 404, so the two
 // must stay in sync (the index is the client-facing half, this is the body half)
+// ---- everyday documents
+
+// A dish line: name left, price right, an optional note under. The between-row is what a menu is.
+const dish = (name: string, price: string, note?: string): ElementInstance =>
+    group(
+        row({ justify: "between", align: "start" }, t(name, "h3"), fitW(t(price, "h3"))),
+        ...(note ? [t(note, "caption")] : []),
+    );
+
+export const restaurantMenu: ArtifactContent = doc(
+    "vellum",
+    [
+        section(
+            "cover",
+            group(
+                t("THE QUINCE · PORTLAND", "label"),
+                t("Dinner", "h1"),
+                t(
+                    "Late autumn. The menu changes when the farms do; this one is three weeks old and proud of it.",
+                    "subtitle",
+                ),
+                t("5:30 to 10, Tuesday through Sunday · 1214 SE Ankeny", "caption"),
+            ),
+            { background: bgImage(pic(999, 1700, 1100), 0.6) },
+        ),
+        section(
+            "note",
+            split(
+                60,
+                group(
+                    t("FROM THE KITCHEN", "label"),
+                    t(
+                        "Nearly everything on this page was grown within forty miles of the room you are sitting in. The menu is short because the walk-in is honest: when the last of the delicata goes, so does the dish. Ask about anything; the kitchen likes talking.",
+                        "body",
+                    ),
+                    t("June Aldana, chef & owner", "caption"),
+                ),
+                img(pic(292), 0.82),
+            ),
+        ),
+        section(
+            "starters",
+            group(
+                t("TO START", "label"),
+                dish("Sourdough, cultured butter", "7"),
+                dish("Charred leeks, romesco, hazelnut", "14"),
+                dish("Chicories, anchovy, pecorino, breadcrumb", "15"),
+                dish("Squash agnolotti, brown butter, sage", "19", "add shaved truffle for 9"),
+                dish("Albacore crudo, quince, chili oil", "18"),
+            ),
+        ),
+        section(
+            "farms",
+            group(
+                t("THE FARMS", "label"),
+                t("Three farms, forty miles.", "h2"),
+                t(
+                    "Winterspring on Sauvie Island grows the greens and roots. Broken Fence in Yamhill raises the pork and the eggs. The fruit comes from Quince Hill above Hood River, the orchard that named the room.",
+                    "body",
+                ),
+            ),
+            { background: bgImage(pic(674, 1700, 1100), 0.55) },
+        ),
+        section(
+            "mains",
+            group(
+                t("MAINS", "label"),
+                dish("Half chicken, schmaltz potatoes, salsa verde", "29"),
+                dish("Whole trout, brown butter, capers, lemon", "32"),
+                dish("Pork chop, braised cabbage, mustard, apple", "34"),
+                dish("Mushroom cavatelli, garlic confit, parmesan", "26"),
+                dish("Coulotte steak, charred onion, marrow butter", "38", "for two, add 30"),
+            ),
+        ),
+        section(
+            "dessert",
+            group(
+                t("TO FINISH", "label"),
+                dish("Quince tarte tatin, crème fraîche", "12"),
+                dish("Chocolate pot de crème, olive oil, salt", "11"),
+                dish("Affogato", "8"),
+                dish("Coffee, batch or espresso", "4"),
+                dish("Amaro, rotating shelf", "9"),
+                dish("Tea from the jars on the wall", "5"),
+            ),
+        ),
+        section(
+            "wine",
+            group(
+                t("WINE", "label"),
+                t("Short list, long thought.", "h2"),
+                table(
+                    "Wine,Glass,Bottle\nGamay · Willamette,14,52\nMelon · Loire,13,48\nNerello · Etna,15,58\nChenin pét-nat · Anjou,14,50\nOloroso · Jerez,9,36",
+                ),
+                t("The full cellar list lives in a binder; ask and it appears.", "caption"),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("Corkage 25 · No cake fee, bring the cake", "h3"),
+                t(
+                    "A 20% service charge is included, and all of it goes to the whole team.",
+                    "caption",
+                ),
+                linked(
+                    "caption",
+                    "Reservations: ",
+                    ["thequince.com", "https://thequince.com"],
+                    " · ",
+                    ["(503) 555-0177", "tel:+15035550177"],
+                    " · ",
+                    ["hello@thequince.com", "mailto:hello@thequince.com"],
+                ),
+            ),
+            { background: bgImage(pic(835, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(307, 1700, 1100), 0.3),
+);
+
+export const travelItinerary: ArtifactContent = doc(
+    "graphite",
+    [
+        section(
+            "cover",
+            group(
+                t("TRIP PLAN · OCTOBER 12 TO 17", "label"),
+                t("Five Days Around Iceland", "h1"),
+                t(
+                    "A ring-road plan for two: waterfalls before breakfast, black sand by noon, and a hot pool at the end of every drive.",
+                    "subtitle",
+                ),
+                t("Reykjavík to Vík to Höfn and back · 1,340 km", "caption"),
+            ),
+            { background: bgImage(pic(964, 1700, 1100), 0.5) },
+        ),
+        section(
+            "overview",
+            row(
+                stat("5", "days on the road"),
+                stat("1,340 km", "of ring road"),
+                stat("7", "waterfalls, minimum"),
+            ),
+        ),
+        section(
+            "day1",
+            split(
+                40,
+                img(pic(512), 1.05),
+                group(
+                    t("DAY 1 · SUNDAY", "label"),
+                    t("Land, float, recover.", "h2"),
+                    t(
+                        "The flight lands at 6:40. Pick up the car, drive twenty minutes, and let the jet lag dissolve in milk-blue water before the country is properly awake. Into the city by two: check in, walk the harbor, eat something warm, sleep early.",
+                        "body",
+                    ),
+                    t("Drive 98 km · Stay: Reykjavík, two nights", "caption"),
+                ),
+            ),
+        ),
+        section(
+            "day2",
+            split(
+                60,
+                group(
+                    t("DAY 2 · MONDAY", "label"),
+                    t("The Golden Circle, before the buses.", "h2"),
+                    t(
+                        "Leave at seven and do the loop in the quiet: the rift valley at Þingvellir, Geysir mid-eruption if it obliges, and Gullfoss loud enough to end conversation. Lunch at the tomato greenhouse, then the slow road home past the horses.",
+                        "body",
+                    ),
+                    t("Drive 240 km · Stay: Reykjavík", "caption"),
+                ),
+                img(pic(506), 0.82),
+            ),
+        ),
+        section(
+            "day3",
+            group(
+                t("DAY 3 · TUESDAY", "label"),
+                t("South, into waterfall country.", "h2"),
+                t(
+                    "The best single day of road in the country. Walk behind Seljalandsfoss and take the soaking, climb the steps at Skógafoss for the rainbow, then the black sand at Reynisfjara with the stacks offshore. Sleep in Vík under the church hill.",
+                    "body",
+                ),
+            ),
+            { background: bgImage(pic(928, 1700, 1100), 0.5) },
+        ),
+        section(
+            "day3-stops",
+            row(
+                group(
+                    img(pic(509), 0.8),
+                    t("Seljalandsfoss: the path goes behind the water.", "caption"),
+                ),
+                group(
+                    img(pic(515), 0.8),
+                    t("The Sólheimasandur wreck, an hour's flat walk each way.", "caption"),
+                ),
+                group(
+                    img(pic(1052), 0.8),
+                    t("Reynisdrangar from the beach. Respect the sneaker waves.", "caption"),
+                ),
+            ),
+        ),
+        section(
+            "day4",
+            split(
+                40,
+                img(pic(907), 1.05),
+                group(
+                    t("DAY 4 · WEDNESDAY", "label"),
+                    t("Glacier lagoon and the long light.", "h2"),
+                    t(
+                        "East along the sands to Jökulsárlón, where the icebergs drift out to meet the tide and wash back up on the black beach like cut glass. Langoustine in Höfn for dinner; the harbor shack, not the fancy one.",
+                        "body",
+                    ),
+                    t("Drive 272 km · Stay: Höfn", "caption"),
+                ),
+            ),
+        ),
+        section(
+            "day5",
+            split(
+                60,
+                group(
+                    t("DAY 5 · THURSDAY", "label"),
+                    t("The long way back.", "h2"),
+                    t(
+                        "Retrace the coast with the light going the other way, which makes it a different road. Stop where yesterday said no. A hot dog at the famous stand when the city returns, one last pool, pack the salt-crusted boots.",
+                        "body",
+                    ),
+                    t("Drive 456 km · Stay: Reykjavík · Flight out 10:50", "caption"),
+                ),
+                img(pic(514), 0.82),
+            ),
+        ),
+        section(
+            "aurora",
+            group(
+                t("Every clear night is an aurora night.", "h2"),
+                t(
+                    "Check the forecast at vedur.is; above Kp 4, drive out past the streetlights, cut the engine, and look north for twenty minutes before deciding it isn't happening.",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(901, 1700, 1100), 0.45) },
+        ),
+        section(
+            "bookings",
+            group(
+                t("BOOKINGS", "label"),
+                table(
+                    "Booking,Reference,Note\nFlights FI 642 / FI 643,KX93JX,Bags checked both ways\nHouse in Reykjavík,BNB-88214,Self check-in after 3\nGuesthouse Höfn,GH-2210,Breakfast included\n4x4 rental · Dacia Duster,ICE-77015,Gravel cover added",
+                ),
+            ),
+        ),
+        section(
+            "packing",
+            group(
+                t("THE LIST", "label"),
+                t("Pack layers, not bulk.", "h3"),
+                bullets(
+                    "Wool base, fleece, shell; nothing cotton",
+                    "Swimsuit and a quick-dry towel, always in the day bag",
+                    "Microspikes for the waterfall paths",
+                    "Sunglasses for the low sun, headlamp for the early starts",
+                    "The card that waives gravel damage, in the glovebox",
+                ),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("Drive slow. Stop often.", "h2"),
+                t(
+                    "Roads and weather: road.is and vedur.is · 112 works everywhere in the country",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(507, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(971, 1700, 1100), 0.3),
+);
+
+export const realEstateListing: ArtifactContent = doc(
+    "couture",
+    [
+        section(
+            "cover",
+            group(
+                t("PRIVATE LISTING · MENDOCINO COAST", "label"),
+                t("The Headland House", "h1"),
+                t(
+                    "A 1962 stone and cedar house on two acres of bluff, every principal room facing open water, offered for the first time in thirty years.",
+                    "subtitle",
+                ),
+                t("Offered at $4.85M · Shown by appointment", "caption"),
+            ),
+            { background: bgImage(pic(236, 1700, 1100), 0.45) },
+        ),
+        section(
+            "facts",
+            row(
+                stat("4", "bedrooms · 3 baths"),
+                stat("2.1", "acres of bluff"),
+                stat("3,240", "square feet"),
+            ),
+        ),
+        section(
+            "house",
+            split(
+                60,
+                group(
+                    t("THE HOUSE", "label"),
+                    t("Built to hold the weather off, and the view in.", "h2"),
+                    t(
+                        "The great room runs the full width of the house under a beamed ceiling, the original basalt fireplace at one end and a wall of glass at the other. Floors are old-growth fir, refinished. The kitchen was rebuilt in 2019 around a soapstone island, and the morning side of the house takes its coffee on a sheltered terracotta terrace.",
+                        "body",
+                    ),
+                ),
+                img(pic(882), 0.82),
+            ),
+        ),
+        section(
+            "rooms",
+            row(
+                group(img(pic(311), 0.8), t("The primary bedroom, first light.", "caption")),
+                group(img(pic(1008), 0.8), t("The den, west light all afternoon.", "caption")),
+                group(img(pic(305), 0.8), t("The stair landing on the garden side.", "caption")),
+            ),
+        ),
+        section(
+            "specs",
+            group(
+                t("PARTICULARS", "label"),
+                table(
+                    "Item,Detail\nBuilt,1962 · Hargrove & Sons\nRenovated,2019 · kitchen and systems\nHeat,Radiant floors + heat pump\nWater,Private well · new 2021\nSeptic,Inspected March 2026\nParcel,APN 118-220-014 · 2.1 acres",
+                ),
+            ),
+        ),
+        section(
+            "setting",
+            group(
+                t("Two miles of coast trail out the back gate.", "h2"),
+                t(
+                    "The bluff path runs from the cove stairs to the point, and the gray whales pass close in March.",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(483, 1700, 1100), 0.5) },
+        ),
+        section(
+            "land",
+            split(
+                40,
+                img(pic(87), 1.05),
+                group(
+                    t("THE LAND", "label"),
+                    t("Bluff, meadow, and a stair to the cove.", "h2"),
+                    t(
+                        "An acre of wildflower meadow buffers the house from the road, and a private stair drops to a sand cove that belongs, at low tide, to whoever walked down. The vegetable beds and the greenhouse sit in the lee of the house, out of the wind.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "area",
+            group(
+                t("THE AREA", "label"),
+                t("Ten minutes to the village.", "h3"),
+                t(
+                    "Two restaurants, a good bakery, a harbor that still fishes. Three hours ten from the Golden Gate, and the last forty minutes are the reason you come.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "agent",
+            split(
+                60,
+                group(
+                    t("SHOWN BY", "label"),
+                    t("Rowan Ellery · Coastal Properties", "h3"),
+                    t(
+                        "Twenty-two years on this coast, and eleven sales on this road. Private showings daily; please allow an hour, because the house insists on it.",
+                        "body",
+                    ),
+                    linked(
+                        "caption",
+                        ["rowan@coastalprops.com", "mailto:rowan@coastalprops.com"],
+                        " · ",
+                        ["(707) 555-0134", "tel:+17075550134"],
+                        " · Brokers welcome at 2.5%",
+                    ),
+                ),
+                img(pic(1005), 0.82),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("Thirty years with one family. Ready for the next.", "h2"),
+                t(
+                    "Offers reviewed as received · Seller reserves the right to set a date",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(44, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(385, 1700, 1100), 0.3),
+);
+
+export const guestGuide: ArtifactContent = doc(
+    "pueblo",
+    [
+        section(
+            "cover",
+            group(
+                t("GUEST GUIDE", "label"),
+                t("The Canal Flat", "h1"),
+                t(
+                    "Welcome to Prinsengracht 214B. This little book answers the questions guests actually ask, and a few you have not thought of yet.",
+                    "subtitle",
+                ),
+                t("Iris & Daan · +31 6 21 44 90 82, day or night", "caption"),
+            ),
+            { background: bgImage(pic(826, 1700, 1100), 0.5) },
+        ),
+        section(
+            "arrival",
+            split(
+                40,
+                img(pic(859), 1.05),
+                group(
+                    t("GETTING IN", "label"),
+                    t("The green door by the bikes.", "h2"),
+                    t(
+                        "Door code 4471, then two flights up, the steepest stairs in the city if we are being honest. Your key is in lockbox B, code 0214. The staircase predates the suitcase, so leave anything heavy at the bottom and buzz; Daan carries, and claims to enjoy it.",
+                        "body",
+                    ),
+                    t("Check-in from 3 PM · Checkout by 11", "caption"),
+                ),
+            ),
+        ),
+        section(
+            "flat",
+            group(
+                t("THE FLAT", "label"),
+                table(
+                    "Wifi,CanalFlat-5G · password tulip-tulip-214\nHeat,Dial in the hall · 20 is cozy\nHot water,Endless · within reason\nCoffee,Grinder and moka pot by the stove · beans in the freezer\nQuiet hours,10 PM to 8 AM · the neighbors are lovely",
+                    false,
+                ),
+            ),
+        ),
+        section(
+            "notes",
+            group(
+                t("HOUSE NOTES", "label"),
+                bullets(
+                    "The windows open wide and the canal is closer than it looks; mind laptops on the sill",
+                    "The left burner runs hot, the right one sulks",
+                    "Water the basil if it droops; it repays you at dinner",
+                    "Glass recycling goes to the bin on the bridge corner, everything else under the sink",
+                ),
+            ),
+        ),
+        section(
+            "picks",
+            group(
+                t("AROUND THE CORNER", "label"),
+                t("Five places we love.", "h2"),
+                row(
+                    group(
+                        img(pic(163), 0.8),
+                        t(
+                            "Café Zog, three doors down. Sit outside, order the apple cake.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(686), 0.8),
+                        t(
+                            "The floating market on Saturday mornings. Arrive before ten.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(437), 0.8),
+                        t("De Rode Hoek, for dinner when you don't want to decide.", "caption"),
+                    ),
+                ),
+                bullets(
+                    "Bar Lucas for a late drink; ask for the bitterballen",
+                    "The bakery on the bridge sells out of croissants by nine, and this is a warning",
+                ),
+            ),
+        ),
+        section(
+            "bridges",
+            group(
+                t("You are four bridges from everything.", "h2"),
+                t(
+                    "The Nine Streets, ten minutes on foot · The museums, fifteen by tram",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(273, 1700, 1100), 0.5) },
+        ),
+        section(
+            "around",
+            split(
+                60,
+                group(
+                    t("GETTING AROUND", "label"),
+                    t("Do it the Dutch way.", "h2"),
+                    t(
+                        "The two bikes chained by the door are yours; helmets hang on the hook and the lock code is the door code backwards. Rain is not a reason here, but if it becomes one, tram 13 and 17 stop at the end of the street and a GVB day pass covers everything.",
+                        "body",
+                    ),
+                    t("Airport: direct train from Centraal, 17 minutes", "caption"),
+                ),
+                img(pic(212), 0.82),
+            ),
+        ),
+        section(
+            "leaving",
+            group(
+                t("LEAVING", "label"),
+                t("Checkout by 11, like you were never here.", "h2"),
+                bullets(
+                    "Keys back in lockbox B, scramble the dials",
+                    "Strip the beds and leave towels in the tub",
+                    "Run the dishwasher with whatever is in it",
+                    "Crack one window for the plants; we close it after",
+                ),
+                t("Leave the rest to us. Safe travels home, and thank you for staying.", "caption"),
+            ),
+        ),
+        section(
+            "return",
+            group(
+                t("Come back in tulip season.", "h2"),
+                linked("caption", "Iris & Daan · ", ["thecanalflat.nl", "https://thecanalflat.nl"]),
+            ),
+            { background: bgImage(pic(164, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(210, 1700, 1100), 0.3),
+);
+
 const BODIES: Record<string, ArtifactContent> = {
     "startup-pitch": startupPitch,
     "sales-deck": salesDeck,
@@ -6590,6 +7145,10 @@ const BODIES: Record<string, ArtifactContent> = {
     "cover-letter": coverLetter,
     "event-invite": eventInvite,
     "photo-essay": photoEssay,
+    "restaurant-menu": restaurantMenu,
+    "travel-itinerary": travelItinerary,
+    "real-estate-listing": realEstateListing,
+    "guest-guide": guestGuide,
 };
 
 export function templateBody(id: string): ArtifactContent | null {

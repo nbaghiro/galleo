@@ -198,4 +198,29 @@ export const TEMPLATE_INDEX: readonly TemplateEntry[] = [
         category: "Personal & creative",
         description: "A cover, an opening, and image after image.",
     },
+    {
+        id: "restaurant-menu",
+        name: "Restaurant Menu",
+        category: "Everyday documents",
+        description: "A dinner menu: courses, prices, the wine list, and the story of the food.",
+    },
+    {
+        id: "travel-itinerary",
+        name: "Travel Itinerary",
+        category: "Everyday documents",
+        description: "A trip, day by day: the route, the stops, bookings, and a packing list.",
+    },
+    {
+        id: "real-estate-listing",
+        name: "Property Listing",
+        category: "Everyday documents",
+        description: "One house, well told: photos, key facts, specs, and the agent.",
+    },
+    {
+        id: "guest-guide",
+        name: "Guest Guide",
+        category: "Everyday documents",
+        description:
+            "A welcome book for your place: getting in, wifi, house notes, and local picks.",
+    },
 ];
