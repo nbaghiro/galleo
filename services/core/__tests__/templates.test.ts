@@ -4,6 +4,7 @@ import { SECTION_TONES, sectionLinkId } from "@model/artifact";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { template, templateBody } from "@services/core/templates";
+import { renderIssues } from "@services/core/ai/quality";
 
 // The catalog is split in two: @model/templates carries the client-facing index (edge-safe, no
 // bodies), and core/templates.ts holds the bodies and resolves an id to one. Nothing but this test
@@ -105,6 +106,21 @@ describe("the bands a template ships with", () => {
                     expect(SECTION_TONES, `${entry.id}/${section.id}`).toContain(
                         section.background.tone,
                     );
+    });
+
+    // Four templates shipped an empty 40% container beside a 60% column, meant as negative space
+    // and drawn by the editor as a dashed "+ drop element" target on somebody's first slide. The
+    // same walk also catches the two rows the solver cannot honour as written: one where only some
+    // columns carry a width share (which silently falls back to equal columns and loses the split)
+    // and one where every column asks to fill (which leaves no height to share, so the row measures
+    // zero). A template is authored by hand, so nothing else would catch either.
+    it("leaves no empty drop target, and no row the solver cannot lay out as written", () => {
+        const faults: string[] = [];
+        for (const entry of TEMPLATE_INDEX)
+            for (const section of templateBody(entry.id)!.sections)
+                for (const issue of renderIssues(section))
+                    faults.push(`${entry.id}/${section.id}: ${issue}`);
+        expect(faults).toEqual([]);
     });
 
     // A site section is a band exactly when it paints one. On web the flag barely shows (the

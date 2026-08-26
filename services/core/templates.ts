@@ -17,7 +17,6 @@ import {
     diagram,
     divider,
     doc,
-    emptyRegion,
     faq,
     feature,
     fill,
@@ -67,6 +66,11 @@ const navCta = (label: string, href: string): ElementInstance =>
 // before swapping in their own footage; the poster beside it is what every static surface paints.
 // Must be an ordinary upload, never a live stream: YouTube embeds a stream's recording as
 // "Video unavailable" once the stream rotates.
+// A hand-picked photo from the Lorem Picsum catalog, addressed by its stable id, so a template's
+// imagery is chosen rather than hashed: the seed form hands back an arbitrary photo, and an
+// arbitrary photo is how a furniture studio ends up illustrated by a jellyfish.
+const pic = (id: number, w = 1100, h = 900): string => `https://picsum.photos/id/${id}/${w}/${h}`;
+
 const DEMO_VIDEO = "https://www.youtube.com/watch?v=WhWc3b3KhnY";
 
 // ---- creative
@@ -90,7 +94,7 @@ export const resume: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-                img("elena-vance-portrait", 0.82, 200),
+                img(pic(1027), 0.82, 200),
             ),
         ),
         section(
@@ -206,7 +210,7 @@ export const resume: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-                img("aster-design-system-screens", 0.82, 12),
+                img(pic(533), 0.82, 12),
             ),
         ),
         section(
@@ -811,7 +815,7 @@ export const coverLetter: ArtifactContent = doc(
             "c3",
             split(
                 40,
-                img("camille-onboarding-flow", 1.15),
+                img(pic(885), 1.15),
                 group(
                     t("What I’d bring", "label"),
                     t("Earning permission before asking for it.", "h2"),
@@ -1148,12 +1152,12 @@ export const photoEssay: ArtifactContent = doc(
                 t("A PHOTO ESSAY", "label"),
                 t("Before the City Wakes", "h1"),
                 t(
-                    "One hour in Kyoto, between the last streetlight and the first delivery bike, when the old city briefly belongs to no one.",
+                    "One hour in New York, between the last night train and the first coffee cart, when the loudest city on earth briefly forgets to speak.",
                     "subtitle",
                 ),
-                t("Photographs & words by Rei Tanaka · winter, 5:40 AM", "caption"),
+                t("Photographs & words by Jonah Reyes · winter, 5:40 AM", "caption"),
             ),
-            { background: bgImage("kyoto-dawn-cover-misty-lane", 0.55) },
+            { background: bgImage(pic(860, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -1165,7 +1169,7 @@ export const photoEssay: ArtifactContent = doc(
                     "subtitle",
                 ),
                 t(
-                    "There is a particular hour here, too late to be night and too early to be morning, when Kyoto sets itself down like a held breath. The shutters are still drawn. The lanterns have gone out but the sky hasn't quite caught up. For maybe sixty minutes the streets are returned to the stones, the river, the mist, and the few of us foolish enough to be out in the cold to see it.",
+                    "There is an hour here that visitors never meet, too late to be night and too early to be morning, when New York sets itself down like a held breath. The bars have surrendered. The bakeries have not yet switched their ovens on. For maybe sixty minutes the streets are returned to the bridges, the river, the steam rising through the grates, and the few of us foolish enough to be out in the cold to see it.",
                     "body",
                 ),
                 t(
@@ -1178,9 +1182,9 @@ export const photoEssay: ArtifactContent = doc(
         section(
             "s3",
             group(
-                img("kyoto-dawn-gion-empty-lane-lanterns", 1.6),
+                img(pic(520), 1.6),
                 t(
-                    "Gion, 5:48. The teahouse lanterns are dark, the cobbles wet from a rain that came and went while the city slept. Not a single footprint yet. Only mine, and I keep them to the edge.",
+                    "Washington Street, 5:48. The bridge hangs in the gap between two rows of brick like a picture no one ever takes down. I stood in the middle of the road to make this, and nothing asked me to move.",
                     "caption",
                 ),
             ),
@@ -1190,12 +1194,12 @@ export const photoEssay: ArtifactContent = doc(
             "s4",
             split(
                 40,
-                img("kyoto-dawn-river-heron-mist", 1.05),
+                img(pic(821), 1.05),
                 group(
-                    t("Kamo River", "label"),
-                    t("The first to clock in", "h2"),
+                    t("Underground", "label"),
+                    t("The first train", "h2"),
                     t(
-                        "A grey heron stands in the shallows of the Kamo, perfectly still, the way it has stood every morning for a thousand years of mornings. It is always here before me. It watches the water and not the photographer, which I take, on balance, as a kindness.",
+                        "She was the only other person on the platform, and neither of us pretended otherwise. The express came through without stopping, dragging its own wind behind it, and for a moment the station was a river with a current. Then it was a room again. Somewhere above us the city slept on, unbothered.",
                         "body",
                     ),
                 ),
@@ -1205,9 +1209,9 @@ export const photoEssay: ArtifactContent = doc(
         section(
             "s5",
             group(
-                img("kyoto-dawn-fushimi-torii-tunnel", 1.6),
+                img(pic(249), 1.6),
                 t(
-                    "Fushimi Inari before the crowds: ten thousand vermilion gates and not one other soul. The light comes through sideways and turns the whole tunnel the colour of a lit ember.",
+                    "The hour the lights give up: every window still burning from the night before, and the sky already deciding otherwise. By six the argument will be over.",
                     "caption",
                 ),
             ),
@@ -1218,18 +1222,14 @@ export const photoEssay: ArtifactContent = doc(
             split(
                 60,
                 group(
-                    t("Nishiki", "label"),
-                    t("The market, half-awake", "h2"),
+                    t("Lower East Side", "label"),
+                    t("The fire escapes", "h2"),
                     t(
-                        "Behind the shutters of the covered market the day is already starting in whispers: a knife on a board, the hiss of a kettle, a radio turned low. A fishmonger hoses down the stones outside his stall and nods at me without surprise, as if everyone is up at this hour and only pretending otherwise.",
-                        "body",
-                    ),
-                    t(
-                        "He hands me a cup of tea I didn't ask for. I drink it standing in the cold, grateful past the reach of my Japanese.",
+                        "No one builds them like this anymore: iron stitched across the face of every building, zigzagging down toward streets that have never once needed them. At this hour they hold nothing but frost and a few determined pigeons. A hundred years of mornings have rusted them the exact color of the brick, as if the buildings grew them on purpose.",
                         "body",
                     ),
                 ),
-                img("kyoto-dawn-nishiki-shutter-steam", 0.82),
+                img(pic(221), 0.82),
             ),
         ),
 
@@ -1237,23 +1237,20 @@ export const photoEssay: ArtifactContent = doc(
             "s7",
             row(
                 group(
-                    img("kyoto-dawn-detail-frost-moss", 0.8),
+                    img(pic(299), 0.8),
+                    t("A street built for thousands, rehearsing in an empty house.", "caption"),
+                ),
+                group(
+                    img(pic(396), 0.8),
                     t(
-                        "Frost holding the edge of the temple moss, an hour from melting.",
+                        "The escalator runs all night whether anyone rides it or not. There is a kind of faith in that.",
                         "caption",
                     ),
                 ),
                 group(
-                    img("kyoto-dawn-detail-bicycle-alley", 0.8),
+                    img(pic(57), 0.8),
                     t(
-                        "One bicycle, leaning where it was left, keeping the alley company.",
-                        "caption",
-                    ),
-                ),
-                group(
-                    img("kyoto-dawn-detail-paper-window-glow", 0.8),
-                    t(
-                        "The first window to glow: someone, somewhere, putting on the rice.",
+                        "SoHo before the shutters go up, when the cast iron gets the street to itself.",
                         "caption",
                     ),
                 ),
@@ -1263,22 +1260,22 @@ export const photoEssay: ArtifactContent = doc(
         section(
             "s8",
             quote(
-                "I came to photograph the temples and stayed for the silence between them, which no lens has ever once held still.",
+                "I came for the skyline and stayed for the hour underneath it, which no lens has ever once held still.",
                 "From field notes, the third morning",
             ),
-            { background: bgImage("kyoto-dawn-bamboo-grove-fog", 0.55) },
+            { background: bgImage(pic(868, 1700, 1100), 0.55) },
         ),
 
         section(
             "s9",
             split(
                 40,
-                img("kyoto-dawn-arashiyama-bamboo-path", 1.08),
+                img(pic(800), 1.08),
                 group(
-                    t("Arashiyama", "label"),
-                    t("Among the bamboo", "h2"),
+                    t("Grand Central", "label"),
+                    t("First light on the concourse", "h2"),
                     t(
-                        "The grove makes its own weather. Up there the canes close over the path and the light arrives already filtered, green and underwater. In the wind the whole stand creaks and bows like the timbers of a ship, and you understand why the old poets kept coming back here to listen rather than to look.",
+                        "The east windows do their famous trick a little after seven, laying the sun across the marble in bars the width of train cars. A handful of early commuters walk through the beams without looking up. The light has been arriving like this for a century; the timetable, apparently, is the one thing in this station that never changed.",
                         "body",
                     ),
                 ),
@@ -1288,9 +1285,9 @@ export const photoEssay: ArtifactContent = doc(
         section(
             "s10",
             group(
-                img("kyoto-dawn-monk-sweeping-courtyard", 1.6),
+                img(pic(411), 1.6),
                 t(
-                    "A monk sweeps the courtyard of a temple that won't open for hours, drawing the same lines in the same gravel he drew yesterday. The point, I think, was never to finish.",
+                    "Midtown from forty floors up, still in its blue hour. From this height the city looks like it is only pretending to sleep, which is, of course, the truth.",
                     "caption",
                 ),
             ),
@@ -1301,14 +1298,14 @@ export const photoEssay: ArtifactContent = doc(
             split(
                 60,
                 group(
-                    t("Pontocho", "label"),
-                    t("The narrowest street", "h2"),
+                    t("The promenade", "label"),
+                    t("The watcher", "h2"),
                     t(
-                        "Pontocho is barely wide enough for two people to pass and politely apologise. By night it's all neon and noise; by 6 AM it's a corridor of shut doors and drying lanterns, the river breathing at one end of it, and the smell of last night's charcoal still hanging in the damp.",
+                        "There is always one other person. This morning she had taken the bench facing the river, snow on the slats beside her, the skyline across the water still wearing its lights. She did not photograph it. She just sat with it, the way you sit with an old friend who does not require conversation, and I went the long way around so as not to interrupt.",
                         "body",
                     ),
                 ),
-                img("kyoto-dawn-pontocho-narrow-alley", 0.82),
+                img(pic(259), 0.82),
             ),
         ),
 
@@ -1316,14 +1313,14 @@ export const photoEssay: ArtifactContent = doc(
             "s12",
             group(
                 t("The closing", "label"),
-                t("And then the bicycles", "h2"),
+                t("And then the coffee carts", "h2"),
                 t(
-                    "It ends the same way each time. A delivery bike turns the corner, a shutter rolls up with a clatter, a phone rings somewhere behind a wall. The spell, which was never really mine to keep, lifts. The city stretches, remembers itself, and takes its streets back. I put the lens cap on and walk home into the noise, already a little homesick for an hour that hasn't even finished leaving.",
+                    "It ends the same way each time. A cart bolts its awning open on Lexington, a shutter rolls up with a clatter, the first taxi finds the first fare. The spell, which was never really mine to keep, lifts. The city stretches, remembers itself, and takes its streets back. I put the lens cap on and walk home into the noise, already a little homesick for an hour that has not even finished leaving.",
                     "body",
                 ),
-                t("Rei, walking back along the Kamo", "caption"),
+                t("Jonah, walking home over the bridge", "caption"),
             ),
-            { background: bgImage("kyoto-dawn-closing-sunrise-rooftops", 0.5) },
+            { background: bgImage(pic(862, 1700, 1100), 0.5) },
         ),
     ],
     bgImage("photoessay-paper-bg", 0.3),
@@ -2797,7 +2794,7 @@ export const newsletter: ArtifactContent = doc(
                 ),
                 t("Saturday, June 27, 2026 · edited by Lena Hartmann", "caption"),
             ),
-            { background: bgImage("commonground-city-square-morning-light", 0.55) },
+            { background: bgImage(pic(690, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -2831,7 +2828,7 @@ export const newsletter: ArtifactContent = doc(
                     ),
                 ),
                 group(
-                    img("commonground-pedestrian-street-chairs", 0.78, 6),
+                    img(pic(441), 0.78, 6),
                     t(
                         "Rua das Flores, three weeks after the cars left. The chairs were the city’s only intervention.",
                         "caption",
@@ -2844,9 +2841,9 @@ export const newsletter: ArtifactContent = doc(
             split(
                 40,
                 group(
-                    img("commonground-public-bench-waterfront", 1.05, 6),
+                    img(pic(553), 1.05, 6),
                     t(
-                        "The new benches on the waterfront: backs, armrests, and shade, which is more than most cities manage.",
+                        "The new benches: backs, armrests, and shade, which is more than most cities manage.",
                         "caption",
                     ),
                 ),
@@ -2867,6 +2864,11 @@ export const newsletter: ArtifactContent = doc(
                     "A surprising line in this month’s council report: streets with warm, human-scale lighting see thirty percent more evening foot traffic than those lit by the usual orange floodlights. Counter-intuitively, they also see less crime. Light that makes a place feel watched-over rather than interrogated turns out to be the cheapest urban safety measure we have. The city is swapping two thousand fixtures this autumn. Watch the corners that used to empty at dusk.",
                     "body",
                 ),
+                img(pic(232), 2.2, 6),
+                t(
+                    "Two of the two thousand: warm lamps, and a sky that stays visible above them.",
+                    "caption",
+                ),
             ),
         ),
         section(
@@ -2881,7 +2883,7 @@ export const newsletter: ArtifactContent = doc(
                     ),
                 ),
                 group(
-                    img("commonground-ghent-cargo-bike-delivery", 0.78, 6),
+                    img(pic(839), 0.78, 6),
                     t(
                         "Morning deliveries in central Ghent. The cargo bike has quietly replaced the delivery van.",
                         "caption",
@@ -2966,7 +2968,7 @@ export const startupPitch: ArtifactContent = deck(
                 ),
                 badge("$4M SEED · LED BY ANDISON CAPITAL"),
             ),
-            { background: bgImage("mise-kitchen-cover", 0.55) },
+            { background: bgImage(pic(490, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -2980,7 +2982,7 @@ export const startupPitch: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("mise-walkin-cooler", 0.82),
+                img(pic(292), 0.82),
             ),
         ),
         section(
@@ -2989,13 +2991,13 @@ export const startupPitch: ArtifactContent = deck(
                 "Front of house got Toast, Square, and Resy. The kitchen, where the money is actually made or lost, got nothing.",
                 "The Mise thesis",
             ),
-            { background: bgImage("mise-chef-pass", 0.6) },
+            { background: bgImage(pic(42, 1700, 1100), 0.6) },
         ),
         section(
             "s4",
             split(
                 40,
-                img("mise-supplier-truck", 1.1),
+                img(pic(88), 1.1),
                 group(
                     t("02 · Why now", "label"),
                     t("The kitchen's data finally left the building.", "h2"),
@@ -3011,7 +3013,7 @@ export const startupPitch: ArtifactContent = deck(
             "s5",
             split(
                 40,
-                img("mise-app-prep-list", 1.1),
+                img(pic(341), 1.1),
                 group(
                     t("03 · The product", "label"),
                     t("One screen the whole line actually opens.", "h2"),
@@ -3096,24 +3098,24 @@ export const startupPitch: ArtifactContent = deck(
                         "We're POS-agnostic: the data layer for the kitchen, not another silo",
                     ),
                 ),
-                img("mise-competition-grid", 0.86),
+                img(pic(395), 0.86),
             ),
         ),
         section(
             "s12",
             row(
                 group(
-                    img("mise-founder-dana", 1),
+                    img(pic(978), 1),
                     t("Dana Reyes", "h3"),
                     t("CEO · ex-Toast, ran ops for 40 kitchens", "caption"),
                 ),
                 group(
-                    img("mise-founder-marcus", 1),
+                    img(pic(5), 1),
                     t("Marcus Vallée", "h3"),
                     t("CTO · ex-Flexport forecasting", "caption"),
                 ),
                 group(
-                    img("mise-founder-priya", 1),
+                    img(pic(674), 1),
                     t("Priya Anand", "h3"),
                     t("Head of Culinary · 12 years on the line", "caption"),
                 ),
@@ -3123,7 +3125,7 @@ export const startupPitch: ArtifactContent = deck(
             "s13",
             split(
                 40,
-                emptyRegion(),
+                img(pic(23), 0.86),
                 group(
                     t("08 · The ask", "label"),
                     t("Raising $4M to put Mise in 1,000 kitchens.", "h2"),
@@ -3134,10 +3136,10 @@ export const startupPitch: ArtifactContent = deck(
                     button("dana@mise.kitchen"),
                 ),
             ),
-            { background: bgImage("mise-kitchen-night", 0.6) },
+            { background: bgImage(pic(437, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage("mise-cover-ambient", 0.35),
+    bgImage(pic(115, 1700, 1100), 0.35),
 );
 
 export const salesDeck: ArtifactContent = deck(
@@ -3154,7 +3156,7 @@ export const salesDeck: ArtifactContent = deck(
                 ),
                 badge("TRUSTED BY 140+ FLEETS"),
             ),
-            { background: bgImage("fleetwise-depot-dawn", 0.55) },
+            { background: bgImage(pic(352, 1700, 1100), 0.55) },
         ),
         section(
             "f2",
@@ -3168,7 +3170,7 @@ export const salesDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("fleetwise-roadside-breakdown", 0.82),
+                img(pic(371), 0.82),
             ),
         ),
         section(
@@ -3183,7 +3185,7 @@ export const salesDeck: ArtifactContent = deck(
             "f4",
             split(
                 40,
-                img("fleetwise-dashboard", 1.1),
+                img(pic(370), 1.1),
                 group(
                     t("The solution", "label"),
                     t("Fix it in the bay, on your schedule.", "h2"),
@@ -3240,7 +3242,7 @@ export const salesDeck: ArtifactContent = deck(
                 "We used to staff for breakdowns. Now we staff for the schedule Fleetwise hands us the night before.",
                 "Carla Mendez, VP Maintenance, Meridian Freight",
             ),
-            { background: bgImage("fleetwise-shop-bay", 0.6) },
+            { background: bgImage(pic(495, 1700, 1100), 0.6) },
         ),
         section(
             "f9",
@@ -3264,14 +3266,14 @@ export const salesDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("fleetwise-parts-warehouse", 0.86),
+                img(pic(36), 0.86),
             ),
         ),
         section(
             "f11",
             split(
                 40,
-                emptyRegion(),
+                img(pic(605), 0.86),
                 group(
                     t("Next steps", "label"),
                     t("See your own fleet's risk in 30 minutes.", "h2"),
@@ -3282,10 +3284,10 @@ export const salesDeck: ArtifactContent = deck(
                     button("Book your fleet assessment"),
                 ),
             ),
-            { background: bgImage("fleetwise-fleet-lineup", 0.55) },
+            { background: bgImage(pic(88, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage("fleetwise-cover-ambient", 0.35),
+    bgImage(pic(893, 1700, 1100), 0.35),
 );
 
 export const seriesA: ArtifactContent = deck(
@@ -3302,7 +3304,7 @@ export const seriesA: ArtifactContent = deck(
                 ),
                 badge("$18M SERIES A · LED BY MERIDIAN VENTURES"),
             ),
-            { background: bgImage("switchboard-dispatch-cover", 0.55) },
+            { background: bgImage(pic(223, 1700, 1100), 0.55) },
         ),
         section(
             "a2",
@@ -3316,7 +3318,7 @@ export const seriesA: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("switchboard-tech-on-call", 0.82),
+                img(pic(504), 0.82),
             ),
         ),
         section(
@@ -3325,7 +3327,7 @@ export const seriesA: ArtifactContent = deck(
                 "Every missed call is a job that went to the next plumber on Google. We just pick up.",
                 "The Switchboard thesis",
             ),
-            { background: bgImage("switchboard-night-shift", 0.6) },
+            { background: bgImage(pic(579, 1700, 1100), 0.6) },
         ),
         section(
             "a4",
@@ -3361,7 +3363,7 @@ export const seriesA: ArtifactContent = deck(
             "a6",
             split(
                 40,
-                img("switchboard-dashboard", 1.1),
+                img(pic(366), 1.1),
                 group(
                     t("03 · The product", "label"),
                     t("One front desk that never sleeps.", "h2"),
@@ -3386,7 +3388,7 @@ export const seriesA: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("switchboard-after-hours", 0.82),
+                img(pic(160), 0.82),
             ),
         ),
         section(
@@ -3415,17 +3417,17 @@ export const seriesA: ArtifactContent = deck(
             "a10",
             row(
                 group(
-                    img("switchboard-founder-dana", 1),
+                    img(pic(1), 1),
                     t("Dana Whitfield", "h3"),
                     t("CEO · ex-ServiceTitan, scaled 3,000 contractors", "caption"),
                 ),
                 group(
-                    img("switchboard-founder-amir", 1),
+                    img(pic(304), 1),
                     t("Amir Hassan", "h3"),
                     t("CTO · ex-Google speech, built real-time voice", "caption"),
                 ),
                 group(
-                    img("switchboard-founder-lena", 1),
+                    img(pic(856), 1),
                     t("Lena Ortiz", "h3"),
                     t("Head of Revenue · ex-Jobber, 0→$30M", "caption"),
                 ),
@@ -3464,10 +3466,10 @@ export const seriesA: ArtifactContent = deck(
                     "subtitle",
                 ),
             ),
-            { background: bgImage("switchboard-vision-truck", 0.5) },
+            { background: bgImage(pic(320, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage("switchboard-cover-ambient", 0.35),
+    bgImage(pic(683, 1700, 1100), 0.35),
 );
 
 export const productDemo: ArtifactContent = deck(
@@ -3484,7 +3486,7 @@ export const productDemo: ArtifactContent = deck(
                 ),
                 badge("A FIVE-MINUTE TOUR"),
             ),
-            { background: bgImage("sift-product-cover", 0.55) },
+            { background: bgImage(pic(60, 1700, 1100), 0.55) },
         ),
         section(
             "p2",
@@ -3497,14 +3499,14 @@ export const productDemo: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("sift-pm-team", 1.0),
+                img(pic(529), 1.0),
             ),
         ),
         section(
             "p3",
             split(
                 40,
-                img("sift-scattered-feedback", 1.1),
+                img(pic(56), 1.1),
                 group(
                     t("Before Sift", "label"),
                     t("Feedback lives everywhere. Decisions live on a hunch.", "h2"),
@@ -3527,7 +3529,7 @@ export const productDemo: ArtifactContent = deck(
             "p4",
             split(
                 40,
-                img("sift-unified-inbox", 1.1),
+                img(pic(180), 1.1),
                 group(
                     t("The tour · 01", "label"),
                     t("Every signal lands in one inbox.", "h2"),
@@ -3552,14 +3554,14 @@ export const productDemo: ArtifactContent = deck(
                         'Ask in plain English ("what are enterprise accounts frustrated by?") and get the answer with receipts',
                     ),
                 ),
-                img("sift-ai-themes", 0.82),
+                img(pic(367), 0.82),
             ),
         ),
         section(
             "p6",
             split(
                 40,
-                img("sift-insights-dashboard", 1.1),
+                img(pic(8), 1.1),
                 group(
                     t("The tour · 03", "label"),
                     t("Watch the themes that matter move week over week.", "h2"),
@@ -3584,7 +3586,7 @@ export const productDemo: ArtifactContent = deck(
                         "Reopen rates drop and renewal calls get a lot friendlier",
                     ),
                 ),
-                img("sift-close-the-loop", 0.82),
+                img(pic(7), 0.82),
             ),
         ),
         section(
@@ -3601,7 +3603,7 @@ export const productDemo: ArtifactContent = deck(
                 "We stopped arguing about the roadmap in meetings. Now we just open Sift and the answer's already there.",
                 "Priya Nair, VP Product, Northwind Software",
             ),
-            { background: bgImage("sift-customer-office", 0.6) },
+            { background: bgImage(pic(625, 1700, 1100), 0.6) },
         ),
         section(
             "p10",
@@ -3635,10 +3637,10 @@ export const productDemo: ArtifactContent = deck(
                 ),
                 button("Start free"),
             ),
-            { background: bgImage("sift-get-started-cover", 0.55) },
+            { background: bgImage(pic(173, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage("sift-cover-ambient", 0.35),
+    bgImage(pic(114, 1700, 1100), 0.35),
 );
 
 export const companyOverview: ArtifactContent = deck(
@@ -3655,7 +3657,7 @@ export const companyOverview: ArtifactContent = deck(
                 ),
                 badge("EST. 2012 · PORTLAND, OREGON"),
             ),
-            { background: bgImage("fernwood-workshop-cover", 0.55) },
+            { background: bgImage(pic(153, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -3673,7 +3675,7 @@ export const companyOverview: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("fernwood-dining-table", 0.82),
+                img(pic(534), 0.82),
             ),
         ),
 
@@ -3681,7 +3683,7 @@ export const companyOverview: ArtifactContent = deck(
             "c3",
             split(
                 40,
-                img("fernwood-founders-bench", 1.05),
+                img(pic(553), 1.05),
                 group(
                     t("OUR STORY", "label"),
                     t("It started with one stubborn bench.", "h2"),
@@ -3697,7 +3699,7 @@ export const companyOverview: ArtifactContent = deck(
             "c4",
             row(
                 card(
-                    img("fernwood-seating", 1.4),
+                    img(pic(32), 1.4),
                     t("Seating", "h3"),
                     t(
                         "Chairs, benches, and sofas with frames that are screwed rather than stapled, and reupholstered rather than replaced.",
@@ -3705,7 +3707,7 @@ export const companyOverview: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img("fernwood-tables", 1.4),
+                    img(pic(1068), 1.4),
                     t("Tables & casegoods", "h3"),
                     t(
                         "Dining tables, desks, and storage in solid oak, walnut, and ash, finished by hand.",
@@ -3713,7 +3715,7 @@ export const companyOverview: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img("fernwood-lighting", 1.4),
+                    img(pic(305), 1.4),
                     t("Lighting", "h3"),
                     t(
                         "Pendants, sconces, and floor lamps in turned wood, blown glass, and brushed brass.",
@@ -3734,7 +3736,7 @@ export const companyOverview: ArtifactContent = deck(
                 ),
                 button("Tour the workshop"),
             ),
-            { background: bgImage("fernwood-craft-joinery", 0.6) },
+            { background: bgImage(pic(284, 1700, 1100), 0.6) },
         ),
 
         section(
@@ -3759,7 +3761,7 @@ export const companyOverview: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-                img("fernwood-hotel-lobby", 0.82),
+                img(pic(834), 0.82),
             ),
         ),
 
@@ -3803,7 +3805,7 @@ export const companyOverview: ArtifactContent = deck(
                         180,
                     ),
                 ),
-                img("fernwood-finishing-bench", 0.9),
+                img(pic(527), 0.9),
             ),
         ),
 
@@ -3811,17 +3813,17 @@ export const companyOverview: ArtifactContent = deck(
             "c10",
             row(
                 group(
-                    img("fernwood-team-mara", 1),
+                    img(pic(399), 1),
                     t("Mara Fernwood", "h3"),
                     t("Founder & Creative Director", "caption"),
                 ),
                 group(
-                    img("fernwood-team-elias", 1),
+                    img(pic(491), 1),
                     t("Elias Fernwood", "h3"),
                     t("Founder & Head of Workshop", "caption"),
                 ),
                 group(
-                    img("fernwood-team-jun", 1),
+                    img(pic(635), 1),
                     t("Jun Park", "h3"),
                     t("Design Lead · ex-Heath Ceramics", "caption"),
                 ),
@@ -3832,7 +3834,7 @@ export const companyOverview: ArtifactContent = deck(
             "c11",
             split(
                 40,
-                img("fernwood-values-detail", 1.05),
+                img(pic(785), 1.05),
                 group(
                     t("WHAT WE BELIEVE", "label"),
                     t("Make less. Make it last.", "h2"),
@@ -3864,10 +3866,10 @@ export const companyOverview: ArtifactContent = deck(
                 ),
                 button("hello@fernwoodco.com"),
             ),
-            { background: bgImage("fernwood-showroom-light", 0.55) },
+            { background: bgImage(pic(307, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage("fernwood-ambient", 0.34),
+    bgImage(pic(143, 1700, 1100), 0.34),
 );
 
 export const gtmPlan: ArtifactContent = deck(
@@ -3884,7 +3886,7 @@ export const gtmPlan: ArtifactContent = deck(
                 ),
                 badge("GO-TO-MARKET PLAN · H2 2026"),
             ),
-            { background: bgImage("tidepool-warehouse-cover", 0.55) },
+            { background: bgImage(pic(348, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -3913,7 +3915,7 @@ export const gtmPlan: ArtifactContent = deck(
             "g3",
             row(
                 card(
-                    img("tidepool-dtc-brand", 1.4),
+                    img(pic(535), 1.4),
                     t("DTC brands", "h3"),
                     t(
                         "$2M–$30M online sellers on Shopify juggling Amazon, TikTok Shop, and their own site.",
@@ -3921,7 +3923,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img("tidepool-multi-location", 1.4),
+                    img(pic(405), 1.4),
                     t("Multi-location retail", "h3"),
                     t(
                         "3–20 store chains that need one source of truth across the floor and the stockroom.",
@@ -3929,7 +3931,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img("tidepool-wholesale", 1.4),
+                    img(pic(617), 1.4),
                     t("Wholesale & distribution", "h3"),
                     t(
                         "Brands shipping to stockists who need to promise dates they can actually keep.",
@@ -3956,14 +3958,14 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
             ),
-            { background: bgImage("tidepool-positioning-shelves", 0.6) },
+            { background: bgImage(pic(951, 1700, 1100), 0.72) },
         ),
 
         section(
             "g5",
             split(
                 40,
-                img("tidepool-funnel-dashboard", 1.05),
+                img(pic(396), 1.05),
                 group(
                     t("THE FUNNEL", "label"),
                     t("How a curious operator becomes a paying brand.", "h2"),
@@ -3984,7 +3986,7 @@ export const gtmPlan: ArtifactContent = deck(
             "g6",
             row(
                 card(
-                    img("tidepool-channel-content", 1.4),
+                    img(pic(885), 1.4),
                     t("Content & SEO", "h3"),
                     t(
                         "Operator-grade guides on demand planning that rank for the problems brands Google at 11pm.",
@@ -3992,7 +3994,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img("tidepool-channel-partners", 1.4),
+                    img(pic(513), 1.4),
                     t("Platform partnerships", "h3"),
                     t(
                         "A featured Shopify app and co-marketing with 3PLs and agencies who already have the trust.",
@@ -4000,7 +4002,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img("tidepool-channel-community", 1.4),
+                    img(pic(195), 1.4),
                     t("Community & events", "h3"),
                     t(
                         "Founder dinners and an operators' Slack where our best customers sell the next ones.",
@@ -4080,10 +4082,10 @@ export const gtmPlan: ArtifactContent = deck(
                 ),
                 button("Approve & kick off"),
             ),
-            { background: bgImage("tidepool-launch-horizon", 0.55) },
+            { background: bgImage(pic(563, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage("tidepool-ambient", 0.34),
+    bgImage(pic(185, 1700, 1100), 0.34),
 );
 
 // ---- proposals
@@ -4102,7 +4104,7 @@ export const projectProposal: ArtifactContent = deck(
                 ),
                 badge("CONFIDENTIAL · v2"),
             ),
-            { background: bgImage("atlas-coffee-cover", 0.55) },
+            { background: bgImage(pic(425, 1700, 1100), 0.55) },
         ),
         section(
             "opportunity",
@@ -4116,7 +4118,7 @@ export const projectProposal: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("atlas-coffee-bags", 0.82),
+                img(pic(431), 0.82),
             ),
         ),
         section(
@@ -4139,13 +4141,13 @@ export const projectProposal: ArtifactContent = deck(
                 "We don’t want to look bigger. We want to look like the best version of ourselves.",
                 "Dana Mercer · Founder, Atlas Coffee Roasters",
             ),
-            { background: bgImage("atlas-coffee-pour", 0.6) },
+            { background: bgImage(pic(1060, 1700, 1100), 0.6) },
         ),
         section(
             "approach",
             split(
                 40,
-                img("atlas-roastery-craft", 1.05),
+                img(pic(766), 1.05),
                 group(
                     t("03 · Our approach", "label"),
                     t("Strategy first. Then a system, not a logo.", "h2"),
@@ -4203,21 +4205,9 @@ export const projectProposal: ArtifactContent = deck(
         section(
             "team",
             row(
-                group(
-                    img("foldwork-team-nora", 1),
-                    t("Nora Vance", "h3"),
-                    t("Creative Director", "caption"),
-                ),
-                group(
-                    img("foldwork-team-devin", 1),
-                    t("Devin Osei", "h3"),
-                    t("Brand Strategist", "caption"),
-                ),
-                group(
-                    img("foldwork-team-lina", 1),
-                    t("Lina Park", "h3"),
-                    t("Design & Web Lead", "caption"),
-                ),
+                group(img(pic(20), 1), t("Nora Vance", "h3"), t("Creative Director", "caption")),
+                group(img(pic(403), 1), t("Devin Osei", "h3"), t("Brand Strategist", "caption")),
+                group(img(pic(532), 1), t("Lina Park", "h3"), t("Design & Web Lead", "caption")),
             ),
         ),
         section(
@@ -4238,7 +4228,7 @@ export const projectProposal: ArtifactContent = deck(
             "why-us",
             split(
                 40,
-                img("foldwork-studio-work", 0.86),
+                img(pic(526), 0.86),
                 group(
                     t("06 · Why Foldwork", "label"),
                     t("We make brands people taste before they read.", "h2"),
@@ -4278,9 +4268,9 @@ export const projectProposal: ArtifactContent = deck(
                     ),
                     button("Approve & schedule kickoff"),
                 ),
-                emptyRegion(),
+                img(pic(464), 0.86),
             ),
-            { background: bgImage("atlas-coffee-beans", 0.58) },
+            { background: bgImage(pic(63, 1700, 1100), 0.58) },
         ),
     ],
     bgImage("foldwork-bg", 0.35),
@@ -4300,7 +4290,7 @@ export const investorUpdate: ArtifactContent = doc(
                 ),
                 t("Elena Vossberg · Co-founder & CEO", "caption"),
             ),
-            { background: bgImage("cadence-cover", 0.55) },
+            { background: bgImage(pic(6, 1700, 1100), 0.55) },
         ),
         section(
             "tldr",
@@ -4364,7 +4354,7 @@ export const investorUpdate: ArtifactContent = doc(
                 "Cadence replaced three internal tools and a spreadsheet the whole team was afraid of. We closed the books four days faster.",
                 "Marisol Tan · VP Finance, Northloop",
             ),
-            { background: bgImage("cadence-dashboard-glow", 0.6) },
+            { background: bgImage(pic(0, 1700, 1100), 0.6) },
         ),
         section(
             "challenges",
@@ -4398,7 +4388,7 @@ export const investorUpdate: ArtifactContent = doc(
             "product",
             split(
                 40,
-                img("cadence-usage-studio", 1.2),
+                img(pic(668), 1.2),
                 group(
                     t("Product progress", "label"),
                     t("Usage Studio is live.", "h2"),
@@ -4432,7 +4422,7 @@ export const investorUpdate: ArtifactContent = doc(
                 ),
                 t("Elena Vossberg · Co-founder & CEO, Cadence · May 2026", "caption"),
             ),
-            { background: bgImage("cadence-team-closing", 0.6) },
+            { background: bgImage(pic(192, 1700, 1100), 0.6) },
         ),
     ],
     bgImage("cadence-bg", 0.3),
@@ -4452,7 +4442,7 @@ export const businessProposal: ArtifactContent = doc(
                 ),
                 badge("CONFIDENTIAL · v1.2"),
             ),
-            { background: bgImage("brightline-solar-rooftop", 0.55) },
+            { background: bgImage(pic(297, 1700, 1100), 0.55) },
         ),
         section(
             "summary",
@@ -4487,7 +4477,7 @@ export const businessProposal: ArtifactContent = doc(
                         "A financing structure that protects working capital",
                     ),
                 ),
-                img("brightline-plant-floor", 0.82),
+                img(pic(315), 0.82),
             ),
         ),
         section(
@@ -4512,7 +4502,7 @@ export const businessProposal: ArtifactContent = doc(
             "solution",
             split(
                 40,
-                img("brightline-solar-carport", 1.05),
+                img(pic(222), 1.05),
                 group(
                     t("03 · Proposed solution", "label"),
                     t("Rooftop, carport, and storage: one integrated system.", "h2"),
@@ -4596,23 +4586,23 @@ export const businessProposal: ArtifactContent = doc(
                 "Cascade ran the whole project around our production schedule. We never lost an hour on the line, and our power bill dropped 71% the first month it switched on.",
                 "Renata Pho · Director of Operations, Sierra Foods",
             ),
-            { background: bgImage("cascade-install-crew", 0.6) },
+            { background: bgImage(pic(551, 1700, 1100), 0.6) },
         ),
         section(
             "team",
             row(
                 group(
-                    img("cascade-team-marcus", 1),
+                    img(pic(4), 1),
                     t("Marcus Bell", "h3"),
                     t("Lead Project Engineer", "caption"),
                 ),
                 group(
-                    img("cascade-team-yuki", 1),
+                    img(pic(2), 1),
                     t("Yuki Tanaka", "h3"),
                     t("Energy Modeling & Finance", "caption"),
                 ),
                 group(
-                    img("cascade-team-darnell", 1),
+                    img(pic(604), 1),
                     t("Darnell Cruz", "h3"),
                     t("Construction Manager", "caption"),
                 ),
@@ -4631,9 +4621,9 @@ export const businessProposal: ArtifactContent = doc(
                     ),
                     button("Approve & schedule site survey"),
                 ),
-                emptyRegion(),
+                img(pic(101), 0.86),
             ),
-            { background: bgImage("brightline-solar-sunset", 0.58) },
+            { background: bgImage(pic(894, 1700, 1100), 0.58) },
         ),
     ],
     bgImage("cascade-bg", 0.35),
@@ -4653,7 +4643,7 @@ export const boardDeck: ArtifactContent = deck(
                 ),
                 t("Priya Anand · Co-founder & CEO", "caption"),
             ),
-            { background: bgImage("tideline-board-cover", 0.55) },
+            { background: bgImage(pic(378, 1700, 1100), 0.55) },
         ),
         section(
             "agenda",
@@ -4731,7 +4721,7 @@ export const boardDeck: ArtifactContent = deck(
             "product",
             split(
                 40,
-                img("tideline-signals-dashboard", 1.2),
+                img(pic(201), 1.2),
                 group(
                     t("03 · Product & ops", "label"),
                     t("Signals shipped, and it’s landing.", "h2"),
@@ -4765,7 +4755,7 @@ export const boardDeck: ArtifactContent = deck(
                 "Tideline is the first analytics tool our PMs actually open every morning. Signals caught a checkout regression before our on-call did.",
                 "Theo Marsh · Head of Product, Loop Commerce",
             ),
-            { background: bgImage("tideline-customer-team", 0.6) },
+            { background: bgImage(pic(972, 1700, 1100), 0.6) },
         ),
         section(
             "risks",
@@ -4834,7 +4824,7 @@ export const boardDeck: ArtifactContent = deck(
                 ),
                 button("Open discussion"),
             ),
-            { background: bgImage("tideline-board-closing", 0.6) },
+            { background: bgImage(pic(625, 1700, 1100), 0.6) },
         ),
     ],
     bgImage("tideline-bg", 0.3),
@@ -4854,7 +4844,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 ),
                 badge("AUG 14–16, 2026 · PIER 9, OAKHAVEN"),
             ),
-            { background: bgImage("harborlight-pier-sunset-crowd", 0.55) },
+            { background: bgImage(pic(452, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -4873,7 +4863,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("harborlight-main-stage-dusk", 0.82),
+                img(pic(453), 0.82),
             ),
         ),
 
@@ -4927,14 +4917,14 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 ),
                 button("Talk to our partnerships team"),
             ),
-            { background: bgImage("harborlight-crowd-golden-hour", 0.6) },
+            { background: bgImage(pic(158, 1700, 1100), 0.6) },
         ),
 
         section(
             "activations",
             row(
                 card(
-                    img("harborlight-brand-lounge", 1.4),
+                    img(pic(87), 1.4),
                     t("Branded lounges", "h3"),
                     t(
                         "Shaded waterfront decks with seating, charging, and your brand as the host of the calm.",
@@ -4942,7 +4932,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img("harborlight-sampling-booth", 1.4),
+                    img(pic(686), 1.4),
                     t("Sampling & retail", "h3"),
                     t(
                         "Hand product to 65,000 people in the exact moment they’re open to trying something new.",
@@ -4950,7 +4940,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img("harborlight-stage-naming", 1.4),
+                    img(pic(819), 1.4),
                     t("Stage & moment naming", "h3"),
                     t(
                         "Put your name on a stage, the sunset set, or the after-dark fireworks over the harbor.",
@@ -4983,15 +4973,14 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     t("WHAT SPONSORS GET", "label"),
                     t("Reach, hospitality, and a story worth telling.", "h2"),
                     bullets(
-                        "Logo & brand integration across stages, signage, app and the festival website",
-                        "A turnkey on-site activation footprint with power, water and load-in handled",
+                        "Brand integration across stages, signage, app and site",
+                        "A turnkey activation footprint: power, water, load-in handled",
                         "A VIP hospitality allotment: tickets, the harbor-deck lounge, and artist access",
-                        "Inclusion in the paid, owned and earned media campaign reaching 4M+ people",
-                        "Full post-event reporting: footfall, dwell time, sampling and social lift",
+                        "A place in the 4M+ reach media campaign, with full post-event reporting",
                     ),
                 ),
                 group(
-                    img("harborlight-vip-deck-evening", 0.78),
+                    img(pic(590), 0.9),
                     t(
                         "The harbor-deck hospitality lounge, where partners host clients above the crowd.",
                         "caption",
@@ -5018,14 +5007,14 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 "Harborlight is the only sponsorship on our calendar where the audience thanks us for being there. We didn’t buy attention. We earned a weekend of it.",
                 "Priya Anand · VP Brand, Northwater Seltzer · Presenting Partner 2024–25",
             ),
-            { background: bgImage("harborlight-fireworks-harbor", 0.62) },
+            { background: bgImage(pic(828, 1700, 1100), 0.62) },
         ),
 
         section(
             "ask",
             split(
                 40,
-                img("harborlight-aerial-pier-map", 1.05),
+                img(pic(639), 1.05),
                 group(
                     t("THE ASK", "label"),
                     t("Let’s build your 2026 weekend.", "h2"),
@@ -5038,7 +5027,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
         ),
     ],
-    bgImage("harborlight-bg-water-texture", 0.32),
+    bgImage(pic(384, 1700, 1100), 0.32),
 );
 
 export const sow: ArtifactContent = doc(
@@ -5058,7 +5047,7 @@ export const sow: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage("sow-blueprint-desk-laptop", 0.55) },
+            { background: bgImage(pic(532, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -5077,7 +5066,7 @@ export const sow: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img("sow-storefront-mockups", 0.82),
+                img(pic(26), 0.82),
             ),
         ),
 
@@ -5116,7 +5105,7 @@ export const sow: ArtifactContent = doc(
             split(
                 40,
                 group(
-                    img("sow-team-whiteboard-planning", 1.05),
+                    img(pic(7), 1.05),
                     t(
                         "Discovery workshops run on-site in week one to lock scope before any code ships.",
                         "caption",
@@ -5172,7 +5161,7 @@ export const sow: ArtifactContent = doc(
                         ),
                     ),
                 ),
-                img("sow-checklist-documents", 0.78),
+                img(pic(9), 0.78),
             ),
         ),
 
@@ -5294,7 +5283,7 @@ export const annualReport: ArtifactContent = doc(
                 ),
                 badge("NYSE: SOLS · 1,280 EMPLOYEES · 14 STATES"),
             ),
-            { background: bgImage("solstice-cover-rooftop-solar-dusk", 0.55) },
+            { background: bgImage(pic(448, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -5317,7 +5306,7 @@ export const annualReport: ArtifactContent = doc(
                     ),
                     t("Naomi Okonkwo, Co-founder & Chief Executive Officer", "caption"),
                 ),
-                img("solstice-ceo-naomi-portrait", 0.82),
+                img(pic(996), 0.82),
             ),
         ),
         section(
@@ -5389,13 +5378,13 @@ export const annualReport: ArtifactContent = doc(
                     200,
                 ),
             ),
-            { background: bgImage("solstice-install-crew-rooftop", 0.55) },
+            { background: bgImage(pic(617, 1700, 1100), 0.6) },
         ),
         section(
             "s8",
             row(
                 card(
-                    img("solstice-battery-product-wall", 1),
+                    img(pic(252), 1),
                     t("Solstice One", "h3"),
                     t(
                         "Our first home battery: 13.5 kWh, whole-home backup, installed in a single day.",
@@ -5403,7 +5392,7 @@ export const annualReport: ArtifactContent = doc(
                     ),
                 ),
                 card(
-                    img("solstice-app-aurora-dashboard", 1),
+                    img(pic(816), 1),
                     t("Aurora 3.0", "h3"),
                     t(
                         "A rebuilt app that turns every roof into a dashboard, and every storm into a plan.",
@@ -5411,7 +5400,7 @@ export const annualReport: ArtifactContent = doc(
                     ),
                 ),
                 card(
-                    img("solstice-gridshare-network", 1),
+                    img(pic(887), 1),
                     t("GridShare", "h3"),
                     t(
                         "A virtual power plant that pays members to share stored energy when demand peaks.",
@@ -5424,7 +5413,7 @@ export const annualReport: ArtifactContent = doc(
             "s9",
             split(
                 40,
-                img("solstice-install-team-truck", 1.05),
+                img(pic(514), 1.05),
                 group(
                     t("Our people", "label"),
                     t("The company is the crew.", "h2"),
@@ -5476,9 +5465,9 @@ export const annualReport: ArtifactContent = doc(
                         "Reach cash-flow-positive operations by the end of FY2026",
                     ),
                 ),
-                img("solstice-future-home-evening", 0.9),
+                img(pic(1008), 0.9),
             ),
-            { background: bgImage("solstice-horizon-rooftops", 0.5) },
+            { background: bgImage(pic(110, 1700, 1100), 0.5) },
         ),
         section(
             "s13",
@@ -5512,7 +5501,7 @@ export const caseStudy: ArtifactContent = doc(
                 t("A Tempo case study · Hospitality · 12-month engagement", "caption"),
                 badge("PUBLISHED WITH PERMISSION · MARLOW HOSPITALITY GROUP"),
             ),
-            { background: bgImage("marlow-dining-room-golden-hour", 0.55) },
+            { background: bgImage(pic(395, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -5530,7 +5519,7 @@ export const caseStudy: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img("marlow-restaurant-interior-warm", 0.82),
+                img(pic(437), 0.82),
             ),
         ),
         section(
@@ -5545,7 +5534,7 @@ export const caseStudy: ArtifactContent = doc(
             "s4",
             split(
                 40,
-                img("marlow-kitchen-dinner-rush", 1.05),
+                img(pic(42), 1.05),
                 group(
                     t("The challenge", "label"),
                     t("Growth was outrunning the spreadsheet", "h2"),
@@ -5588,14 +5577,14 @@ export const caseStudy: ArtifactContent = doc(
                     ),
                     diagram("process", "Audit, Pilot in Boston, Roll out by city, Optimize", 200),
                 ),
-                img("marlow-manager-tablet-floor", 0.85),
+                img(pic(3), 0.85),
             ),
         ),
         section(
             "s7",
             split(
                 40,
-                img("marlow-team-prep-morning", 1.05),
+                img(pic(488), 1.05),
                 group(
                     t("The solution", "label"),
                     t("One platform, from forecast to clock-out", "h2"),
@@ -5658,7 +5647,7 @@ export const caseStudy: ArtifactContent = doc(
                 "I got my Sundays back, and my GMs got their floors back. Tempo didn't just save us money. It let us open six restaurants without losing the thing that makes Marlow, Marlow.",
                 "Daniela Marlow, Chief Operating Officer, Marlow Hospitality Group",
             ),
-            { background: bgImage("marlow-chef-plating-closeup", 0.6) },
+            { background: bgImage(pic(999, 1700, 1100), 0.6) },
         ),
         section(
             "s12",
@@ -5673,7 +5662,7 @@ export const caseStudy: ArtifactContent = doc(
                     ),
                     button("Book a demo"),
                 ),
-                img("marlow-host-welcome-door", 0.9),
+                img(pic(163), 0.9),
             ),
         ),
     ],
@@ -5698,7 +5687,7 @@ export const researchReport: ArtifactContent = doc(
                 ),
                 badge("11,400 KNOWLEDGE WORKERS · 38 COUNTRIES · 6 INDUSTRIES"),
             ),
-            { background: bgImage("remote-work-home-office-morning-light", 0.55) },
+            { background: bgImage(pic(445, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -5720,14 +5709,14 @@ export const researchReport: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img("remote-worker-laptop-kitchen-table", 0.82),
+                img(pic(48), 0.82),
             ),
         ),
         section(
             "s3",
             split(
                 40,
-                img("research-survey-data-charts-desk", 1.05),
+                img(pic(8), 1.05),
                 group(
                     t("Methodology", "label"),
                     t("How we ran the study", "h2"),
@@ -5790,7 +5779,7 @@ export const researchReport: ArtifactContent = doc(
             "s7",
             split(
                 40,
-                img("modern-office-collaboration-space-bright", 1.05),
+                img(pic(625), 1.05),
                 group(
                     t("Finding 02 · The office's new job", "label"),
                     t("Buildings became meeting rooms", "h2"),
@@ -5816,7 +5805,7 @@ export const researchReport: ArtifactContent = doc(
                     "body",
                 ),
             ),
-            { background: bgImage("world-map-talent-network-connections", 0.6) },
+            { background: bgImage(pic(830, 1700, 1100), 0.6) },
         ),
         section(
             "s9",
@@ -5847,7 +5836,7 @@ export const researchReport: ArtifactContent = doc(
                         ),
                     ),
                 ),
-                img("mentor-junior-colleague-pairing-desk", 0.85),
+                img(pic(513), 0.85),
             ),
         ),
         section(
@@ -5868,7 +5857,7 @@ export const researchReport: ArtifactContent = doc(
                 ),
                 diagram("process", "Set anchors, Document, Pair & sponsor, Measure outcomes", 200),
             ),
-            { background: bgImage("team-planning-whiteboard-session", 0.5) },
+            { background: bgImage(pic(692, 1700, 1100), 0.5) },
         ),
         section(
             "s12",
@@ -5896,7 +5885,7 @@ export const researchReport: ArtifactContent = doc(
                     ),
                     button("Download the full dataset"),
                 ),
-                img("research-institute-team-portrait", 0.82),
+                img(pic(119), 0.82),
             ),
         ),
     ],
@@ -5918,7 +5907,7 @@ export const marketAnalysis: ArtifactContent = doc(
                 t("Meridian Research · Global EV Infrastructure Practice · June 2026", "caption"),
                 badge("GLOBAL · PUBLIC + HOME CHARGING · 2026–2032 FORECAST"),
             ),
-            { background: bgImage("ev-charging-station-night-blue-lights", 0.55) },
+            { background: bgImage(pic(132, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -5978,7 +5967,7 @@ export const marketAnalysis: ArtifactContent = doc(
             "s6",
             row(
                 card(
-                    img("ev-network-charging-hub-canopy", 1),
+                    img(pic(223), 1),
                     t("Voltline Networks", "h3"),
                     t(
                         "The volume leader in public Level 2, with ~190k connectors and a software platform others license.",
@@ -5986,7 +5975,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     ),
                 ),
                 card(
-                    img("highway-fast-charging-corridor", 1),
+                    img(pic(576), 1),
                     t("AmpGrid", "h3"),
                     t(
                         "Pure-play ultra-fast operator betting on highway corridors and 350kW megawatt-ready sites.",
@@ -5994,7 +5983,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     ),
                 ),
                 card(
-                    img("automaker-proprietary-charging-stalls", 1),
+                    img(pic(352), 1),
                     t("Hyperion (OEM)", "h3"),
                     t(
                         "An automaker's captive network now opening to other brands: distribution as a moat.",
@@ -6007,7 +5996,7 @@ export const marketAnalysis: ArtifactContent = doc(
             "s7",
             split(
                 40,
-                img("ev-charging-operator-control-room", 1.05),
+                img(pic(304), 1.05),
                 group(
                     t("Competitive landscape", "label"),
                     t("Four ways players are trying to win", "h2"),
@@ -6039,7 +6028,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     200,
                 ),
             ),
-            { background: bgImage("solar-canopy-battery-charging-site", 0.5) },
+            { background: bgImage(pic(182, 1700, 1100), 0.5) },
         ),
         section(
             "s9",
@@ -6078,7 +6067,7 @@ export const marketAnalysis: ArtifactContent = doc(
                 "The winners won't be whoever pours the most concrete. They'll be whoever keeps the most plugs working, at the lowest cost of energy, with the fewest taps to pay.",
                 "Marcus Idowu, Partner, Meridian Research",
             ),
-            { background: bgImage("ev-driver-charging-app-payment", 0.6) },
+            { background: bgImage(pic(341, 1700, 1100), 0.6) },
         ),
         section(
             "s11",
@@ -6093,7 +6082,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     ),
                     stat("23.6%", "base-case CAGR, 2025–2032"),
                 ),
-                img("ev-charging-future-cityscape-dusk", 0.9),
+                img(pic(857), 0.9),
             ),
         ),
         section(
@@ -6109,459 +6098,464 @@ export const marketAnalysis: ArtifactContent = doc(
     bgImage("ev-market-report-bg", 0.3),
 );
 
-export const qbr: ArtifactContent = doc("studio", [
-    section(
-        "q1",
-        group(
-            t("TESSERA · QUARTERLY BUSINESS REVIEW", "label"),
-            t("Q2 FY2026 in Review", "h1"),
-            t(
-                "A strong quarter on revenue, a soft one on new logos, and a clear read on what to fix before Q3. The numbers, the wins, the misses, and the four decisions we need from this room.",
-                "subtitle",
-            ),
-            t(
-                "Prepared by the Tessera leadership team · For the Board & Executive Staff · June 2026",
-                "caption",
-            ),
-            badge("ARR $48.6M · NRR 119% · 612 CUSTOMERS"),
-        ),
-        {
-            background: bgImage(
-                "tessera-leadership-team-glass-meeting-room-quarterly-review",
-                0.58,
-            ),
-        },
-    ),
-
-    section(
-        "q2",
-        split(
-            60,
+export const qbr: ArtifactContent = doc(
+    "studio",
+    [
+        section(
+            "q1",
             group(
-                t("The quarter at a glance", "label"),
-                t("We beat plan on revenue and missed it on reach.", "h2"),
+                t("TESSERA · QUARTERLY BUSINESS REVIEW", "label"),
+                t("Q2 FY2026 in Review", "h1"),
                 t(
-                    "Q2 was our best revenue quarter ever and our slowest new-logo quarter in a year, at the same time. Existing customers expanded faster than we modeled, carrying net new ARR to 113% of plan. But the top of the funnel cooled: enterprise cycles stretched, the SDR class ramped slowly, and we closed 84 of the 95 new logos we forecast.",
+                    "A strong quarter on revenue, a soft one on new logos, and a clear read on what to fix before Q3. The numbers, the wins, the misses, and the four decisions we need from this room.",
                     "subtitle",
                 ),
                 t(
-                    "The shape of the business is healthy. The shape of the pipeline is the risk. This review walks the scorecard top to bottom, names what slipped without flinching, and ends with four asks that determine whether Q3 holds the line on growth.",
+                    "Prepared by the Tessera leadership team · For the Board & Executive Staff · June 2026",
+                    "caption",
+                ),
+                badge("ARR $48.6M · NRR 119% · 612 CUSTOMERS"),
+            ),
+            {
+                background: bgImage(pic(948, 1700, 1100), 0.58),
+            },
+        ),
+
+        section(
+            "q2",
+            split(
+                60,
+                group(
+                    t("The quarter at a glance", "label"),
+                    t("We beat plan on revenue and missed it on reach.", "h2"),
+                    t(
+                        "Q2 was our best revenue quarter ever and our slowest new-logo quarter in a year, at the same time. Existing customers expanded faster than we modeled, carrying net new ARR to 113% of plan. But the top of the funnel cooled: enterprise cycles stretched, the SDR class ramped slowly, and we closed 84 of the 95 new logos we forecast.",
+                        "subtitle",
+                    ),
+                    t(
+                        "The shape of the business is healthy. The shape of the pipeline is the risk. This review walks the scorecard top to bottom, names what slipped without flinching, and ends with four asks that determine whether Q3 holds the line on growth.",
+                        "body",
+                    ),
+                ),
+                group(
+                    img(pic(687), 0.82, 10),
+                    t(
+                        "Q2 in close-up: revenue ahead of plan, reach behind it, and four decisions at the end.",
+                        "caption",
+                    ),
+                ),
+            ),
+        ),
+
+        section(
+            "q3",
+            row(
+                stat("$5.1M", "net new ARR · 113% of plan"),
+                stat("119%", "net revenue retention, up 4 pts QoQ"),
+                stat("81%", "gross margin, holding above target"),
+            ),
+        ),
+
+        section(
+            "q4",
+            group(
+                t("Scorecard", "label"),
+                t("KPIs vs. targets", "h2"),
+                t(
+                    "Six metrics define the quarter. Four beat or held; two missed. The pattern is consistent: anything driven by our installed base outperformed, and anything driven by new acquisition came in light.",
+                    "body",
+                ),
+                table(
+                    "Metric,Target,Actual,Status\n" +
+                        "Net new ARR,$4.5M,$5.1M,Beat\n" +
+                        "Net revenue retention,115%,119%,Beat\n" +
+                        "New logos,95,84,Miss\n" +
+                        "Gross margin,80%,81%,On track\n" +
+                        "CAC payback,14 mo,16 mo,Miss\n" +
+                        "Net promoter score,45,52,Beat",
+                ),
+            ),
+        ),
+
+        section(
+            "q5",
+            split(
+                60,
+                group(
+                    t("Revenue & pipeline", "label"),
+                    t("ARR keeps compounding; coverage is thinning.", "h2"),
+                    t(
+                        "ARR crossed $48.6M, our sixth straight quarter of double-digit sequential growth, driven almost entirely by expansion. The concern sits one layer down: qualified pipeline entering Q3 is 3.2x of target, below our 4.0x guardrail. We are not short on revenue today. We are short on the future quarters' worth of it.",
+                        "body",
+                    ),
+                    stat("3.2x", "Q3 pipeline coverage vs. 4.0x guardrail"),
+                ),
+                group(
+                    chart("line", "30, 34, 38, 42, 45, 49", 300),
+                    t("Ending ARR by quarter, $M, Q1 FY25 – Q2 FY26", "caption"),
+                ),
+            ),
+        ),
+
+        section(
+            "q6",
+            split(
+                40,
+                group(
+                    img(pic(407), 1.05, 10),
+                    t(
+                        "Northwind Bank went live on Tessera in six weeks, a new record for a Tier 1 account.",
+                        "caption",
+                    ),
+                ),
+                group(
+                    t("What went right", "label"),
+                    t("Four wins worth repeating", "h2"),
+                    bullets(
+                        "Closed Northwind Bank at $1.2M ARR, our largest new logo ever and a reference account in financial services.",
+                        "Shipped Tessera Flow to GA; 38% of active customers adopted it within three weeks of launch.",
+                        "Earned SOC 2 Type II, unblocking nine enterprise deals that had been gated on it.",
+                        "Expanded Cobalt Health from two business units to seven, a $640K upsell closed a quarter early.",
+                    ),
+                ),
+            ),
+        ),
+
+        section(
+            "q7",
+            quote(
+                "Our installed base is doing the work of a sales team we haven't hired yet. That's a gift and a warning.",
+                "Priya Nandakumar, Chief Revenue Officer",
+            ),
+            { background: bgImage(pic(1078, 1700, 1100), 0.6) },
+        ),
+
+        section(
+            "q8",
+            group(
+                t("What slipped", "label"),
+                t("Three things we missed, and why", "h2"),
+                callout(
+                    "caution",
+                    group(
+                        t("NEW-LOGO SHORTFALL", "label"),
+                        t(
+                            "We closed 84 of 95 forecast new logos. Two-thirds of the gap traces to enterprise deals slipping a quarter as security review queued behind our SOC 2 cycle; the rest to an SDR class that ramped roughly five weeks slower than the last. Neither is structural, but both are now in the Q3 plan as named risks.",
+                            "body",
+                        ),
+                    ),
+                ),
+                t(
+                    "Two more slips worth naming plainly: Reverse ETL, promised for May GA, moved to Q3 after a data-residency rework. It cost us at least two competitive evaluations. And CAC payback drifted to 16 months against a 14-month target, a direct consequence of spending into a funnel that converted slower than planned.",
                     "body",
                 ),
             ),
-            group(
-                img("tessera-product-integration-dashboard-on-monitor", 0.82, 10),
-                t(
-                    "Tessera Flow shipped to general availability in May, the largest release of the quarter.",
-                    "caption",
+        ),
+
+        section(
+            "q9",
+            split(
+                60,
+                group(
+                    t("Customer health", "label"),
+                    t("Retention is strong; a few whales need watching.", "h2"),
+                    t(
+                        "Gross retention held at 94% and NPS climbed to 52, its highest reading since we began tracking it. Support CSAT sits at 4.6/5. The watch list is short but heavy: three accounts representing $2.1M of ARR are mid-renewal with new economic buyers, and all three are now under direct executive sponsorship.",
+                        "body",
+                    ),
+                    quote(
+                        "Tessera quietly became the system the rest of our stack reports into. We'd feel its absence in a day.",
+                        "Director of Data Platform, Cobalt Health",
+                    ),
+                ),
+                group(
+                    chart("line", "111, 113, 115, 117, 119", 260),
+                    t("Net revenue retention by quarter, %", "caption"),
                 ),
             ),
         ),
-    ),
 
-    section(
-        "q3",
-        row(
-            stat("$5.1M", "net new ARR · 113% of plan"),
-            stat("119%", "net revenue retention, up 4 pts QoQ"),
-            stat("81%", "gross margin, holding above target"),
-        ),
-    ),
-
-    section(
-        "q4",
-        group(
-            t("Scorecard", "label"),
-            t("KPIs vs. targets", "h2"),
-            t(
-                "Six metrics define the quarter. Four beat or held; two missed. The pattern is consistent: anything driven by our installed base outperformed, and anything driven by new acquisition came in light.",
-                "body",
-            ),
-            table(
-                "Metric,Target,Actual,Status\n" +
-                    "Net new ARR,$4.5M,$5.1M,Beat\n" +
-                    "Net revenue retention,115%,119%,Beat\n" +
-                    "New logos,95,84,Miss\n" +
-                    "Gross margin,80%,81%,On track\n" +
-                    "CAC payback,14 mo,16 mo,Miss\n" +
-                    "Net promoter score,45,52,Beat",
-            ),
-        ),
-    ),
-
-    section(
-        "q5",
-        split(
-            60,
+        section(
+            "q10",
             group(
-                t("Revenue & pipeline", "label"),
-                t("ARR keeps compounding; coverage is thinning.", "h2"),
+                t("Looking ahead", "label"),
+                t("Priorities for Q3", "h2"),
                 t(
-                    "ARR crossed $48.6M, our sixth straight quarter of double-digit sequential growth, driven almost entirely by expansion. The concern sits one layer down: qualified pipeline entering Q3 is 3.2x of target, below our 4.0x guardrail. We are not short on revenue today. We are short on the future quarters' worth of it.",
+                    "One quarter, five moves. Each maps directly to a gap above, and the plan is to fix what slipped without slowing what's working.",
                     "body",
                 ),
-                stat("3.2x", "Q3 pipeline coverage vs. 4.0x guardrail"),
-            ),
-            group(
-                chart("line", "30, 34, 38, 42, 45, 49", 300),
-                t("Ending ARR by quarter, $M, Q1 FY25 – Q2 FY26", "caption"),
-            ),
-        ),
-    ),
-
-    section(
-        "q6",
-        split(
-            40,
-            group(
-                img("tessera-customer-success-manager-on-video-call", 1.05, 10),
-                t(
-                    "Northwind Bank went live on Tessera in six weeks, a new record for a Tier 1 account.",
-                    "caption",
-                ),
-            ),
-            group(
-                t("What went right", "label"),
-                t("Four wins worth repeating", "h2"),
                 bullets(
-                    "Closed Northwind Bank at $1.2M ARR, our largest new logo ever and a reference account in financial services.",
-                    "Shipped Tessera Flow to GA; 38% of active customers adopted it within three weeks of launch.",
-                    "Earned SOC 2 Type II, unblocking nine enterprise deals that had been gated on it.",
-                    "Expanded Cobalt Health from two business units to seven, a $640K upsell closed a quarter early.",
+                    "Rebuild pipeline coverage to 4.0x by mid-quarter: protect outbound spend, accelerate the partner-sourced channel.",
+                    "Ship Reverse ETL to GA in week six; win back the two stalled evaluations it cost us.",
+                    "Fully ramp the new SDR class and stand up a dedicated enterprise security-review fast lane.",
+                    "Pull CAC payback back toward 14 months by reweighting spend to the segments that convert.",
+                    "Lock the three at-risk renewals early, ahead of their economic-buyer transitions.",
                 ),
             ),
         ),
-    ),
 
-    section(
-        "q7",
-        quote(
-            "Our installed base is doing the work of a sales team we haven't hired yet. That's a gift and a warning.",
-            "Priya Nandakumar, Chief Revenue Officer",
-        ),
-        { background: bgImage("tessera-quiet-open-office-evening-warm-light", 0.6) },
-    ),
-
-    section(
-        "q8",
-        group(
-            t("What slipped", "label"),
-            t("Three things we missed, and why", "h2"),
-            callout(
-                "caution",
-                group(
-                    t("NEW-LOGO SHORTFALL", "label"),
-                    t(
-                        "We closed 84 of 95 forecast new logos. Two-thirds of the gap traces to enterprise deals slipping a quarter as security review queued behind our SOC 2 cycle; the rest to an SDR class that ramped roughly five weeks slower than the last. Neither is structural, but both are now in the Q3 plan as named risks.",
-                        "body",
-                    ),
+        section(
+            "q11",
+            card(
+                t("The asks", "label"),
+                t("Four decisions we need from this room", "h2"),
+                bullets(
+                    "Approve six incremental enterprise AE hires, front-loaded into July to protect H2 capacity.",
+                    "Release the $400K field-marketing budget to refill top-of-funnel ahead of Q3.",
+                    "Sponsor the three strategic renewals at board level: intros where you have them.",
+                    "Sign off on the usage-based pricing change for the mid-market tier, effective August 1.",
                 ),
+                button("Approve the Q3 plan"),
             ),
+        ),
+
+        section(
+            "q12",
             t(
-                "Two more slips worth naming plainly: Reverse ETL, promised for May GA, moved to Q3 after a data-residency rework. It cost us at least two competitive evaluations. And CAC payback drifted to 16 months against a 14-month target, a direct consequence of spending into a funnel that converted slower than planned.",
-                "body",
-            ),
-        ),
-    ),
-
-    section(
-        "q9",
-        split(
-            60,
-            group(
-                t("Customer health", "label"),
-                t("Retention is strong; a few whales need watching.", "h2"),
-                t(
-                    "Gross retention held at 94% and NPS climbed to 52, its highest reading since we began tracking it. Support CSAT sits at 4.6/5. The watch list is short but heavy: three accounts representing $2.1M of ARR are mid-renewal with new economic buyers, and all three are now under direct executive sponsorship.",
-                    "body",
-                ),
-                quote(
-                    "Tessera quietly became the system the rest of our stack reports into. We'd feel its absence in a day.",
-                    "Director of Data Platform, Cobalt Health",
-                ),
-            ),
-            group(
-                chart("line", "111, 113, 115, 117, 119", 260),
-                t("Net revenue retention by quarter, %", "caption"),
-            ),
-        ),
-    ),
-
-    section(
-        "q10",
-        group(
-            t("Looking ahead", "label"),
-            t("Priorities for Q3", "h2"),
-            t(
-                "One quarter, five moves. Each maps directly to a gap above, and the plan is to fix what slipped without slowing what's working.",
-                "body",
-            ),
-            bullets(
-                "Rebuild pipeline coverage to 4.0x by mid-quarter: protect outbound spend, accelerate the partner-sourced channel.",
-                "Ship Reverse ETL to GA in week six; win back the two stalled evaluations it cost us.",
-                "Fully ramp the new SDR class and stand up a dedicated enterprise security-review fast lane.",
-                "Pull CAC payback back toward 14 months by reweighting spend to the segments that convert.",
-                "Lock the three at-risk renewals early, ahead of their economic-buyer transitions.",
-            ),
-        ),
-    ),
-
-    section(
-        "q11",
-        card(
-            t("The asks", "label"),
-            t("Four decisions we need from this room", "h2"),
-            bullets(
-                "Approve six incremental enterprise AE hires, front-loaded into July to protect H2 capacity.",
-                "Release the $400K field-marketing budget to refill top-of-funnel ahead of Q3.",
-                "Sponsor the three strategic renewals at board level: intros where you have them.",
-                "Sign off on the usage-based pricing change for the mid-market tier, effective August 1.",
-            ),
-            button("Approve the Q3 plan"),
-        ),
-    ),
-
-    section(
-        "q12",
-        t(
-            "The business is compounding from the inside out. The work now is to make sure the next twelve months of new customers are as healthy as this quarter's revenue. We have the team, the product, and the plan. We need the four yeses above to run it.",
-            "subtitle",
-        ),
-        { background: bgImage("tessera-city-skyline-sunrise-office-window", 0.55) },
-    ),
-]);
-
-export const trendsReport: ArtifactContent = doc("studio", [
-    section(
-        "t1",
-        group(
-            t("INDUSTRY TRENDS REPORT · 2026", "label"),
-            t("The Factory Wakes Up", "h1"),
-            t(
-                "For thirty years the industrial robot was a caged, single-purpose machine bolted to a floor. In 2026 it is becoming something else: cheaper, sighted, rentable, and increasingly able to share the room with people. This is the year automation stopped being a project and started being a default.",
+                "The business is compounding from the inside out. The work now is to make sure the next twelve months of new customers are as healthy as this quarter's revenue. We have the team, the product, and the plan. We need the four yeses above to run it.",
                 "subtitle",
             ),
-            t("Continuum Research · Automation & Robotics Practice · June 2026", "caption"),
-            badge("420 MANUFACTURERS SURVEYED · 11 SECTORS · 19 COUNTRIES"),
+            { background: bgImage(pic(417, 1700, 1100), 0.55) },
         ),
-        { background: bgImage("industrial-robot-arms-automotive-assembly-line-sparks", 0.58) },
-    ),
+    ],
+    bgImage(pic(945, 1700, 1100), 0.35),
+);
 
-    section(
-        "t2",
-        split(
-            60,
+export const trendsReport: ArtifactContent = doc(
+    "studio",
+    [
+        section(
+            "t1",
             group(
-                t("The landscape today", "label"),
-                t("Automation crossed from the margins to the mainstream.", "h2"),
+                t("INDUSTRY TRENDS REPORT · 2026", "label"),
+                t("The Factory Wakes Up", "h1"),
                 t(
-                    "The story of industrial robotics used to be a story about cars, about heavy arms welding chassis in a handful of giant plants. That era hasn't ended, but it has been overtaken. The fastest growth now comes from electronics, logistics, food, and metals, and from companies with under five hundred employees that could never have justified automation a decade ago.",
+                    "For thirty years the industrial robot was a caged, single-purpose machine bolted to a floor. In 2026 it is becoming something else: cheaper, sighted, rentable, and increasingly able to share the room with people. This is the year automation stopped being a project and started being a default.",
                     "subtitle",
                 ),
-                t(
-                    "Three forces are converging: hardware costs are falling, perception software has gotten good enough to handle mess, and new financing models have erased the upfront capital wall. Together they are pulling robots out of the cage and into the kind of work that used to be considered too varied, too delicate, or too small-batch to automate.",
-                    "body",
-                ),
+                t("Continuum Research · Automation & Robotics Practice · June 2026", "caption"),
+                badge("420 MANUFACTURERS SURVEYED · 11 SECTORS · 19 COUNTRIES"),
             ),
-            group(
-                img("collaborative-robot-cobot-working-beside-human-technician-factory", 0.82, 10),
-                t(
-                    "A cobot and a technician share a line at a contract electronics plant in Penang.",
-                    "caption",
-                ),
-            ),
+            { background: bgImage(pic(331, 1700, 1100), 0.58) },
         ),
-    ),
 
-    section(
-        "t3",
-        row(
-            stat("4.3M", "industrial robots operating worldwide"),
-            stat("+12%", "annual installations, 2025 vs. 2024"),
-            stat("$16.5B", "projected cobot market by 2030"),
-        ),
-    ),
-
-    section(
-        "t4",
-        split(
-            60,
-            group(
-                t("Trend 01", "label"),
-                t("Collaborative robots go mainstream", "h2"),
-                t(
-                    "Cobots (robots designed to work safely alongside people without a cage) have moved from novelty to backbone. They install in days rather than months, cost a fraction of traditional cells, and don't require a safety guard or a dedicated operator. In 2020 they were one in twelve new installations; on our forecast they cross one in three by 2027.",
-                    "body",
-                ),
-                t(
-                    "What changed is not the robots so much as the buyers. The marginal new customer in 2026 is a mid-sized job shop automating a single repetitive station (palletizing, machine tending, quality inspection) and expecting payback inside a year. Cobots are the only category that meets that bar.",
-                    "body",
-                ),
-            ),
-            group(
-                chart("line", "9, 12, 16, 21, 27, 33", 300),
-                t("Cobots as a share of new robot installations, %, 2022–2027E", "caption"),
-            ),
-        ),
-    ),
-
-    section(
-        "t5",
-        split(
-            40,
-            group(
-                img("robot-arm-machine-vision-camera-bin-picking-parts", 1.05, 10),
-                t(
-                    "Vision-guided bin picking, the task that AI perception finally solved.",
-                    "caption",
-                ),
-            ),
-            group(
-                t("Trend 02", "label"),
-                t("Perception gets a brain", "h2"),
-                t(
-                    "The hardest problem in automation was never motion. It was sight. A robot that can only repeat a memorized path is useless the moment a part arrives at the wrong angle. AI-driven vision changed that. Modern perception stacks identify, orient, and grasp jumbled parts from a bin in real time, a task that defeated automation for thirty years.",
-                    "body",
-                ),
-                stat("10x", "improvement in vision-guided bin-picking success since 2021"),
-                t(
-                    "The downstream effect is larger than the feature itself: once a robot can handle variability, the universe of automatable tasks expands dramatically, and the line between fixed automation and flexible labor begins to blur.",
-                    "body",
-                ),
-            ),
-        ),
-    ),
-
-    section(
-        "t6",
-        split(
-            60,
-            group(
-                t("Trend 03", "label"),
-                t("Robots without the capital expense", "h2"),
-                t(
-                    "Robotics-as-a-Service is doing to automation what cloud did to servers. Instead of a six-figure purchase and a multi-year depreciation schedule, manufacturers rent capacity by the month, with hardware, software, maintenance, and uptime guarantees bundled into a single operating-expense line. RaaS contracts signed grew more than tenfold in three years.",
-                    "body",
-                ),
-                t(
-                    "The model matters most for exactly the buyers who were previously locked out: smaller manufacturers without capital budgets or in-house robotics teams. It converts a daunting one-time bet into a cancelable subscription, and in doing so widens the market far faster than falling hardware prices alone could.",
-                    "body",
-                ),
-            ),
-            group(
-                chart("column", "120, 340, 610, 980, 1520", 300),
-                t("RaaS contracts signed per year, 2021–2025", "caption"),
-            ),
-        ),
-    ),
-
-    section(
-        "t7",
-        group(
-            t("Trend 04", "label"),
-            t("The labor equation flips", "h2"),
-            stat("1.9M", "U.S. manufacturing jobs projected to go unfilled by 2030"),
-            t(
-                "For most of the last century automation was framed as a substitute for available labor. In 2026 it is increasingly a response to labor that simply isn't there. An aging workforce, tighter immigration, and a reshoring wave have left factories structurally short-staffed, and robots are filling the dull, dirty, and dangerous roles people no longer take. The political conversation about jobs is, on the factory floor, quietly inverting.",
-                "subtitle",
-            ),
-        ),
-        { background: bgImage("empty-modern-factory-floor-automation-robots-night-shift", 0.62) },
-    ),
-
-    section(
-        "t8",
-        split(
-            60,
-            group(
-                t("Trend 05", "label"),
-                t("Humanoids cross from demo to pilot", "h2"),
-                t(
-                    "The most hyped category is also the least proven, but in 2026 it stopped being only hype. General-purpose humanoid robots moved from staged demos to paid pilots inside real warehouses and plants, with announced deployments climbing from a handful in 2022 to roughly ninety this year. None are at scale, and the unit economics remain unproven.",
-                    "body",
-                ),
-                t(
-                    "Our read is to treat humanoids as a five-year bet, not a 2026 purchase. The near-term value is narrow (moving totes, tending machines, simple loading) and the durability and cost questions are real. But the trajectory is steep enough that no operations leader should let the category go un-watched.",
-                    "body",
-                ),
-            ),
-            group(
-                chart("line", "3, 7, 18, 44, 90", 260),
-                t("Announced humanoid robot pilots, cumulative, 2022–2026", "caption"),
-            ),
-        ),
-    ),
-
-    section(
-        "t9",
-        quote(
-            "The question on the floor is no longer whether to automate a task. It's which financing model and how soon, and that shift is the whole story of 2026.",
-            "Lead Analyst, Continuum Automation Practice",
-        ),
-        { background: bgImage("warehouse-logistics-robots-conveyor-blue-light", 0.6) },
-    ),
-
-    section(
-        "t10",
-        card(
-            t("What it means for you", "label"),
-            t("Reading the trends as an operator", "h2"),
-            callout(
-                "tip",
+        section(
+            "t2",
+            split(
+                60,
                 group(
-                    t("THE PRACTICAL TAKEAWAY", "label"),
+                    t("The landscape today", "label"),
+                    t("Automation crossed from the margins to the mainstream.", "h2"),
                     t(
-                        "If you run operations, the cost of waiting just went up. The combination of cheap cobots, working perception, and rentable capacity means the first automatable station in your plant probably pays back inside a year, and your competitors are doing the math too.",
+                        "The story of industrial robotics used to be a story about cars, about heavy arms welding chassis in a handful of giant plants. That era hasn't ended, but it has been overtaken. The fastest growth now comes from electronics, logistics, food, and metals, and from companies with under five hundred employees that could never have justified automation a decade ago.",
+                        "subtitle",
+                    ),
+                    t(
+                        "Three forces are converging: hardware costs are falling, perception software has gotten good enough to handle mess, and new financing models have erased the upfront capital wall. Together they are pulling robots out of the cage and into the kind of work that used to be considered too varied, too delicate, or too small-batch to automate.",
+                        "body",
+                    ),
+                ),
+                group(
+                    img(pic(495), 0.82, 10),
+                    t(
+                        "The era this report leaves behind: fixed machines, fenced off, each doing one job.",
+                        "caption",
+                    ),
+                ),
+            ),
+        ),
+
+        section(
+            "t3",
+            row(
+                stat("4.3M", "industrial robots operating worldwide"),
+                stat("+12%", "annual installations, 2025 vs. 2024"),
+                stat("$16.5B", "projected cobot market by 2030"),
+            ),
+        ),
+
+        section(
+            "t4",
+            split(
+                60,
+                group(
+                    t("Trend 01", "label"),
+                    t("Collaborative robots go mainstream", "h2"),
+                    t(
+                        "Cobots (robots designed to work safely alongside people without a cage) have moved from novelty to backbone. They install in days rather than months, cost a fraction of traditional cells, and don't require a safety guard or a dedicated operator. In 2020 they were one in twelve new installations; on our forecast they cross one in three by 2027.",
+                        "body",
+                    ),
+                    t(
+                        "What changed is not the robots so much as the buyers. The marginal new customer in 2026 is a mid-sized job shop automating a single repetitive station (palletizing, machine tending, quality inspection) and expecting payback inside a year. Cobots are the only category that meets that bar.",
+                        "body",
+                    ),
+                ),
+                group(
+                    chart("line", "9, 12, 16, 21, 27, 33", 300),
+                    t("Cobots as a share of new robot installations, %, 2022–2027E", "caption"),
+                ),
+            ),
+        ),
+
+        section(
+            "t5",
+            split(
+                40,
+                group(
+                    img(pic(250), 1.05, 10),
+                    t(
+                        "The camera became the fixture: the part no longer has to arrive in a known place.",
+                        "caption",
+                    ),
+                ),
+                group(
+                    t("Trend 02", "label"),
+                    t("Perception gets a brain", "h2"),
+                    t(
+                        "The hardest problem in automation was never motion. It was sight. A robot that can only repeat a memorized path is useless the moment a part arrives at the wrong angle. AI-driven vision changed that. Modern perception stacks identify, orient, and grasp jumbled parts from a bin in real time, a task that defeated automation for thirty years.",
+                        "body",
+                    ),
+                    stat("10x", "improvement in vision-guided bin-picking success since 2021"),
+                    t(
+                        "The downstream effect is larger than the feature itself: once a robot can handle variability, the universe of automatable tasks expands dramatically, and the line between fixed automation and flexible labor begins to blur.",
                         "body",
                     ),
                 ),
             ),
-            bullets(
-                "Start with one station, not a line. Pick a repetitive, single-task bottleneck and prove payback before scaling.",
-                "Pilot via RaaS to sidestep the capital case and learn before you commit hardware.",
-                "Insist on vision-guided flexibility: fixed automation ages badly as product mix changes.",
-                "Watch humanoids, but don't buy yet; budget attention this year, capital in two to three.",
-            ),
         ),
-    ),
 
-    section(
-        "t11",
-        group(
-            t("The outlook", "label"),
-            t("Five predictions for the next five years", "h2"),
-            t(
-                "Where the curves above point, with our confidence stated plainly. We will grade ourselves against these in next year's edition.",
-                "body",
-            ),
-            table(
-                "Prediction,Timeframe,Confidence\n" +
-                    "Cobots exceed 40% of new installations,By 2028,High\n" +
-                    "Vision-guided picking becomes standard on new cells,By 2027,High\n" +
-                    "RaaS becomes the default for SMB automation,By 2029,Medium\n" +
-                    "Robot density doubles in reshored U.S. plants,By 2031,Medium\n" +
-                    "First single-site 10,000-unit humanoid fleet deployed,By 2031,Low",
+        section(
+            "t6",
+            split(
+                60,
+                group(
+                    t("Trend 03", "label"),
+                    t("Robots without the capital expense", "h2"),
+                    t(
+                        "Robotics-as-a-Service is doing to automation what cloud did to servers. Instead of a six-figure purchase and a multi-year depreciation schedule, manufacturers rent capacity by the month, with hardware, software, maintenance, and uptime guarantees bundled into a single operating-expense line. RaaS contracts signed grew more than tenfold in three years.",
+                        "body",
+                    ),
+                    t(
+                        "The model matters most for exactly the buyers who were previously locked out: smaller manufacturers without capital budgets or in-house robotics teams. It converts a daunting one-time bet into a cancelable subscription, and in doing so widens the market far faster than falling hardware prices alone could.",
+                        "body",
+                    ),
+                ),
+                group(
+                    chart("column", "120, 340, 610, 980, 1520", 300),
+                    t("RaaS contracts signed per year, 2021–2025", "caption"),
+                ),
             ),
         ),
-    ),
 
-    section(
-        "t12",
-        group(
-            divider(),
-            t("Methodology", "label"),
-            t(
-                "This report draws on a survey of 420 manufacturing operations leaders across eleven sectors and nineteen countries, fielded in March–April 2026, supplemented by global robot shipment data, RaaS-provider contract figures, and forty in-depth interviews with plant managers and automation integrators. Forecasts represent our base case; ranges and full segment data are available in the data appendix.",
-                "body",
+        section(
+            "t7",
+            group(
+                t("Trend 04", "label"),
+                t("The labor equation flips", "h2"),
+                stat("1.9M", "U.S. manufacturing jobs projected to go unfilled by 2030"),
+                t(
+                    "For most of the last century automation was framed as a substitute for available labor. In 2026 it is increasingly a response to labor that simply isn't there. An aging workforce, tighter immigration, and a reshoring wave have left factories structurally short-staffed, and robots are filling the dull, dirty, and dangerous roles people no longer take. The political conversation about jobs is, on the factory floor, quietly inverting.",
+                    "subtitle",
+                ),
             ),
-            button("Request the full data appendix"),
-            t(
-                "Continuum Research · Automation & Robotics Practice · Lead analyst: Dr. Elena Vasquez · © 2026",
-                "caption",
+            { background: bgImage(pic(775, 1700, 1100), 0.62) },
+        ),
+
+        section(
+            "t8",
+            split(
+                60,
+                group(
+                    t("Trend 05", "label"),
+                    t("Humanoids cross from demo to pilot", "h2"),
+                    t(
+                        "The most hyped category is also the least proven, but in 2026 it stopped being only hype. General-purpose humanoid robots moved from staged demos to paid pilots inside real warehouses and plants, with announced deployments climbing from a handful in 2022 to roughly ninety this year. None are at scale, and the unit economics remain unproven.",
+                        "body",
+                    ),
+                    t(
+                        "Our read is to treat humanoids as a five-year bet, not a 2026 purchase. The near-term value is narrow (moving totes, tending machines, simple loading) and the durability and cost questions are real. But the trajectory is steep enough that no operations leader should let the category go un-watched.",
+                        "body",
+                    ),
+                ),
+                group(
+                    chart("line", "3, 7, 18, 44, 90", 260),
+                    t("Announced humanoid robot pilots, cumulative, 2022–2026", "caption"),
+                ),
             ),
         ),
-    ),
-]);
+
+        section(
+            "t9",
+            quote(
+                "The question on the floor is no longer whether to automate a task. It's which financing model and how soon, and that shift is the whole story of 2026.",
+                "Lead Analyst, Continuum Automation Practice",
+            ),
+            { background: bgImage(pic(315, 1700, 1100), 0.6) },
+        ),
+
+        section(
+            "t10",
+            card(
+                t("What it means for you", "label"),
+                t("Reading the trends as an operator", "h2"),
+                callout(
+                    "tip",
+                    group(
+                        t("THE PRACTICAL TAKEAWAY", "label"),
+                        t(
+                            "If you run operations, the cost of waiting just went up. The combination of cheap cobots, working perception, and rentable capacity means the first automatable station in your plant probably pays back inside a year, and your competitors are doing the math too.",
+                            "body",
+                        ),
+                    ),
+                ),
+                bullets(
+                    "Start with one station, not a line. Pick a repetitive, single-task bottleneck and prove payback before scaling.",
+                    "Pilot via RaaS to sidestep the capital case and learn before you commit hardware.",
+                    "Insist on vision-guided flexibility: fixed automation ages badly as product mix changes.",
+                    "Watch humanoids, but don't buy yet; budget attention this year, capital in two to three.",
+                ),
+            ),
+        ),
+
+        section(
+            "t11",
+            group(
+                t("The outlook", "label"),
+                t("Five predictions for the next five years", "h2"),
+                t(
+                    "Where the curves above point, with our confidence stated plainly. We will grade ourselves against these in next year's edition.",
+                    "body",
+                ),
+                table(
+                    "Prediction,Timeframe,Confidence\n" +
+                        "Cobots exceed 40% of new installations,By 2028,High\n" +
+                        "Vision-guided picking becomes standard on new cells,By 2027,High\n" +
+                        "RaaS becomes the default for SMB automation,By 2029,Medium\n" +
+                        "Robot density doubles in reshored U.S. plants,By 2031,Medium\n" +
+                        "First single-site 10,000-unit humanoid fleet deployed,By 2031,Low",
+                ),
+            ),
+        ),
+
+        section(
+            "t12",
+            group(
+                divider(),
+                t("Methodology", "label"),
+                t(
+                    "This report draws on a survey of 420 manufacturing operations leaders across eleven sectors and nineteen countries, fielded in March–April 2026, supplemented by global robot shipment data, RaaS-provider contract figures, and forty in-depth interviews with plant managers and automation integrators. Forecasts represent our base case; ranges and full segment data are available in the data appendix.",
+                    "body",
+                ),
+                button("Request the full data appendix"),
+                t(
+                    "Continuum Research · Automation & Robotics Practice · Lead analyst: Dr. Elena Vasquez · © 2026",
+                    "caption",
+                ),
+            ),
+        ),
+    ],
+    bgImage(pic(616, 1700, 1100), 0.4),
+);
 
 // keyed by the same ids as @model/workspace's TEMPLATE_INDEX; a missing key is a 404, so the two
 // must stay in sync (the index is the client-facing half, this is the body half)
