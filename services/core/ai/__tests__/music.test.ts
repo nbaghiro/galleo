@@ -35,7 +35,9 @@ describe("the preset set", () => {
     it("every preset says what it must not do, which is what keeps a bed a bed", () => {
         for (const p of MUSIC_PRESETS) {
             expect(p.prompt).toContain("Instrumental only");
-            expect(p.prompt).toContain("No prominent melody");
+            // the two that matter: nothing sung over the top, and no lurch in level under a voice
+            expect(p.prompt).toContain("no vocals, no lyrics");
+            expect(p.prompt).toContain("no sudden drops");
             expect(p.name).toBeTruthy();
             expect(p.description).toBeTruthy();
         }

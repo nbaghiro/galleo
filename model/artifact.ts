@@ -87,8 +87,12 @@ export interface ArtifactMusic {
     volume?: number; // 0..1 of the bed's own level, before ducking; default MUSIC_VOLUME
 }
 
-/** The bed's resting level. Low by design: it is under something, not the thing. */
-export const MUSIC_VOLUME = 0.35;
+/**
+ * The bed's resting level with nothing speaking over it. Under the content, but meant to be heard:
+ * at the old 0.35 a bed written to sit in the background was inaudible on laptop speakers, which is
+ * indistinguishable from music that failed to start.
+ */
+export const MUSIC_VOLUME = 0.55;
 
 /** How far the bed drops while a voice speaks. Ordinary broadcast practice, not a guess at taste. */
 export const MUSIC_DUCK = 0.3;

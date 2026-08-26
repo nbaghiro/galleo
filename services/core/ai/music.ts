@@ -25,8 +25,16 @@ export const MUSIC_MIME = "audio/mpeg";
 /** Provider bounds. A bed shorter than the floor is a sting; longer than the ceiling is refused. */
 export const MIN_MS = 3_000;
 export const MAX_MS = 600_000;
-/** What a bed is when nothing knows how long it needs to be, which is any un-narrated piece. */
-export const DEFAULT_MS = 120_000;
+/**
+ * What a bed is when nothing knows how long it needs to be, which is any un-narrated piece.
+ *
+ * Short, because the player loops it and generation is charged and waited for by the second:
+ * measured at roughly two seconds fixed plus a quarter of a second per second of music, so the old
+ * two-minute default was a thirty-second wait behind a spinner and 1,800 credits. Thirty seconds of
+ * audio is nine seconds and 450 credits, and a bed written as a repeating idea loops without
+ * anyone counting the bars.
+ */
+export const DEFAULT_MS = 30_000;
 
 export const musicReady = (): boolean => !!process.env.ELEVENLABS_API_KEY;
 
@@ -38,8 +46,10 @@ export const musicReady = (): boolean => !!process.env.ELEVENLABS_API_KEY;
  * generated backing track is a tune that competes with the person talking over it.
  */
 const BED_RULES =
-    "Instrumental only, no vocals, no lyrics. Steady and unobtrusive, sitting behind a speaking " +
-    "voice. No prominent melody, no build, no drop, no sudden dynamic changes.";
+    "Instrumental only, no vocals, no lyrics. Give it a clear repeating musical idea with warmth " +
+    "and gentle momentum, played so it can be heard rather than sitting in the far background. " +
+    "Keep the level even throughout: no long silences, no sudden drops, nothing that spikes. " +
+    "It will be played on a loop, so end it where it began: no final chord, no fade out.";
 
 export interface MusicPreset {
     id: string;
@@ -53,7 +63,7 @@ export const MUSIC_PRESETS: readonly MusicPreset[] = [
         id: "calm",
         name: "Calm",
         description: "Soft piano and warm pads, unhurried",
-        prompt: `Calm minimal ambient underscore. Soft piano and warm analogue pads, slow, spacious, gentle. ${BED_RULES}`,
+        prompt: `Calm, unhurried underscore. Soft piano over warm analogue pads, a simple recurring motif, spacious but audible. ${BED_RULES}`,
     },
     {
         id: "warm",
