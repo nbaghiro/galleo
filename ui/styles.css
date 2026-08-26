@@ -102,6 +102,29 @@ select:-webkit-autofill {
     scrollbar-width: thin;
     scrollbar-color: var(--sb, var(--color-line)) transparent;
 }
+/* Sound is the one thing a still control cannot show. A slow breathe on the glyph says the button
+   is producing something right now, where a colour alone reads the same as a toggle that is merely
+   switched on. Deliberately gentle and slow: this sits in front of an audience. */
+@keyframes sounding {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.62;
+        transform: scale(0.9);
+    }
+}
+.sounding {
+    animation: sounding 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .sounding {
+        animation: none;
+    }
+}
+
 @keyframes gen-lightsweep {
     0% {
         transform: translateY(-120%);

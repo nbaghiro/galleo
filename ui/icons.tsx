@@ -1,5 +1,5 @@
 import type { Component, JSX } from "solid-js";
-import { createContext, useContext } from "solid-js";
+import { createContext, splitProps, useContext } from "solid-js";
 import type { Tokens } from "@themes";
 
 const PATHS: Record<string, () => JSX.Element> = {
@@ -526,13 +526,16 @@ function iconStyle(t?: Tokens): { sw: number; cap: "round" | "square"; join: "ro
     return { sw, cap: round ? "round" : "square", join: round ? "round" : "miter" };
 }
 
-export const Icon: Component<{ name: string; size?: number }> = (props) => {
+export const Icon: Component<
+    { name: string; size?: number } & JSX.SvgSVGAttributes<SVGSVGElement>
+> = (props) => {
     const tokens = useContext(UiThemeContext);
     const st = (): ReturnType<typeof iconStyle> => iconStyle(tokens?.());
+    const [own, rest] = splitProps(props, ["name", "size"]);
     return (
         <svg
-            width={props.size ?? 18}
-            height={props.size ?? 18}
+            width={own.size ?? 18}
+            height={own.size ?? 18}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -540,8 +543,9 @@ export const Icon: Component<{ name: string; size?: number }> = (props) => {
             stroke-linecap={st().cap}
             stroke-linejoin={st().join}
             aria-hidden="true"
+            {...rest}
         >
-            {PATHS[props.name]?.()}
+            {PATHS[own.name]?.()}
         </svg>
     );
 };
