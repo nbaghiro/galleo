@@ -99,7 +99,9 @@ export const TemplatePreview: Component<{
                 class="flex h-[94vh] w-[97vw] flex-col overflow-hidden"
                 onClose={() => props.onClose()}
             >
-                <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3">
+                {/* phone: the switcher wraps to its own full-width row and the action shortens,
+                    so the title keeps the room; desktop reads as one row, as before */}
+                <header class="flex flex-none items-center gap-3 border-b border-line px-5 py-3 max-md:flex-wrap max-md:gap-y-2">
                     <Show when={props.onBack}>
                         <IconButton
                             size="sm"
@@ -110,23 +112,25 @@ export const TemplatePreview: Component<{
                             <Icon name="chevronLeft" size={14} />
                         </IconButton>
                     </Show>
-                    <div class="min-w-0">
+                    <div class="min-w-0 max-md:flex-1">
                         <div class="truncate text-[14px] font-semibold text-ink">
                             {props.template.name}
                         </div>
-                        <div class="text-[11px] text-muted">
+                        <div class="truncate text-[11px] text-muted">
                             {props.template.category} · {props.template.content.sections.length}{" "}
                             sections
                         </div>
                     </div>
-                    <div class="ml-4">{switcher()}</div>
+                    <div class="ml-4 max-md:order-last max-md:ml-0 max-md:w-full">{switcher()}</div>
                     <div class="ml-auto flex items-center gap-2 max-md:pr-10">
                         <Button
                             variant="primary"
+                            class="whitespace-nowrap"
                             disabled={props.busy}
                             onClick={() => props.onUse(format())}
                         >
-                            {label()}
+                            <span class="max-md:hidden">{label()}</span>
+                            <span class="md:hidden">{props.busy ? "Creating…" : "Use →"}</span>
                         </Button>
                     </div>
                 </header>
