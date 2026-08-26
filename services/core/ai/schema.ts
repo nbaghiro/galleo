@@ -39,7 +39,9 @@ const zSectionBackground = z
     .partial({ tone: true, color: true, gradient: true, image: true, scrim: true, dark: true });
 
 export const zElement = z.object({
-    type: z.string().describe("element type from the catalog (text, image, group, stat, chart, …)"),
+    type: z
+        .string()
+        .describe("element type from the catalog (text, image, container, stat, chart, …)"),
     data: z.record(z.string(), z.unknown()).describe("element data per the catalog for this type"),
     layout: zElementLayout.optional().catch(undefined),
 });
@@ -47,7 +49,7 @@ export const zElement = z.object({
 export const zSection = z.object({
     id: z.string().describe("a stable, unique section id (e.g. 's1', 's2')"),
     root: zElement.describe(
-        "the section's content as ONE element: a `group` with direction 'row' for side-by-side columns (each child carries layout.width, e.g. {pct:60}), 'col' to stack — nestable to any depth; or a single element for a full-width section",
+        "the section's content as ONE element: a `container` with direction 'row' for side-by-side columns (each child carries layout.width, e.g. {pct:60}), 'col' to stack, nestable to any depth; or a single element for a full-width section",
     ),
     background: zSectionBackground.optional().catch(undefined),
     bleed: z

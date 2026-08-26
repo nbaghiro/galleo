@@ -301,6 +301,30 @@ than discarded, since the checks describe a good section and not a valid one. On
 throw, and the message carries the provider's own words. Shared by generate and insert, so both get the
 same repair.
 
+`checkSection` runs two bars. The **structural** one (`structureIssues`) holds the reply to the same catalog
+the prompt handed it: every type is one `ELEMENTS` declares, every required field that type declares actually
+arrived, no container is empty, one h1 per section, and no row is laid out in a way the solver cannot honour.
+That last one covers two slips that produce an invisible or ragged section rather than an error: a row where
+only some columns carry `layout.width.pct` falls back to equal columns and quietly loses the split the model
+designed, and a row where every column carries `layout.height: "fill"` has no height to share and measures
+zero. Both were verified against the engine rather than read off the types. The **content** bar is the older
+set (a headline, no placeholder copy, not too sparse for a slide).
+
+The rules are calibrated against the corpus the same way the layout thresholds are, and it moved two of them:
+a `stat` writes its value as an h1, so three stats in a row is three h1s by the catalog's own instruction and
+only headlines the model placed itself are counted; and a composite may leave a slot deliberately blank (a
+pull quote with no attribution), so a missing field inside one is reported only for the types that ARE their
+field (image, chart, diagram, table, code, button, badge). `renders-what-it-declares` in `eval/checks.ts`
+runs the same function over the corpus, so a rule the hand-built work fails is caught as miscalibration.
+
+The rules split in two, because two different things are being asked. `renderIssues` is what any section
+is held to whoever wrote it: an element that paints nothing, and a row the solver cannot lay out as
+written. `structureIssues` adds the two only a model reply is held to, its vocabulary and its single h1.
+That is what lets `services/core/__tests__/templates.test.ts` hold the shipped templates to the first half
+without failing them for reaching into a registered internal (`avatar`) the model is deliberately not
+taught. Four templates had shipped an empty 40% container beside a 60% column, meant as negative space and
+drawn by the editor as a dashed drop target on somebody's first slide.
+
 **`runPlan` / `runBuild` — the studio's decomposition of the same flow.** `runPlan` runs only the outline
 call (`planOutline`, the exact code `runGenerate` uses — one extracted function, not a fork), emits `plan`
 (now carrying `title` + `backdrop`), resolves the artifact backdrop, and ends — 3 credits, and the client
@@ -327,7 +351,7 @@ hand-set `layout`, rewrites only `data`, then resolves any new images.
 (returned, not streamed). `edit-artifact` runs `chatEditSection` over a library artifact loaded via the
 `WorkspaceReader`.
 
-**Image resolution.** The model writes an art-director phrase; `resolveImage(phrase, orientation, opts)` turns
+**Image resolution.** The model writes an art-director phrase; `resolveImage(phrase, slot, opts)` turns
 it into a real URL: **AI generation** when the build asks for it (`GenerateInput.imageSource:"ai"` and the
 image model is wired) via the Gemini image model (`services/core/media.ts`), else stock search across
 providers (`unsplash → pexels → pixabay → openverse`, the last keyless so there's always a fallback), else a
@@ -336,6 +360,21 @@ through `children` and `cells`) + its background in parallel. Whatever it lands 
 workspace library through `ImageOptions.adopt`, so the provider's attribution survives and the turn streams
 canonical `/api/media/asset/:id` urls: stock still costs no storage and no credits (the row keeps an
 `origin` rather than bytes), while an AI image is stored and metered per variation.
+
+A slot is more than a shape. `slotIndex` reads what each phrase is being asked for off the element it sits
+on, and an `avatar` is the one the tree knows is a person by construction: it renders as a fixed square
+masked to a circle whatever its data says. Before this it took the default aspect and resolved at landscape,
+so every face in every team, speaker and testimonial section was a 16:9 picture cropped into a 72px circle.
+A face slot now resolves square, asks the generator for a head-and-shoulders portrait of a fictional person
+rather than for the phrase alone, and appends `portrait headshot` to the stock query (appended, not
+prepended, because `toQuery` keeps the first N words and the short fallback still has to be about somebody).
+A person inside a plain `image` is not detected and is not meant to be: that one reads as a person from its
+phrase, which is the writer's job to get right rather than ours to guess at.
+
+The phrase itself is the other half. `FACE_SRC` in `prompts/catalog.ts` is written once and used by both
+elements that carry a face, and it asks for three things: a described person rather than a generic one,
+varied across the people in one section, and never a real person's name, since a name reaches an image
+generator as a likeness.
 
 ## 8. The chat / workspace agent (`services/core/ai/chat.ts`)
 

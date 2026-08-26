@@ -1,7 +1,7 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { CheckDimension, EvalCheck } from "@model/eval";
 import { sectionsForLength } from "@model/tools";
-import { PLACEHOLDER, contentOf } from "@services/core/ai/quality";
+import { PLACEHOLDER, contentOf, structureIssues } from "@services/core/ai/quality";
 
 // Deterministic quality checks: free to run and they never drift, so everything that can be decided
 // without a model is decided here and the judge's budget goes to taste. Layout-derived checks
@@ -53,6 +53,14 @@ export const CHECKS: Check[] = [
             const n = words(contentOf(s).texts);
             return n > 90 ? `${n} words on one slide` : null;
         },
+    },
+    {
+        // The same rule the writer's own repair loop runs on, reported here so the corpus keeps it
+        // honest: a structural bar the hand-built work fails is measuring itself, not the work.
+        id: "renders-what-it-declares",
+        dimension: "structure",
+        describe: "every element is a catalog type carrying the content that type needs",
+        section: (s) => structureIssues(s).join("; ") || null,
     },
     {
         id: "has-content",
