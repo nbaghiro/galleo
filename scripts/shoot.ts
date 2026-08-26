@@ -80,6 +80,16 @@ async function openPage(browser: Browser, bundle: string): Promise<{ page: Page;
     writeFileSync(file, PAGE(bundle, fontCss()));
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
     await page.goto(`file://${file}`);
+    // Faces load lazily on first use, so a theme outside the spot-checked trio would be MEASURED
+    // with a fallback and painted with the real face once it lands: clipped lines, overrun boxes.
+    // The srcs are local files, so loading all ~70 up front costs little and makes measure = paint
+    // for every theme an artifact can name.
+    await page.evaluate(() =>
+        Promise.race([
+            Promise.all(Array.from(document.fonts).map((f) => f.load().catch(() => undefined))),
+            new Promise((r) => setTimeout(r, 15_000)),
+        ]),
+    );
     // Without this every metric is a fallback font's, and the whole capture is quietly wrong. It is
     // raced against a timeout because a face that never arrives leaves `fonts.ready` pending forever,
     // which would hang a CI job instead of failing it; the probe below is what actually decides.
