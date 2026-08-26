@@ -60,7 +60,7 @@ describe("sectionLayoutWidth", () => {
         expect(sectionLayoutWidth(s, deck, 2000)).toBe(deck.maxContentWidth);
         // a deck keeps only a sliver of backdrop on a narrow stack; a doc holds its reading gutter
         expect(sectionLayoutWidth(s, deck, 800)).toBe(800 - 16);
-        expect(sectionLayoutWidth(s, resolveProfile("doc"), 800)).toBe(800 - 64);
+        expect(sectionLayoutWidth(s, resolveProfile("doc"), 800)).toBe(800 - 32);
     });
     it("a bleed section — or any web-format section — fills the board", () => {
         expect(sectionLayoutWidth(sectionOf(inst("text", {}), { bleed: true }), deck, 900)).toBe(
@@ -70,7 +70,7 @@ describe("sectionLayoutWidth", () => {
     });
     it("a doc bled for a phone fills the board, unlike the same doc on desktop", () => {
         const doc = resolveProfile("doc");
-        expect(sectionLayoutWidth(s, doc, 430)).toBe(430 - 64);
+        expect(sectionLayoutWidth(s, doc, 430)).toBe(430 - 32);
         expect(sectionLayoutWidth(s, previewContentProfile(doc, true), 430)).toBe(430);
     });
     it("a doc holds one column: a tone band stays in it, a photo band still spans", () => {

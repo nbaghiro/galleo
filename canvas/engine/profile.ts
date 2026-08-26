@@ -28,7 +28,7 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         tokenScale: 1,
         ramp: TYPE_RAMP,
         // slides read best broad: on a narrow stack they keep only a sliver of backdrop,
-        // where a doc (default 64) holds its reading-column gutter
+        // where a doc (32) holds a wider reading-column gutter
         stackInset: 16,
         splitMinWidth: 520,
         overflow: "paginate",
@@ -42,6 +42,9 @@ export const PROFILES: Record<string, FormatDescriptor> = {
         maxContentWidth: 1000,
         tokenScale: 1,
         ramp: TYPE_RAMP,
+        // between the deck's sliver and the 64 default: at 64 a phone-width column read cramped,
+        // 16 a side keeps the page feel over the backdrop without starving the text
+        stackInset: 32,
         splitMinWidth: 560,
         overflow: "paginate",
     },

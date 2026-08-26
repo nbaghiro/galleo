@@ -151,7 +151,7 @@ describe("sectionFrame", () => {
 describe("containedWidth", () => {
     it("is the reading column, held off the board by the profile's inset", () => {
         expect(containedWidth(resolveProfile("doc"), 1440)).toBe(1000); // capped
-        expect(containedWidth(resolveProfile("doc"), 800)).toBe(736); // inset-bound
+        expect(containedWidth(resolveProfile("doc"), 800)).toBe(768); // inset-bound
         expect(containedWidth(resolveProfile("deck"), 800)).toBe(784); // a deck keeps a sliver
     });
 });
