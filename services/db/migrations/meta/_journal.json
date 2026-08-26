@@ -288,6 +288,20 @@
       "when": 1787600146908,
       "tag": "0040_bizarre_lady_deathstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1787761016245,
+      "tag": "0041_simple_toad",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1787763171533,
+      "tag": "0042_empty_captain_flint",
+      "breakpoints": true
     }
   ]
 }

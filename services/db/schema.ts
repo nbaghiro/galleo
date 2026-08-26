@@ -122,6 +122,9 @@ export const workspaces = pgTable("workspaces", {
     publishPolicy: text("publish_policy").$type<PublishPolicy>().notNull().default("members"),
     // per member, per credit window; null = uncapped. Owners and admins are never capped.
     memberCreditCap: integer("member_credit_cap"),
+    // Off unless asked for: it writes scripts and records audio for pieces nobody has played yet,
+    // which is real credit spend with nobody watching it happen.
+    prepareAudio: boolean("prepare_audio").notNull().default(false),
     createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
@@ -577,6 +580,33 @@ export const voices = pgTable(
 );
 
 // The shelf: which voices a workspace has saved, and which one narrates by default.
+/**
+ * A workspace's music shelf, the same shape its voice shelf has and for the same reason: the catalog
+ * row is shared (a house preset belongs to the deployment), so what a workspace did with one, named
+ * it, made it the default, is a fact about the pairing rather than about the bed.
+ */
+export const workspaceSoundtracks = pgTable(
+    "workspace_soundtracks",
+    {
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id, { onDelete: "cascade" }),
+        soundtrackId: uuid("soundtrack_id")
+            .notNull()
+            .references(() => soundtracks.id, { onDelete: "cascade" }),
+        name: text("name"), // a per-workspace rename, e.g. "Our opener"
+        isDefault: boolean("is_default").notNull().default(false),
+        addedAt: timestamp("added_at").notNull().defaultNow(),
+    },
+    (t) => [
+        primaryKey({ columns: [t.workspaceId, t.soundtrackId] }),
+        // exactly one default per workspace, enforced by the database rather than by the UI
+        uniqueIndex("workspace_soundtracks_default_key")
+            .on(t.workspaceId)
+            .where(sql`${t.isDefault}`),
+    ],
+);
+
 export const workspaceVoices = pgTable(
     "workspace_voices",
     {
@@ -709,9 +739,11 @@ export const soundtracks = pgTable(
     "soundtracks",
     {
         id: uuid("id").primaryKey().defaultRandom(),
-        source: text("source").notNull(), // preset | custom
+        source: text("source").notNull(), // preset | workspace | custom
         preset: text("preset"), // the preset's stable id; null on a custom bed
         artifactId: uuid("artifact_id").references(() => artifacts.id, { onDelete: "cascade" }),
+        // set on a `workspace` bed: composed from a description someone typed, and reusable
+        workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
         prompt: text("prompt").notNull(), // what produced it, so a listener can see why it sounds so
         hash: text("hash").notNull(), // sha256(prompt + length + model + format)
         modelId: text("model_id").notNull(),
@@ -757,6 +789,7 @@ export const schema = {
     evalRuns,
     voices,
     workspaceVoices,
+    workspaceSoundtracks,
     narrations,
     oauthClients,
     oauthAuthorizations,

@@ -57,6 +57,9 @@ const RESERVE_LOOKAHEAD = 240;
  */
 const ALLOW: Record<string, string> = {
     "services/api/narration.ts": "narrate-artifact: provider synthesis, no registered tool body",
+    // Same tool, same reason, from the background path: its notes call DOES go through the executor,
+    // so this covers only the synthesis reserve beside it.
+    "services/core/prepare.ts": "narrate-artifact: provider synthesis, no registered tool body",
     "services/api/voices.ts": "audition-voice / design-voice: provider calls, no registered body",
     "services/api/media.ts": "generate-video: no registered tool body yet",
     // the agent turn holds ONE reservation for the whole turn and passes holds:"caller" down, which

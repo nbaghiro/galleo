@@ -121,6 +121,8 @@ export interface WorkspaceSpec {
     cancelAtPeriodEnd?: boolean; // a plain cancel; mutually exclusive with scheduledChange
     scheduledChange?: Omit<ScheduledChange, "at">; // `at` is filled from periodEndInDays
     featureOverrides?: FeatureOverrides;
+    /** Narration written and recorded ahead of anyone playing it. Defaults to on for the demo. */
+    prepareAudio?: boolean;
     windowStartedDaysAgo: number; // < 30, else the first read rolls the window away
     ledger?: Charge[];
     folders?: FolderSpec[];

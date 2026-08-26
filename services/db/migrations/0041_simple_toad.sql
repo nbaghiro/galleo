@@ -1,0 +1,1 @@
+ALTER TABLE "workspaces" ADD COLUMN "prepare_audio" boolean DEFAULT false NOT NULL;

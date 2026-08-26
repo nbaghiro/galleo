@@ -55,6 +55,7 @@ workspace.get("/workspace", requireWorkspace, async (c) => {
             seats: ws.seats,
             defaultArtifactAccess: ws.defaultArtifactAccess,
             publishPolicy: ws.publishPolicy,
+            prepareAudio: ws.prepareAudio,
             memberCreditCap: ws.memberCreditCap,
         },
         role,
@@ -75,6 +76,7 @@ const zSettings = z.object({
     publishPolicy: z.string().optional(),
     // null clears the cap back to uncapped, which is why this is nullish rather than optional
     memberCreditCap: z.number().nullish(),
+    prepareAudio: z.boolean().optional(),
 });
 const zInvite = z.object({ email: z.string().optional(), role: z.string().optional() });
 const zToken = z.object({ token: z.string().optional() });
@@ -103,6 +105,7 @@ workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) 
             return c.json({ error: "that is not a publish policy" }, 400);
         patch.publishPolicy = body.publishPolicy;
     }
+    if (body.prepareAudio !== undefined) patch.prepareAudio = body.prepareAudio;
     if (body.memberCreditCap !== undefined) {
         const cap = body.memberCreditCap;
         if (cap !== null && (!Number.isFinite(cap) || cap < 0))

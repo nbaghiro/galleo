@@ -42,6 +42,9 @@ async function speakWith(
 }
 
 /** The script a voice would read for a section, or "" when there is nothing to say. */
+/** Speech is metered by the thousand characters, so a section is at least one unit and never zero. */
+export const unitsFor = (chars: number): number => (chars > 0 ? Math.ceil(chars / 1000) : 0);
+
 export const spokenOf = (s: Section): string => s.notes?.spoken.trim() ?? "";
 
 /** Sections worth narrating, in document order. A section with no notes is not one of them. */

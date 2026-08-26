@@ -65,6 +65,7 @@ export async function updateWorkspaceSettings(patch: {
     defaultArtifactAccess?: ArtifactAccess;
     publishPolicy?: PublishPolicy;
     memberCreditCap?: number | null;
+    prepareAudio?: boolean;
 }): Promise<void> {
     await api.updateWorkspaceSettings(patch);
     await loadWorkspace();
