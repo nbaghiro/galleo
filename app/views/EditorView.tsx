@@ -253,42 +253,54 @@ export const EditorView: Component = () => {
                     ms: Date.now() - startedAt,
                 });
             });
-        // parked with `backgroundMusic` at "planned": no source means no bar button and no picker
-        onSoundtrack(
-            artifactId && can("backgroundMusic")
-                ? {
-                      load: () => api.soundtrack(artifactId),
-                      // starting music from the present bar writes through the editor's own commit,
-                      // so the open picker and the undo stack see it like any other edit
-                      ...(canEdit()
-                          ? {
-                                enable: async () => {
-                                    // written for this piece from its own subject, not the house
-                                    // preset: a bed that fits is the point of composing one at all
-                                    const { trackId, track } = await api.composeSoundtrack(
-                                        artifactId,
-                                        { custom: true, content: editor.artifact },
-                                    );
-                                    commit(
-                                        setArtifactMusic(editor.artifact, { on: true, trackId }),
-                                    );
-                                    void loadBilling();
-                                    // that commit reaches the server on its own schedule, so the
-                                    // bed comes from the response rather than from a read that
-                                    // would ask about content the server has not been sent yet
-                                    return track;
-                                },
-                            }
-                          : {}),
-                  }
-                : undefined,
-        );
+        /**
+         * Re-registered when the entitlement resolves, not read once on the way past.
+         *
+         * `can()` answers false until /features lands, and this runs at mount, so an editor opened
+         * cold (a reload straight onto /edit/:id) wired no source at all and the present bar had no
+         * music button for the rest of the session, whatever the artifact's plan or format.
+         */
+        createEffect(() => {
+            const allowed = can("backgroundMusic");
+            onSoundtrack(
+                artifactId && allowed
+                    ? {
+                          load: () => api.soundtrack(artifactId),
+                          // starting music from the present bar writes through the editor's own commit,
+                          // so the open picker and the undo stack see it like any other edit
+                          ...(canEdit()
+                              ? {
+                                    enable: async () => {
+                                        // written for this piece from its own subject, not the house
+                                        // preset: a bed that fits is the point of composing one at all
+                                        const { trackId, track } = await api.composeSoundtrack(
+                                            artifactId,
+                                            { custom: true, content: editor.artifact },
+                                        );
+                                        commit(
+                                            setArtifactMusic(editor.artifact, {
+                                                on: true,
+                                                trackId,
+                                            }),
+                                        );
+                                        void loadBilling();
+                                        // that commit reaches the server on its own schedule, so the
+                                        // bed comes from the response rather than from a read that
+                                        // would ask about content the server has not been sent yet
+                                        return track;
+                                    },
+                                }
+                              : {}),
+                      }
+                    : undefined,
+            );
+        });
         void api
             .musicPresets()
             .then((p) => setPresets(p))
             .catch(() => undefined);
         onMusicPresets(() => (can("backgroundMusic") ? presets() : []));
-        if (artifactId && can("backgroundMusic"))
+        if (artifactId)
             onComposeBed(async (o) => {
                 const startedAt = Date.now();
                 const before = billing()?.credits.balance ?? 0;
@@ -326,24 +338,30 @@ export const EditorView: Component = () => {
         const gate = artifactId
             ? narrationGate({ artifactId: () => artifactId, record: makeSpeakable })
             : null;
-        onNarration(
-            artifactId
-                ? {
-                      load: () => api.narrationManifest(artifactId),
-                      /**
-                       * Both halves of "make this section speakable", on demand: write the script if
-                       * there is none or the one there describes copy that has since changed, then
-                       * record it. Nothing is prepared ahead of time, so opening present is as fast
-                       * as it ever was and the first press is the only wait.
-                       *
-                       * Only for someone who may edit. Recording spends the owner's credits and
-                       * writes to their piece, so an invited viewer plays what is already there and
-                       * never gets a button that can only answer 403.
-                       */
-                      ...(canEdit() && gate ? { ensure: gate.ensure } : {}),
-                  }
-                : undefined,
-        );
+        // Re-registered when the caller's access resolves, for the same reason the soundtrack is:
+        // `editAccess` starts at "edit" and the artifact's real level arrives with the fetch, so a
+        // read at mount says "edit" for everyone and hands an invited viewer a record button.
+        createEffect(() => {
+            const mayEdit = canEdit();
+            onNarration(
+                artifactId
+                    ? {
+                          load: () => api.narrationManifest(artifactId),
+                          /**
+                           * Both halves of "make this section speakable", on demand: write the script if
+                           * there is none or the one there describes copy that has since changed, then
+                           * record it. Nothing is prepared ahead of time, so opening present is as fast
+                           * as it ever was and the first press is the only wait.
+                           *
+                           * Only for someone who may edit. Recording spends the owner's credits and
+                           * writes to their piece, so an invited viewer plays what is already there and
+                           * never gets a button that can only answer 403.
+                           */
+                          ...(mayEdit && gate ? { ensure: gate.ensure } : {}),
+                      }
+                    : undefined,
+            );
+        });
         onCommentCreate((input) => createComment(input));
         onCommentReply((root, body) => replyToComment(root, body));
         onCommentResolve((id, resolved) => resolveComment(id, resolved));
