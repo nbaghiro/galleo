@@ -17,6 +17,7 @@ import {
     addSectionAfter,
     clearExtras,
     commit,
+    boardGutterL,
     datum,
     duplicateSectionAt,
     editor,
@@ -36,6 +37,7 @@ import {
     setSelection,
     stagePoint,
     stopEditing,
+    zoom,
 } from "@editor/core/store";
 import { startDrag, drag, movableAncestor, moveManyPayload } from "@editor/core/dnd";
 import { openSectionPrompt } from "@editor/core/ai";
@@ -58,12 +60,14 @@ const DRAG_THRESHOLD = 5; // px of travel before a grip press becomes a drag, no
 
 const GRIP_W = 16; // the visible pill (w-4); the rest of the geometry is shared, see @editor/core/store
 const GRIP_GAP = HANDLE_GAP;
-// A bleed section starts at 0, and the canvas is a scroll container, so anything left of its content
-// origin is unreachable and never paints. Clamping keeps that grip just inside instead of vanishing;
-// every other box has room outside itself and is unaffected.
-const GRIP_MIN_X = 6;
+// A bleed section starts at 0, so its grip sits in the canvas's own left gutter: paintable (the
+// scroll container clips at its padding box), just unreachable by scroll. Zoom scales the stage but
+// not the gutter, so it divides back out; the slack keeps the pill off the clip edge. Every box
+// with room outside itself never hits the clamp.
+const GRIP_EDGE_SLACK = 2;
 
-const gripX = (box: { x: number }): number => Math.max(GRIP_MIN_X, box.x - (GRIP_W + GRIP_GAP));
+const gripX = (box: { x: number }): number =>
+    Math.max(GRIP_EDGE_SLACK - boardGutterL() / zoom(), box.x - (GRIP_W + GRIP_GAP));
 
 // Reaches from the pill to the box's own left edge so the two stay contiguous and crossing between
 // them never drops the hover; just the pill when the clamp already put it on the box.

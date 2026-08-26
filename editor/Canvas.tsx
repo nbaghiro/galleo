@@ -77,6 +77,7 @@ import {
     rememberHeight,
     requestSections,
     selection,
+    setBoardGutterL,
     setCanvasContentWidth,
     setCanvasEl,
     setDatum,
@@ -294,6 +295,7 @@ export const Canvas: Component = () => {
         const padR = (isPhone() ? phonePad : RAIL_R) + inset;
         const fullW = Math.max(isPhone() ? 280 : 360, clientW - padL - padR);
         setCanvasContentWidth(fullW); // so minimap thumbnails match this width
+        setBoardGutterL(padL); // so handles know how far left of the stack stays visible
         // hide the painted text of the edited element; the live overlay shows it
         const editAddr = editing();
         const editId = editAddr ? elementRegionId(editAddr) : null;

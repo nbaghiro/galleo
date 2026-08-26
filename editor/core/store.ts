@@ -99,6 +99,12 @@ export { canvasEl, setCanvasEl };
 const [canvasContentWidth, setCanvasContentWidth] = createSignal(1120);
 export { canvasContentWidth, setCanvasContentWidth };
 
+// The canvas's left gutter in client px: the padding the board is inset by. That band is paintable
+// (a scroll container clips at its padding box, not its content box) though unreachable by scroll,
+// so a handle may clamp against it to sit outside a full-bleed section. Written by each draw.
+const [boardGutterL, setBoardGutterL] = createSignal(28);
+export { boardGutterL, setBoardGutterL };
+
 // The margin handles an element wears while the pointer is on it: the drag grip off its left edge,
 // the comment chip off its right. They are read as a pair, so the geometry is stated once here
 // rather than once per panel. It drifted the first time each owned its own, by 2px horizontally,
