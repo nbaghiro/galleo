@@ -243,8 +243,10 @@ export function createSoundtrackPlayer(opts: {
         if (!enable || busy()) return;
         setBusy(true);
         void enable()
+            // `put`, not `setTrack`: the press already meant play, and the only reason it did not
+            // play at once is that the bed had to be made first
             .then((t) => {
-                setTrack(t);
+                put(t);
                 if (!t) opts.onError?.("That music could not be started.");
             })
             .catch((e: unknown) =>
