@@ -423,6 +423,12 @@ const Frame: Component<{
                           : "Writing…"}
                 </div>
             </Show>
+            <Show when={status() === "failed" && !active()}>
+                <div class="absolute bottom-3 left-4 z-[2] flex items-center gap-2 rounded-md bg-panel/80 px-2 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-soft backdrop-blur-sm">
+                    <StatusDot tone="fail" />
+                    Didn’t come back
+                </div>
+            </Show>
             <Show when={reviewable()}>
                 <div
                     class="absolute bottom-3 right-4 z-[2] flex items-center gap-1 rounded-lg border border-line bg-panel/85 p-1 shadow-lg backdrop-blur-sm transition-opacity focus-within:opacity-100 group-hover:opacity-100"

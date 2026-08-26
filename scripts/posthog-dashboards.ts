@@ -487,7 +487,7 @@ const BOARDS: Board[] = [
             {
                 name: "Streams lost by phase",
                 description:
-                    "Where an AI turn dies on the client. A user cancelling is not counted.",
+                    "Where an AI turn dies on the client. Neither a user cancelling nor a failure the server named is counted.",
                 query: trend(
                     [event("stream_disconnected", { math: "total" })],
                     breakdown("at_phase"),

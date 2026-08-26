@@ -314,6 +314,9 @@ export interface Events {
         credits_charged: number;
         element_count: number;
     };
+    // A beat the build gave up on after its retry, which is not a `generation_failed`: the run
+    // carries on and the piece lands one card short rather than stopping.
+    generation_section_failed: { index: number; beat_role?: BeatRole; attempts: number };
     generation_steered: { at_index: number; beat_count: number };
     generation_paused: { at_index: number };
     generation_completed: {
@@ -597,6 +600,8 @@ export interface Events {
     save_failed: { reason: string; retry_count: number; section_count: number };
     // `recovered` is absent: the client does not retry a stream, the studio's retry re-enters the
     // step as a new turn, so a constant false would have been noise rather than a signal.
+    // A death, not every unfinished stream: a turn the server named a failure on is a reported
+    // error, and counting it here as well would read as two separate incidents.
     stream_disconnected: { tool_id: ToolId; at_phase: string; ms: number; recovered?: boolean };
     render_slow: {
         ms: number;

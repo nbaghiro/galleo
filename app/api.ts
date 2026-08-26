@@ -975,6 +975,7 @@ export async function streamTurn(
     let buf = "";
     let phase = "start";
     let finished = false;
+    let reported = false; // the server named a failure, so the end of the stream is not a mystery
     try {
         for (;;) {
             const { value, done } = await reader.read();
@@ -988,14 +989,19 @@ export async function streamTurn(
                     if (!line.startsWith("data:")) continue;
                     const json = line.slice(5).trim();
                     if (!json) continue;
+                    let logged: { seq: number; event: TurnEvent };
                     try {
-                        const logged = JSON.parse(json) as { seq: number; event: TurnEvent };
-                        if (typeof logged.event.type === "string") phase = logged.event.type;
-                        if (logged.event.type === "turn.done") finished = true;
-                        onEvent(logged.event);
+                        logged = JSON.parse(json) as { seq: number; event: TurnEvent };
                     } catch {
-                        // skip a malformed frame
+                        continue; // skip a malformed frame
                     }
+                    if (typeof logged.event.type === "string") phase = logged.event.type;
+                    if (logged.event.type === "turn.done") finished = true;
+                    if (logged.event.type === "error") reported = true;
+                    // Outside the parse: a handler that throws is the consumer saying the turn
+                    // failed, and swallowing it here alongside a bad frame is what turned a
+                    // provider error into a section that silently never arrived.
+                    onEvent(logged.event);
                 }
             }
         }
@@ -1004,7 +1010,7 @@ export async function streamTurn(
         // A stream that ends without its terminal frame is a death, not a completion. A cancel is
         // neither: the studio aborts the controller when the user closes it, and counting that as a
         // disconnection would make reliability look worse the more people change their minds.
-        if (!finished && !signal?.aborted)
+        if (!finished && !reported && !signal?.aborted)
             capture("stream_disconnected", {
                 tool_id: ACTION_FOR[request.kind],
                 at_phase: phase,

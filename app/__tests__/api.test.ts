@@ -425,6 +425,22 @@ describe("streamTurn — SSE frame parsing", () => {
         ]);
     });
 
+    it("lets a handler's throw out, rather than eating it as a bad frame", async () => {
+        // the studio raises a failed turn by throwing from its handler; swallowing that here is
+        // what turned a provider error into a section that silently never arrived
+        stubFetch(
+            streamResponse([
+                'data: {"seq":0,"event":{"type":"turn.start","kind":"edit"}}\n\n' +
+                    'data: {"seq":1,"event":{"type":"error","message":"the model is overloaded"}}\n\n',
+            ]),
+        );
+        await expect(
+            streamTurn(request, (e) => {
+                if (e.type === "error") throw new Error(e.message);
+            }),
+        ).rejects.toThrow("the model is overloaded");
+    });
+
     it("throws ApiError before streaming when the response is not ok", async () => {
         stubFetch(
             jsonResponse(

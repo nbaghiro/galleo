@@ -80,21 +80,37 @@ interface WriteSectionInput {
     surface: Surface;
 }
 
+// Attempts at one section before the build is told it did not come back. Each one is a whole
+// model call, so this is a ceiling on a stubborn beat rather than a budget to spend.
+const SECTION_ATTEMPTS = 3;
+
 export const writeSectionTool = implement(
     "write-section",
     async function* (input: WriteSectionInput, ctx): AsyncGenerator<never, Section> {
         const modelId = modelFor("section", ctx.tier, ctx.models) || defaultModelFor("section");
         const call = modelCall(modelId);
         let note = ""; // feedback appended to the prompt on retry
-        for (let attempt = 0; attempt < 2; attempt++) {
-            const { text } = await withStep(`section:${input.id}`, () =>
-                generateText({
-                    ...call,
-                    system: input.parts.system,
-                    prompt: input.parts.prompt + note,
-                    abortSignal: ctx.signal,
-                }),
-            );
+        let usable: Section | null = null; // parsed but short of the checks; better than nothing
+        let threw: unknown = null;
+        for (let attempt = 0; attempt < SECTION_ATTEMPTS; attempt++) {
+            let text: string;
+            try {
+                ({ text } = await withStep(`section:${input.id}`, () =>
+                    generateText({
+                        ...call,
+                        system: input.parts.system,
+                        prompt: input.parts.prompt + note,
+                        abortSignal: ctx.signal,
+                    }),
+                ));
+            } catch (e) {
+                // A provider that hiccups past the sdk's own retries (an overloaded model, a
+                // dropped socket, a 429 on the last try) costs this attempt rather than the whole
+                // section. Letting it out here is what ended a build over one bad call.
+                if (ctx.signal?.aborted) throw e;
+                threw = e;
+                continue;
+            }
             const parsed = zSection.safeParse(extractJson(text));
             if (!parsed.success) {
                 note =
@@ -102,12 +118,20 @@ export const writeSectionTool = implement(
                 continue;
             }
             const section = { ...parsed.data, id: input.id };
-            // auto-repair: one regenerate with issues fed back; accept whatever's valid on the last go
+            // auto-repair: regenerate with the issues fed back; accept whatever's valid on the last go
             const { ok, issues } = checkSection(section, input.surface);
-            if (ok || attempt === 1) return section;
+            if (ok) return section;
+            usable = section;
             note = `\n\nYour previous section had problems: ${issues.join("; ")}. Rewrite it — fill every cell with a real element, lead with a clear headline, and use varied, purposeful elements (a stat/chart/card/bullets where they fit) so the frame reads full, not sparse.`;
         }
-        throw new Error(`the model returned an unreadable section for “${input.label}”`);
+        // A section that parsed but never passed still renders, and shipping it beats losing the
+        // beat: the checks describe a good section, not a valid one.
+        if (usable) return usable;
+        throw new Error(
+            threw instanceof Error
+                ? `the model could not write “${input.label}”: ${threw.message}`
+                : `the model returned an unreadable section for “${input.label}”`,
+        );
     },
 );
 

@@ -292,9 +292,14 @@ phase compose · done → turn.done(summary)
 
 **`writeSectionFrom` — free-form JSON + auto-repair.** A section's `data` is an open, type-dependent map that
 a response schema can't fill, so the section writer emits raw JSON (the prompt teaches the exact envelope),
-which is `zSection.safeParse`d. On bad JSON it retries once; a valid section is run through
-`checkSection(section, surface)` (a deterministic quality audit — `quality.ts`) and, if it trips, regenerated
-once with the issues fed back. Shared by generate and insert, so both get the same repair.
+which is `zSection.safeParse`d. It gets three attempts, and each of the three ways a call can fail spends
+one: unreadable JSON is retried with a note saying so, a valid section that trips
+`checkSection(section, surface)` (a deterministic quality audit, `quality.ts`) is regenerated with the
+issues fed back, and a call that throws (an overloaded model, a dropped socket, a 429 the sdk's own retries
+did not absorb) is simply tried again. A section that parsed but never passed the checks is returned rather
+than discarded, since the checks describe a good section and not a valid one. Only three failures in a row
+throw, and the message carries the provider's own words. Shared by generate and insert, so both get the
+same repair.
 
 **`runPlan` / `runBuild` — the studio's decomposition of the same flow.** `runPlan` runs only the outline
 call (`planOutline`, the exact code `runGenerate` uses — one extracted function, not a fork), emits `plan`
@@ -1000,6 +1005,14 @@ mode would be a second way to do the same thing. The stages:
   (writes are atomic); a one-time **tone check** pauses after the cover + first content section. The draft
   artifact is persisted at build start and re-saved per landed section, so closing the studio never loses
   built work.
+
+    A beat that does not land is **retried once as a second turn**, since a stream that dies takes its
+    generator with it and the server cannot retry inside a turn that is already gone. If the second try
+    is also empty the slot is marked `failed` and the loop moves on: the run finishes, the board keeps
+    that beat as its outline card with Write still on it, and a narration line says how many were
+    missed. It is deliberately not a `fail()`, which would put the studio in the `error` stage, raise a
+    modal, and strip the Write button off every unwritten card, so the one thing the message asked for
+    was the one thing the screen no longer offered.
 
 **Traces:**
 

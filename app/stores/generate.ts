@@ -55,7 +55,9 @@ export type Surface = "deck" | "doc" | "web";
 // "idle" means no session.
 export type Stage = "idle" | "intake" | "planning" | "outline" | "building" | "done" | "error";
 
-export type SlotStatus = SectionStatus | "skipped";
+// "failed" is the studio's own, not the server's: it marks a beat the build could not land
+// and carried on past, so the card falls back to its outline form with Write still on it.
+export type SlotStatus = SectionStatus | "skipped" | "failed";
 
 export interface SectionSlot {
     id: string;
@@ -264,7 +266,9 @@ const track = (): AbortController => {
 const fail = (stage: Stage, message: string, cause?: unknown): void => {
     setGen({ stage: "error", errorStage: stage, error: message });
     capture("generation_failed", { stage, reason: message });
-    reportError(cause ?? new Error(message), message);
+    // no synthetic cause: describeError would print it back as “what came back”, and a
+    // modal quoting its own title tells nobody anything
+    reportError(cause, message);
 };
 
 const isAbort = (e: unknown): boolean =>
@@ -749,14 +753,13 @@ export async function buildSectionNow(id: string): Promise<void> {
     const slot = gen.slots.find((s) => s.id === id);
     if (!slot || slot.versions.length > 0 || slot.working) return;
     try {
-        const landed = await buildOne(index);
-        if (!landed) requeueInFlight();
-        void saveDraft();
+        // the same retry the loop gets, and the same landing when it runs out: a click that fails
+        // marks its own card and leaves the board alone, rather than putting the studio in the
+        // error stage, which is what took the Write button off every card that had not been written
+        if (await buildWithRetry(index)) void saveDraft();
+        else markFailed(index);
     } catch (e) {
-        if (!isAbort(e)) {
-            requeueInFlight();
-            fail("building", "Couldn’t write that section", e);
-        }
+        if (!isAbort(e)) markFailed(index);
     } finally {
         // nothing is active between one-off writes; a stale id disables every other card's Write button
         setGen("activeSection", null);
@@ -817,9 +820,51 @@ function requeueInFlight(): void {
     );
 }
 
+// the reason the last beat gave up, so a run that lands short can say more than that it did
+let reportedFailure: unknown = null;
+
+const missedNote = (n: number): string =>
+    n === 1
+        ? "One section didn’t come back. Its card is still on the board, ready to write."
+        : `${n} sections didn’t come back. Their cards are still on the board, ready to write.`;
+
+const reasonOf = (e: unknown): string | undefined =>
+    e instanceof Error && e.message ? clip(e.message, 90) : undefined;
+
+// One beat, with the retry the server cannot do for us: a turn that dies mid-stream takes its
+// generator with it, so the second go has to be a second turn. Past that the beat is the problem
+// rather than the weather, and the build is better off carrying on without it.
+async function buildWithRetry(index: number): Promise<boolean> {
+    const beat = gen.beats[index]!;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        if (attempt > 0) pushNarration(`Retrying “${beat.label}”`);
+        try {
+            if (await buildOne(index)) return true;
+        } catch (e) {
+            if (isAbort(e)) throw e;
+            reportedFailure = e; // kept for the notice, since nothing else sees the reason
+        }
+        // paused or closed between the tries: not a failure, and not ours to retry through
+        if (gen.stage !== "building" || gen.paused) return false;
+    }
+    return false;
+}
+
+function markFailed(index: number): void {
+    const beat = gen.beats[index]!;
+    setGen("slots", (s) => s.id === beat.id, "status", "failed");
+    capture("generation_section_failed", {
+        index,
+        attempts: 2,
+        ...(asBeatRole(beat.role) ? { beat_role: asBeatRole(beat.role) } : {}),
+    });
+}
+
 async function buildLoop(): Promise<void> {
     if (buildRunning) return;
     buildRunning = true;
+    let failed = 0;
+    reportedFailure = null;
     try {
         for (;;) {
             if (gen.stage !== "building" || gen.paused) return;
@@ -828,15 +873,18 @@ async function buildLoop(): Promise<void> {
                 return slot?.status === "queued";
             });
             if (index < 0) break;
-            const landed = await buildOne(index);
-            if (!landed) {
-                requeueInFlight();
-                fail("building", "The section didn’t come back. Try again.");
-                return;
+            if (!(await buildWithRetry(index))) {
+                if (gen.stage !== "building" || gen.paused) return; // cancelled or parked mid-try
+                // One beat that will not come back is not a reason to abandon the other eleven.
+                // It keeps its outline card and its Write button, which is the retry that works.
+                markFailed(index);
+                failed += 1;
+                continue;
             }
             void saveDraft();
             if (gen.stage !== "building") return; // canceled / errored mid-flight
         }
+        if (failed) pushNarration(missedNote(failed), undefined, reasonOf(reportedFailure));
         finishSession();
     } catch (e) {
         if (!isAbort(e) && gen.stage === "building") {
