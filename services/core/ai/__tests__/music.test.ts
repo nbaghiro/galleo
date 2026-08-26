@@ -25,6 +25,12 @@ afterEach(() => {
 
 const deck = (format = "deck"): ArtifactContent => ({ format, theme: "studio", sections: [] });
 
+const said = (...lines: string[]): ArtifactContent => ({
+    format: "deck",
+    theme: "studio",
+    sections: lines.map((text, i) => ({ id: `s${i}`, root: { type: "text", data: { text } } })),
+});
+
 describe("the preset set", () => {
     it("every preset says what it must not do, which is what keeps a bed a bed", () => {
         for (const p of MUSIC_PRESETS) {
@@ -73,6 +79,45 @@ describe("bespokePrompt", () => {
         expect(bespokePrompt(deck(), {}, "The Private Ledger")).toContain("The Private Ledger");
         const long = bespokePrompt(deck(), {}, "x".repeat(400));
         expect(long).not.toContain("x".repeat(100));
+    });
+
+    // The whole point of composing per piece rather than sharing a house preset: a bed for a coastal
+    // retreat should not be the bed for a quarterly review, and the only thing that knows the
+    // difference is what the piece says.
+    it("tells the composer what the piece is about, in the piece's own words", () => {
+        const got = bespokePrompt(said("Twenty cabins on a private Pacific bluff."));
+        expect(got).toContain("Twenty cabins on a private Pacific bluff.");
+        expect(got).toContain("Take the mood from that, not the words.");
+    });
+
+    it("reads the opening sections, not the whole document", () => {
+        const got = bespokePrompt(said("One", "Two", "Three", "Four", "Five", "Six"));
+        expect(got).toContain("One");
+        expect(got).toContain("Four");
+        expect(got).not.toContain("Five"); // four leads is enough to place a piece
+    });
+
+    it("says nothing about the subject when the piece has no words yet", () => {
+        expect(bespokePrompt(deck())).not.toContain("It is about");
+    });
+
+    it("keeps a wordy opening from running away with the prompt", () => {
+        const got = bespokePrompt(said("x".repeat(400)));
+        expect(got).not.toContain("x".repeat(120));
+        expect(got).toContain("Instrumental only"); // the rules still land after the subject
+    });
+
+    // a bed sat behind for ten minutes wants a different shape from one behind a five-slide page
+    it("tells the composer how long a sit it is", () => {
+        expect(bespokePrompt(said(...Array.from({ length: 16 }, (_, i) => `Beat ${i}`)))).toContain(
+            "long sit",
+        );
+        expect(bespokePrompt(said("Only this"))).toContain("one unbroken idea");
+    });
+
+    it("gives the same piece the same prompt every time, so it is asked for once", () => {
+        const piece = said("A headline", "A second");
+        expect(bespokePrompt(piece)).toBe(bespokePrompt(piece));
     });
 
     it("always carries the bed rules, whatever else it says", () => {

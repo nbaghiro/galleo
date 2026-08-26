@@ -1186,6 +1186,18 @@ const NOISE_KEYS = new Set([
     "url",
     "variant",
     "weight",
+    // sizing and distribution: "fill", "evenly", "between" are the layout talking, and they read as
+    // prose to anything walking the tree (a search for "fill" matched every artifact in the library)
+    "aspect",
+    "basis",
+    "gap",
+    "grow",
+    "height",
+    "justify",
+    "overflow",
+    "position",
+    "width",
+    "wrap",
 ]);
 
 const NOISE_VALUE = /^(#[0-9a-f]{3,8}$|https?:\/\/|data:|blob:|asset:|\/api\/)/i;
@@ -1211,8 +1223,12 @@ function collect(value: unknown, key: string | null, push: (s: string) => void):
         for (const [k, v] of Object.entries(value)) collect(v, k, push);
 }
 
-/** One section's prose, in tree order. The same walk the search index uses, over a single root. */
-export function sectionText(section: Section): string {
+/**
+ * One section's prose, string by string, in tree order. The same walk the search index uses, kept in
+ * parts so a caller can tell a headline from a nav label: joined, the two are one run of characters
+ * and the first ninety of them are whatever happens to sit at the top of the tree.
+ */
+export function sectionLines(section: Section): string[] {
     const seen = new Set<string>();
     const parts: string[] = [];
     collect(section.root, null, (s) => {
@@ -1220,8 +1236,11 @@ export function sectionText(section: Section): string {
         seen.add(s);
         parts.push(s);
     });
-    return parts.join(" ");
+    return parts;
 }
+
+/** One section's prose, in tree order. */
+export const sectionText = (section: Section): string => sectionLines(section).join(" ");
 
 /**
  * What a script was written against. FNV-1a rather than a real digest: this layer is edge-safe and

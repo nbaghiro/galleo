@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ArtifactContent } from "@model/artifact";
+import { sectionLines } from "@model/artifact";
 import { DEFAULT_PRESET } from "@model/speech";
 import { providerBlocked } from "./speech";
 
@@ -83,11 +84,46 @@ export const MUSIC_PRESETS: readonly MusicPreset[] = [
 export const presetById = (id: string | undefined): MusicPreset | undefined =>
     MUSIC_PRESETS.find((p) => p.id === (id ?? DEFAULT_PRESET));
 
+/** How many opening sections are read for the subject, and how much of each. */
+const LEAD_SECTIONS = 4;
+const LEAD_CHARS = 90;
+const SUBJECT_CHARS = 320;
+
 /**
- * A prompt written for one artifact from what the piece already says about itself: the theme's mood
- * descriptor, whether it is dark, its format, and its opening lines. Deterministic on purpose. The
- * theme's mood is a human-written phrase, so it carries more than a model would infer from the copy,
- * and this costs nothing and cannot fail.
+ * What the piece is about, in its own words. The opening of each of the first few sections, which
+ * in practice is the headline: enough for a composer to know it is scoring a coastal retreat rather
+ * than a quarterly review, without handing over the whole document.
+ */
+function subjectOf(content: ArtifactContent): string {
+    const lines: string[] = [];
+    for (const section of content.sections) {
+        if (lines.length >= LEAD_SECTIONS) break;
+        // the longest string in the section, which is the headline or the standfirst; reading from
+        // the top of the tree instead returns a site's nav labels one word at a time
+        const longest = sectionLines(section)
+            .map((l) => l.trim())
+            .reduce((best, l) => (l.length > best.length ? l : best), "");
+        const line = longest.slice(0, LEAD_CHARS).trim();
+        if (line && !lines.includes(line)) lines.push(line);
+    }
+    return lines.join(" · ").slice(0, SUBJECT_CHARS);
+}
+
+/** A piece to sit behind for two minutes wants a different shape from one to sit behind for ten. */
+function paceOf(count: number): string {
+    if (count >= 14) return "It is a long sit, so stay patient and let it develop slowly.";
+    if (count > 0 && count <= 5) return "It is short, so it can be one unbroken idea.";
+    return "";
+}
+
+/**
+ * A prompt written for one artifact from what the piece says about itself: its subject in its own
+ * words, how long a sit it is, the theme's mood descriptor, whether it is dark, and its format.
+ * Deterministic on purpose, so it costs nothing, cannot fail, and the same piece always asks for the
+ * same bed.
+ *
+ * The subject is handed over as subject, never as words to sing: `BED_RULES` rules out vocals, and
+ * the line below says to take the mood rather than the text.
  *
  * Exported for its tests: what goes into the prompt is the whole design of the feature.
  */
@@ -104,10 +140,13 @@ export function bespokePrompt(
               : "a deck being presented";
     const mood = theme.mood?.trim() || theme.tag?.trim();
     const light = theme.isDark ? "darker and more nocturnal" : "light and open";
+    const subject = subjectOf(content);
     return [
         `An instrumental underscore for ${surface}${title ? ` titled "${title.slice(0, 80)}"` : ""}.`,
+        subject ? `It is about: ${subject}. Take the mood from that, not the words.` : "",
         mood ? `The piece reads as ${mood}; match that.` : "",
         `Tonally ${light}.`,
+        paceOf(content.sections.length),
         BED_RULES,
     ]
         .filter(Boolean)
