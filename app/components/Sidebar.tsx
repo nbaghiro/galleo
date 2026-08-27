@@ -540,7 +540,7 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
             </Show>
             <a
                 class={`mt-1.5 block cursor-pointer text-[11.5px] font-semibold ${pastDue() ? "text-accent" : "text-accent"}`}
-                onClick={() => props.navigate("/pricing")}
+                onClick={() => props.navigate(pastDue() ? "/settings/billing" : "/settings/plan")}
             >
                 {pastDue()
                     ? "Payment failed. Fix billing →"

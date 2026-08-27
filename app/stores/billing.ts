@@ -1,5 +1,6 @@
 import { createSignal } from "solid-js";
 import type { CreditPackId, Interval, PlanId } from "@model/billing";
+import { PLAN_ORDER } from "@model/billing";
 import type { BillingState, ChangeEffect, LedgerEntry } from "@app/api";
 import { api, ApiError } from "@app/api";
 import { capture, register } from "@ui/analytics";
@@ -54,10 +55,8 @@ const [ledgerLoadingMore, setLedgerLoadingMore] = createSignal(false);
 const [ledgerError, setLedgerError] = createSignal(false);
 export { ledgerCursor, ledgerEntries, ledgerError, ledgerLoaded, ledgerLoadingMore };
 
-// "generate-artifact:settle" → "generate artifact (adjusted)". A settle now rewrites the charge's
-// own row, so the suffixes only appear on rows written before that change.
-export const ledgerReasonLabel = (r: string): string =>
-    r.replace(":settle", " (adjusted)").replace(":refund", " (refunded)").replace(/-/g, " ");
+// "generate-artifact" → "generate artifact"
+export const ledgerReasonLabel = (r: string): string => r.replace(/-/g, " ");
 
 // a page fetched before a reload finished must not be appended; each fetch carries its epoch
 let ledgerEpoch = 0;
@@ -122,6 +121,44 @@ export async function loadBilling(): Promise<void> {
     } catch {
         // signed out / no workspace — callers treat null as "free / unknown"
     }
+}
+
+// What a Stripe return announced, for the banner whichever settings tab renders it.
+export type CheckoutReturn = "plan" | "topup" | "plan-cancel" | "topup-cancel";
+const [checkoutReturn, setCheckoutReturn] = createSignal<CheckoutReturn | null>(null);
+export { checkoutReturn };
+
+/**
+ * Take a Stripe return status off the URL exactly once, so a reload does not re-announce a payment.
+ * Handles all four statuses wherever the return lands (a pre-deploy Checkout session still returns
+ * to /pricing, whose redirect preserves the query), scrubs unknown ones, and on a paid outcome
+ * refetches on a short backoff so the webhook's result appears without a manual reload.
+ */
+export function consumeCheckoutReturn(params: {
+    status?: string | string[];
+    plan?: string | string[];
+}): void {
+    const status = typeof params.status === "string" ? params.status : undefined;
+    if (!status) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("status");
+    url.searchParams.delete("plan");
+    window.history.replaceState(null, "", url);
+    if (status === "success") setCheckoutReturn("plan");
+    else if (status === "topup-success") setCheckoutReturn("topup");
+    else if (status === "topup-cancel") setCheckoutReturn("topup-cancel");
+    else if (status === "cancel") {
+        setCheckoutReturn("plan-cancel");
+        // backing out of a plan Checkout that really started; the cancel URL names its plan
+        const attempted = PLAN_ORDER.find((p) => p === params.plan);
+        capture("checkout_abandoned", attempted ? { target_plan: attempted } : {});
+    } else return;
+    if (status === "success" || status === "topup-success")
+        for (const wait of [2000, 5000, 9000])
+            window.setTimeout(() => {
+                void loadBilling();
+                if (status === "topup-success") void loadLedger();
+            }, wait);
 }
 
 export async function startCheckout(opts: {

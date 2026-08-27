@@ -18,7 +18,7 @@ import {
     loadMoreLedger,
 } from "@app/stores/billing";
 
-// The credit ledger in full: the pricing page shows the first few rows as a preview, this page
+// The credit ledger in full: the Billing tab shows the first few rows as a preview, this page
 // appends the rest as you scroll.
 export const CreditActivityView: Component = () => {
     const navigate = useNavigate();
@@ -40,8 +40,8 @@ export const CreditActivityView: Component = () => {
                             size="sm"
                             tone="muted"
                             bordered
-                            title="Back to plans"
-                            onClick={() => navigate("/pricing")}
+                            title="Back to billing"
+                            onClick={() => navigate("/settings/billing")}
                         >
                             <Icon name="chevronLeft" size={15} />
                         </IconButton>

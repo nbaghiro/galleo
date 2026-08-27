@@ -6,8 +6,9 @@ export function setNavigate(fn: (path: string) => void): void {
 }
 
 // The router does not scroll to fragments, and the target can render a beat after its data loads,
-// so the anchor is polled for briefly rather than assumed present on the next frame.
-function scrollToAnchor(id: string, tries = 20): void {
+// so the anchor is polled for rather than assumed present on the next frame. ~4s covers the
+// settings tabs, whose anchors sit behind a workspace fetch and then a billing fetch.
+function scrollToAnchor(id: string, tries = 80): void {
     const el = document.getElementById(id);
     if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" });

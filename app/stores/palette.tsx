@@ -107,12 +107,12 @@ registerCommands([
     },
     {
         id: "account.upgrade",
-        title: "Plans & pricing",
+        title: "Plan & billing",
         group: "account",
         icon: "arrowUpRight",
-        keywords: ["billing", "upgrade"],
-        slash: "/pricing",
-        run: () => go("/pricing"),
+        keywords: ["billing", "upgrade", "pricing"],
+        slash: "/settings/plan",
+        run: () => go("/settings/plan"),
     },
     {
         id: "account.signOut",

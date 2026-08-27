@@ -1,14 +1,17 @@
 import type { Component, JSX } from "solid-js";
-import { createMemo, createSignal, For, onMount, Show } from "solid-js";
-import { useNavigate } from "@solidjs/router";
+import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js";
+import { useNavigate, useSearchParams } from "@solidjs/router";
+import { asOrigin } from "@model/analytics";
+import { capture } from "@ui/analytics";
 import type { PublishPolicy, WorkspaceRole } from "@model/workspace";
 import type { ArtifactAccess } from "@model/artifact";
-import { sellsSeats } from "@model/billing";
+import { sellsSeats, visiblePlans } from "@model/billing";
 import { Avatar } from "@ui/avatar";
-import { CreditActivity, previewEntries } from "@app/components/CreditActivity";
+import { BillingPanel } from "@app/components/BillingPanel";
+import { PlanPanel } from "@app/components/PlanPanel";
 import { VoiceShelf } from "@app/components/VoiceShelf";
 import { MusicShelf } from "@app/components/MusicShelf";
-import { SettingsSection as Section, useSettingsTab } from "@app/components/settings";
+import { PolicyRow, SettingsSection as Section, useSettingsTab } from "@app/components/settings";
 import { Tabs } from "@ui/tabs";
 import { can } from "@app/stores/features";
 import { Button, Eyebrow, Spinner } from "@ui/button";
@@ -17,7 +20,7 @@ import { Dropdown } from "@ui/select";
 import { Meter } from "@ui/status";
 import { ConfirmModal } from "@ui/overlay";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
-import { UpgradeNotice } from "@app/components/Upgrade";
+import { UpgradeButton, UpgradeNotice } from "@app/components/Upgrade";
 import { relativeTime } from "@ui/time";
 import {
     api,
@@ -26,7 +29,13 @@ import {
     type NewApiCredential,
     type WorkspaceMember,
 } from "@app/api";
-import { billing, ledgerEntries, loadBilling, loadLedger, openPortal } from "@app/stores/billing";
+import {
+    billing,
+    consumeCheckoutReturn,
+    ledgerLoaded,
+    loadBilling,
+    loadLedger,
+} from "@app/stores/billing";
 import {
     inviteMember,
     leaveWorkspace,
@@ -62,23 +71,15 @@ const StatCard: Component<{
     </div>
 );
 
-const PolicyRow: Component<{ label: string; hint: string; children: JSX.Element }> = (props) => (
-    <div class="flex flex-col gap-2 border-b border-line py-3 last:border-b-0 sm:flex-row sm:items-center sm:gap-4">
-        <div class="min-w-0 flex-1">
-            <div class="text-[13px] font-semibold text-ink">{props.label}</div>
-            <div class="mt-0.5 text-[11.5px] text-muted">{props.hint}</div>
-        </div>
-        <div class="flex-none">{props.children}</div>
-    </div>
-);
-
-// "none" is deliberately not offered as a workspace default: a default that hides every new artifact
-// from everyone reads as broken, and the same effect is available per artifact.
 const TABS = [
     { id: "general", label: "General" },
     { id: "members", label: "Members" },
-    { id: "billing", label: "Plan & billing" },
+    { id: "plan", label: "Plan" },
+    { id: "billing", label: "Billing" },
 ] as const;
+
+// "none" is deliberately not offered as a workspace default: a default that hides every new artifact
+// from everyone reads as broken, and the same effect is available per artifact.
 
 const ACCESS_OPTIONS = [
     { label: "Can edit", value: "edit" },
@@ -293,8 +294,31 @@ const ApiCredentials: Component = () => {
 export const WorkspaceSettingsView: Component = () => {
     const navigate = useNavigate();
     const [tab, setTab] = useSettingsTab("/settings", TABS);
-    onMount(() => loadWorkspace({ spend: true }));
-    onMount(loadBilling);
+    const [search] = useSearchParams();
+    // The shell mounts once per settings visit, so data loads and the Stripe-return consumption
+    // live here; the tab panels only render what the stores hold.
+    onMount(() => {
+        void loadWorkspace({ spend: true });
+        void loadBilling();
+        consumeCheckoutReturn(search);
+    });
+    // the ledger is only read by the billing tab, so it loads the first time that tab shows
+    createEffect(() => {
+        if (tab() === "billing" && !ledgerLoaded()) void loadLedger();
+    });
+    // once per visit per billing-family tab, not per tab flip: the panels remount on every switch
+    const viewed = new Set<string>();
+    createEffect(() => {
+        const t = tab();
+        if ((t === "plan" || t === "billing") && !viewed.has(t)) {
+            viewed.add(t);
+            capture("pricing_viewed", {
+                from: asOrigin(search.from),
+                plan_id: billing()?.plan ?? "free",
+                tab: t,
+            });
+        }
+    });
 
     const st = workspaceState;
     const myRole = (): WorkspaceRole => st()?.role ?? "member";
@@ -302,45 +326,11 @@ export const WorkspaceSettingsView: Component = () => {
     const isAdmin = (): boolean => myRole() !== "member";
     const seatsUsed = createMemo(() => (st()?.members.length ?? 0) + (st()?.invites.length ?? 0));
     const seats = (): number => st()?.workspace.seats ?? 1;
+    const teamPlan = () => visiblePlans().find((p) => p.billing.sellsSeats);
 
-    const b = billing;
-    const creditsLeft = (): number => b()?.credits.balance ?? 0;
-    const unlimited = (n: number): boolean => n < 0;
-    // "/ ∞" over a bare number, so no cap reads as unlimited rather than as a missing denominator
-    const storageValue = (): string => {
-        const u = b()?.usage;
-        if (!u) return "—";
-        return unlimited(u.maxStorageMb)
-            ? `${u.storageMb} MB / ∞`
-            : `${u.storageMb} / ${u.maxStorageMb} MB`;
-    };
-    const artifactsCaption = (): string => {
-        const u = b()?.usage;
-        if (!u) return "";
-        if (unlimited(u.maxArtifacts)) return `${u.artifacts} / ∞ artifacts`;
-        const left = Math.max(0, u.maxArtifacts - u.artifacts);
-        return `${u.artifacts} / ${u.maxArtifacts} artifacts · ${left} left`;
-    };
-
-    // policies (admin+); the two dropdowns save on change, the cap has a field so it needs a submit
+    // policies (admin+); the dropdowns save on change
     const savePolicy = async (patch: Parameters<typeof updateWorkspaceSettings>[0]) => {
         await updateWorkspaceSettings(patch).catch(() => {});
-    };
-    const [cap, setCap] = createSignal<string | null>(null);
-    const storedCap = (): string => {
-        const n = st()?.workspace.memberCreditCap;
-        return n == null ? "" : String(n);
-    };
-    const capValue = (): string => cap() ?? storedCap();
-    const capDirty = (): boolean => cap() !== null && cap() !== storedCap();
-    const submitCap = async (e: Event): Promise<void> => {
-        e.preventDefault();
-        if (!capDirty()) return;
-        const raw = capValue().trim();
-        const n = Number(raw);
-        if (raw && (!Number.isFinite(n) || n < 0)) return;
-        await savePolicy({ memberCreditCap: raw ? Math.trunc(n) : null });
-        setCap(null);
     };
 
     // rename (admin+)
@@ -405,8 +395,6 @@ export const WorkspaceSettingsView: Component = () => {
             setActing(false);
         }
     };
-
-    onMount(() => void loadLedger());
 
     return (
         <div class="flex h-dvh bg-canvas text-ink">
@@ -560,69 +548,12 @@ export const WorkspaceSettingsView: Component = () => {
                                     </Show>
                                 </Show>
 
+                                <Show when={tab() === "plan"}>
+                                    <PlanPanel />
+                                </Show>
+
                                 <Show when={tab() === "billing"}>
-                                    <Section title="Plan & usage">
-                                        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                                            <StatCard
-                                                label="Plan"
-                                                value={
-                                                    (b()?.plan ?? state().workspace.plan)
-                                                        .charAt(0)
-                                                        .toUpperCase() +
-                                                    (b()?.plan ?? state().workspace.plan).slice(1)
-                                                }
-                                                caption={
-                                                    b()?.status === "past_due"
-                                                        ? "Payment failed. Update your card"
-                                                        : b()?.cancelAtPeriodEnd
-                                                          ? "Ends at the period close"
-                                                          : undefined
-                                                }
-                                                action={
-                                                    <button
-                                                        class="text-[12px] font-semibold text-soft underline hover:text-ink"
-                                                        onClick={() =>
-                                                            b()?.status === "past_due"
-                                                                ? void openPortal("settings")
-                                                                : navigate("/pricing")
-                                                        }
-                                                    >
-                                                        {b()?.status === "past_due"
-                                                            ? "Fix billing →"
-                                                            : "Manage plan →"}
-                                                    </button>
-                                                }
-                                            />
-                                            <StatCard
-                                                label="AI credits left"
-                                                value={creditsLeft().toLocaleString()}
-                                                meter={{
-                                                    value: creditsLeft(),
-                                                    max: b()?.credits.rolloverCap ?? 1,
-                                                }}
-                                                caption={`+${(b()?.credits.monthlyGrant ?? 0).toLocaleString()} a month${
-                                                    b()?.credits.capped
-                                                        ? " · at the rollover cap"
-                                                        : ""
-                                                } · you used ${(
-                                                    b()?.credits.mySpend ?? 0
-                                                ).toLocaleString()} this cycle`}
-                                            />
-                                            <StatCard
-                                                label="Storage"
-                                                value={storageValue()}
-                                                meter={
-                                                    unlimited(b()?.usage.maxStorageMb ?? 0)
-                                                        ? undefined
-                                                        : {
-                                                              value: b()?.usage.storageMb ?? 0,
-                                                              max: b()?.usage.maxStorageMb ?? 1,
-                                                          }
-                                                }
-                                                caption={artifactsCaption()}
-                                            />
-                                        </div>
-                                    </Section>
+                                    <BillingPanel />
                                 </Show>
 
                                 <Show when={tab() === "members"}>
@@ -634,15 +565,36 @@ export const WorkspaceSettingsView: Component = () => {
                                                 meter={{ value: seatsUsed(), max: seats() }}
                                                 action={
                                                     <Show when={isOwner()}>
-                                                        <button
-                                                            class="text-[12px] font-semibold text-soft underline hover:text-ink"
-                                                            onClick={() => navigate("/pricing")}
+                                                        <Show
+                                                            when={sellsSeats(
+                                                                state().workspace.plan,
+                                                            )}
+                                                            fallback={
+                                                                <button
+                                                                    class="text-[12px] font-semibold text-soft underline hover:text-ink"
+                                                                    onClick={() =>
+                                                                        navigate("/settings/plan")
+                                                                    }
+                                                                >
+                                                                    {/* seats are a plan shape,
+                                                                        not a feature key, so the
+                                                                        seller is read off the
+                                                                        catalog */}
+                                                                    {teamPlan()
+                                                                        ? `Get seats on ${teamPlan()!.name} →`
+                                                                        : "See plans →"}
+                                                                </button>
+                                                            }
                                                         >
-                                                            {/* only the team plan sells seats */}
-                                                            {sellsSeats(state().workspace.plan)
-                                                                ? "Add seats →"
-                                                                : "Upgrade →"}
-                                                        </button>
+                                                            <button
+                                                                class="text-[12px] font-semibold text-soft underline hover:text-ink"
+                                                                onClick={() =>
+                                                                    navigate("/settings/plan")
+                                                                }
+                                                            >
+                                                                Add seats →
+                                                            </button>
+                                                        </Show>
                                                     </Show>
                                                 }
                                             />
@@ -695,13 +647,7 @@ export const WorkspaceSettingsView: Component = () => {
                                                             {err().message}
                                                         </p>
                                                         <Show when={err().upgrade}>
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => navigate("/pricing")}
-                                                            >
-                                                                See plans →
-                                                            </Button>
+                                                            <UpgradeButton variant="outline" />
                                                         </Show>
                                                     </div>
                                                 )}
@@ -902,63 +848,6 @@ export const WorkspaceSettingsView: Component = () => {
                                             </Show>
                                         </Section>
                                     </Show>
-                                </Show>
-
-                                <Show when={tab() === "billing" && isAdmin()}>
-                                    <Section title="Spending">
-                                        <div class="rounded-xl border border-line bg-panel px-4 py-1">
-                                            <PolicyRow
-                                                label="Credit limit per member"
-                                                hint="The most one member can spend from the shared pool each cycle. Admins are never limited. Leave it empty for no limit."
-                                            >
-                                                <form
-                                                    class="flex items-center gap-2"
-                                                    onSubmit={submitCap}
-                                                >
-                                                    <TextField
-                                                        type="number"
-                                                        min={0}
-                                                        class="w-28"
-                                                        placeholder="No limit"
-                                                        aria-label="Credit limit per member"
-                                                        value={capValue()}
-                                                        onChange={setCap}
-                                                    />
-                                                    <Button
-                                                        type="submit"
-                                                        variant="outline"
-                                                        disabled={!capDirty()}
-                                                    >
-                                                        Save
-                                                    </Button>
-                                                </form>
-                                            </PolicyRow>
-                                        </div>
-                                    </Section>
-                                </Show>
-
-                                <Show when={tab() === "billing"}>
-                                    <Section title="Credit activity">
-                                        <Show
-                                            when={ledgerEntries().length}
-                                            fallback={
-                                                <p class="text-[12.5px] text-muted">
-                                                    No credit activity yet.
-                                                </p>
-                                            }
-                                        >
-                                            <CreditActivity
-                                                entries={previewEntries(ledgerEntries())}
-                                                variant="preview"
-                                            />
-                                            <button
-                                                class="mt-2 text-[12px] font-medium text-soft underline hover:text-ink"
-                                                onClick={() => navigate("/pricing/activity")}
-                                            >
-                                                View all
-                                            </button>
-                                        </Show>
-                                    </Section>
                                 </Show>
                             </>
                         )}

@@ -16,7 +16,6 @@ import { GenerateStudio } from "./views/generate/Mission";
 import { LibraryView } from "./views/LibraryView";
 import { OnboardingView } from "@app/views/OnboardingView";
 import { PresentView } from "./views/PresentView";
-import { PricingView } from "./views/PricingView";
 import { CreditActivityView } from "./views/CreditActivityView";
 import { SharedView } from "./views/SharedView";
 import { TemplatesView } from "./views/TemplatesView";
@@ -177,9 +176,32 @@ export const App: Component = () => {
                             <Route path="/templates" component={TemplatesView} />
                             <Route path="/shared" component={SharedView} />
                             <Route path="/trash" component={TrashView} />
-                            <Route path="/pricing" component={PricingView} />
-                            {/* the full credit ledger; /pricing keeps a short preview of it */}
-                            <Route path="/pricing/activity" component={CreditActivityView} />
+                            {/* the old pricing page lives on as the settings Plan tab; the search
+                                is kept so a Stripe return minted before the move still lands, and
+                                a top-up return goes where the packs now live */}
+                            <Route
+                                path="/pricing"
+                                component={() => {
+                                    const search = window.location.search;
+                                    const topup = new URLSearchParams(search)
+                                        .get("status")
+                                        ?.startsWith("topup");
+                                    return (
+                                        <Navigate
+                                            href={`${topup ? "/settings/billing" : "/settings/plan"}${search}`}
+                                        />
+                                    );
+                                }}
+                            />
+                            <Route
+                                path="/pricing/activity"
+                                component={() => <Navigate href="/settings/billing/activity" />}
+                            />
+                            {/* the full credit ledger; the Billing tab keeps a short preview of it */}
+                            <Route
+                                path="/settings/billing/activity"
+                                component={CreditActivityView}
+                            />
                             {/* the tab rides in the path so a settings page is linkable */}
                             <Route path="/settings/:tab?" component={WorkspaceSettingsView} />
                             <Route path="/account/:tab?" component={AccountSettingsView} />
