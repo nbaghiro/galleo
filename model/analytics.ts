@@ -211,6 +211,12 @@ export interface Events {
 
     // Onboarding, the first-session funnel in .docs/onboarding.md.
     onboarding_format_chosen: { format: Surface };
+    // The wall answers the format question by being browsed, so the filter is the only place the
+    // intent is stated before a starter is committed to.
+    onboarding_starters_filtered: { format: Surface | "all"; shown: number };
+    // left the wall without picking anything, which the funnel could not see before: the skip was a
+    // dead control, so everyone who wanted out either picked something or abandoned the account
+    onboarding_skipped: { shown: number };
     onboarding_starter_opened: { format: Surface; template_id: string; ms_since_signup?: number };
     onboarding_studio_opened: { from: StudioEntry };
     // The clock is the first session's own start, not signup: the browser never learns the signup
@@ -376,6 +382,8 @@ export interface Events {
         clicked_position?: number;
     };
     template_previewed: { template_id: string; category: string; format: Surface };
+    // a text or table gained a line clamp; counts only, never the text it clamps
+    text_clamped: { element_type: string; max_lines: number };
     template_used: { template_id: string; category: string; format: Surface; from: string };
 
     // Editing depth: whether people author here or only generate and leave.

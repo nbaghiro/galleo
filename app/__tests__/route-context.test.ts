@@ -23,5 +23,9 @@ describe("publishRoute", () => {
         publishRoute("/trash");
         expect(getContext("trash")).toBe(true);
         expect(getContext("editor")).toBe(false);
+
+        publishRoute("/welcome");
+        expect(getContext("welcome")).toBe(true);
+        expect(getContext("library")).toBe(false);
     });
 });

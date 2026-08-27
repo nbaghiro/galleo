@@ -20,13 +20,13 @@ Built, pending manual QA. What ships:
 | the grant release and the derived checklist                                    | `services/core/onboarding.ts`                            |
 | `GET /onboarding`                                                              | `services/api/onboarding.ts`                             |
 | release on verification, both paths                                            | `services/api/session.ts`, `services/api/oauth.ts`       |
-| the format question                                                            | `app/views/OnboardingView.tsx`, routed at `/welcome`     |
+| the starter wall (and the format question it replaced)                         | `app/views/OnboardingView.tsx`, routed at `/welcome`     |
 | the checklist                                                                  | `app/components/OnboardingChecklist.tsx`, in the sidebar |
 | the client store                                                               | `app/stores/onboarding.ts`                               |
 | the studio's format default                                                    | `app/stores/generate.ts`                                 |
 
-Not built: the seven events in the Events section below. `.docs/analytics.md` specifies them and
-`.docs/analytics.md` is the handoff, so none of this is measurable yet.
+The funnel events are now in the catalog (`model/analytics.ts`, the `onboarding_*` block); see the
+Events section below for what they answer and what the wall changed about them.
 
 ## The constraint everything follows from
 
@@ -67,33 +67,49 @@ halves of the problem and we have the templates to do the first cheaply.
 
 ## The design
 
-### 1. One question, asked because we need the answer
+### 1. The question is answered by picking a piece
 
-Immediately after signup we ask what the user is making first: a deck, a document, or a site.
+We still need to know what the user is making first, because `format` is the axis the entire engine is
+organised around: it picks the format profile the artifact renders under, it filters the template set,
+and it becomes the default in the generation studio. What changed is how we ask.
 
-This is not a segmentation field we store and report on. `format` is the axis the entire engine is
-organised around, and the answer does three concrete things: it picks the format profile the artifact
-renders under, it filters the template set we offer, and it becomes the default in the generation
-studio. Because `templatesOnce()` returns full template bodies, `content.format` is available on the
-client after one catalog fetch, so the filter needs no schema change.
+Originally this was a three-card question, asked in the abstract, with one starter previewed behind
+each card. It works, but it makes the user declare an intent before they have seen anything, and the
+starter it opens is one we chose. So the screen is now a **wall of live starters** and the answer is
+inferred from the one they pick.
+
+Every card is the same box (`PlateCard` in `app/components/previews.tsx`, shared rather than local to
+this view). What differs inside it is the format: the plate is drawn at that format's own layout width
+against its own backdrop, at one scale set by the widest, so a doc sits on more backdrop than a deck,
+and a site has no page margin at all and runs to the card's edges the way it runs to a browser's,
+which is read straight off `bleedSections` in the profile rather than a second list of formats.
+
+`starterWall` shuffles each format and then deals them round-robin, so consecutive cards are a deck,
+then a doc, then a site. The mix is the argument the screen makes, that one engine renders all three,
+and any other order groups the formats into blocks that bury two of them below the fold. Shuffled
+rather than sorted by use count, because the wall now scrolls to the whole catalog so nothing is
+unreachable, and two people signing up on the same day should not meet the same nine tiles. It paints
+twelve at a time as the wall is scrolled, since each tile lays out a real section stack.
+
+Clicking one opens the existing `TemplatePreview`, whose format switcher means a doc previewed as a
+deck opens as a deck: the switcher is the point of previewing, so what the preview settled on is the
+answer we record.
 
 We ask nothing else. Industry and attribution are worth knowing, but they are worth less than the
-seconds they cost here, and we have no analytics pipeline to act on them yet. If we want attribution
-later it belongs on the marketing site, before the signup, not in the product's first screen.
+seconds they cost here. If we want attribution later it belongs on the marketing site, before the
+signup, not in the product's first screen.
 
 ### 2. The first artifact is a template, opened in the editor
 
-Instead of landing on the empty library, the user lands in a real artifact in their chosen format,
-built from a template, open in the editor. This costs no credits, takes one request rather than a model
-round trip, and makes the user's first action editing something good rather than composing a prompt in
-front of a blank box.
+The user lands in a real artifact in the format they picked, built from a template, open in the editor.
+This costs no credits, takes one request rather than a model round trip, and makes the user's first
+action editing something good rather than composing a prompt in front of a blank box.
 
-Which template: the most-used one for that format, which we already track through `recordTemplateUse`
-and expose as `templateUsesOnce()`. That makes the choice self-improving without a hand-maintained
-mapping, and it degrades to a reasonable default when the counts are empty.
+Which template is now the user's own choice rather than the most-used one for a declared format, which
+is the point of the wall: an artifact somebody picked is one they are attached to.
 
-The user can of course reject it. The library remains one click away, and the template row stays
-visible, so this is a starting point rather than a wizard the user has to escape.
+The library remains one click away throughout, so this is a starting point rather than a wizard the
+user has to escape.
 
 ### 3. The first generation is theirs
 
@@ -199,14 +215,15 @@ component is required. Anything genuinely new stays local to the view until a se
 
 ## Events
 
-There is no event tracking in the product today. The only analytics are link and artifact view counts,
-which means we currently cannot answer whether any of this works, and the ordering above rests on the
-credit arithmetic rather than on observed drop-off.
+The funnel is: signed up, chose a format, opened the starter artifact, opened the studio, completed a
+generation, and each checklist step as it lands. That is enough to see which step loses people.
 
-The minimum funnel is: signed up, answered the format question, opened the starter artifact, edited it,
-opened the studio, completed a generation, and each checklist step as it lands. That is seven events
-and it is enough to see which step loses people. We should treat this as a prerequisite rather than a
-follow-up, because shipping the flow without it means the next revision is guesswork too.
+The wall moved one of those. `onboarding_format_chosen` used to fire when the question was answered,
+which was the first thing anyone did; it now fires only when a starter is committed to, so the intent
+of everyone who browsed and left is no longer recorded. `onboarding_starters_filtered` covers that gap:
+it carries the format chip and how many starters that chip left on the wall. `template_previewed`
+fires from the wall as it does from the Templates page, so how many pieces someone opens before
+picking one is a query rather than a new event.
 
 ## Planned / deferred
 

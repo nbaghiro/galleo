@@ -2,10 +2,10 @@ import type { Component } from "solid-js";
 import { For } from "solid-js";
 import { Icon } from "@ui/icons";
 
-// The two steps that run before the app opens: confirm the address, then answer the format question.
+// The two steps that run before the app opens: confirm the address, then pick something to start from.
 // Rendered on both, so signing up reads as one flow rather than a dead end followed by a fresh start.
 // The in-app checklist (make · ai · theme · send) is a separate thing and keeps its own affordance.
-const STEPS = ["Confirm your email", "Choose a format"] as const;
+const STEPS = ["Confirm your email", "Pick a starter"] as const;
 
 export const OnboardingSteps: Component<{ current: 1 | 2 }> = (props) => (
     <ol class="mb-8 flex items-center gap-3" aria-label="Getting started">

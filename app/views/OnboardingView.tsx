@@ -1,71 +1,48 @@
 import type { Component } from "solid-js";
-import { For, Show, createEffect, createSignal, onMount } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import type { Surface } from "@model/ai";
+import { asFormat } from "@model/analytics";
 import type { Template } from "@model/templates";
 import { mustConfirmEmail, VERIFY_CODE_LENGTH } from "@model/workspace";
-import { Eyebrow, Spinner } from "@ui/button";
+import { Chip, Eyebrow, Spinner } from "@ui/button";
 import { Icon } from "@ui/icons";
-import { ArtifactPlate } from "@app/components/previews";
+import { PLATE_CARD_W, PlateCard } from "@app/components/previews";
+import { TemplatePreview } from "@app/components/TemplatePreview";
 import { ConfirmCodeField } from "@app/components/ConfirmCode";
 import { OnboardingSteps } from "@app/components/OnboardingSteps";
 import { api } from "@app/api";
 import { user, verifyMailSent } from "@app/stores/auth";
+import { formatIcon, formatLabelPlural } from "@app/stores/library";
 import { appTheme } from "@app/stores/theme";
+import { capture } from "@ui/analytics";
 import {
     chooseFormat,
     onboarding,
     onboardingBusy,
     onboardingNeeded,
-    startersFor,
+    skipOnboarding,
+    starterWall,
 } from "@app/stores/onboarding";
 
-// The one question. It is asked because the answer is used: `format` picks the render profile, filters
-// the starters, and becomes the studio default. Each card shows the artifact it will actually open, so
-// the choice is not blind and the click honours what was on screen. Nothing here spends credits: the
-// starter is a template, and the generation budget belongs to the user's own first brief.
+// The first session's two screens: confirm the address, then pick something to start from.
+//
+// The format question is not asked in the abstract any more. It is answered by picking a piece, which
+// is the same answer (`format` picks the render profile and becomes the studio default) arrived at by
+// looking rather than by declaring. Nothing here spends credits: a starter is a template, and the
+// generation budget belongs to the user's own first brief.
 
-interface Choice {
-    value: Surface;
-    label: string;
-    icon: string;
-    blurb: string;
-    layoutW: number; // the format's own layout width, which is what sets its proportion
-}
+// Order matters twice: it is the chip order, and it is the order the wall deals the formats in.
+const FORMAT_ORDER: Surface[] = ["deck", "doc", "web"];
 
-const CHOICES: Choice[] = [
-    {
-        value: "deck",
-        label: "A deck",
-        icon: "deck",
-        blurb: "Slides you present or send.",
-        layoutW: 1280,
-    },
-    {
-        value: "doc",
-        label: "A document",
-        icon: "doc",
-        blurb: "Long-form, one reading column.",
-        // the editor lays a doc's column out at maxContentWidth (1000), reached once fullW hits
-        // 1064; passing the 816 page width instead rendered it at 752 and read too narrow
-        layoutW: 1064,
-    },
-    {
-        value: "web",
-        label: "A site",
-        icon: "site",
-        blurb: "A page that scrolls, full width.",
-        layoutW: 1440,
-    },
-];
+// A screenful at a time as the wall is scrolled. Every tile paints a real section stack, so opening
+// with all ninety would cost a second of layout nobody asked for.
+const PAGE = 12;
 
-// The editor shows every format as a running stack, so each plate is the top of one, cropped. One
-// scale across the row (set by the widest page) keeps the three comparable rather than each being
-// normalised into its own box: a doc is genuinely narrower than a site.
 // Said on the confirm step because a step with nothing behind it is one people abandon.
 const AFTER_VERIFY = [
     "200 credits, on the house, for your first generations",
-    "A starter deck, doc or site in the format you pick next",
+    "A wall of starter decks, docs and sites, yours in one click",
     "The studio, with AI editing on every section",
 ];
 
@@ -151,16 +128,6 @@ const VerifyStep: Component = () => {
     );
 };
 
-const STACK_DEPTH = 5;
-const PLATE_H = 184;
-const PLATE_MAX_W = 244;
-// head margin inside the plate, so section one is not pinned to the card edge
-const PLATE_PAD_TOP = 16;
-const SCALE = PLATE_MAX_W / Math.max(...CHOICES.map((c) => c.layoutW));
-const plateW = (c: Choice): number => Math.round(c.layoutW * SCALE);
-
-const pick = <T,>(xs: T[]): T | undefined => xs[Math.floor(Math.random() * xs.length)];
-
 // The gate's client-side twin: same date, same question, so the surface agrees with the routes.
 const needsVerify = (): boolean => {
     const u = user();
@@ -172,7 +139,7 @@ export const OnboardingView: Component = () => {
     // The screen belongs to a first session only. `needed` is server-derived (no format answer
     // recorded and an empty workspace), so an established account that types the URL is sent to the
     // library rather than shown a welcome it already answered. `leaving` covers the moment the
-    // answer lands: choosing a format makes `needed` false, and without it this guard would race
+    // answer lands: choosing a starter makes `needed` false, and without it this guard would race
     // the navigation to the new artifact and win.
     const [leaving, setLeaving] = createSignal(false);
     createEffect(() => {
@@ -180,165 +147,219 @@ export const OnboardingView: Component = () => {
         const s = onboarding();
         if (s && !s.needed) navigate("/", { replace: true });
     });
-    const [picked, setPicked] = createSignal<Surface | null>(null);
-    const [failed, setFailed] = createSignal(false);
-    // one starter per format, drawn from that format's most-used, so two people signing up on the
-    // same day do not both open the same artifact
-    const [pool, setPool] = createSignal<Record<string, Template[]>>({});
-    const [shown, setShown] = createSignal<Record<string, Template>>({});
 
-    const reshuffle = (from: Record<string, Template[]>): void => {
-        const next: Record<string, Template> = {};
-        for (const c of CHOICES) {
-            const t = pick(from[c.value] ?? []);
-            if (t) next[c.value] = t;
-        }
-        setShown(next);
-    };
+    const [wall, setWall] = createSignal<Template[]>([]);
+    const [format, setFormat] = createSignal<Surface | "all">("all");
+    const [limit, setLimit] = createSignal(PAGE);
+    const [preview, setPreview] = createSignal<Template | null>(null);
+    const [failed, setFailed] = createSignal(false);
 
     onMount(() => {
-        void Promise.all(CHOICES.map((c) => startersFor(c.value)))
-            .then((lists) => {
-                const byFormat: Record<string, Template[]> = {};
-                CHOICES.forEach((c, i) => (byFormat[c.value] = lists[i] ?? []));
-                setPool(byFormat);
-                reshuffle(byFormat);
-            })
+        void starterWall(FORMAT_ORDER)
+            .then(setWall)
             .catch(() => undefined);
     });
 
-    const go = async (format: Surface): Promise<void> => {
+    const matching = createMemo(() => {
+        const f = format();
+        return f === "all" ? wall() : wall().filter((t) => t.content.format === f);
+    });
+    const shown = createMemo(() => matching().slice(0, limit()));
+
+    const filterTo = (f: Surface | "all"): void => {
+        if (f === format()) return;
+        setFormat(f);
+        setLimit(PAGE);
+        capture("onboarding_starters_filtered", { format: f, shown: matching().length });
+    };
+
+    // Recorded before the navigation, not after: `needed` is what the library redirect reads, so
+    // leaving without recording lands back here and the link reads as broken.
+    const skip = async (): Promise<void> => {
         if (onboardingBusy()) return;
-        const template = shown()[format];
-        if (!template) return;
         setLeaving(true);
-        setPicked(format);
+        if (await skipOnboarding(matching().length)) navigate("/");
+        else setLeaving(false);
+    };
+
+    const open = (t: Template): void => {
+        setPreview(t);
+        capture("template_previewed", {
+            template_id: t.id,
+            category: t.category,
+            format: asFormat(t.content.format),
+        });
+    };
+
+    // The format the preview settled on, not the template's own: the switcher is the point of
+    // previewing, so a doc previewed as a deck opens as a deck and answers the question that way.
+    const use = async (chosen: string, template: Template): Promise<void> => {
+        if (onboardingBusy()) return;
+        setLeaving(true);
         setFailed(false);
-        const id = await chooseFormat(format, template);
+        const id = await chooseFormat(asFormat(chosen), template);
         // the answer is recorded either way, so a failed starter drops the user in the library rather
         // than trapping them on this screen
         if (id) navigate(`/edit/${id}`);
         else {
             setLeaving(false);
             setFailed(true);
-            setPicked(null);
+            setPreview(null);
         }
     };
+
+    /**
+     * The wall fills to a screenful and then pages in as it is scrolled.
+     *
+     * Both elements are signals rather than plain refs so the observer is built once both exist, in
+     * whichever order Solid assigns them: capturing the scroller in a `let` read it before its ref
+     * was set on one route, which silently left the observer rooted at the viewport, and an ancestor
+     * with `overflow` clips a descendant out of the intersection entirely, so it then never fired.
+     *
+     * Re-armed after every growth, and rebuilt whenever the candidate set changes, which are two
+     * halves of one problem: an observer reports transitions, not states. A page of cards is shorter
+     * than the lead margin, so the sentinel can sit inside the band and never report again; and an
+     * observer built before the catalog landed spends its one opening report on an empty wall. Both
+     * left the grid stuck on its first page.
+     */
+    const [scroller, setScroller] = createSignal<HTMLElement>();
+    const [tail, setTail] = createSignal<HTMLElement>();
+    createEffect(() => {
+        const root = scroller();
+        const el = tail();
+        const total = matching().length; // tracked, so a late catalog or a new filter rebuilds this
+        if (!root || !el || total === 0) return;
+        const io = new IntersectionObserver(
+            (seen) => {
+                if (limit() >= total || !seen.some((e) => e.isIntersecting)) return;
+                setLimit((n) => Math.min(n + PAGE, total));
+                requestAnimationFrame(() => {
+                    io.unobserve(el);
+                    io.observe(el); // observing reports afresh, whatever the state was
+                });
+            },
+            { root, rootMargin: "600px" }, // lead, so the next rows paint before they are reached
+        );
+        io.observe(el);
+        onCleanup(() => io.disconnect());
+    });
 
     return (
         <Show
             when={needsVerify() || onboardingNeeded() || leaving()}
             fallback={<div class="grid min-h-dvh place-items-center" />}
         >
-            <div class="grid min-h-dvh place-items-center px-6 py-12">
-                <Show when={!needsVerify()} fallback={<VerifyStep />}>
-                    <div class="w-full max-w-260">
+            <Show
+                when={!needsVerify()}
+                fallback={
+                    <div class="grid min-h-dvh place-items-center px-6 py-12">
+                        <VerifyStep />
+                    </div>
+                }
+            >
+                {/* the shell is h-dvh overflow-hidden, so a surface taller than the viewport owns
+                    its own scrolling; without this the wall simply could not be scrolled to */}
+                <div ref={setScroller} class="h-dvh overflow-y-auto px-6 py-10">
+                    <div class="mx-auto w-full max-w-320">
                         <OnboardingSteps current={2} />
-                        <Eyebrow tone="soft" tracking="wider">
-                            Welcome to Galleo
-                        </Eyebrow>
-                        <h1
-                            class="mt-3 font-display text-[30px] font-semibold text-ink"
-                            style={{ "text-wrap": "balance" }}
-                        >
-                            What are you making first?
-                        </h1>
-                        <p class="mt-2 max-w-110 text-[14.5px] text-soft">
-                            One engine renders all three, so you can change your mind later. We will
-                            open the starter below, ready to edit.
-                        </p>
+                        <div class="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
+                            <div>
+                                <Eyebrow tone="soft" tracking="wider">
+                                    Welcome to Galleo
+                                </Eyebrow>
+                                <h1
+                                    class="mt-3 font-display text-[30px] font-semibold text-ink"
+                                    style={{ "text-wrap": "balance" }}
+                                >
+                                    What are you making first?
+                                </h1>
+                                <p class="mt-2 max-w-125 text-[14.5px] text-soft">
+                                    Pick something to start from. One engine renders all three, so
+                                    you can change your mind later.
+                                </p>
+                            </div>
+                            <button
+                                class="mt-1 text-[13px] text-muted underline-offset-2 hover:text-ink hover:underline"
+                                disabled={onboardingBusy()}
+                                onClick={() => void skip()}
+                            >
+                                Skip, take me to my library
+                            </button>
+                        </div>
 
-                        <div class="mt-8 grid gap-4 md:grid-cols-3">
-                            <For each={CHOICES}>
-                                {(c) => {
-                                    const template = (): Template | undefined => shown()[c.value];
-                                    const busy = (): boolean => picked() === c.value;
-                                    return (
-                                        <button
-                                            class="group flex flex-col overflow-hidden rounded-2xl border border-line bg-panel text-left transition hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60"
-                                            disabled={onboardingBusy() || !template()}
-                                            onClick={() => void go(c.value)}
-                                        >
-                                            <div
-                                                class="relative overflow-hidden border-b border-line bg-canvas"
-                                                style={{
-                                                    height: `${PLATE_H}px`,
-                                                    // the stack runs on past the crop, so the foot fades
-                                                    "mask-image":
-                                                        "linear-gradient(180deg,#000 82%,transparent 100%)",
-                                                }}
-                                            >
-                                                <Show
-                                                    when={template()}
-                                                    fallback={<Spinner size={18} />}
-                                                >
-                                                    {(t) => (
-                                                        <ArtifactPlate
-                                                            content={t().content}
-                                                            themeId={appTheme()}
-                                                            width={plateW(c)}
-                                                            layoutWidth={c.layoutW}
-                                                            depth={STACK_DEPTH}
-                                                            padTop={PLATE_PAD_TOP}
-                                                        />
-                                                    )}
-                                                </Show>
-                                                <Show when={busy()}>
-                                                    <div class="absolute inset-0 grid place-items-center bg-panel/70">
-                                                        <Spinner size={20} tone="accent" />
-                                                    </div>
-                                                </Show>
-                                            </div>
-                                            <div class="flex flex-col gap-1 px-4 py-3.5">
-                                                <span class="flex items-center gap-2 text-ink">
-                                                    <Icon name={c.icon} size={16} />
-                                                    <span class="text-[14.5px] font-semibold">
-                                                        {c.label}
-                                                    </span>
-                                                </span>
-                                                <span class="text-[13px] text-soft">{c.blurb}</span>
-                                                <Show when={template()}>
-                                                    {(t) => (
-                                                        <span class="mt-1 truncate text-[12px] text-muted">
-                                                            Starts from {t().name}
-                                                        </span>
-                                                    )}
-                                                </Show>
-                                            </div>
-                                        </button>
-                                    );
-                                }}
+                        <div class="mt-7 flex flex-wrap items-center gap-2">
+                            <Chip
+                                size="md"
+                                selected={format() === "all"}
+                                onClick={() => filterTo("all")}
+                            >
+                                Everything
+                            </Chip>
+                            <For each={FORMAT_ORDER}>
+                                {(f) => (
+                                    <Chip
+                                        size="md"
+                                        selected={format() === f}
+                                        onClick={() => filterTo(f)}
+                                    >
+                                        <Icon name={formatIcon(f)} size={13} />
+                                        {formatLabelPlural(f)}
+                                    </Chip>
+                                )}
                             </For>
                         </div>
 
+                        <Show
+                            when={shown().length > 0}
+                            fallback={
+                                <div class="grid h-80 place-items-center">
+                                    <Spinner size={20} />
+                                </div>
+                            }
+                        >
+                            <div
+                                class="mt-6 grid justify-center gap-x-5 gap-y-7"
+                                style={{
+                                    "grid-template-columns": `repeat(auto-fill, ${PLATE_CARD_W}px)`,
+                                }}
+                            >
+                                <For each={shown()}>
+                                    {(t) => (
+                                        <PlateCard
+                                            content={t.content}
+                                            name={t.name}
+                                            themeId={appTheme()}
+                                            disabled={onboardingBusy()}
+                                            onOpen={() => open(t)}
+                                        />
+                                    )}
+                                </For>
+                            </div>
+                        </Show>
+
+                        <div ref={setTail} class="h-px" />
+
                         <Show when={failed()}>
-                            <p class="mt-5 text-[13px] text-soft">
+                            <p class="mt-6 text-center text-[13px] text-soft">
                                 We could not open that starter just now. Your choice is saved, so
                                 head to the library and pick a template when you are ready.
                             </p>
                         </Show>
-
-                        <div class="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2">
-                            <button
-                                class="text-[13px] text-muted underline-offset-2 hover:text-ink hover:underline"
-                                disabled={onboardingBusy()}
-                                onClick={() => navigate("/")}
-                            >
-                                Skip, take me to my library
-                            </button>
-                            <Show when={Object.keys(shown()).length > 0}>
-                                <button
-                                    class="text-[13px] text-muted underline-offset-2 hover:text-ink hover:underline"
-                                    disabled={onboardingBusy()}
-                                    onClick={() => reshuffle(pool())}
-                                >
-                                    Show me different starters
-                                </button>
-                            </Show>
-                        </div>
                     </div>
-                </Show>
-            </div>
+                </div>
+            </Show>
+
+            <Show when={preview()}>
+                {(t) => (
+                    <TemplatePreview
+                        template={t()}
+                        busy={onboardingBusy()}
+                        onBack={() => setPreview(null)}
+                        onClose={() => setPreview(null)}
+                        onUse={(chosen) => void use(chosen, t())}
+                    />
+                )}
+            </Show>
         </Show>
     );
 };

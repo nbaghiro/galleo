@@ -32,6 +32,8 @@ import { LiveLayer } from "@ui/live";
 import { pressOnContent, TAP_SLOP } from "@ui/gesture";
 import { ScaledSectionCanvas } from "@ui/section";
 import { StatusDot } from "@ui/status";
+import { Icon } from "@ui/icons";
+import { formatIcon, formatLabelPlural } from "@app/stores/library";
 
 // abstract motion, styled in visuals.css; pass `viz` to pin one (else cycles)
 type Viz =
@@ -335,6 +337,77 @@ const PAD = 28;
 const ANCHOR = 0.3;
 // smooth scrolling has no completion event, so the spy un-mutes on arrival or on this timeout
 const SETTLE_MS = 700;
+
+// The pickable card: an artifact painted as the top of its own section stack, over its own backdrop,
+// named by its format. Every card is the same box; what differs inside it is the format, because the
+// plate is drawn at that format's own layout width. A doc sits on more backdrop than a deck, and a
+// site runs to the card's edges the way it runs to a browser's, which is the difference a person
+// reads before they read the label.
+export const PLATE_CARD_W = 236;
+const PLATE_CARD_H = 176;
+const PLATE_CARD_DEPTH = 4; // sections painted before the foot fades
+
+// Tuned drawing widths rather than the profiles' page widths: the editor lays a doc's column out at
+// maxContentWidth (1000), reached once fullW hits 1064, and passing the 816 page width instead
+// rendered it at 752 and read too narrow.
+const CARD_LAYOUT_W: Record<string, number> = { deck: 1280, doc: 1064, web: 1440 };
+const CARD_SCALE = PLATE_CARD_W / Math.max(...Object.values(CARD_LAYOUT_W));
+// head margin so a page clears the card edge the way it clears the editor's top padding; a site has
+// no page margin to clear, so it starts at the edge
+const CARD_PAD_TOP = 14;
+
+export const PlateCard: Component<{
+    content: ArtifactContent;
+    name: string;
+    themeId: string;
+    onOpen: () => void;
+    disabled?: boolean;
+    /** The word on the hover plate; "Preview" unless the click does something else. */
+    action?: string;
+}> = (props) => {
+    const layoutW = (): number => CARD_LAYOUT_W[props.content.format] ?? CARD_LAYOUT_W.deck!;
+    const bleeds = (): boolean => profileFor(props.content).bleedSections === true;
+    return (
+        <button
+            class="group flex flex-col text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+            style={{ width: `${PLATE_CARD_W}px` }}
+            disabled={props.disabled}
+            onClick={() => props.onOpen()}
+        >
+            <div
+                class="relative overflow-hidden rounded-xl border border-line bg-canvas transition group-hover:border-accent"
+                style={{ height: `${PLATE_CARD_H}px` }}
+            >
+                {/* the stack runs on past the crop, so the foot fades rather than being cut */}
+                <div
+                    class="absolute inset-0"
+                    style={{ "mask-image": "linear-gradient(180deg,#000 84%,transparent 100%)" }}
+                >
+                    <ArtifactPlate
+                        content={props.content}
+                        themeId={props.themeId}
+                        width={Math.round(layoutW() * CARD_SCALE)}
+                        layoutWidth={layoutW()}
+                        depth={PLATE_CARD_DEPTH}
+                        padTop={bleeds() ? 0 : CARD_PAD_TOP}
+                    />
+                </div>
+                <div class="pointer-events-none absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                    <span class="rounded-lg bg-white px-3.5 py-2 text-[12px] font-bold text-[#1a1a1a]">
+                        {props.action ?? "Preview"}
+                    </span>
+                </div>
+            </div>
+            <span class="mt-2 flex items-center gap-1.5 text-muted">
+                <Icon name={formatIcon(props.content.format)} size={12} />
+                <span class="text-[10px] font-bold uppercase tracking-[0.06em]">
+                    {formatLabelPlural(props.content.format)}
+                </span>
+            </span>
+            <span class="mt-0.5 truncate text-[12.5px] font-semibold text-ink">{props.name}</span>
+        </button>
+    );
+};
 
 export const PreviewCanvas: Component<{
     content: ArtifactContent;

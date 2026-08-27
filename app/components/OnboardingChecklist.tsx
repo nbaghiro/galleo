@@ -6,6 +6,7 @@ import { Eyebrow, IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { openGenerate } from "@app/stores/generate";
 import { go } from "@app/stores/navigate";
+import { shareNewest } from "@app/stores/share";
 import { checklistVisible, dismissChecklist, onboarding, stepDone } from "@app/stores/onboarding";
 
 // Four steps, every one of them derived server-side from rows, so nothing here has to be ticked by a
@@ -16,6 +17,9 @@ import { checklistVisible, dismissChecklist, onboarding, stepDone } from "@app/s
 interface StepCopy {
     label: string;
     hint: string;
+    /** False while the step cannot be acted on yet; it reads as disabled and says why. */
+    ready?: () => boolean;
+    blocked?: string;
     go?: () => void;
 }
 
@@ -23,7 +27,14 @@ const COPY: Record<OnboardingStep, StepCopy> = {
     make: { label: "Make something", hint: "Start from a template", go: () => go("/templates") },
     ai: { label: "Write with AI", hint: "Describe it, we draft it", go: () => openGenerate() },
     theme: { label: "Make it yours", hint: "Build a theme", go: () => go("/settings") },
-    send: { label: "Send it out", hint: "Share a link or export", go: () => go("/") },
+    send: {
+        label: "Send it out",
+        hint: "Share a link or export",
+        // there is nothing to send until something exists, and `make` is that same row count
+        ready: () => stepDone("make"),
+        blocked: "Make something first",
+        go: () => void shareNewest().then((shared) => shared || go("/")),
+    },
 };
 
 export const OnboardingChecklist: Component = () => (
@@ -47,12 +58,13 @@ export const OnboardingChecklist: Component = () => (
                     {(step) => {
                         const done = (): boolean => stepDone(step);
                         const copy = COPY[step];
+                        const ready = (): boolean => copy.ready?.() ?? true;
                         return (
                             <li>
                                 <button
                                     class="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-[13px] transition hover:bg-panel disabled:cursor-default disabled:hover:bg-transparent"
-                                    disabled={done()}
-                                    title={done() ? undefined : copy.hint}
+                                    disabled={done() || !ready()}
+                                    title={done() ? undefined : ready() ? copy.hint : copy.blocked}
                                     onClick={() => copy.go?.()}
                                 >
                                     <span
@@ -60,7 +72,15 @@ export const OnboardingChecklist: Component = () => (
                                     >
                                         <Icon name="check" size={10} />
                                     </span>
-                                    <span class={done() ? "text-muted line-through" : "text-soft"}>
+                                    <span
+                                        class={
+                                            done()
+                                                ? "text-muted line-through"
+                                                : ready()
+                                                  ? "text-soft"
+                                                  : "text-muted opacity-60"
+                                        }
+                                    >
                                         {copy.label}
                                     </span>
                                 </button>

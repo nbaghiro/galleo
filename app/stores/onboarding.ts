@@ -4,7 +4,7 @@ import { newlyDone, ONBOARDING_STEPS } from "@model/workspace";
 import type { Surface } from "@model/ai";
 import { api } from "@app/api";
 import type { Template } from "@model/templates";
-import { templatesOnce, templateUsesOnce } from "@app/stores/templates";
+import { templatesOnce } from "@app/stores/templates";
 import { setUser, user } from "@app/stores/auth";
 import { appTheme } from "@app/stores/theme";
 import { capture } from "@ui/analytics";
@@ -15,7 +15,7 @@ import { capture } from "@ui/analytics";
 const [state, setState] = createSignal<OnboardingState | null>(null);
 const [busy, setBusy] = createSignal(false);
 
-/** Milliseconds since this account answered the format question, which is when the flow begins. */
+/** Milliseconds since this account's first session began, which is the format answer or the skip. */
 export const sinceStart = (): number | undefined => {
     const at = user()?.prefs.onboarding?.startedAt;
     return at ? Date.now() - new Date(at).getTime() : undefined;
@@ -51,33 +51,34 @@ export async function loadOnboarding(): Promise<void> {
     setState(got.onboarding);
 }
 
-/** How many of a format's most-used templates we rotate between, so a first run is not always identical. */
-const STARTER_POOL = 4;
-
 /**
- * The starters we would open for a format, most-used first over the counts the templates page already
- * keeps. Returned rather than resolved to one id so the welcome screen can show what it will open and
- * then open exactly that: a preview the click does not honour is worse than no preview.
+ * The wall's order: each format shuffled, then dealt round-robin across the three, so consecutive
+ * cards are a deck, then a doc, then a site. The mix is the argument the screen makes, that one
+ * engine renders all three, and a wall sorted by anything else groups the formats into blocks that
+ * bury two of them below the fold.
+ *
+ * Shuffled rather than ordered by use count: the wall now scrolls to the whole catalog, so nothing
+ * is unreachable, and two people signing up on the same day should not meet the same nine tiles.
+ * The deal order is the argument's order, which is also the order the chips are in.
  */
-export async function startersFor(format: Surface): Promise<Template[]> {
-    const [all, uses] = await Promise.all([
-        templatesOnce().catch(() => []),
-        templateUsesOnce().catch(() => ({}) as Record<string, number>),
-    ]);
-    return all
-        .filter((t) => t.content.format === format)
-        .sort((a, b) => (uses[b.id] ?? 0) - (uses[a.id] ?? 0))
-        .slice(0, STARTER_POOL);
+export async function starterWall(formats: readonly Surface[]): Promise<Template[]> {
+    const all = await templatesOnce().catch(() => []);
+    const byFormat = formats.map((f) => shuffle(all.filter((t) => t.content.format === f)));
+    const out: Template[] = [];
+    for (let i = 0; i < Math.max(...byFormat.map((l) => l.length), 0); i++)
+        for (const list of byFormat) if (list[i]) out.push(list[i]!);
+    return out;
 }
 
-/**
- * Answer the format question and open a starter artifact. Records the answer first, so a failure
- * anywhere after it leaves the user in the library rather than back on the question, and returns the
- * artifact id to navigate to (null when we could not build one).
- *
- * Deliberately spends no credits: the starter is a template, and the generation budget is the user's
- * to spend on their own first brief.
- */
+const shuffle = <T>(xs: T[]): T[] => {
+    const out = [...xs];
+    for (let i = out.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [out[i], out[j]] = [out[j]!, out[i]!];
+    }
+    return out;
+};
+
 export async function chooseFormat(format: Surface, template: Template): Promise<string | null> {
     if (busy()) return null;
     setBusy(true);
@@ -107,6 +108,30 @@ export async function chooseFormat(format: Surface, template: Template): Promise
         return id;
     } catch {
         return null;
+    } finally {
+        setBusy(false);
+    }
+}
+
+/**
+ * Leave the wall without picking anything. Records the start with no format, which is what makes
+ * `needed` false: it is derived as `!startedAt && artifacts === 0`, so without this the library
+ * redirect in `AppShell` sends the user straight back and the skip does nothing at all. The studio
+ * keeps its own format default afterwards, because this user never told us one.
+ */
+export async function skipOnboarding(shown: number): Promise<boolean> {
+    if (busy()) return false;
+    setBusy(true);
+    try {
+        const { user: fresh } = await api.updatePrefs({
+            onboarding: { startedAt: new Date().toISOString() },
+        });
+        setUser(fresh);
+        capture("onboarding_skipped", { shown });
+        await loadOnboarding();
+        return true;
+    } catch {
+        return false;
     } finally {
         setBusy(false);
     }

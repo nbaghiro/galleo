@@ -43,7 +43,7 @@ test("signup opens the account but stops at the confirmation gate", async ({ pag
     await expect(page.getByLabel("Confirmation code")).toBeVisible();
     // both steps of the same flow are on screen, and the format question is not reachable yet
     await expect(page.getByText("Confirm your email", { exact: true })).toBeVisible();
-    await expect(page.getByText("Choose a format")).toBeVisible();
+    await expect(page.getByText("Pick a starter")).toBeVisible();
     await expect(page.getByText(/what are you making first/i)).toHaveCount(0);
     await expect(page.getByRole("button", { name: /send it again/i })).toBeVisible();
     // and the wall is the same wherever it navigates, so it cannot be routed around
