@@ -16,7 +16,10 @@ import { capture } from "@ui/analytics";
 
 // The intake's second exit: the whole catalog, most-used first — popularity is measured across
 // all users (the visits table), not curated. Bodies load once for thumbnails and creation.
-export const TemplateRow: Component<{ onBrowseAll: () => void }> = (props) => {
+export const TemplateRow: Component<{
+    onBrowseAll: () => void;
+    onShape: (t: Template) => void;
+}> = (props) => {
     const navigate = useNavigate();
     const [bodies, setBodies] = createSignal<Map<string, Template>>(new Map());
     const [uses, setUses] = createSignal<Record<string, number>>({});
@@ -167,6 +170,13 @@ export const TemplateRow: Component<{ onBrowseAll: () => void }> = (props) => {
                         onBack={() => setPreview(null)}
                         onClose={() => setPreview(null)}
                         onUse={(fmt) => void use(t(), fmt)}
+                        onShape={() => {
+                            // read before closing: `t` is the Show's own accessor, and it is stale
+                            // the moment the preview it belongs to is dismissed
+                            const picked = t();
+                            setPreview(null);
+                            props.onShape(picked);
+                        }}
                     />
                 )}
             </Show>

@@ -1,5 +1,5 @@
 import type { GenerateInput, SectionInput, Surface } from "@model/ai";
-import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import type { ArtifactContent, ElementInstance, Section, SectionForm } from "@model/artifact";
 import { BLOCK_KINDS } from "@model/elements";
 import type { Beat, Outline } from "@services/core/ai/schema";
 import { PERSONA, surfaceVoice } from "./persona";
@@ -50,11 +50,16 @@ function sourceForSection(source?: string): string | undefined {
     );
 }
 
-export function outlineParts(
-    input: GenerateInput,
-    maxSections?: number,
-    pack?: string,
-): PromptParts {
+export interface OutlineOpts {
+    maxSections?: number;
+    pack?: string;
+    /** The starter whose shapes this run borrows, if the reader picked one. */
+    forms?: readonly SectionForm[];
+    shapeName?: string;
+}
+
+export function outlineParts(input: GenerateInput, opts: OutlineOpts = {}): PromptParts {
+    const { maxSections, pack, forms, shapeName } = opts;
     return {
         system: stack(
             ["persona", PERSONA],
@@ -70,6 +75,7 @@ export function outlineParts(
             briefContext(input),
             sourceMaterial(input.source),
             retrievedContext(pack),
+            shapeToFollow(forms, shapeName),
             lengthGuidance(input.length),
             maxSections
                 ? `Hard limit: plan at MOST ${maxSections} sections, anything beyond is discarded.`
@@ -81,6 +87,29 @@ export function outlineParts(
             "Produce the outline now.",
         ),
     };
+}
+
+/**
+ * The shapes a picked starter lends this run: the same number of sections in the same order, each
+ * one laid out the way that starter's was. Only the form travels, never a word of its copy, which
+ * is what separates this from `sourceMaterial` above.
+ *
+ * The last line is the honest cost of the promise. A stat-heavy starter applied to a brief with no
+ * numbers in it would otherwise be answered with invented ones, since the voice rules ask for
+ * figures that are specific rather than vague.
+ */
+function shapeToFollow(forms: readonly SectionForm[] | undefined, name?: string): string {
+    if (!forms?.length) return "";
+    const lines = forms
+        .map(
+            (f, i) =>
+                ` ${i + 1}. ${f.layout} · ${f.blocks.join(" | ")}${f.image ? " · full-bleed image" : ""}`,
+        )
+        .join("\n");
+    return heading(
+        "The shape to follow",
+        `The reader picked ${name ? `“${name}”` : "a starter"} as the shape for this piece. Follow it beat for beat: plan the same number of sections in the same order, and give beat N the layout and column blocks listed below. Write your own story into that shape, never its subject and never its facts.\n${lines}\nWhere a beat's blocks ask for a number, a chart or a table and the brief gives you nothing real to put there, lead that column with text instead rather than inventing data.`,
+    );
 }
 
 function columnPlan(beat: Beat): string {

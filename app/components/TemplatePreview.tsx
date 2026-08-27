@@ -32,6 +32,11 @@ export const TemplatePreview: Component<{
     onBack?: () => void;
     onClose: () => void;
     onUse: (format: string) => void;
+    /**
+     * The other thing a template can be: a shape to write into rather than a piece to start from.
+     * Wired only where a run is being set up, so the Templates page keeps the single action it has.
+     */
+    onShape?: () => void;
 }> = (props) => {
     const [format, setFormat] = createSignal(props.template.content.format);
     const artifact = (): Template["content"] => ({
@@ -77,6 +82,17 @@ export const TemplatePreview: Component<{
                             <span class="min-w-0 flex-1 truncate text-[13px] font-semibold text-white">
                                 {props.template.name}
                             </span>
+                            <Show when={props.onShape}>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    rounded="lg"
+                                    disabled={props.busy}
+                                    onClick={() => props.onShape?.()}
+                                >
+                                    Shape
+                                </Button>
+                            </Show>
                             <Button
                                 variant="primary"
                                 size="sm"
@@ -123,6 +139,16 @@ export const TemplatePreview: Component<{
                     </div>
                     <div class="ml-4 max-md:order-last max-md:ml-0 max-md:w-full">{switcher()}</div>
                     <div class="ml-auto flex items-center gap-2 max-md:pr-10">
+                        <Show when={props.onShape}>
+                            <Button
+                                variant="outline"
+                                class="whitespace-nowrap"
+                                disabled={props.busy}
+                                onClick={() => props.onShape?.()}
+                            >
+                                Match this shape
+                            </Button>
+                        </Show>
                         <Button
                             variant="primary"
                             class="whitespace-nowrap"

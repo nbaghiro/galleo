@@ -120,7 +120,7 @@ describe("sectionText", () => {
 describe("retrieved context reaches both readers", () => {
     const pack = "From Q3 report (an uploaded file):\n> Churn fell to 2% after the Ørsted pilot.";
     it("the outline sees the retrieved excerpts", () => {
-        const out = outlineParts(brief(), undefined, pack);
+        const out = outlineParts(brief(), { pack });
         expect(out.prompt).toContain("Retrieved from the attached contexts");
         expect(out.prompt).toContain("Churn fell to 2%");
     });

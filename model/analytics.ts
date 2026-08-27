@@ -291,6 +291,14 @@ export interface Events {
     };
     // `model_id` is redundant here: the plan turn's own ai_action_completed carries the model that
     // ran it, and only the server knows which that was.
+    // A starter picked as a shape rather than as a starting point. Fired at the one seam every
+    // entrance funnels through, so a fourth door cannot ship unmeasured.
+    generation_shape_picked: {
+        template_id: string;
+        category: string;
+        template_format: Surface;
+        run_format: Surface;
+    };
     generation_planned: {
         format: Surface;
         length: string;
@@ -298,6 +306,8 @@ export interface Events {
         ms: number;
         model_id?: string;
         credits_charged: number;
+        // present when the run borrowed a starter's shapes, so plan quality can be read apart
+        shape_template_id?: string;
     };
     generation_outline_edited: {
         edit: "rename" | "reorder" | "add" | "remove";

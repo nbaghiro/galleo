@@ -43,6 +43,10 @@ export interface GenerateInput {
     contextIds?: string[]; // attached context-library collections; retrieval grounds every call
     source?: string;
     sourceArtifactId?: string;
+    // Borrow a starter's section shapes, never its words: the outline plans the same run of
+    // layouts in the same order and writes this brief's own story into them. Named apart from
+    // `artifacts.templateId`, which records what a piece was created FROM.
+    shapeTemplateId?: string;
     imageSource?: "stock" | "ai"; // stock is the free default
 }
 

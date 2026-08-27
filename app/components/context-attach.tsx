@@ -69,7 +69,7 @@ export const ContextToggleRows: Component<{
 
 export type SourcePick =
     | { kind: "artifact"; id: string; title: string }
-    | { kind: "template"; id: string; title: string; content: ArtifactContent };
+    | { kind: "template"; id: string; title: string; category: string; content: ArtifactContent };
 
 const pickRow = (onClick: () => void, title: string, tag: string): JSX.Element => (
     <button
@@ -84,7 +84,14 @@ const pickRow = (onClick: () => void, title: string, tag: string): JSX.Element =
 );
 
 /** Searchable pick-one list over the library AND the template catalog, for one Galleo artifact. */
-export const SourcePickList: Component<{ onPick: (pick: SourcePick) => void }> = (props) => {
+export const SourcePickList: Component<{
+    onPick: (pick: SourcePick) => void;
+    /**
+     * What picking a template will do here, when it is not "attach its text". The intake takes one
+     * as a shape to follow, and the heading is the only place to say so before the click.
+     */
+    templateNote?: string;
+}> = (props) => {
     const [artifacts, setArtifacts] = createSignal<ArtifactSummary[] | null>(null);
     const [templates, setTemplates] = createSignal<Template[] | null>(null);
     const [q, setQ] = createSignal("");
@@ -142,7 +149,7 @@ export const SourcePickList: Component<{ onPick: (pick: SourcePick) => void }> =
                         </Show>
                         <Show when={templateHits().length}>
                             <div class="px-2 pb-0.5 pt-1 font-mono text-[9px] uppercase tracking-[0.12em] text-muted">
-                                Templates
+                                Templates{props.templateNote ? ` · ${props.templateNote}` : ""}
                             </div>
                             <For each={templateHits()}>
                                 {(t) =>
@@ -152,6 +159,7 @@ export const SourcePickList: Component<{ onPick: (pick: SourcePick) => void }> =
                                                 kind: "template",
                                                 id: t.id,
                                                 title: t.name,
+                                                category: t.category,
                                                 content: t.content,
                                             }),
                                         t.name,
@@ -189,7 +197,7 @@ export interface AttachSources {
     openPick: () => void;
     togglePick: () => void;
     /** the hidden file input + whichever inline editor is open; place once inside the surface */
-    Panels: Component<{ class?: string }>;
+    Panels: Component<{ class?: string; templateNote?: string }>;
 }
 
 /** Owns the source flows (file dialog, paste box, link box, artifact pick) behind the "+" menu. */
@@ -223,7 +231,7 @@ export function createAttachSources(handlers: AttachSourceHandlers): AttachSourc
         }
     };
 
-    const Panels: Component<{ class?: string }> = (props) => (
+    const Panels: Component<{ class?: string; templateNote?: string }> = (props) => (
         <>
             <input
                 ref={fileInput}
@@ -308,6 +316,7 @@ export function createAttachSources(handlers: AttachSourceHandlers): AttachSourc
             <Show when={picking()}>
                 <div class={props.class}>
                     <SourcePickList
+                        templateNote={props.templateNote}
                         onPick={(pick) => {
                             setPicking(false);
                             handlers.onPick(pick);

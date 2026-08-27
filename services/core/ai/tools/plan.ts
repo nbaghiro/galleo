@@ -1,4 +1,5 @@
 import type { Section } from "@model/artifact";
+import { sectionForms } from "@model/artifact";
 import { generateObject, generateText } from "ai";
 import { implement } from "@services/core/ai/tools";
 import { withStep } from "@services/core/ai/meter";
@@ -8,6 +9,7 @@ import { defaultModelFor, modelFor } from "@services/core/models";
 import { outlineParts } from "@services/core/ai/prompts/generate";
 import type { PromptParts } from "@services/core/ai/prompts/system";
 import { checkSection } from "@services/core/ai/quality";
+import { template } from "@services/core/templates";
 import { zOutline, zSection, zSectionPlan } from "@services/core/ai/schema";
 import type { Outline, SectionPlan } from "@services/core/ai/schema";
 import type { BriefDraft, GenerateInput, Surface } from "@model/ai";
@@ -36,7 +38,16 @@ export const planOutlineTool = implement(
         // ground the arc in the attached contexts; retrieval failure degrades to no pack
         const packQuery = [input.prompt, ...(input.mustInclude ?? [])].join(". ");
         const pack = (await ctx.pack?.(packQuery).catch(() => null)) ?? undefined;
-        const op = outlineParts(input, ctx.maxSections, pack);
+        // the starter whose shapes this run borrows, if the reader picked one; an id we do not
+        // recognise resolves to nothing and the run plans as it would have anyway
+        const shape = input.shapeTemplateId ? template(input.shapeTemplateId) : null;
+        const forms = shape ? sectionForms(shape.content) : undefined;
+        const op = outlineParts(input, {
+            maxSections: ctx.maxSections,
+            pack,
+            forms,
+            shapeName: shape?.name,
+        });
         const model = modelFor("outline", ctx.tier, ctx.models);
         const outline = await withStep("outline", () =>
             withSchemaRetry(() =>
@@ -52,6 +63,16 @@ export const planOutlineTool = implement(
         );
         // the prompt asks for the cap; the slice guarantees it
         if (ctx.maxSections) outline.beats = outline.beats.slice(0, ctx.maxSections);
+        // and the same rule for the shape: `zBeat.layout` and `blocks` are free strings, so asking
+        // is not enough. Only the three shape fields are taken; the story stays the planner's, and
+        // a beat past the starter's last one keeps the layout the planner chose for it.
+        if (forms?.length)
+            outline.beats = outline.beats.map((b, i) => {
+                const form = forms[i];
+                return form
+                    ? { ...b, layout: form.layout, blocks: form.blocks, image: form.image }
+                    : b;
+            });
         return outline;
     },
 );

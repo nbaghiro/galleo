@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ElementInstance } from "@model/artifact";
-import { SECTION_TONES, sectionLinkId } from "@model/artifact";
+import { LAYOUT_PRESETS, SECTION_TONES, sectionForms, sectionLinkId } from "@model/artifact";
 import { TEMPLATE_INDEX } from "@model/templates";
+import { BLOCK_KINDS } from "@model/elements";
 import { THEMES } from "@themes";
 import { template, templateBody } from "@services/core/templates";
 import { renderIssues } from "@services/core/ai/quality";
@@ -120,6 +121,57 @@ describe("the bands a template ships with", () => {
             for (const section of templateBody(entry.id)!.sections)
                 for (const issue of renderIssues(section))
                     faults.push(`${entry.id}/${section.id}: ${issue}`);
+        expect(faults).toEqual([]);
+    });
+
+    it("section ids are unique within each template", () => {
+        for (const entry of TEMPLATE_INDEX) {
+            const seen = new Set<string>();
+            for (const section of templateBody(entry.id)!.sections) {
+                expect(seen.has(section.id), `${entry.id}/${section.id}`).toBe(false);
+                seen.add(section.id);
+            }
+        }
+    });
+
+    // A comma inside a table cell silently becomes a phantom column ("First 1,000 invites"
+    // renders as "First 1" | "000 invites"). Middots join values inside a cell instead.
+    it("every table row has exactly the columns its first row declares", () => {
+        const tablesIn = (el: ElementInstance, out: string[] = []): string[] => {
+            const d = el.data as { data?: unknown; children?: unknown };
+            if (el.type === "table" && typeof d.data === "string") out.push(d.data);
+            if (Array.isArray(d.children))
+                for (const child of d.children as ElementInstance[]) tablesIn(child, out);
+            return out;
+        };
+        for (const entry of TEMPLATE_INDEX)
+            for (const section of templateBody(entry.id)!.sections)
+                for (const csv of tablesIn(section.root)) {
+                    const rows = csv.split("\n");
+                    const width = rows[0]!.split(",").length;
+                    for (const row of rows)
+                        expect(row.split(",").length, `${entry.id}: ${row}`).toBe(width);
+                }
+    });
+
+    // The measurement the shape feature rests on: a starter can only lend its layouts if every one
+    // of them is expressible as a beat. It holds today because no template authors a custom width,
+    // and a new one that did would lend an unnamed shape the outline could not follow.
+    it("lends a shape the beat vocabulary can carry, section for section", () => {
+        const faults: string[] = [];
+        for (const entry of TEMPLATE_INDEX)
+            for (const form of sectionForms(templateBody(entry.id)!)) {
+                if (!(form.layout in LAYOUT_PRESETS))
+                    faults.push(`${entry.id}/${form.id}: layout "${form.layout}"`);
+                const columns = LAYOUT_PRESETS[form.layout]?.length ?? 1;
+                if (form.blocks.length !== columns)
+                    faults.push(
+                        `${entry.id}/${form.id}: ${form.blocks.length} blocks for ${columns} columns`,
+                    );
+                for (const block of form.blocks)
+                    if (!(BLOCK_KINDS as readonly string[]).includes(block))
+                        faults.push(`${entry.id}/${form.id}: block "${block}"`);
+            }
         expect(faults).toEqual([]);
     });
 

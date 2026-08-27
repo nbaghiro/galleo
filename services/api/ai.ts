@@ -73,6 +73,12 @@ function modelMap(overrides: ModelOverrides, tier: ModelTier): Record<string, st
  * the caller folds it in from the stream. Without it a visual check cannot ask what a section's
  * position was supposed to do, which is most of what makes a section right or wrong.
  */
+// the starter a run borrowed its shapes from, wherever the brief for this turn kind lives
+function shapeOf(req: TurnRequest): string | undefined {
+    if (req.kind === "build") return req.input.brief.shapeTemplateId;
+    return req.kind === "generate" || req.kind === "plan" ? req.input.shapeTemplateId : undefined;
+}
+
 function configOf(
     req: TurnRequest,
     overrides: ModelOverrides,
@@ -353,6 +359,7 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                                       surface: built.format,
                                       length: configOf(req, overrides, feats.textModelTier).meta
                                           .length,
+                                      shapeTemplateId: shapeOf(req),
                                   })
                                 : [],
                             status: ctrl.signal.aborted ? "aborted" : status,

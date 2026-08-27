@@ -647,7 +647,8 @@ export const THEME_LIST: Theme[] = [
         cv: "#FFFFFF",
         ink: "#0C0C0C",
         ik: "#5A5A5A",
-        mu: "#9C9C9C",
+        // 3.2:1 on bg; #9C9C9C measured 2.7:1, under the 3:1 floor captions are held to
+        mu: "#8C8C8C",
         ac: "#0C0C0C",
         bd: "#E2E2E2",
         sh: "none",

@@ -213,6 +213,19 @@ export function sectionsForLength(length?: string): number {
     return 12;
 }
 
+const LENGTH_CHIPS = ["Short", "Standard", "In-depth"] as const;
+
+/**
+ * The chip closest to a section count, for a run whose length is implied by something else (a
+ * borrowed shape says how many sections there are). The inverse of the above, and it reads the same
+ * three thresholds, so moving one moves both.
+ */
+export function lengthForSections(n: number): string {
+    return LENGTH_CHIPS.reduce((best, chip) =>
+        Math.abs(sectionsForLength(chip) - n) < Math.abs(sectionsForLength(best) - n) ? chip : best,
+    );
+}
+
 export const TOOLS: Record<ToolId, ToolMeta> = {
     "generate-artifact": meta(
         "generate-artifact",

@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { Button, IconButton } from "@ui/button";
+import { Button, Chip, IconButton } from "@ui/button";
 import { TextArea } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Dropdown } from "@ui/select";
@@ -12,11 +12,12 @@ import { artifactSearchText } from "@model/artifact";
 import { api } from "@app/api";
 import { closeGenerate, planCost, startSession, type Surface } from "@app/stores/generate";
 import { unitRates } from "@app/stores/model-usage";
-import { estimateCost } from "@model/tools";
+import { estimateCost, lengthForSections } from "@model/tools";
 import { createBlank, formatLabel } from "@app/stores/library";
 import { reportError } from "@app/stores/errors";
 import { IMAGE_SOURCES, LENGTHS, PLACEHOLDER, SURFACES } from "./prompts";
 import { setPreviewFormat } from "./shared";
+import type { Template } from "@model/templates";
 import { TemplateGallery } from "@app/components/TemplateGallery";
 import { ImportModal, openImportModal } from "@app/components/ImportModal";
 import {
@@ -37,8 +38,17 @@ import {
     sourceLength,
     type Attachment,
 } from "@app/stores/attachments";
-import { charsBucket } from "@model/analytics";
+import { asFormat, charsBucket } from "@model/analytics";
 import { capture } from "@ui/analytics";
+
+/** What a picked shape is here: enough for the chip, the length move, the event and the launch. */
+interface PickedShape {
+    id: string;
+    name: string;
+    category: string;
+    format: string;
+    sections: number;
+}
 
 // module-level so the studio shell can size the dialog: the prompt is compact, but "Browse all"
 // and the contexts pane swap in full-height surfaces that want the wide modal
@@ -56,6 +66,27 @@ export const Intake: Component = () => {
     const [dropping, setDropping] = createSignal(false);
     const [fileError, setFileError] = createSignal("");
     const [ctxIds, setCtxIds] = createSignal<string[]>([]);
+    const [shape, setShape] = createSignal<PickedShape | null>(null);
+
+    /**
+     * A starter picked as a shape rather than as a starting point: the outline plans the same run of
+     * layouts and writes this brief's own story into them.
+     *
+     * The length moves with it, and visibly. The shape says how many sections there are and the
+     * length chip says the same thing in words, so leaving them to disagree would put two numbers
+     * in one prompt and let the planner choose. The reader can still change it afterwards; the
+     * shape is then followed as far as it reaches.
+     */
+    const pickShape = (s: PickedShape): void => {
+        setShape(s);
+        setLength(lengthForSections(s.sections));
+        capture("generation_shape_picked", {
+            template_id: s.id,
+            category: s.category,
+            template_format: asFormat(s.format),
+            run_format: asFormat(fmt()),
+        });
+    };
 
     // One place every attach path lands, so the event cannot be missed by one of them. The text
     // never travels: only its kind and a size bucket.
@@ -100,11 +131,21 @@ export const Intake: Component = () => {
     // a library piece needs one read for its content; a template's body is already in the cache
     const attachPick = async (pick: SourcePick): Promise<void> => {
         setFileError("");
+        // A template picked here is a shape, not source material. Attaching its text told the
+        // planner to build FROM it, so a deck shaped like the Startup Pitch template came back
+        // about that template's own company.
+        if (pick.kind === "template") {
+            pickShape({
+                id: pick.id,
+                name: pick.title,
+                category: pick.category,
+                format: pick.content.format,
+                sections: pick.content.sections.length,
+            });
+            return;
+        }
         try {
-            const content =
-                pick.kind === "template"
-                    ? pick.content
-                    : (await api.getArtifact(pick.id)).artifact.draftContent;
+            const content = (await api.getArtifact(pick.id)).artifact.draftContent;
             const text = artifactSearchText(content);
             if (!text.trim()) {
                 setFileError(`${pick.title} has no text to build from.`);
@@ -174,6 +215,7 @@ export const Intake: Component = () => {
             length: length(),
             imageSource: imageSource() === "ai" ? "ai" : "stock",
             source: mergeAttachments(items()),
+            shapeTemplateId: shape()?.id,
             contextIds: ctxIds(),
         });
     };
@@ -183,7 +225,19 @@ export const Intake: Component = () => {
             when={!browsing()}
             fallback={
                 <div class="h-dvh min-h-0 md:h-[85vh]">
-                    <GalleryPane onBack={() => setBrowsing(false)} />
+                    <GalleryPane
+                        onBack={() => setBrowsing(false)}
+                        onShape={(t) => {
+                            setBrowsing(false);
+                            pickShape({
+                                id: t.id,
+                                name: t.name,
+                                category: t.category,
+                                format: t.content.format,
+                                sections: t.content.sections.length,
+                            });
+                        }}
+                    />
                 </div>
             }
         >
@@ -245,8 +299,25 @@ export const Intake: Component = () => {
                                 }}
                             />
 
-                            <Show when={items().length || ctxIds().length}>
+                            <Show when={items().length || ctxIds().length || shape()}>
                                 <div class="flex flex-wrap gap-1.5 px-3 pb-2">
+                                    <Show when={shape()}>
+                                        {(t) => (
+                                            <Chip
+                                                variant="outline"
+                                                size="sm"
+                                                rounded="md"
+                                                class="max-w-full"
+                                                title="The shape this run follows, section for section"
+                                                onRemove={() => setShape(null)}
+                                            >
+                                                <Icon name="columns" size={11} />
+                                                <span class="truncate">
+                                                    {t().name} · {t().sections} sections
+                                                </span>
+                                            </Chip>
+                                        )}
+                                    </Show>
                                     <ContextChips
                                         ids={ctxIds()}
                                         title="Attached context, which sections write from"
@@ -258,7 +329,7 @@ export const Intake: Component = () => {
                                 </div>
                             </Show>
 
-                            <attach.Panels class="px-3 pb-2" />
+                            <attach.Panels class="px-3 pb-2" templateNote="used as a shape" />
 
                             <div class="flex flex-wrap items-center gap-x-1 gap-y-1.5 border-t border-line px-2 py-1.5">
                                 <div class="flex flex-none items-center gap-x-1">
@@ -335,7 +406,18 @@ export const Intake: Component = () => {
                             </p>
                         </Show>
 
-                        <TemplateRow onBrowseAll={() => setBrowsing(true)} />
+                        <TemplateRow
+                            onBrowseAll={() => setBrowsing(true)}
+                            onShape={(t) =>
+                                pickShape({
+                                    id: t.id,
+                                    name: t.name,
+                                    category: t.category,
+                                    format: t.content.format,
+                                    sections: t.content.sections.length,
+                                })
+                            }
+                        />
 
                         {/* blank is present, never competing: one line of text, same action as the old modal */}
                         <p class="mt-5 text-center text-[12px] text-muted">
@@ -375,7 +457,10 @@ export const Intake: Component = () => {
 };
 
 // the Templates page's gallery, hosted inside the studio with a way back to the prompt
-const GalleryPane: Component<{ onBack: () => void }> = (props) => (
+const GalleryPane: Component<{
+    onBack: () => void;
+    onShape: (t: Template) => void;
+}> = (props) => (
     <div class="flex h-full flex-col">
         <div class="flex flex-none items-center gap-2 border-b border-line px-4 py-2.5 md:px-6">
             <IconButton size="sm" tone="muted" title="Back" onClick={() => props.onBack()}>
@@ -390,7 +475,11 @@ const GalleryPane: Component<{ onBack: () => void }> = (props) => (
             </div>
         </div>
         <div class="min-h-0 flex-1 overflow-y-auto">
-            <TemplateGallery onCreated={closeGenerate} from="generate" />
+            <TemplateGallery
+                onCreated={closeGenerate}
+                from="generate"
+                onShape={(t) => props.onShape(t)}
+            />
         </div>
     </div>
 );

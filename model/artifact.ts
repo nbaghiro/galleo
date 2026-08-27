@@ -149,6 +149,96 @@ export const LAYOUT_PRESETS: Record<string, number[]> = {
     "three-up": [1 / 3, 1 / 3, 1 / 3],
 };
 
+/**
+ * A section's shape, in the same three fields a planned beat carries: which named preset it splits
+ * on, what leads each column, and whether it rides a full-bleed image. It is what one artifact can
+ * lend another without lending a word of its copy.
+ *
+ * Structurally a `SectionBlueprint` (canvas/elements/blueprint.ts), so a form paints as ghosts
+ * through `placeholderSection` rather than only being named. It lives here rather than beside the
+ * templates because it reads an artifact tree, and because services may not import canvas.
+ */
+export interface SectionForm {
+    id: string;
+    layout: string;
+    blocks: string[];
+    image: boolean;
+}
+
+// What a column leads with, in the beat vocabulary. Six catalog types have no block of their own and
+// take the nearest one that reads the same way, rather than being dropped: a column that led with a
+// callout still leads with words.
+const BLOCK_FOR: Record<string, string> = {
+    text: "text",
+    bullets: "bullets",
+    image: "image",
+    stat: "stat",
+    chart: "chart",
+    diagram: "diagram",
+    table: "table",
+    quote: "quote",
+    cards: "cards",
+    callout: "text",
+    divider: "text",
+    badge: "text",
+    testimonial: "quote",
+    pricing: "cards",
+    cta: "text",
+    container: "text",
+};
+
+const isRow = (el: ElementInstance): boolean =>
+    (el.data as { direction?: string }).direction === "row" && (childrenRaw(el)?.length ?? 0) > 0;
+
+/** The nearest named preset for a row's column shares, since a beat names a preset rather than widths. */
+function presetFor(kids: ElementInstance[]): string {
+    if (kids.length <= 1) return "full";
+    const pcts = kids.map((k) => {
+        const w = k.layout?.width;
+        return w && typeof w === "object" ? w.pct / 100 : null;
+    });
+    const shares = pcts.every((p): p is number => p !== null)
+        ? pcts
+        : kids.map(() => 1 / kids.length);
+    let best = "full";
+    let closest = Infinity;
+    for (const [id, preset] of Object.entries(LAYOUT_PRESETS)) {
+        if (preset.length !== shares.length) continue;
+        const gap = preset.reduce((n, p, i) => n + Math.abs(p - (shares[i] ?? 0)), 0);
+        if (gap < closest) {
+            closest = gap;
+            best = id;
+        }
+    }
+    return best;
+}
+
+/**
+ * What a column leads with. A stack answers with its first child rather than with itself, since a
+ * label above a headline above a paragraph is a text column; a nested row of two or more is a set of
+ * cards however its cells are built.
+ */
+function blockOf(el: ElementInstance): string {
+    const kids = childrenRaw(el);
+    if (isRow(el) && (kids?.length ?? 0) > 1) return "cards";
+    if (el.type === "container" && kids?.length) return blockOf(kids[0]!);
+    return BLOCK_FOR[el.type] ?? "text";
+}
+
+/** One artifact's shapes, in order, ready to be lent to another piece's outline. */
+export function sectionForms(content: ArtifactContent): SectionForm[] {
+    return content.sections.map((s) => {
+        const kids = isRow(s.root) ? (childrenRaw(s.root) ?? []) : [];
+        const columns = kids.length ? kids : [s.root];
+        return {
+            id: s.id,
+            layout: kids.length ? presetFor(kids) : "full",
+            blocks: columns.map(blockOf),
+            image: s.background?.kind === "image",
+        };
+    });
+}
+
 // column-width share (percent 0..100)
 export const withWidth = (el: ElementInstance, pct: number): ElementInstance => ({
     ...el,

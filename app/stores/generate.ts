@@ -525,6 +525,7 @@ export interface SessionStart {
     imageSource?: "stock" | "ai";
     source?: string; // pasted material to build FROM
     sourceArtifactId?: string; // repurpose an existing library artifact
+    shapeTemplateId?: string; // a starter whose section shapes the outline follows
     contextIds?: string[]; // attached context-library collections
 }
 
@@ -540,6 +541,7 @@ export async function startSession(input: SessionStart): Promise<void> {
             imageSource: input.imageSource,
             source: input.source,
             sourceArtifactId: input.sourceArtifactId,
+            shapeTemplateId: input.shapeTemplateId,
             contextIds: input.contextIds?.length ? input.contextIds : undefined,
         },
         content: { format: input.surface, theme: input.theme, sections: [] },
@@ -650,6 +652,7 @@ export async function startPlan(): Promise<void> {
             beat_count: gen.beats.length,
             ms: Date.now() - run.planStartedAt,
             credits_charged: planCost(),
+            ...(gen.brief.shapeTemplateId ? { shape_template_id: gen.brief.shapeTemplateId } : {}),
         });
         nameRun(gen.title);
     } catch (e) {

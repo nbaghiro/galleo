@@ -3,6 +3,7 @@ import type {
     ArtifactContent,
     ElementInstance,
     Section,
+    SectionForm,
     SectionNotes,
     SectionOp,
     Target,
@@ -40,6 +41,7 @@ import {
     withoutNotes,
     duckedVolume,
     toContainer,
+    sectionForms,
 } from "@model/artifact";
 
 const leaf = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
@@ -1218,5 +1220,82 @@ describe("needsScript", () => {
             root: { type: "text", data: { text: "Something else" } },
         };
         expect(needsScript(s)).toBe(true);
+    });
+});
+
+// The shape one piece lends another: the three fields a planned beat carries, read back off a tree.
+describe("sectionForms", () => {
+    const el = (type: string, data: Record<string, unknown> = {}): ElementInstance => ({
+        type,
+        data,
+    });
+    const row = (...kids: ElementInstance[]): ElementInstance =>
+        rowGroup(
+            kids,
+            kids.map(() => 1 / kids.length),
+        );
+    const one = (root: ElementInstance, background?: Section["background"]): SectionForm =>
+        sectionForms({
+            format: "deck",
+            theme: "studio",
+            sections: [{ id: "s1", root, ...(background ? { background } : {}) }],
+        })[0]!;
+
+    it("reads a full-width section as one text column", () => {
+        expect(one(leaf("A headline"))).toEqual({
+            id: "s1",
+            layout: "full",
+            blocks: ["text"],
+            image: false,
+        });
+    });
+
+    it("names the nearest preset for a row's own shares", () => {
+        const split = rowGroup([leaf("copy"), el("image", { src: "x" })], [0.6, 0.4]);
+        expect(one(split).layout).toBe("split-6040");
+        expect(one(row(leaf("a"), leaf("b"), leaf("c"))).layout).toBe("three-up");
+        expect(one(row(leaf("a"), leaf("b"))).layout).toBe("two-col");
+    });
+
+    it("falls back to even columns when a row half-annotates its shares", () => {
+        // rowShares in compose does the same, so the form has to describe what will actually paint
+        const ragged: ElementInstance = {
+            type: "container",
+            data: { direction: "row", children: [withWidth(leaf("a"), 70), leaf("b")] },
+        };
+        expect(one(ragged).layout).toBe("two-col");
+    });
+
+    it("answers a stack with what it leads with, not with the stack", () => {
+        const stacked = colGroup([el("text", { text: "Label", style: "label" }), leaf("Body")]);
+        expect(one(row(stacked, el("chart", { type: "bar" }))).blocks).toEqual(["text", "chart"]);
+    });
+
+    it("reads a nested row of several as cards", () => {
+        expect(one(row(row(leaf("a"), leaf("b")), leaf("c"))).blocks).toEqual(["cards", "text"]);
+    });
+
+    it("maps a type with no block of its own to the nearest that reads the same way", () => {
+        expect(
+            one(row(el("testimonial", { children: [] }), el("callout", { children: [] }))).blocks,
+        ).toEqual(["quote", "text"]);
+    });
+
+    it("marks the sections that ride a full-bleed image", () => {
+        expect(one(leaf("Cover"), { kind: "image", image: "a harbour at dusk" }).image).toBe(true);
+        expect(one(leaf("Cover"), { kind: "tone", tone: "tint" }).image).toBe(false);
+    });
+
+    it("keeps the artifact's own order, since the sequence is half of what is lent", () => {
+        const forms = sectionForms({
+            format: "deck",
+            theme: "studio",
+            sections: [
+                { id: "a", root: leaf("one") },
+                { id: "b", root: row(leaf("two"), leaf("three")) },
+            ],
+        });
+        expect(forms.map((f) => f.id)).toEqual(["a", "b"]);
+        expect(forms.map((f) => f.layout)).toEqual(["full", "two-col"]);
     });
 });

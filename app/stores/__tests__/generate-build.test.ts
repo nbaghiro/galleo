@@ -93,6 +93,30 @@ describe("a beat that never lands", () => {
         expect(gen.error).toBe(""); // no modal: the board says it, the run finishes
     });
 
+    it("carries a picked shape into every turn, since the brief is what a build turn is handed", async () => {
+        const seen: (string | undefined)[] = [];
+        streamTurn.mockImplementation(async (req: TurnRequest, onEvent: (e: TurnEvent) => void) => {
+            if (req.kind !== "build") {
+                seen.push(req.kind === "plan" ? req.input.shapeTemplateId : undefined);
+                PLAN.forEach(onEvent);
+                return;
+            }
+            seen.push(req.input.brief.shapeTemplateId);
+            written(req.input.beat.id, "s1").forEach(onEvent);
+        });
+
+        await startSession({
+            prompt: "a scripted piece",
+            surface: "deck",
+            theme: "aurora",
+            shapeTemplateId: "startup-pitch",
+        });
+        startBuild();
+        await vi.waitFor(() => expect(gen.stage).toBe("done"));
+
+        expect(seen).toEqual(Array.from({ length: 4 }, () => "startup-pitch"));
+    });
+
     it("still writes the failed beat when its own card asks, which the error stage used to block", async () => {
         let landing = false;
         streamTurn.mockImplementation(async (req: TurnRequest, onEvent: (e: TurnEvent) => void) => {

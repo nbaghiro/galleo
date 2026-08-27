@@ -930,15 +930,6 @@ There is no speaker-notes editor. Notes are written by the model, on demand, and
 notes pane; `SectionNotes.source` still distinguishes writing a person did, because rows predating
 this exist and must never be rewritten under them.
 
-**Narration follows the content; the bed does not.** A script is the words, so background preparation
-(`services/core/prepare.ts`) rewrites every section whose fingerprint has moved, and does it in one
-pass so a rewritten section still belongs to the argument its neighbours are making. A piece that
-gains a beat has its whole arc refreshed rather than only the newcomer, since the section before an
-insert would otherwise still hand over to whatever used to follow it. A bed is a mood, derived from
-the opening lines, so chasing edits would recompose a whole piece of music because slide nine gained
-a comma: it is composed once and left alone. Audio for a section that no longer exists, or for a
-script since rewritten, is pruned on the same pass.
-
 Synthesis itself is `services/core/ai/speech.ts`: always the `with-timestamps` endpoint, since the
 character alignment cannot be reconstructed afterwards and is what the caption overlay and the
 per-page step timing are built from. The cache key is
@@ -1025,6 +1016,23 @@ mode would be a second way to do the same thing. The stages:
 
 - **Brief** — `POST /ai/brief` expands the prompt into an editable card (goal / audience / tone / length /
   must-cover chips + at most one clarify question). Best-effort: on failure the raw prompt stands.
+- **Shape** — optional, and settled before the plan turn runs. Picking a starter in the template
+  preview (the strip's cards and the "Browse all" gallery both open it, so the two meanings of a
+  template card sit side by side) sets `shapeTemplateId` on the brief. `planOutlineTool` resolves the
+  body, derives a `SectionForm` per section (`sectionForms` in `@model/artifact`: the nearest named
+  preset, the block leading each column, whether it rides a full-bleed image), lists them in the
+  outline prompt, and then **snaps the returned beats onto them by index**. The prompt asks and the
+  snap guarantees, the same pairing the `maxSections` slice one line above it uses, and for the same
+  reason: `zBeat.layout` and `blocks` are free strings. Only those three fields are taken; label,
+  role, brief, takeaway and points stay the planner's, which is why the plan turn is kept rather than
+  deriving beats client-side. A beat past the starter's last one keeps the layout the planner chose.
+  Costs nothing extra: about 2k characters on one prompt, far below the one-credit floor at settle,
+  and the build turns see the shape through `beat.layout` / `beat.blocks`, which `placement()` and
+  `blockLine()` were already printing. Picking a shape also moves the length chip to
+  `lengthForSections(n)`, so the run carries one section count rather than two that disagree inside
+  the prompt. The intake's attach menu routes a template pick here too: attaching its text told the
+  planner to build FROM it, so a deck shaped like the Startup Pitch template came back about that
+  template's own company.
 - **Outline** — a `plan` turn (3 cr) returns the beats; the canvas renders each as an **editable section
   card** at the width of the section it becomes (`OutlineCard.tsx`): title, takeaway and points edited in
   place (`inline.tsx` — auto-growing transparent fields), layout glyph, role, coverage tags, and per-card

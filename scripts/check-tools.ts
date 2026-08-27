@@ -56,7 +56,8 @@ const RESERVE_LOOKAHEAD = 240;
  * here rather than being invisible, so adding one lands in a reviewed diff.
  */
 const ALLOW: Record<string, string> = {
-    "services/api/narration.ts": "narrate-artifact: provider synthesis, no registered tool body",
+    "services/api/narration.ts":
+        "narrate-artifact + compose-soundtrack: provider calls, no registered tool body",
     // Same tool, same reason, from the background path: its notes call DOES go through the executor,
     // so this covers only the synthesis reserve beside it.
     "services/core/prepare.ts": "narrate-artifact: provider synthesis, no registered tool body",

@@ -96,6 +96,7 @@ export const resume: ArtifactContent = doc(
                 ),
                 img(pic(1027), 0.82, 200),
             ),
+            { background: bgImage(pic(114, 1700, 1100), 0.55) },
         ),
         section(
             "r2",
@@ -255,6 +256,20 @@ export const resume: ArtifactContent = doc(
                 t("elena@vance.design · vance.design · in/elenavance", "caption"),
             ),
         ),
+        section(
+            "contact",
+            group(
+                t("REFERENCES & PORTFOLIO", "label"),
+                linked(
+                    "body",
+                    ["vance.design", "https://vance.design"],
+                    " · ",
+                    ["elena@vance.design", "mailto:elena@vance.design"],
+                    " · references on request, and they answer fast",
+                ),
+            ),
+            { background: bgImage(pic(119, 1700, 1100), 0.35) },
+        ),
     ],
     bgImage("manuscript-paper-bg", 0.2),
 );
@@ -291,7 +306,7 @@ export const portfolio: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage("halvorsen-hero-architecture", 0.55),
+                background: bgImage(pic(546, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 7 },
             },
         ),
@@ -299,7 +314,7 @@ export const portfolio: ArtifactContent = web(
             "studio",
             split(
                 40,
-                img("halvorsen-portrait-studio", 0.82),
+                img(pic(508), 0.82),
                 col(
                     t("Statement", "label"),
                     t("We design the pause before the room speaks.", "h2"),
@@ -334,19 +349,19 @@ export const portfolio: ArtifactContent = web(
             "work-a",
             row(
                 card(
-                    img("halvorsen-fjord-house-interior", 1.2),
+                    img(pic(1051), 1.2),
                     t("Fjord House", "h3"),
                     t("Private residence · Bergen · 2025", "caption"),
                 ),
                 card(
-                    img("halvorsen-amber-hotel-lobby", 1.2),
+                    img(pic(1059), 1.2),
                     t("Hotel Amber", "h3"),
                     t("28-room boutique hotel · Copenhagen · 2024", "caption"),
                 ),
             ),
         ),
         section("interlude", col(t("Light is the one material we never buy.", "h2", "center")), {
-            background: bgImage("halvorsen-interlude-white-wall-shadow", 0.5),
+            background: bgImage(pic(32, 1700, 1100), 0.5),
             bleed: true,
             frame: { aspect: 16 / 5 },
         }),
@@ -354,17 +369,17 @@ export const portfolio: ArtifactContent = web(
             "more-work",
             row(
                 card(
-                    img("halvorsen-glasshouse-cafe", 1),
+                    img(pic(428), 1),
                     t("The Glasshouse", "h3"),
                     t("Café & roastery · Oslo", "caption"),
                 ),
                 card(
-                    img("halvorsen-marble-flagship-retail", 1),
+                    img(pic(21), 1),
                     t("Marlowe Flagship", "h3"),
                     t("Retail identity · London", "caption"),
                 ),
                 card(
-                    img("halvorsen-linen-apartment", 1),
+                    img(pic(420), 1),
                     t("Linen Apartment", "h3"),
                     t("Pied-à-terre · Paris", "caption"),
                 ),
@@ -386,7 +401,7 @@ export const portfolio: ArtifactContent = web(
                         variant: "outline",
                     }),
                 ),
-                img("halvorsen-amber-detail-brass", 0.92),
+                img(pic(418), 0.92),
             ),
         ),
         section("services", col(t("What we do", "label"), t("Three ways to work with us.", "h2"))),
@@ -422,7 +437,7 @@ export const portfolio: ArtifactContent = web(
                 "They handed us a building we'd stopped seeing and gave it back as somewhere we never want to leave.",
                 "Ines Lund · Owner, Hotel Amber",
             ),
-            { background: bgImage("halvorsen-amber-suite-evening", 0.62), bleed: true },
+            { background: bgImage(pic(882, 1700, 1100), 0.62), bleed: true },
         ),
         section(
             "contact",
@@ -443,9 +458,9 @@ export const portfolio: ArtifactContent = web(
                         }),
                     ),
                 ),
-                img("halvorsen-studio-materials-flatlay", 0.92),
+                img(pic(123), 0.92),
             ),
-            { bleed: true, background: bgImage("halvorsen-contact-texture", 0.4) },
+            { bleed: true, background: bgImage(pic(550, 1700, 1100), 0.4) },
         ),
         section(
             "footer",
@@ -515,7 +530,7 @@ export const personalSite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage("wren-halloran-hero-desk-window", 0.55),
+                background: bgImage(pic(962, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -538,7 +553,7 @@ export const personalSite: ArtifactContent = web(
             "story",
             split(
                 40,
-                img("wren-halloran-portrait", 0.9),
+                img(pic(788), 0.9),
                 col(
                     t("About", "label"),
                     t("A short version of a long story.", "h2"),
@@ -670,7 +685,7 @@ export const personalSite: ArtifactContent = web(
             "margin",
             split(
                 40,
-                img("wren-margin-app", 1),
+                img(pic(251), 1),
                 col(
                     t("Featured", "label"),
                     badge("LIVE"),
@@ -734,7 +749,7 @@ export const personalSite: ArtifactContent = web(
                 ),
                 button("Email me", "mailto:wren@quietmachines.co"),
             ),
-            { bleed: true, background: bgImage("wren-contact-window-light", 0.45) },
+            { bleed: true, background: bgImage(pic(910, 1700, 1100), 0.45) },
         ),
         section(
             "footer",
@@ -786,7 +801,7 @@ export const personalSite: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage("wren-halloran-bg", 0.32),
+    bgImage(pic(552, 1700, 1100), 0.32),
 );
 
 export const coverLetter: ArtifactContent = doc(
@@ -800,6 +815,7 @@ export const coverLetter: ArtifactContent = doc(
                 t("Application · Senior Product Designer, Northwind", "caption"),
                 t("camille.laurent@hey.com · (415) 555-0142 · Portland, OR · June 2026", "caption"),
             ),
+            { background: bgImage(pic(486, 1700, 1100), 0.55) },
         ),
         section(
             "c2",
@@ -884,6 +900,42 @@ export const coverLetter: ArtifactContent = doc(
                 t("Portfolio: camillelaurent.design · LinkedIn: in/camille-laurent", "caption"),
             ),
         ),
+        section(
+            "ninety",
+            group(
+                t("If we work together, the first ninety days", "label"),
+                bullets(
+                    "Weeks 1 to 4: ship something small end to end; trust is built in production",
+                    "Weeks 5 to 8: the onboarding audit, with numbers attached to every opinion",
+                    "Weeks 9 to 12: one measurable bet from the audit, designed, tested, live",
+                ),
+            ),
+        ),
+        section(
+            "sample",
+            split(
+                60,
+                group(
+                    t("A SAMPLE, UNPROMPTED", "label"),
+                    t(
+                        "Page one of the teardown: your activation email arrives 40 minutes after signup, which is 39 minutes after curiosity peaks. The fix costs one queue setting.",
+                        "body",
+                    ),
+                ),
+                img(pic(8), 0.82),
+            ),
+        ),
+        section(
+            "ps",
+            group(
+                t("P.S.", "label"),
+                t(
+                    "The onboarding teardown mentioned above is three pages and already written. Happy to send it along whether or not we end up talking.",
+                    "body",
+                ),
+            ),
+            { background: bgImage(pic(802, 1700, 1100), 0.4) },
+        ),
     ],
     bgImage("camille-laurent-paper", 0.28),
 );
@@ -913,7 +965,7 @@ export const eventInvite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage("wedding-hero-olive-grove-dusk", 0.55),
+                background: bgImage(pic(62, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 7 },
             },
         ),
@@ -947,12 +999,12 @@ export const eventInvite: ArtifactContent = web(
                     ),
                     t("Yours, Amara & Théo", "caption"),
                 ),
-                img("wedding-couple-portrait-laughing", 0.84),
+                img(pic(129), 0.84),
             ),
         ),
 
         section("olive", col(t("Come for the vows. Stay for the figs.", "h2", "center")), {
-            background: bgImage("wedding-interlude-olive-branch-sunlight", 0.45),
+            background: bgImage(pic(116, 1700, 1100), 0.45),
             bleed: true,
             frame: { aspect: 16 / 5 },
         }),
@@ -961,17 +1013,17 @@ export const eventInvite: ArtifactContent = web(
             "details",
             row(
                 card(
-                    img("wedding-detail-ceremony-arch", 1),
+                    img(pic(468), 1),
                     t("The Ceremony", "h3"),
                     t("4:00 PM · The Olive Terrace · please be seated by 3:45", "caption"),
                 ),
                 card(
-                    img("wedding-detail-dinner-table", 1),
+                    img(pic(195), 1),
                     t("The Reception", "h3"),
                     t("6:00 PM · The Stone Barn · dinner, toasts & dancing to follow", "caption"),
                 ),
                 card(
-                    img("wedding-detail-dress-code-linen", 1),
+                    img(pic(103), 1),
                     t("What to Wear", "h3"),
                     t("Garden formal · soft colours · flat-friendly for grass & gravel", "caption"),
                 ),
@@ -1003,7 +1055,7 @@ export const eventInvite: ArtifactContent = web(
                     variant: "outline",
                 }),
             ),
-            { bleed: true, background: bgImage("wedding-venue-quinta-hillside", 0.5) },
+            { bleed: true, background: bgImage(pic(982, 1700, 1100), 0.5) },
         ),
 
         section(
@@ -1043,18 +1095,12 @@ export const eventInvite: ArtifactContent = web(
         section(
             "gallery",
             row(
+                col(img(pic(699), 0.8), t("The grove at the hour we'll marry.", "caption")),
                 col(
-                    img("wedding-gallery-olive-rows-light", 0.8),
-                    t("The grove at the hour we'll marry.", "caption"),
-                ),
-                col(
-                    img("wedding-gallery-table-figs-candles", 0.8),
+                    img(pic(42), 0.8),
                     t("Long tables, figs, and far too many candles.", "caption"),
                 ),
-                col(
-                    img("wedding-gallery-dancing-string-lights", 0.8),
-                    t("And then, the part with the dancing.", "caption"),
-                ),
+                col(img(pic(407), 0.8), t("And then, the part with the dancing.", "caption")),
             ),
         ),
 
@@ -1064,7 +1110,7 @@ export const eventInvite: ArtifactContent = web(
                 "These two make everyone around them feel like the most interesting person in the room. Come September, that room has a sea view.",
                 "Lena · maid of honour",
             ),
-            { background: bgImage("wedding-praise-candlelit-toast", 0.6), bleed: true },
+            { background: bgImage(pic(777, 1700, 1100), 0.6), bleed: true },
         ),
 
         section(
@@ -1140,7 +1186,7 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage("wedding-paper-texture-bg", 0.3),
+    bgImage(pic(255, 1700, 1100), 0.3),
 );
 
 export const photoEssay: ArtifactContent = doc(
@@ -1358,7 +1404,7 @@ export const productLaunch: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage("aer-hero-living-room", 0.58),
+                background: bgImage(pic(311, 1700, 1100), 0.58),
                 frame: { aspect: 16 / 7 },
             },
         ),
@@ -1374,7 +1420,7 @@ export const productLaunch: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img("aer-dust-particles-light", 0.92),
+                img(pic(178), 0.92),
             ),
         ),
         section(
@@ -1384,13 +1430,13 @@ export const productLaunch: ArtifactContent = web(
                 stat("12 min", "to clear a 400 sq ft room"),
                 stat("21 dB", "quieter than a library at night"),
             ),
-            { background: bgImage("aer-clean-air-gradient", 0.5), bleed: true },
+            { background: bgImage(pic(385, 1700, 1100), 0.5), bleed: true },
         ),
         section(
             "product",
             split(
                 40,
-                img("aer-device-on-floor", 1.05),
+                img(pic(305), 1.05),
                 col(
                     t("Meet Aer One", "label"),
                     t("Engineered to disappear into your home.", "h2"),
@@ -1412,7 +1458,7 @@ export const productLaunch: ArtifactContent = web(
                     "subtitle",
                     "center",
                 ),
-                video(DEMO_VIDEO, "aer-demo-still-kitchen-evening"),
+                video(DEMO_VIDEO, pic(995, 1280, 720)),
             ),
             { background: bgTone("tint"), bleed: true },
         ),
@@ -1429,7 +1475,7 @@ export const productLaunch: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img("aer-sensor-closeup", 0.92),
+                img(pic(41), 0.92),
             ),
         ),
         section(
@@ -1463,7 +1509,7 @@ export const productLaunch: ArtifactContent = web(
             "features",
             row(
                 card(
-                    img("aer-filter-cartridge", 1),
+                    img(pic(252), 1),
                     t("One-click filter", "h3"),
                     t(
                         "A magnetic cartridge swaps in five seconds, and the device tells you the exact day it’s due.",
@@ -1471,7 +1517,7 @@ export const productLaunch: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img("aer-quiet-bedroom-night", 1),
+                    img(pic(691), 1),
                     t("Sleep mode", "h3"),
                     t(
                         "The glow ring dims to nothing and the fan drops below a whisper, so it works while you don’t hear it.",
@@ -1479,7 +1525,7 @@ export const productLaunch: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img("aer-solar-panel-eco", 1),
+                    img(pic(893), 1),
                     t("Built to last", "h3"),
                     t(
                         "Repairable by design, a five-year warranty, and a shell spun from 100% recycled aluminum.",
@@ -1503,7 +1549,7 @@ export const productLaunch: ArtifactContent = web(
                     stat("96%", "would replace their old purifier"),
                 ),
             ),
-            { background: bgImage("aer-soft-home-window", 0.55), bleed: true },
+            { background: bgImage(pic(1008, 1700, 1100), 0.55), bleed: true },
         ),
         section(
             "data",
@@ -1604,10 +1650,10 @@ export const productLaunch: ArtifactContent = web(
                 button("Pre-order Aer One", "https://aerone.com/preorder", { size: "lg" }),
                 t("Free shipping across North America · 2–4 days", "caption", "center"),
             ),
-            { background: bgImage("aer-final-cta-sky", 0.55), bleed: true },
+            { background: bgImage(pic(53, 1700, 1100), 0.55), bleed: true },
         ),
     ],
-    bgImage("aer-bg-texture", 0.32),
+    bgImage(pic(133, 1700, 1100), 0.32),
 );
 
 export const landingPage: ArtifactContent = web(
@@ -1644,14 +1690,11 @@ export const landingPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage("northwind-hero-workspace", 0.52),
+                background: bgImage(pic(7, 1700, 1100), 0.52),
                 frame: { aspect: 16 / 8 },
             },
         ),
-        section(
-            "shot",
-            col(t("One screen, every source", "label"), img("northwind-dashboard-hero", 1.7)),
-        ),
+        section("shot", col(t("One screen, every source", "label"), img(pic(532), 1.7))),
         section(
             "logos",
             col(
@@ -1684,7 +1727,7 @@ export const landingPage: ArtifactContent = web(
                     "Connect, Ask, Share",
                     split(
                         45,
-                        img("northwind-connect-sources", 1.35),
+                        img(pic(3), 1.35),
                         col(
                             t("Connect in minutes", "h3"),
                             t(
@@ -1700,7 +1743,7 @@ export const landingPage: ArtifactContent = web(
                     ),
                     split(
                         45,
-                        img("northwind-ask-question", 1.35),
+                        img(pic(4), 1.35),
                         col(
                             t("Ask in plain English", "h3"),
                             t(
@@ -1716,7 +1759,7 @@ export const landingPage: ArtifactContent = web(
                     ),
                     split(
                         45,
-                        img("northwind-team-share", 1.35),
+                        img(pic(192), 1.35),
                         col(
                             t("Share without friction", "h3"),
                             t(
@@ -1737,7 +1780,7 @@ export const landingPage: ArtifactContent = web(
             "live",
             split(
                 40,
-                img("northwind-live-metrics-screen", 1.05),
+                img(pic(0), 1.05),
                 col(
                     t("Always current", "label"),
                     badge("REAL-TIME"),
@@ -1749,7 +1792,7 @@ export const landingPage: ArtifactContent = web(
                     button("See it live", "#signup", { variant: "outline" }),
                 ),
             ),
-            { background: bgImage("northwind-feature-glow", 0.5), bleed: true },
+            { background: bgImage(pic(122, 1700, 1100), 0.5), bleed: true },
         ),
         section(
             "why",
@@ -1944,7 +1987,7 @@ export const landingPage: ArtifactContent = web(
             { background: bgTone("tint"), bleed: true },
         ),
     ],
-    bgImage("northwind-bg-texture", 0.3),
+    bgImage(pic(930, 1700, 1100), 0.3),
 );
 
 export const eventPage: ArtifactContent = web(
@@ -1980,7 +2023,7 @@ export const eventPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage("frequency-lisbon-stage-lights", 0.58),
+                background: bgImage(pic(904, 1700, 1100), 0.58),
                 frame: { aspect: 16 / 7 },
             },
         ),
@@ -1996,14 +2039,14 @@ export const eventPage: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img("frequency-crowd-warehouse-talk", 0.92),
+                img(pic(1047), 0.92),
             ),
         ),
         section(
             "why",
             row(
                 card(
-                    img("frequency-workshop-hands-on", 1),
+                    img(pic(528), 1),
                     t("Learn the new craft", "h3"),
                     t(
                         "Forty hands-on workshops on prompt design, agent UX, and shipping AI features people actually trust.",
@@ -2011,7 +2054,7 @@ export const eventPage: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img("frequency-hallway-conversation", 1),
+                    img(pic(1033), 1),
                     t("Meet your next collaborators", "h3"),
                     t(
                         "Curated dinners, hallway tracks, and a matchmaking app that puts the right five people in a room together.",
@@ -2019,7 +2062,7 @@ export const eventPage: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img("frequency-demo-night-projector", 1),
+                    img(pic(56), 1),
                     t("See it before everyone else", "h3"),
                     t(
                         "First looks at unreleased tools, live demo nights, and research that won’t be public for another year.",
@@ -2032,7 +2075,7 @@ export const eventPage: ArtifactContent = web(
             "lineup",
             split(
                 40,
-                img("frequency-speaker-on-stage-portrait", 1.05),
+                img(pic(494), 1.05),
                 col(
                     t("The lineup", "label"),
                     t("Sixty voices worth flying for.", "h2"),
@@ -2133,7 +2176,7 @@ export const eventPage: ArtifactContent = web(
                 stat("96%", "said they’d come back"),
                 stat("48", "countries on the badge list"),
             ),
-            { background: bgImage("frequency-crowd-from-above-night", 0.55), bleed: true },
+            { background: bgImage(pic(585, 1700, 1100), 0.55), bleed: true },
         ),
         section(
             "praise",
@@ -2239,7 +2282,7 @@ export const eventPage: ArtifactContent = web(
                         variant: "outline",
                     }),
                 ),
-                img("frequency-lx-factory-courtyard", 1.1),
+                img(pic(208), 1.1),
             ),
         ),
         section(
@@ -2287,10 +2330,10 @@ export const eventPage: ArtifactContent = web(
                 ),
                 button("Get your pass", "https://frequency.fest/tickets", { size: "lg" }),
             ),
-            { background: bgImage("frequency-river-sunset-lisbon", 0.55), bleed: true },
+            { background: bgImage(pic(344, 1700, 1100), 0.55), bleed: true },
         ),
     ],
-    bgImage("frequency-bg-grain", 0.32),
+    bgImage(pic(135, 1700, 1100), 0.32),
 );
 
 export const waitlistPage: ArtifactContent = web(
@@ -2316,7 +2359,7 @@ export const waitlistPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage("vanta-dark-desk-single-light", 0.62),
+                background: bgImage(pic(441, 1700, 1100), 0.62),
                 frame: { aspect: 16 / 9 },
             },
         ),
@@ -2332,7 +2375,7 @@ export const waitlistPage: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img("vanta-minimal-interface-dark", 0.92),
+                img(pic(794), 0.92),
             ),
         ),
         section(
@@ -2340,14 +2383,14 @@ export const waitlistPage: ArtifactContent = web(
             col(
                 t("First look", "label"),
                 t("This is what nothing-in-your-way looks like.", "h2"),
-                img("vanta-app-fullscreen-focus-mode", 1.7),
+                img(pic(68), 1.7),
             ),
         ),
         section(
             "features",
             row(
                 card(
-                    img("vanta-feature-single-focus", 1),
+                    img(pic(679), 1),
                     t("One thing at a time", "h3"),
                     t(
                         "Pull a task into focus and the rest of the world dims. When you finish, the next thing rises on its own.",
@@ -2355,7 +2398,7 @@ export const waitlistPage: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img("vanta-feature-on-device", 1),
+                    img(pic(831), 1),
                     t("Private by design", "h3"),
                     t(
                         "Everything runs on your device. Your notes, your work, your patterns. None of it leaves the machine.",
@@ -2363,7 +2406,7 @@ export const waitlistPage: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img("vanta-feature-quiet-ai", 1),
+                    img(pic(989), 1),
                     t("A quiet assistant", "h3"),
                     t(
                         "An AI that drafts, summarizes, and clears the busywork, then steps back without asking for a thing.",
@@ -2376,7 +2419,7 @@ export const waitlistPage: ArtifactContent = web(
             "deep",
             split(
                 40,
-                img("vanta-night-mode-typing", 1.05),
+                img(pic(832), 1.05),
                 col(
                     t("Built for deep work", "label"),
                     badge("ON-DEVICE"),
@@ -2387,7 +2430,7 @@ export const waitlistPage: ArtifactContent = web(
                     ),
                 ),
             ),
-            { background: bgImage("vanta-dark-gradient-glow", 0.5), bleed: true },
+            { background: bgTone("contrast"), bleed: true },
         ),
         section(
             "numbers",
@@ -2404,7 +2447,7 @@ export const waitlistPage: ArtifactContent = web(
                 t("The plan", "label"),
                 t("Here’s when it lands.", "h2"),
                 table(
-                    "Phase,When,What\nPrivate beta,August 2026,First 1,000 invites from the waitlist\nOpen beta,October 2026,Invites roll out in weekly batches\nLaunch,December 2026,Public release on macOS + iOS\nNext,Early 2027,Windows and a team workspace",
+                    "Phase,When,What\nPrivate beta,August 2026,The first thousand invites from the waitlist\nOpen beta,October 2026,Invites roll out in weekly batches\nLaunch,December 2026,Public release on macOS + iOS\nNext,Early 2027,Windows and a team workspace",
                 ),
             ),
         ),
@@ -2412,7 +2455,7 @@ export const waitlistPage: ArtifactContent = web(
             "founders",
             split(
                 40,
-                img("vanta-founders-studio-portrait", 1.05),
+                img(pic(1), 1.05),
                 testimonial(
                     "We built Vanta because we were tired of software that treats your attention as inventory to sell. This is the tool we wanted for ourselves, and the first thing in years that made our own work feel quiet again.",
                     "Eli Brandt & Nora Vance",
@@ -2462,7 +2505,7 @@ export const waitlistPage: ArtifactContent = web(
                 ),
                 button("Join the waitlist", "https://vanta.app/waitlist", { size: "lg" }),
             ),
-            { background: bgImage("vanta-dawn-window-calm", 0.58), bleed: true },
+            { background: bgImage(pic(416, 1700, 1100), 0.58), bleed: true },
         ),
         section(
             "footer",
@@ -2482,7 +2525,7 @@ export const waitlistPage: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage("vanta-bg-noir-texture", 0.34),
+    bgImage(pic(642, 1700, 1100), 0.34),
 );
 
 export const agencySite: ArtifactContent = web(
@@ -2521,7 +2564,7 @@ export const agencySite: ArtifactContent = web(
             {
                 bleed: true,
                 frame: { aspect: 16 / 7 },
-                background: bgImage("counterform-studio-wall-pinups-mono", 0.58),
+                background: bgImage(pic(464, 1700, 1100), 0.55),
             },
         ),
         section(
@@ -2565,24 +2608,24 @@ export const agencySite: ArtifactContent = web(
             "work",
             row(
                 card(
-                    img("counterform-work-meridian-bank-brand", 1.4),
+                    img(pic(20), 1.4),
                     t("Meridian", "h3"),
                     t("Brand & app for a challenger bank · 2025", "caption"),
                 ),
                 card(
-                    img("counterform-work-orchard-grocery-identity", 1.4),
+                    img(pic(627), 1.4),
                     t("Orchard", "h3"),
                     t("Identity & packaging for a grocery startup · 2024", "caption"),
                 ),
                 card(
-                    img("counterform-work-atlas-analytics-product", 1.4),
+                    img(pic(180), 1.4),
                     t("Atlas", "h3"),
                     t("Product design for an analytics platform · 2024", "caption"),
                 ),
             ),
         ),
         section("interlude", col(t("The details are the work.", "h2", "center")), {
-            background: bgImage("counterform-detail-press-proof-mono", 0.55),
+            background: bgImage(pic(80, 1700, 1100), 0.55),
             bleed: true,
             frame: { aspect: 16 / 5 },
         }),
@@ -2590,12 +2633,12 @@ export const agencySite: ArtifactContent = web(
             "more-work",
             row(
                 card(
-                    img("counterform-work-novel-press-rebrand", 1.6),
+                    img(pic(24), 1.6),
                     t("Novel Press", "h3"),
                     t("Full rebrand & site for an independent publisher · 2023", "caption"),
                 ),
                 card(
-                    img("counterform-work-tidal-energy-campaign", 1.6),
+                    img(pic(871), 1.6),
                     t("Tidal", "h3"),
                     t("Campaign & motion system for a clean-energy launch · 2023", "caption"),
                 ),
@@ -2656,7 +2699,7 @@ export const agencySite: ArtifactContent = web(
                 stat("11 yrs", "designing in the open"),
                 stat("6", "clients a year, on purpose"),
             ),
-            { background: bgImage("counterform-studio-shelves-archive", 0.55), bleed: true },
+            { background: bgImage(pic(531, 1700, 1100), 0.55), bleed: true },
         ),
         section(
             "quote",
@@ -2666,7 +2709,7 @@ export const agencySite: ArtifactContent = web(
                 "VP Brand, Meridian",
                 "https://i.pravatar.cc/240?img=41",
             ),
-            { background: bgImage("counterform-meeting-table-warm-light", 0.6), bleed: true },
+            { background: bgImage(pic(945, 1700, 1100), 0.6), bleed: true },
         ),
         section(
             "team",
@@ -2714,7 +2757,7 @@ export const agencySite: ArtifactContent = web(
                     size: "lg",
                 }),
             ),
-            { background: bgImage("counterform-studio-window-morning-light", 0.55), bleed: true },
+            { background: bgImage(pic(1031, 1700, 1100), 0.55), bleed: true },
         ),
         section(
             "footer",
@@ -2777,7 +2820,7 @@ export const agencySite: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage("counterform-paper-texture-mono-bg", 0.3),
+    bgImage(pic(143, 1700, 1100), 0.3),
 );
 
 export const newsletter: ArtifactContent = doc(
@@ -3115,7 +3158,7 @@ export const startupPitch: ArtifactContent = deck(
                     t("CTO · ex-Flexport forecasting", "caption"),
                 ),
                 group(
-                    img(pic(674), 1),
+                    img(pic(429), 1),
                     t("Priya Anand", "h3"),
                     t("Head of Culinary · 12 years on the line", "caption"),
                 ),
@@ -3250,7 +3293,7 @@ export const salesDeck: ArtifactContent = deck(
                 t("Pricing", "label"),
                 t("Priced per truck, under one day of downtime.", "h2"),
                 table(
-                    "Plan,Per truck / mo,Includes\nCore,$29,Health scores & failure alerts\nShop,$39,+ Auto work orders & parts\nFleet,$34,Multi-depot, 100+ trucks\nEnterprise,Custom,Telematics integrations & SLA",
+                    "Plan,Per truck / mo,Includes\nCore,$29,Health scores & failure alerts\nShop,$39,+ Auto work orders & parts\nFleet,$34,Multi-depot · 100+ trucks\nEnterprise,Custom,Telematics integrations & SLA",
                 ),
             ),
         ),
@@ -3958,7 +4001,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
             ),
-            { background: bgImage(pic(951, 1700, 1100), 0.72) },
+            { background: bgImage(pic(115, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -3975,7 +4018,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                     diagram(
                         "funnel",
-                        "Discover via search & community, Free plan sign-up, Connect a channel, Convert to paid, Expand seats & SKUs",
+                        "Discover via search & community, Free plan sign-up, Connect a channel, Convert to paid, Expand",
                         220,
                     ),
                 ),
@@ -4956,7 +4999,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 t("SPONSORSHIP TIERS", "label"),
                 t("Four ways in. One conversation to find your fit.", "h2"),
                 table(
-                    "Tier,Investment,Availability,Headline benefit\nPresenting,$120K,1 partner,“Harborlight presented by” lockup across all assets\nStage,$60K,4 partners,Naming rights to a named stage + on-stage moments\nMarket,$28K,8 partners,Premium activation footprint in the food & art market\nCommunity,$9K,12 partners,Logo placement, tickets & a sampling table",
+                    "Tier,Investment,Availability,Headline benefit\nPresenting,$120K,1 partner,“Harborlight presented by” lockup across all assets\nStage,$60K,4 partners,Naming rights to a named stage + on-stage moments\nMarket,$28K,8 partners,Premium activation footprint in the food & art market\nCommunity,$9K,12 partners,Logo placement · tickets & a sampling table",
                 ),
                 t(
                     "Every tier is a starting point: we build the activation around your goals, not a fixed menu.",
@@ -5171,7 +5214,7 @@ export const sow: ArtifactContent = doc(
                 t("6 · DELIVERABLES", "label"),
                 t("What you receive, and when.", "h2"),
                 table(
-                    "Deliverable,Description,Format,Due\nD1 · Discovery brief,Technical audit, scope lock & architecture diagram,PDF + Figma,Week 2\nD2 · Design system,Component library & 18 responsive templates,Figma,Week 4\nD3 · Storefront,Production-ready headless build with CI/CD,Git repo + staging,Week 9\nD4 · Returns portal,Self-service returns & exchange flow,Git repo + staging,Week 10\nD5 · Launch package,Cutover plan, runbook & analytics dashboards,PDF + Looker,Week 12",
+                    "Deliverable,Description,Format,Due\nD1 · Discovery brief,Technical audit · scope lock & architecture diagram,PDF + Figma,Week 2\nD2 · Design system,Component library & 18 responsive templates,Figma,Week 4\nD3 · Storefront,Production-ready headless build with CI/CD,Git repo + staging,Week 9\nD4 · Returns portal,Self-service returns & exchange flow,Git repo + staging,Week 10\nD5 · Launch package,Cutover plan · runbook & analytics dashboards,PDF + Looker,Week 12",
                 ),
             ),
         ),
@@ -5199,7 +5242,7 @@ export const sow: ArtifactContent = doc(
                 t("8 · ROLES & RESPONSIBILITIES", "label"),
                 t("Who owns what.", "h2"),
                 table(
-                    "Role,Name,Responsibility,Party\nEngagement lead,Dana Okonkwo,Scope, schedule & weekly status,Anvil & Oak\nTech lead,Marcus Vey,Architecture & code review,Anvil & Oak\nProduct designer,Lena Sørensen,Design system & UX,Anvil & Oak\nProduct owner,Tom Bryce,Decisions, approvals & content,Wexford\nIT liaison,Sara Whitlock,System access & integrations,Wexford",
+                    "Role,Name,Responsibility,Party\nEngagement lead,Dana Okonkwo,Scope · schedule & weekly status,Anvil & Oak\nTech lead,Marcus Vey,Architecture & code review,Anvil & Oak\nProduct designer,Lena Sørensen,Design system & UX,Anvil & Oak\nProduct owner,Tom Bryce,Decisions · approvals & content,Wexford\nIT liaison,Sara Whitlock,System access & integrations,Wexford",
                 ),
                 t(
                     "Wexford will provide environment access and consolidated feedback within two business days of each request.",
@@ -5214,7 +5257,7 @@ export const sow: ArtifactContent = doc(
                 t("9 · PRICING & PAYMENT TERMS", "label"),
                 t("Fixed fee, billed against milestones.", "h2"),
                 table(
-                    "Milestone,Trigger,Amount,Payment terms\nM1 · Kickoff,SOW execution,$37,200,Due on signing\nM2 · Design accepted,D2 sign-off,$46,500,Net 15\nM3 · Build complete,D3 sign-off,$55,800,Net 15\nM4 · UAT passed,D4 sign-off,$28,000,Net 15\nM5 · Launch,Production cutover,$18,500,Net 15\nTotal,,$186,000,",
+                    "Milestone,Trigger,Amount,Payment terms\nM1 · Kickoff,SOW execution,$37.2K,Due on signing\nM2 · Design accepted,D2 sign-off,$46.5K,Net 15\nM3 · Build complete,D3 sign-off,$55.8K,Net 15\nM4 · UAT passed,D4 sign-off,$28K,Net 15\nM5 · Launch,Production cutover,$18.5K,Net 15\nTotal,,$186K,",
                 ),
                 t(
                     "Fees are fixed for the scope above. Approved change orders are billed at a blended rate of $215/hour.",
@@ -5857,7 +5900,7 @@ export const researchReport: ArtifactContent = doc(
                 ),
                 diagram("process", "Set anchors, Document, Pair & sponsor, Measure outcomes", 200),
             ),
-            { background: bgImage(pic(692, 1700, 1100), 0.5) },
+            { background: bgImage(pic(692, 1700, 1100), 0.6) },
         ),
         section(
             "s12",
@@ -6114,7 +6157,7 @@ export const qbr: ArtifactContent = doc(
                     "Prepared by the Tessera leadership team · For the Board & Executive Staff · June 2026",
                     "caption",
                 ),
-                badge("ARR $48.6M · NRR 119% · 612 CUSTOMERS"),
+                t("ARR $48.6M · NRR 119% · 612 customers", "caption"),
             ),
             {
                 background: bgImage(pic(948, 1700, 1100), 0.58),
@@ -6532,7 +6575,7 @@ export const trendsReport: ArtifactContent = doc(
                         "Vision-guided picking becomes standard on new cells,By 2027,High\n" +
                         "RaaS becomes the default for SMB automation,By 2029,Medium\n" +
                         "Robot density doubles in reshored U.S. plants,By 2031,Medium\n" +
-                        "First single-site 10,000-unit humanoid fleet deployed,By 2031,Low",
+                        "First single-site 10k-unit humanoid fleet deployed,By 2031,Low",
                 ),
             ),
         ),
@@ -6655,6 +6698,29 @@ export const restaurantMenu: ArtifactContent = doc(
                     "Wine,Glass,Bottle\nGamay · Willamette,14,52\nMelon · Loire,13,48\nNerello · Etna,15,58\nChenin pét-nat · Anjou,14,50\nOloroso · Jerez,9,36",
                 ),
                 t("The full cellar list lives in a binder; ask and it appears.", "caption"),
+            ),
+        ),
+        section(
+            "aperitifs",
+            group(
+                t("BEFORE DINNER", "label"),
+                dish("House vermouth, orange, olives", "9"),
+                dish("Sherry flight · three pours", "14"),
+                dish("The Quince 75 · with our quince shrub", "13"),
+            ),
+        ),
+        section(
+            "larder",
+            split(
+                60,
+                group(
+                    t("THE LARDER", "label"),
+                    t("Take the good stuff home.", "h2"),
+                    dish("The chili oil", "12", "The jar people write about; ships nowhere, sorry"),
+                    dish("Quince membrillo", "9", "From the orchard that named the room"),
+                    dish("Sourdough loaf", "8", "Fridays only · reserve with dinner"),
+                ),
+                img(pic(163), 0.82),
             ),
         ),
         section(
@@ -7104,6 +7170,26 @@ export const guestGuide: ArtifactContent = doc(
             ),
         ),
         section(
+            "daytrips",
+            group(
+                t("IF YOU HAVE A SPARE DAY", "label"),
+                dish("Bruges", "1 hr by train", "Go midweek · the canals without the crowds"),
+                dish("Zaanse Schans", "20 min", "Windmills before ten, back by lunch"),
+                dish("The dunes", "40 min by bike", "Flat all the way · pack the towel"),
+            ),
+        ),
+        section(
+            "seasons",
+            group(
+                t("The flat keeps its own calendar.", "h2"),
+                t(
+                    "Tulips in April, canal swims in July, candles by November. Come back for a different city.",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(946, 1700, 1100), 0.5) },
+        ),
+        section(
             "return",
             group(
                 t("Come back in tulip season.", "h2"),
@@ -7307,6 +7393,50 @@ export const recipeCollection: ArtifactContent = doc(
             ),
         ),
         section(
+            "r5",
+            group(
+                t("NO 5 · THE CONVERT", "label"),
+                t("Braised red cabbage, the peacemaker", "h2"),
+                t("Serves 6 as a side · 90 minutes, mostly unattended", "caption"),
+                split(
+                    40,
+                    img(pic(995), 1.05),
+                    group(
+                        t("INGREDIENTS", "label"),
+                        bullets(
+                            "One red cabbage, shredded finer than feels necessary",
+                            "Two apples, an onion, and a knob of butter",
+                            "A glug of vinegar, a spoon of brown sugar, cloves",
+                        ),
+                    ),
+                ),
+                t("METHOD", "label"),
+                t(
+                    "1. Soften the onion, then everything else into the pot with a splash of water.",
+                    "body",
+                ),
+                t(
+                    "2. Lid on, lowest heat, 90 minutes; stir when you think of it. It should collapse and gleam.",
+                    "body",
+                ),
+                t(
+                    "3. Season loudly. Serve to the relative who claims to hate cabbage; apologize to no one.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "keeping",
+            group(
+                t("ON KEEPING RECIPES", "label"),
+                quote(
+                    "A recipe card outlives the hand that wrote it. That's the whole reason to write things down.",
+                    "Ada · from the first printing's foreword",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
             "close",
             group(
                 t("Add your own on the blank pages.", "h2"),
@@ -7437,6 +7567,34 @@ export const eventProgram: ArtifactContent = doc(
             ),
         ),
         section(
+            "history",
+            split(
+                40,
+                img(pic(782), 1.05),
+                group(
+                    t("THE ROOM YOU'RE IN", "label"),
+                    t("Eighty-nine years, briefly.", "h2"),
+                    t(
+                        "Built 1937 as a union hall, jazz room by the fifties, nearly a parking garage in 1981 until four hundred neighbors said otherwise. The fir ceiling you hear tonight is original, which is the whole problem and the whole point.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "next",
+            group(
+                t("NEXT AT THE ORPHEUM", "label"),
+                dish(
+                    "January 17",
+                    "The Winter Reels",
+                    "Local footage night · the harbor films, restored",
+                ),
+                dish("February 8", "Songbook II", "If the roof fund clears · same hall, drier"),
+                dish("Monthly", "Open floor", "First Mondays · anyone, one song, kind room"),
+            ),
+        ),
+        section(
             "close",
             group(
                 t("Sing the last one with us.", "h2"),
@@ -7449,6 +7607,8036 @@ export const eventProgram: ArtifactContent = doc(
         ),
     ],
     bgImage(pic(546, 1700, 1100), 0.35),
+);
+
+// ---- pitch & sell: the paper and pages around the decks
+
+export const execSummary: ArtifactContent = doc(
+    "noir",
+    [
+        section(
+            "head",
+            group(
+                t("EXECUTIVE SUMMARY · CONFIDENTIAL", "label"),
+                t("Mise, in two pages", "h1"),
+                t(
+                    "The operating system for independent restaurant kitchens: forecasting prep, automating orders, and clawing back the margin that waste quietly eats.",
+                    "subtitle",
+                ),
+                t("Seed round · $4M · Dana Reyes, dana@mise.kitchen", "caption"),
+            ),
+            { background: bgImage(pic(490, 1700, 1100), 0.62) },
+        ),
+        section(
+            "problem",
+            group(
+                t("THE PROBLEM", "label"),
+                t("Restaurants run on 4% margins and 1990s tooling.", "h2"),
+                t(
+                    "The average independent restaurant throws away 8% of everything it buys, orders by gut feel at 11pm, and learns it lost money a month too late. Front of house got Toast, Square, and Resy over the last decade. The back of house, where the money is actually made or lost, still runs on clipboards and group texts.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "solution",
+            split(
+                60,
+                group(
+                    t("THE PRODUCT", "label"),
+                    t("One screen the whole line actually opens.", "h2"),
+                    bullets(
+                        "Prep lists that predict tomorrow from last year, the weather, and tonight's reservations",
+                        "Orders that draft themselves to par and send with one tap",
+                        "Live food cost by dish, by station, by shift",
+                    ),
+                ),
+                img(pic(341), 0.82),
+            ),
+        ),
+        section(
+            "traction",
+            row(
+                stat("38", "kitchens live"),
+                stat("310bps", "avg food-cost reduction"),
+                stat("112%", "net revenue retention"),
+            ),
+        ),
+        section(
+            "market",
+            group(
+                t("THE MARKET", "label"),
+                t(
+                    "749K U.S. restaurant locations spend $1.1T a year and waste $162B of it. The wedge is the 180K independents with two to twenty locations: big enough to feel the waste, small enough to have no analyst to fight it.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "whynow",
+            split(
+                60,
+                group(
+                    t("WHY NOW", "label"),
+                    t("The stack finally reaches the kitchen.", "h2"),
+                    t(
+                        "Supplier APIs, cheap tablets on every pass, and POS data that finally leaves the terminal: the pieces Mise assembles did not exist together three years ago. The first mover gets the supplier network, and the supplier network is the moat.",
+                        "body",
+                    ),
+                ),
+                img(pic(3), 0.82),
+            ),
+        ),
+        section(
+            "model",
+            group(
+                t("BUSINESS MODEL", "label"),
+                dish(
+                    "SaaS, per kitchen",
+                    "$349/mo",
+                    "Flat, not per seat; a kitchen is a team by definition",
+                ),
+                dish(
+                    "Supplier network fee",
+                    "1.2%",
+                    "Paid by suppliers on orders routed through Mise, not by kitchens",
+                ),
+                dish("Gross margin", "81%", "Blended, at current scale"),
+            ),
+        ),
+        section(
+            "competition",
+            group(
+                t("THE FIELD", "label"),
+                table(
+                    "Player,What they do,What they miss\nMarketMan · BlueCart,Ordering,No forecasting · no line view\nToast · Square,Front of house,The kitchen is a settings page\nSpreadsheets,Everything,Sunday nights · silent errors",
+                ),
+                t("Nobody owns the pass. That gap is the company.", "caption"),
+            ),
+        ),
+        section(
+            "team",
+            group(
+                t("THE TEAM", "label"),
+                row(
+                    group(
+                        img(pic(978), 1),
+                        t("Dana Reyes", "h3"),
+                        t("CEO · ex-Toast, ran ops for 40 kitchens", "caption"),
+                    ),
+                    group(
+                        img(pic(5), 1),
+                        t("Marcus Vallée", "h3"),
+                        t("CTO · ex-Flexport forecasting", "caption"),
+                    ),
+                    group(
+                        img(pic(429), 1),
+                        t("Priya Anand", "h3"),
+                        t("Head of Culinary · 12 years on the line", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "ask",
+            group(
+                t("THE ASK", "label"),
+                t("Raising $4M to put Mise in 1,000 kitchens.", "h2"),
+                t(
+                    "Supplier API coverage (40%), the forecasting and food-cost engine (35%), and a culinary-led go-to-market across the top 20 U.S. metros (25%). 24 months of runway to $4M ARR.",
+                    "body",
+                ),
+                linked("caption", "Full deck and data room on request · ", [
+                    "dana@mise.kitchen",
+                    "mailto:dana@mise.kitchen",
+                ]),
+            ),
+            { background: bgImage(pic(437, 1700, 1100), 0.6) },
+        ),
+    ],
+    bgImage(pic(115, 1700, 1100), 0.3),
+);
+
+export const productSheet: ArtifactContent = doc(
+    "carbon",
+    [
+        section(
+            "head",
+            group(
+                t("PRODUCT SHEET", "label"),
+                t("Fleetwise", "h1"),
+                t(
+                    "Predictive maintenance for truck fleets. Reads the telematics you already pay for and turns them into work orders you do before the breakdown.",
+                    "subtitle",
+                ),
+                t("For operations & maintenance leaders · 20 to 2,000 vehicles", "caption"),
+            ),
+            { background: bgImage(pic(352, 1700, 1100), 0.6) },
+        ),
+        section(
+            "how",
+            split(
+                60,
+                group(
+                    t("HOW IT WORKS", "label"),
+                    t("Live in two weeks, no new hardware.", "h2"),
+                    bullets(
+                        "Connect your telematics: read-only, forty minutes, every major provider",
+                        "Fleetwise scores every vehicle and flags failures two to six weeks out",
+                        "Work orders draft themselves with parts, labor, and the best open bay window",
+                    ),
+                ),
+                img(pic(370), 0.82),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("52%", "fewer roadside failures"),
+                stat("78%", "of work now planned"),
+                stat("11×", "first-year ROI"),
+            ),
+        ),
+        section(
+            "specs",
+            group(
+                t("SPECIFICATIONS", "label"),
+                table(
+                    "Item,Detail\nTelematics,Samsara · Geotab · Motive · Verizon Connect\nCoverage,Class 3 through Class 8 · EV and diesel\nIntegrations,Fullbay · Fleetio · your parts supplier's catalog\nSecurity,SOC 2 Type II · read-only vehicle access\nDeployment,Cloud · nothing installed in the truck",
+                ),
+            ),
+        ),
+        section(
+            "pricing",
+            group(
+                t("PRICING", "label"),
+                t("Per truck, under one day of downtime.", "h3"),
+                table(
+                    "Plan,Per truck / mo,Includes\nCore,$29,Health scores & failure alerts\nShop,$39,+ Auto work orders & parts\nFleet,$34,Multi-depot · 100+ trucks",
+                ),
+            ),
+        ),
+        section(
+            "case",
+            split(
+                40,
+                img(pic(371), 1.05),
+                group(
+                    t("IN THE FIELD", "label"),
+                    t("Meridian Freight, 212 trucks.", "h2"),
+                    t(
+                        "Eleven months on Fleetwise: roadside failures halved, $410K in downtime avoided, and the maintenance chief stopped carrying two phones. Their fleet review is now a fifteen-minute meeting.",
+                        "body",
+                    ),
+                    t("Reference call available on request", "caption"),
+                ),
+            ),
+        ),
+        section(
+            "quote",
+            group(
+                quote(
+                    "We used to staff for breakdowns. Now we staff for the schedule Fleetwise hands us the night before.",
+                    "Carla Mendez · VP Maintenance, Meridian Freight",
+                ),
+            ),
+            { background: bgImage(pic(495, 1700, 1100), 0.62) },
+        ),
+        section(
+            "rollout",
+            group(
+                t("THE FIRST SIX WEEKS", "label"),
+                table(
+                    "Week,What happens\n1,Telematics connected · fleet scored\n2,First flagged failures · work orders drafting\n3 to 4,Parts catalog linked · depot routing tuned\n5 to 6,Planned work overtakes reactive · review call",
+                ),
+            ),
+        ),
+        section(
+            "faq",
+            group(
+                t("ASKED BY EVERY OPS LEAD", "label"),
+                bullets(
+                    "No new hardware: we read the telematics you already pay for",
+                    "Read-only vehicle access; Fleetwise can never touch a truck's controls",
+                    "Month to month after the first year; leaving takes one email and your data with you",
+                ),
+            ),
+        ),
+        section(
+            "cta",
+            group(
+                t("See your own fleet's risk in 30 minutes.", "h2"),
+                t(
+                    "Send read-only telematics access and we bring a free risk assessment of your top 25 vehicles to the next call.",
+                    "body",
+                ),
+                linked(
+                    "caption",
+                    ["fleetwise.io/assessment", "https://fleetwise.io/assessment"],
+                    " · ",
+                    ["sales@fleetwise.io", "mailto:sales@fleetwise.io"],
+                ),
+            ),
+            { background: bgImage(pic(88, 1700, 1100), 0.6) },
+        ),
+    ],
+    bgImage(pic(893, 1700, 1100), 0.3),
+);
+
+export const factSheet: ArtifactContent = doc(
+    "obsidian",
+    [
+        section(
+            "head",
+            group(
+                t("COMPANY FACT SHEET · 2026", "label"),
+                t("Switchboard", "h1"),
+                t(
+                    "The AI front desk for home-services businesses: answering every call and text in seconds, booking the job, and keeping the schedule full, around the clock.",
+                    "subtitle",
+                ),
+                t("Founded 2024 · Austin, TX · 63 people", "caption"),
+            ),
+            { background: bgImage(pic(223, 1700, 1100), 0.58) },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("2,400", "businesses on Switchboard"),
+                stat("$6.8M", "ARR, up 3.1× YoY"),
+                stat("$140M", "in jobs booked for customers"),
+            ),
+        ),
+        section(
+            "what",
+            group(
+                t("WHAT WE DO", "label"),
+                t(
+                    "The trades still run on the phone, and a third of calls go to voicemail. Switchboard answers in under two seconds in English or Spanish, books the job straight into the calendar, and hands off to a human the moment it should. Owners see booked work, not missed calls.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "milestones",
+            group(
+                t("MILESTONES", "label"),
+                table(
+                    "When,What\n2024,Founded · first 100 contractors in Texas\n2025,Series Seed · texting and scheduling ship\nJan 2026,1000th business · Spanish goes GA\nJune 2026,Series A · $18M led by Meridian Ventures",
+                ),
+            ),
+        ),
+        section(
+            "leadership",
+            row(
+                group(
+                    img(pic(1), 1),
+                    t("Dana Whitfield", "h3"),
+                    t("CEO · ex-ServiceTitan, scaled 3,000 contractors", "caption"),
+                ),
+                group(
+                    img(pic(304), 1),
+                    t("Amir Hassan", "h3"),
+                    t("CTO · ex-Google speech, built real-time voice", "caption"),
+                ),
+                group(
+                    img(pic(856), 1),
+                    t("Lena Ortiz", "h3"),
+                    t("Head of Revenue · ex-Jobber, 0 to $30M", "caption"),
+                ),
+            ),
+        ),
+        section(
+            "product",
+            split(
+                60,
+                group(
+                    t("THE PRODUCT, BRIEFLY", "label"),
+                    t("Answers the phone, books the job, hands off like a pro.", "h2"),
+                    bullets(
+                        "Voice agents tuned per trade: a roofing call is not a plumbing call",
+                        "Books straight into ServiceTitan, Jobber, and Housecall Pro",
+                        "Hands to a human mid-sentence the moment it should",
+                    ),
+                ),
+                img(pic(366), 0.82),
+            ),
+        ),
+        section(
+            "market",
+            row(
+                stat("104K", "home-services businesses in North America"),
+                stat("31%", "of their calls miss today"),
+                stat("$38B", "in jobs lost to voicemail yearly"),
+            ),
+        ),
+        section(
+            "moments",
+            group(
+                t("A YEAR IN THREE MOMENTS", "label"),
+                row(
+                    group(
+                        img(pic(504), 1.4),
+                        t("January: Spanish goes GA and Texas triples", "caption"),
+                    ),
+                    group(
+                        img(pic(160), 1.4),
+                        t("March: the 1000th business, a roofer in Tulsa", "caption"),
+                    ),
+                    group(
+                        img(pic(1), 1.4),
+                        t("June: the Series A, led by Meridian Ventures", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "investors",
+            group(
+                t("BACKERS", "label"),
+                t(
+                    "Meridian Ventures · Homestead Capital · the founders of ServiceTitan and Jobber, personally.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "press",
+            group(
+                t("PRESS & CONTACT", "label"),
+                linked(
+                    "body",
+                    "Media: ",
+                    ["press@switchboard.ai", "mailto:press@switchboard.ai"],
+                    " · Partnerships: ",
+                    ["partners@switchboard.ai", "mailto:partners@switchboard.ai"],
+                ),
+                t(
+                    "Boilerplate: Switchboard is the AI front desk for the trades. Its voice agents answer, qualify, and book for plumbing, HVAC, electrical, and roofing businesses across North America.",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(320, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(683, 1700, 1100), 0.3),
+);
+
+export const partnershipPitch: ArtifactContent = doc(
+    "royal",
+    [
+        section(
+            "head",
+            group(
+                t("PARTNERSHIP PROPOSAL", "label"),
+                t("Harborlight × Cascadia Coffee", "h1"),
+                t(
+                    "One festival, 65,000 guests, and a coffee program with your name over the door. A proposal for Cascadia to become Harborlight 2026's official coffee.",
+                    "subtitle",
+                ),
+                t("Prepared for the Cascadia brand team · January 2026", "caption"),
+            ),
+            { background: bgImage(pic(452, 1700, 1100), 0.6) },
+        ),
+        section(
+            "why",
+            group(
+                t("WHY THIS FITS", "label"),
+                t("Your drinkers are already here.", "h2"),
+                t(
+                    "Harborlight's crowd is 68% aged 21 to 44, spends $120 a head on site, and starts every festival morning in a coffee line a hundred deep. Last year that line was generic. This year it could be yours: three days of first sips, every cup in a Cascadia sleeve, and the harbor sunrise doing your art direction.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "shape",
+            group(
+                t("THE SHAPE OF IT", "label"),
+                dish(
+                    "The Morning Bar",
+                    "included",
+                    "A flagship stand at the gate, staffed by your baristas, open from doors",
+                ),
+                dish(
+                    "Every backstage rider",
+                    "included",
+                    "Artists drink Cascadia; artists post about Cascadia",
+                ),
+                dish(
+                    "The Sunrise Set",
+                    "co-branded",
+                    "Sunday's acoustic set, presented by Cascadia, filmed for both channels",
+                ),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("65K", "guests across three days"),
+                stat("40K+", "cups at last year's festival"),
+                stat("4.2M", "social impressions in campaign window"),
+            ),
+        ),
+        section(
+            "audience",
+            group(
+                t("WHO'S IN THE CROWD", "label"),
+                table(
+                    "Segment,Share,Note\nAges 21 to 34,44%,Your growth demographic\nAges 35 to 44,24%,Your loyalists\nTraveling from out of town,38%,Hotel stays · long weekends\nHousehold income $75K+,61%,They buy the good beans",
+                ),
+            ),
+        ),
+        section(
+            "handled",
+            split(
+                40,
+                img(pic(686), 1.05),
+                group(
+                    t("WHAT WE HANDLE", "label"),
+                    t("You bring the coffee; we carry everything else.", "h2"),
+                    checks(
+                        "Permits, power, water, and cold storage at both stands",
+                        "Staffing beyond your two lead baristas, trained on your recipes",
+                        "All signage production, to your brand guidelines",
+                        "A dedicated partner manager on radio all weekend",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "lastyear",
+            group(
+                t("PARTNERS SAY", "label"),
+                quote(
+                    "Cleanest festival activation we've done. The crowd came to us, the ops ran themselves, and we sold eleven weeks of product in three days.",
+                    "Brand lead · Halcyon Brewing · 2025 partner",
+                ),
+            ),
+            { background: bgImage(pic(158, 1700, 1100), 0.6) },
+        ),
+        section(
+            "timeline",
+            group(
+                t("THE RUNWAY", "label"),
+                table(
+                    "When,What\nMarch,Walk-through together · handshake\nApril,Contract signed · creative starts\nJune,Assets locked · staff training at your roastery\nAugust 14 to 16,The festival · 65K first sips",
+                ),
+            ),
+        ),
+        section(
+            "terms",
+            group(
+                t("INVESTMENT & TERMS", "label"),
+                t(
+                    "$45K partner fee plus product at cost. Cascadia keeps bar revenue; Harborlight keeps naming approval. One-year term with first right of renewal for 2027, and a walk-through together in March before either of us signs anything.",
+                    "body",
+                ),
+                linked("caption", "Talk to us: ", [
+                    "partners@harborlightfest.org",
+                    "mailto:partners@harborlightfest.org",
+                ]),
+            ),
+            { background: bgImage(pic(590, 1700, 1100), 0.58) },
+        ),
+    ],
+    bgImage(pic(384, 1700, 1100), 0.32),
+);
+export const aboutPage: ArtifactContent = web(
+    "noir",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "MISE",
+                    navLink("Story", "#story"),
+                    navLink("Team", "#team"),
+                    navLink("Press", "#press"),
+                    navCta("Open Mise", "https://app.mise.kitchen"),
+                ),
+                t("ABOUT US", "label"),
+                t("Built by people who closed the kitchen.", "h1"),
+                t(
+                    "Mise exists because three of us spent years running restaurants and could not believe the best tool for the job was a clipboard. This is the story, the people, and the point.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(437, 1700, 1100), 0.6),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "story",
+            split(
+                60,
+                group(
+                    t("THE STORY", "label"),
+                    t("It started with a walk-in full of waste.", "h2"),
+                    t(
+                        "In 2023 Dana ran ops for forty kitchens and watched the same scene forty times: great cooks, thin margins, and a Sunday order built from memory. The first version of Mise was a spreadsheet she emailed to six chefs. Four of them still run it, inside the product it became.",
+                        "body",
+                    ),
+                    t(
+                        "We are cooks first and software people second, which is why the product opens to a prep list and not a dashboard.",
+                        "body",
+                    ),
+                ),
+                img(pic(292), 0.82),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("38", "kitchens live"),
+                stat("2023", "founded in Portland"),
+                stat("14", "of us, half from kitchens"),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "values",
+            group(
+                t("WHAT WE BELIEVE", "label"),
+                t("The line cook is the user.", "h2"),
+                bullets(
+                    "If it takes two hands, it ships when it takes one",
+                    "Numbers belong on the pass, not in the office",
+                    "A feature that saves food beats a feature that makes charts",
+                ),
+            ),
+        ),
+        section(
+            "team",
+            group(
+                t("THE TEAM", "label"),
+                t("Three founders, one kitchen between them.", "h2"),
+                row(
+                    group(
+                        img(pic(978), 1),
+                        t("Dana Reyes", "h3"),
+                        t("CEO · ex-Toast, ran ops for 40 kitchens", "caption"),
+                    ),
+                    group(
+                        img(pic(5), 1),
+                        t("Marcus Vallée", "h3"),
+                        t("CTO · ex-Flexport forecasting", "caption"),
+                    ),
+                    group(
+                        img(pic(429), 1),
+                        t("Priya Anand", "h3"),
+                        t("Head of Culinary · 12 years on the line", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "press",
+            group(
+                t("PRESS", "label"),
+                t("Covered by people who eat.", "h3"),
+                linked(
+                    "body",
+                    ["Eater: The software finally coming for food waste", "https://eater.com"],
+                    " · ",
+                    ["TechCrunch: Mise raises $4M", "https://techcrunch.com"],
+                ),
+                linked("caption", "Media kit & inquiries: ", [
+                    "press@mise.kitchen",
+                    "mailto:press@mise.kitchen",
+                ]),
+            ),
+        ),
+        section(
+            "kitchens",
+            group(
+                t("THE KITCHENS", "label"),
+                t("Thirty-eight rooms that trust us at 6am.", "h2"),
+                row(
+                    group(
+                        img(pic(42), 1.4),
+                        t(
+                            "Bar Ostra, Portland · first customer, still calls with ideas",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(437), 1.4),
+                        t("The Dorset Group · six rooms, one prep sheet", "caption"),
+                    ),
+                    group(
+                        img(pic(163), 1.4),
+                        t("Cafe Zola · where the order tap got its sound", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "voice",
+            group(
+                testimonial(
+                    "They speak kitchen. Every release reads like it was written by someone who has scrubbed a walk-in at midnight, because it was.",
+                    "Tomas Ibarra",
+                    "Chef-owner, Bar Ostra",
+                    "https://i.pravatar.cc/240?img=59",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "press2",
+            group(
+                t("IN THE INDUSTRY'S WORDS", "label"),
+                t(
+                    "Named to the Restaurant Tech 25 two years running, and the only back-of-house company on the list built by people who cooked for a living.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "join",
+            group(
+                t("Work the line with us.", "h2"),
+                t("We hire cooks who learned to code and coders who can hold a knife.", "subtitle"),
+                button("See open roles", "https://mise.kitchen/careers", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(42, 1700, 1100), 0.6) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(fitW(t("Mise", "h3")), fitW(t("The kitchen operating system.", "caption"))),
+                ),
+                fitW(
+                    col(
+                        fitW(t("COMPANY", "label")),
+                        fitW(
+                            linked("caption", ["Careers", "https://mise.kitchen/careers"], " · ", [
+                                "Press",
+                                "mailto:press@mise.kitchen",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("SAY HELLO", "label")),
+                        fitW(
+                            linked("caption", ["hello@mise.kitchen", "mailto:hello@mise.kitchen"]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(115, 1700, 1100), 0.35),
+);
+
+export const demoPage: ArtifactContent = web(
+    "telegraph",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "SIFT",
+                    navLink("What you'll see", "#see"),
+                    navLink("FAQ", "#faq"),
+                    navCta("Book a demo", "#book"),
+                ),
+                t("SEE IT ON YOUR OWN FEEDBACK", "label"),
+                t("Thirty minutes. Your tickets, not our slides.", "h1"),
+                t(
+                    "Connect a source live on the call and watch Sift sort a week of your customer feedback into themes before the meeting ends.",
+                    "subtitle",
+                ),
+                button("Pick a time", "#book", { size: "lg" }),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(60, 1700, 1100), 0.6),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "see",
+            split(
+                60,
+                group(
+                    t("WHAT YOU'LL SEE", "label"),
+                    t("The demo is the setup.", "h2"),
+                    bullets(
+                        "Your Zendesk or Intercom connected live, read-only, in front of you",
+                        "A week of real requests merged into ranked themes with revenue attached",
+                        "One theme pushed to Jira, and the customer-notify loop that follows it",
+                    ),
+                ),
+                img(pic(529), 0.82),
+            ),
+        ),
+        section(
+            "agenda",
+            group(
+                t("THE HALF HOUR", "label"),
+                table(
+                    "Minutes,What happens\n0 to 5,Your stack · where feedback lives today\n5 to 20,Live connect and the first themes\n20 to 25,Pricing · honestly and briefly\n25 to 30,Your questions · hard ones welcome",
+                ),
+            ),
+        ),
+        section(
+            "proof",
+            group(
+                testimonial(
+                    "We stopped arguing about the roadmap in meetings. Now we just open Sift and the answer's already there.",
+                    "Priya Nair",
+                    "VP Product, Northwind Software",
+                    "https://i.pravatar.cc/240?img=32",
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "faq",
+            group(
+                t("BEFORE YOU ASK", "label"),
+                t("The questions every demo starts with.", "h2"),
+                faq(
+                    "collapsible",
+                    [
+                        [
+                            "Do I need to prepare anything?",
+                            "An admin login for one feedback source. That's it; we do the rest live.",
+                        ],
+                        [
+                            "Is the connection safe?",
+                            "Read-only OAuth, revocable in one click, SOC 2 Type II. Nothing is stored after the call unless you keep the workspace.",
+                        ],
+                        [
+                            "Who should join?",
+                            "Whoever owns the roadmap and whoever answers the tickets. The demo lands hardest with both in the room.",
+                        ],
+                    ],
+                    true,
+                ),
+            ),
+        ),
+        section(
+            "logos",
+            group(
+                t("TEAMS THAT TOOK THE DEMO", "label"),
+                row(
+                    fitW(t("NORTHWIND", "h3")),
+                    fitW(t("CEDARWORKS", "h3")),
+                    fitW(t("HALOWAY", "h3")),
+                    fitW(t("FIELD DAY", "h3")),
+                    fitW(t("MARA HEALTH", "h3")),
+                ),
+                t("Average time from demo to first insight shipped: nine days.", "caption"),
+            ),
+        ),
+        section(
+            "leave",
+            split(
+                40,
+                img(pic(8), 1.05),
+                group(
+                    t("WHAT YOU LEAVE WITH", "label"),
+                    t("The demo workspace is yours to keep.", "h2"),
+                    checks(
+                        "Your real themes, ranked, exportable that afternoon",
+                        "A revenue-weighted top ten to argue about in your next planning",
+                        "Honest pricing on one slide, including the plan we'd pick for you",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("30 min", "no follow-up required"),
+                stat("0", "slides about our founding story"),
+                stat("87%", "of demos end with a connected source"),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "proof2",
+            group(
+                testimonial(
+                    "I booked the demo to shut up a colleague. We were paying customers by Friday and the colleague got a raise.",
+                    "Dana Okoro",
+                    "Head of Product, Field Day",
+                    "https://i.pravatar.cc/240?img=68",
+                ),
+            ),
+        ),
+        section(
+            "book",
+            group(
+                t("Bring a messy inbox.", "h2"),
+                t("The worse your backlog, the better the demo.", "subtitle"),
+                button("Book the 30 minutes", "https://sift.app/demo", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(173, 1700, 1100), 0.55) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(col(fitW(t("Sift", "h3")), fitW(t("Feedback, sorted.", "caption")))),
+                fitW(
+                    col(
+                        fitW(t("PRODUCT", "label")),
+                        fitW(
+                            linked("caption", ["sift.app", "https://sift.app"], " · ", [
+                                "Pricing",
+                                "https://sift.app/pricing",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("QUESTIONS", "label")),
+                        fitW(linked("caption", ["demos@sift.app", "mailto:demos@sift.app"])),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(114, 1700, 1100), 0.35),
+);
+
+export const wallOfLove: ArtifactContent = web(
+    "obsidian",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "SWITCHBOARD",
+                    navLink("Stories", "#wall"),
+                    navLink("Numbers", "#numbers"),
+                    navCta("Start free", "https://switchboard.ai/start"),
+                ),
+                t("WALL OF LOVE", "label"),
+                t("2,400 front desks, in their owners' words.", "h1"),
+                t(
+                    "Unedited, unpaid, and occasionally misspelled. What the trades say about the AI that answers their phone.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(579, 1700, 1100), 0.6),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "wall",
+            group(
+                row(
+                    testimonial(
+                        "Booked $11K of work the first weekend. I was at my kid's game for all of it.",
+                        "Ray Delgado",
+                        "Delgado Plumbing, San Antonio",
+                        "https://i.pravatar.cc/240?img=53",
+                    ),
+                    testimonial(
+                        "My mother-in-law called to test it. She scheduled a tune-up. She doesn't have a furnace.",
+                        "Kayla Brant",
+                        "Brant Heating & Air, Tulsa",
+                        "https://i.pravatar.cc/240?img=44",
+                    ),
+                ),
+                row(
+                    testimonial(
+                        "Two years of voicemail guilt, gone in an afternoon.",
+                        "Sam Okafor",
+                        "Okafor Electric, Columbus",
+                        "https://i.pravatar.cc/240?img=15",
+                    ),
+                    testimonial(
+                        "It answers in Spanish better than my dispatcher did. He agrees.",
+                        "Marisol Vega",
+                        "Vega Roofing, Phoenix",
+                        "https://i.pravatar.cc/240?img=47",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("1.9M", "calls answered last quarter"),
+                stat("2 sec", "median time to pick up"),
+                stat("$140M", "booked for customers"),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "wall2",
+            group(
+                row(
+                    testimonial(
+                        "Hired a second crew because the calendar filled. That sentence would've been science fiction last year.",
+                        "Dee Winters",
+                        "Winters & Sons HVAC, Boise",
+                        "https://i.pravatar.cc/240?img=60",
+                    ),
+                    testimonial(
+                        "The after-hours calls it catches paid for the year by February.",
+                        "Aldo Reyes",
+                        "Reyes Septic, Fresno",
+                        "https://i.pravatar.cc/240?img=12",
+                    ),
+                ),
+                row(
+                    testimonial(
+                        "I listened to the recordings expecting to cringe. It's more patient than I am before coffee.",
+                        "June Park",
+                        "Park Electric, Portland",
+                        "https://i.pravatar.cc/240?img=20",
+                    ),
+                    testimonial(
+                        "Customers started complimenting 'the new hire.' We don't have a new hire.",
+                        "Curtis Boone",
+                        "Boone Garage Doors, Nashville",
+                        "https://i.pravatar.cc/240?img=41",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "interlude",
+            group(
+                t("Every one of these calls used to ring out.", "h2"),
+                t("The wall updates weekly; the misspellings stay in.", "caption"),
+            ),
+            { bleed: true, background: bgImage(pic(504, 1700, 1100), 0.6) },
+        ),
+        section(
+            "trades",
+            group(
+                t("BY TRADE", "label"),
+                row(
+                    group(
+                        t("Plumbing & septic", "h3"),
+                        t("640 businesses · the after-hours champions", "caption"),
+                    ),
+                    group(
+                        img(pic(160), 1.4),
+                        t("HVAC & electrical", "h3"),
+                        t("890 businesses · our largest trade", "caption"),
+                    ),
+                    group(
+                        t("Roofing & exterior", "h3"),
+                        t("410 businesses · the storm-season stress test", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "press",
+            group(
+                t("AND THE PRESS", "label"),
+                quote(
+                    "The rare AI product whose customers do the marketing unprompted, in their own punctuation.",
+                    "Trade Tech Weekly · March 2026",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "cta",
+            group(
+                t("Your phone is ringing right now.", "h2"),
+                t("Forward it for a week and read your own wall.", "subtitle"),
+                button("Start free", "https://switchboard.ai/start", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(320, 1700, 1100), 0.55) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Switchboard", "h3")),
+                        fitW(t("The AI front desk for the trades.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("MORE", "label")),
+                        fitW(
+                            linked("caption", ["switchboard.ai", "https://switchboard.ai"], " · ", [
+                                "Fact sheet",
+                                "https://switchboard.ai/press",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("ADD YOURS", "label")),
+                        fitW(
+                            linked("caption", [
+                                "wall@switchboard.ai",
+                                "mailto:wall@switchboard.ai",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(683, 1700, 1100), 0.35),
+);
+
+export const solutionPage: ArtifactContent = web(
+    "carbon",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "FLEETWISE",
+                    navLink("Why", "#why"),
+                    navLink("How", "#how"),
+                    navLink("Proof", "#proof"),
+                    navCta("Get the assessment", "#cta"),
+                ),
+                t("FLEETWISE FOR REGIONAL CARRIERS", "label"),
+                t("Your margin lives or dies in the shop.", "h1"),
+                t(
+                    "For 50-to-500-truck carriers, one unplanned breakdown a week erases a lane's profit. This is what predictive maintenance looks like at your size.",
+                    "subtitle",
+                ),
+                button("See your fleet's risk", "#cta", { size: "lg" }),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(352, 1700, 1100), 0.58),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "why",
+            group(
+                t("WHY REGIONAL IS DIFFERENT", "label"),
+                t("Too big to eyeball, too lean for a data team.", "h2"),
+                bullets(
+                    "Every truck matters: no float pool to absorb a dead unit",
+                    "Two or three depots mean parts are always at the other one",
+                    "The maintenance chief is also the safety officer and sometimes the driver",
+                ),
+            ),
+        ),
+        section(
+            "how",
+            split(
+                60,
+                group(
+                    t("HOW IT LANDS", "label"),
+                    t("Two weeks to first save, no headcount.", "h2"),
+                    bullets(
+                        "Week one: telematics connected, every unit scored",
+                        "Week two: first flagged failures, work orders drafted to the right depot",
+                        "Week six: planned work overtakes reactive for the first time",
+                    ),
+                ),
+                img(pic(36), 0.82),
+            ),
+        ),
+        section(
+            "roi",
+            row(
+                stat("$760", "saved per truck, per avoided day down"),
+                stat("23%", "of road calls were preventable"),
+                stat("2 wks", "to live, no new hardware"),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "proof",
+            group(
+                testimonial(
+                    "We used to staff for breakdowns. Now we staff for the schedule Fleetwise hands us the night before.",
+                    "Carla Mendez",
+                    "VP Maintenance, Meridian Freight",
+                    "https://i.pravatar.cc/240?img=26",
+                ),
+            ),
+        ),
+        section(
+            "fits",
+            split(
+                40,
+                img(pic(370), 1.05),
+                group(
+                    t("FITS THE STACK YOU RUN", "label"),
+                    t("Reads your telematics, writes to your shop.", "h2"),
+                    checks(
+                        "Samsara, Geotab, Motive, Verizon Connect: forty-minute connect",
+                        "Work orders land in Fullbay or Fleetio, already routed",
+                        "Parts availability from your supplier's live catalog",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "math",
+            group(
+                t("THE MATH, FOR YOUR CFO", "label"),
+                table(
+                    "Line,Typical 200-truck fleet,With Fleetwise\nRoadside events / yr,96,46\nAvg cost per event,$2.9K · tow + lane,$2.9K · fewer of them\nUnplanned downtime days,410,190\nAnnual impact,,$610K recovered",
+                ),
+            ),
+        ),
+        section(
+            "proof2",
+            group(
+                testimonial(
+                    "Our board asked why maintenance spend went down while uptime went up. First pleasant board question of my career.",
+                    "Ray Osei",
+                    "COO, Cedarline Logistics",
+                    "https://i.pravatar.cc/240?img=15",
+                ),
+            ),
+        ),
+        section(
+            "interlude",
+            group(t("Every truck in the yard tonight is margin tomorrow.", "h2")),
+            { bleed: true, background: bgImage(pic(605, 1700, 1100), 0.6) },
+        ),
+        section(
+            "cta",
+            group(
+                t("Thirty minutes, your top 25 vehicles.", "h2"),
+                t(
+                    "Read-only access in, a ranked risk list out. No install, no commitment.",
+                    "subtitle",
+                ),
+                button("Book the assessment", "https://fleetwise.io/assessment", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(88, 1700, 1100), 0.58) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Fleetwise", "h3")),
+                        fitW(t("Predictive maintenance for fleets.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("RESOURCES", "label")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["The product sheet", "https://fleetwise.io/sheet"],
+                                " · ",
+                                ["ROI worksheet", "https://fleetwise.io/roi"],
+                            ),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("TALK TO US", "label")),
+                        fitW(
+                            linked("caption", ["sales@fleetwise.io", "mailto:sales@fleetwise.io"]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(893, 1700, 1100), 0.35),
+);
+
+export const comparePage: ArtifactContent = web(
+    "press",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "NORTHWIND",
+                    navLink("Compare", "#compare"),
+                    navLink("Switching", "#switch"),
+                    navCta("Start free", "https://app.northwind.dev/signup"),
+                ),
+                t("NORTHWIND VS. THE BI YOU HAVE", "label"),
+                t("An honest comparison, losses included.", "h1"),
+                t(
+                    "Legacy BI is powerful and you already paid for it. Here is exactly where Northwind wins, where it doesn't, and how to tell which one you need.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(0, 1700, 1100), 0.6),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "compare",
+            group(
+                t("SIDE BY SIDE", "label"),
+                table(
+                    "What matters,Legacy BI,Northwind\nFirst dashboard,6 to 10 weeks,One afternoon\nWho builds,A BI developer,Whoever asks the question\nData freshness,Nightly batch,Streaming · always current\nViewers,Licensed per seat,Unlimited · free\nAnnual cost at 50 seats,$90K+,$2.4K",
+                ),
+            ),
+        ),
+        section(
+            "honest",
+            group(
+                t("WHERE WE LOSE", "label"),
+                t("Keep your warehouse tooling if this is you.", "h2"),
+                bullets(
+                    "You need governed semantic layers across 40 data teams",
+                    "Your compliance regime requires on-premise deployment",
+                    "You genuinely enjoy LookML, and we respect that",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "switch",
+            group(
+                t("SWITCHING", "label"),
+                t("Two months of parallel running, on us.", "h2"),
+                t(
+                    "Every annual plan includes a migration engineer for your first month and both tools running side by side for two. You cut over when your team stops opening the old one, which is usually week three.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "proof",
+            group(
+                testimonial(
+                    "We replaced a $90k BI contract and two spreadsheets with Northwind in an afternoon. Our whole company reads the same numbers now.",
+                    "Priya Raman",
+                    "VP Growth, Cedarworks",
+                    "https://i.pravatar.cc/240?img=32",
+                ),
+            ),
+        ),
+        section(
+            "migration",
+            group(
+                t("THE SWITCH, WEEK BY WEEK", "label"),
+                table(
+                    "Week,What happens,Who does it\n1,Sources connected · dashboards rebuilt,Your migration engineer\n2,Teams onboarded · old reports mapped,Together\n3,Parallel running · gaps closed,You + us on call\n4 to 8,Old tool quietly gathers dust,Nobody · that's the point",
+                ),
+            ),
+        ),
+        section(
+            "checklist",
+            split(
+                40,
+                img(pic(532), 1.05),
+                group(
+                    t("SHOULD YOU SWITCH?", "label"),
+                    t("The honest checklist.", "h2"),
+                    checks(
+                        "Your analysts spend more time building reports than reading them",
+                        "The word 'refresh' appears in your team's Slack weekly",
+                        "You pay per viewer and it shows in who gets access",
+                        "Nobody has opened the semantic layer docs since onboarding",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "proof2",
+            group(
+                testimonial(
+                    "The parallel month made it a no-brainer. By week two the old tool's tab was just muscle memory.",
+                    "Marcus Chen",
+                    "Data Lead, Norrøn",
+                    "https://i.pravatar.cc/240?img=53",
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("312", "teams switched this year"),
+                stat("19 days", "median time to full cutover"),
+                stat("$61K", "median first-year savings"),
+            ),
+        ),
+        section(
+            "cta",
+            group(
+                t("Run them side by side. Keep the winner.", "h2"),
+                button("Start free, no card", "https://app.northwind.dev/signup", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(122, 1700, 1100), 0.6) },
+        ),
+        section(
+            "gallery",
+            group(
+                t("LIFE AFTER THE SWITCH", "label"),
+                row(
+                    group(
+                        img(pic(7), 1.4),
+                        t("Monday metrics over coffee, not over tickets", "caption"),
+                    ),
+                    group(img(pic(4), 1.4), t("The report that writes itself now", "caption")),
+                    group(
+                        img(pic(192), 1.4),
+                        t("The BI backlog meeting, cancelled forever", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Northwind", "h3")),
+                        fitW(t("Analytics for teams without a data team.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("KEEP READING", "label")),
+                        fitW(
+                            linked("caption", ["Pricing", "https://northwind.dev/pricing"], " · ", [
+                                "The changelog",
+                                "https://northwind.dev/changelog",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("TALK TO US", "label")),
+                        fitW(
+                            linked("caption", [
+                                "hello@northwind.dev",
+                                "mailto:hello@northwind.dev",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(930, 1700, 1100), 0.3),
+);
+
+// ---- launch & market: the campaign, the brand, the announcement, and the paper behind them
+
+export const campaignPitch: ArtifactContent = deck(
+    "moss",
+    [
+        section(
+            "cover",
+            group(
+                t("AER × STUDIO NORTH · SPRING CAMPAIGN", "label"),
+                t("Open a window.", "h1"),
+                t(
+                    "A campaign proposal for Aer's first spring: the season people finally let the outside in, and the moment to tell them what their air has been all winter.",
+                    "subtitle",
+                ),
+                t("Prepared for the Aer brand team · February 2026", "caption"),
+            ),
+            { background: bgImage(pic(25, 1700, 1100), 0.5) },
+        ),
+        section(
+            "insight",
+            split(
+                60,
+                group(
+                    t("01 · THE INSIGHT", "label"),
+                    t("Spring cleaning never includes the air.", "h2"),
+                    t(
+                        "People scrub every surface in April and breathe the same winter air for another month. The category talks about particles; nobody talks about the ritual. Aer can own the moment the windows open.",
+                        "body",
+                    ),
+                ),
+                img(pic(178), 0.82),
+            ),
+        ),
+        section(
+            "idea",
+            group(
+                t("02 · THE IDEA", "label"),
+                t("First breath of spring.", "h1"),
+                t(
+                    "One line, three executions, every channel: the year's first deep breath, brought indoors.",
+                    "subtitle",
+                ),
+            ),
+            { background: bgImage(pic(386, 1700, 1100), 0.5) },
+        ),
+        section(
+            "executions",
+            group(
+                t("03 · THREE EXECUTIONS", "label"),
+                row(
+                    group(
+                        img(pic(305), 1.4),
+                        t("Film · 30s", "h3"),
+                        t(
+                            "A window opens in twelve homes, one continuous shot, one breath.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(691), 1.4),
+                        t("Out-of-home", "h3"),
+                        t(
+                            "Transit and gym takeovers where the air is worst and the point lands hardest.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(41), 1.4),
+                        t("Social", "h3"),
+                        t(
+                            "Creators run the two-week air experiment, data on screen, no script.",
+                            "caption",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "channels",
+            group(
+                t("04 · WHERE IT RUNS", "label"),
+                t("Six weeks, heaviest where spring arrives first.", "h2"),
+                table(
+                    "Channel,Weight,Flight\nStreaming & online film,45%,Weeks 1 to 6\nOut-of-home · 4 metros,30%,Weeks 2 to 5\nCreator & social,20%,Weeks 1 to 4\nEarned & PR,5%,Launch week",
+                ),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("$1.2M", "recommended media budget"),
+                stat("38M", "planned impressions"),
+                stat("4", "launch metros, then national"),
+            ),
+        ),
+        section(
+            "film",
+            split(
+                60,
+                group(
+                    t("THE FILM, IN ONE PARAGRAPH", "label"),
+                    t("Twelve homes, one continuous shot.", "h2"),
+                    t(
+                        "A camera drifts through twelve real homes at dawn as windows open one by one: a kid's room, a bakery flat, a night nurse coming home. No voiceover until the last frame: the year's first deep breath, brought indoors.",
+                        "body",
+                    ),
+                    t("Director shortlist attached · two are spring-available", "caption"),
+                ),
+                img(pic(311), 0.82),
+            ),
+        ),
+        section(
+            "measure",
+            group(
+                t("HOW WE'LL KNOW IT WORKED", "label"),
+                table(
+                    "Metric,Baseline,Target\nAided brand awareness,11%,19%\nBranded search volume,Index 100,Index 160\nPre-order attach from campaign traffic,2.1%,3.4%",
+                ),
+            ),
+        ),
+        section(
+            "team",
+            group(
+                t("WHO MAKES IT", "label"),
+                row(
+                    group(
+                        t("Studio North", "h3"),
+                        t("Idea, film, and craft · this deck", "caption"),
+                    ),
+                    group(
+                        t("Meridian Media", "h3"),
+                        t("Planning and buying · the flight plan", "caption"),
+                    ),
+                    group(
+                        t("Aer brand team", "h3"),
+                        t("Voice, approvals, and the product truth", "caption"),
+                    ),
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "ask",
+            split(
+                40,
+                img(pic(25), 0.86),
+                group(
+                    t("05 · THE ASK", "label"),
+                    t("Approve the idea; spring won't wait.", "h2"),
+                    t(
+                        "Sign off by March 1 and the film shoots in three weeks, live by the first warm weekend. We bring the director's treatment and the media plan to Thursday's review.",
+                        "body",
+                    ),
+                    button("Approve & book the shoot"),
+                ),
+            ),
+            { background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(114, 1700, 1100), 0.3),
+);
+
+export const brandGuidelines: ArtifactContent = deck(
+    "gazette",
+    [
+        section(
+            "cover",
+            group(
+                t("ATLAS COFFEE ROASTERS · BRAND GUIDELINES v2.0", "label"),
+                t("How Atlas looks, sounds, and pours.", "h1"),
+                t(
+                    "The rules that keep a hundred hands making one brand: identity, voice, color, type, and the photography that smells like the roastery.",
+                    "subtitle",
+                ),
+                t("Maintained by Foldwork · For everyone who touches the brand", "caption"),
+            ),
+            { background: bgImage(pic(431, 1700, 1100), 0.55) },
+        ),
+        section(
+            "logo",
+            split(
+                60,
+                group(
+                    t("01 · THE MARK", "label"),
+                    t("The wordmark travels; the roundel stays home.", "h2"),
+                    bullets(
+                        "Wordmark on bags, storefronts, and anything wider than it is tall",
+                        "Roundel for stamps, caps, and spaces under 40px",
+                        "Clear space equals the height of the A, always",
+                        "Never stretched, tilted, outlined, or gradiented, even in a hurry",
+                    ),
+                ),
+                img(pic(526), 0.82),
+            ),
+        ),
+        section(
+            "color",
+            group(
+                t("02 · COLOR", "label"),
+                t("Roast, crema, and one loud orange.", "h2"),
+                t(
+                    "Ninety percent of everything is Roast (deep brown) on Crema (warm off-white). The orange is the espresso shot: one accent per surface, never a background, never in body text.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("accent") },
+        ),
+        section(
+            "type",
+            split(
+                40,
+                img(pic(403), 1.05),
+                group(
+                    t("03 · TYPE", "label"),
+                    t("A serif that argues, a sans that pours.", "h2"),
+                    t(
+                        "Headlines set in Tiempos Semibold, tight and confident. Everything functional (menus, bags, buttons) runs National in two weights. If a third font appears, it is a bug.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "voice",
+            group(
+                t("04 · VOICE", "label"),
+                t("Plain words, strong opinions, no foam.", "h2"),
+                table(
+                    "We say,We never say\nGood coffee · roasted Tuesday,Artisanal · hand-crafted\nTastes like cherry and cola,Notes of terroir\nFrom farms we can name,Ethically curated\nTry it black first,Elevate your ritual",
+                ),
+            ),
+        ),
+        section(
+            "photo",
+            group(
+                t("05 · PHOTOGRAPHY", "label"),
+                t("Shot in the room, not the studio.", "h2"),
+                row(
+                    group(img(pic(425), 1.4), t("Beans, close and honest", "caption")),
+                    group(img(pic(1060), 1.4), t("Hands and machines at work", "caption")),
+                    group(img(pic(766), 1.4), t("Morning light, real counters", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "layout",
+            split(
+                60,
+                group(
+                    t("07 · LAYOUT", "label"),
+                    t("Whitespace is a brand asset.", "h2"),
+                    bullets(
+                        "One focal point per surface; the eye should never negotiate",
+                        "Margins scale with the format: generous on posters, honest on bags",
+                        "When a layout feels empty, it is probably finished",
+                    ),
+                ),
+                img(pic(464), 0.82),
+            ),
+        ),
+        section(
+            "motion",
+            group(
+                t("08 · MOTION & SOUND", "label"),
+                t("Slow pours, real rooms.", "h2"),
+                t(
+                    "Video moves at pour speed: no whip cuts, no drone shots, no stock. The sound bed is the roastery itself, recorded on Tuesdays. If a clip could sell sneakers, reshoot it.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "dontlist",
+            group(
+                t("09 · THE DON'T LIST", "label"),
+                bullets(
+                    "No coffee puns in headlines; the beans are the wit",
+                    "No stock photography of laughing people holding mugs",
+                    "No seasonal logo costumes; the roundel does not wear a Santa hat",
+                    "No gradients arrived from other categories",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "apply",
+            split(
+                40,
+                img(pic(63), 0.86),
+                group(
+                    t("06 · IN USE", "label"),
+                    t("When in doubt, less label, more coffee.", "h2"),
+                    t(
+                        "Bags carry the wordmark, the origin, and the roast date; nothing else. Menus read top to bottom in under ten seconds. Ask the brand desk before inventing anything new, and they will usually say no, kindly.",
+                        "body",
+                    ),
+                    linked("caption", "Assets & questions: ", [
+                        "brand@atlascoffee.co",
+                        "mailto:brand@atlascoffee.co",
+                    ]),
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+    ],
+    bgImage(pic(766, 1700, 1100), 0.3),
+);
+
+export const announcementKeynote: ArtifactContent = deck(
+    "noir",
+    [
+        section(
+            "tease",
+            group(
+                t("VANTA · SPRING EVENT", "label"),
+                t("What if your computer went quiet?", "h1"),
+                t("A short announcement. One product, one price, one date.", "caption"),
+            ),
+            { background: bgImage(pic(441, 1700, 1100), 0.68) },
+        ),
+        section(
+            "reveal",
+            group(
+                t("INTRODUCING", "label"),
+                t("Vanta 1.0", "h1"),
+                t(
+                    "The workspace that disappears. One thing at a time, in perfect quiet, on hardware you already own.",
+                    "subtitle",
+                ),
+            ),
+            { background: bgImage(pic(68, 1700, 1100), 0.5) },
+        ),
+        section(
+            "one",
+            split(
+                60,
+                group(
+                    t("ONE THING AT A TIME", "label"),
+                    t("Your day, single file.", "h2"),
+                    t(
+                        "Pull a task into focus and the rest of the world dims. When you finish, the next thing rises on its own. No tabs, no badges, no feed.",
+                        "body",
+                    ),
+                    t("Works with the apps you keep; ignores the ones that keep you.", "caption"),
+                ),
+                img(pic(679), 0.82),
+            ),
+        ),
+        section(
+            "two",
+            split(
+                40,
+                img(pic(832), 1.05),
+                group(
+                    t("PRIVATE BY DESIGN", "label"),
+                    t("Everything runs on your device.", "h2"),
+                    t(
+                        "Your notes, your patterns, your rhythm: none of it leaves the machine. The AI that drafts and summarizes works offline, which is the only place it should.",
+                        "body",
+                    ),
+                    t("Runs on any laptop from this decade.", "caption"),
+                ),
+            ),
+        ),
+        section(
+            "price",
+            group(
+                t("ONE PRICE", "label"),
+                t("$96 a year. No tiers, no seats, no meetings about tiers.", "h2"),
+                t("Free for students, forever.", "caption"),
+            ),
+            { background: bgTone("contrast") },
+        ),
+        section(
+            "three",
+            split(
+                60,
+                group(
+                    t("THE QUIET ASSISTANT", "label"),
+                    t("It drafts; you decide.", "h2"),
+                    t(
+                        "Summaries, replies, and next steps appear as suggestions in the margin, never as interruptions. Accept with one key, ignore forever with none.",
+                        "body",
+                    ),
+                    t("Every suggestion carries its source; nothing is invented.", "caption"),
+                ),
+                img(pic(989), 0.82),
+            ),
+        ),
+        section(
+            "witness",
+            group(
+                quote(
+                    "The first computer in a decade that made my day feel longer instead of louder.",
+                    "Beta tester no. 214 · six months in",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("31,400", "on the waitlist today"),
+                stat("18 mo", "of beta, in production use"),
+                stat("0", "notifications shipped, ever"),
+            ),
+        ),
+        section(
+            "date",
+            group(
+                t("THE DATE", "label"),
+                t("December 4, everywhere.", "h1"),
+                t("Invites go to the waitlist first. The quiet is almost ready.", "subtitle"),
+                button("Join the waitlist", "https://vanta.app/waitlist", { size: "lg" }),
+            ),
+            { background: bgImage(pic(416, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(642, 1700, 1100), 0.3),
+);
+
+export const launchBriefing: ArtifactContent = deck(
+    "cement",
+    [
+        section(
+            "cover",
+            group(
+                t("TIDEPOOL · INTERNAL · LAUNCH BRIEFING", "label"),
+                t("We go public on September 15.", "h1"),
+                t(
+                    "Everything every team needs for launch week: what ships, who owns what, what we say, and what we do when something breaks.",
+                    "subtitle",
+                ),
+                t("All-hands briefing · September 2 · 25 minutes", "caption"),
+            ),
+            { background: bgImage(pic(348, 1700, 1100), 0.6) },
+        ),
+        section(
+            "ships",
+            split(
+                60,
+                group(
+                    t("01 · WHAT SHIPS", "label"),
+                    t("Three things, one story.", "h2"),
+                    bullets(
+                        "Public launch: self-serve signup opens to everyone",
+                        "Shopify featured listing goes live the same morning",
+                        "Pricing v2: Free, Growth $149, Pro $399",
+                    ),
+                ),
+                img(pic(396), 0.82),
+            ),
+        ),
+        section(
+            "owners",
+            group(
+                t("02 · WHO OWNS WHAT", "label"),
+                table(
+                    "Workstream,Owner,Done by\nProduct & onboarding,Priya Anand,Sept 12\nLaunch comms & press,Tomas Lindqvist,Sept 14\nSupport surge · 3 shifts,Renee Okoro,Sept 15\nCommunity & founders' Slack,Dario Vella,Launch morning",
+                ),
+            ),
+        ),
+        section(
+            "message",
+            group(
+                t("03 · WHAT WE SAY", "label"),
+                t("The inventory brain for growing brands.", "h2"),
+                t(
+                    "One sentence, everywhere: Tidepool forecasts demand and tells you exactly what to reorder, without an ERP project. If a journalist asks about the enterprise, we are cheerfully not for them.",
+                    "body",
+                ),
+            ),
+            { background: bgImage(pic(951, 1700, 1100), 0.65) },
+        ),
+        section(
+            "day",
+            group(
+                t("04 · LAUNCH DAY, HOUR BY HOUR", "label"),
+                table(
+                    "Time,What happens\n6:00,Flag flips · smoke tests run\n7:00,Press embargo lifts · founder post goes live\n9:00,Shopify feature confirmed · community AMA opens\n12:00,First metrics check · scale decision\n17:00,Day-one retro · thanks · go home",
+                ),
+            ),
+        ),
+        section(
+            "breaks",
+            group(
+                t("05 · WHEN SOMETHING BREAKS", "label"),
+                t("War room first, heroics never.", "h2"),
+                bullets(
+                    "#launch-room is the only channel that matters that week",
+                    "Rollback beats hotfix before noon; after noon, page Priya",
+                    "Customers hear from us before the status page does",
+                ),
+            ),
+        ),
+        section(
+            "support",
+            split(
+                40,
+                img(pic(192), 1.05),
+                group(
+                    t("06 · SUPPORT'S WEEK", "label"),
+                    t("Three shifts, no heroes.", "h2"),
+                    bullets(
+                        "Surge staffing Mon to Wed: response target stays under 2 hours",
+                        "The top-20 answers doc is law; escalate the 21st question",
+                        "Every bug report gets a ticket number in the first reply",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "metrics",
+            group(
+                t("07 · WHAT WE WATCH", "label"),
+                table(
+                    "Metric,Green,Yellow,Red\nSignup error rate,Under 0.5%,0.5 to 2%,Over 2% · rollback\nTime to first forecast,Under 10 min,10 to 20,Over 20 · war room\nSupport response,Under 2 hrs,2 to 4,Over 4 · all hands",
+                ),
+            ),
+        ),
+        section(
+            "after",
+            group(
+                t("08 · THE WEEK AFTER", "label"),
+                t("The launch is the start line.", "h2"),
+                t(
+                    "Wednesday: first-cohort read. Friday: the retro, blameless and written down. The following Monday: back to the roadmap, which has been patiently waiting.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("Two years of work. One good morning.", "h2"),
+                t("Questions now, or in #launch-room. Thank you for building this.", "subtitle"),
+            ),
+            { background: bgImage(pic(563, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(185, 1700, 1100), 0.3),
+);
+
+export const releaseNotes: ArtifactContent = doc(
+    "press",
+    [
+        section(
+            "head",
+            group(
+                t("NORTHWIND · RELEASE NOTES", "label"),
+                t("August 2026: the alerts release", "h1"),
+                t(
+                    "One big thing, eleven small ones, and two goodbyes. Everything that shipped this month, and what it changes for your team.",
+                    "subtitle",
+                ),
+                t("Published September 1 · Every account already has all of it", "caption"),
+            ),
+            { background: bgImage(pic(122, 1700, 1100), 0.6) },
+        ),
+        section(
+            "feature",
+            split(
+                60,
+                group(
+                    t("THE BIG ONE", "label"),
+                    t("Alerts that watch the number for you.", "h2"),
+                    t(
+                        "Set a threshold on any metric and Northwind pings Slack or email the moment it crosses, with the chart attached and the likely cause ranked. Signups dip on a Tuesday night, you know Tuesday night.",
+                        "body",
+                    ),
+                    t(
+                        "Available on every plan · Alerts live under any chart's bell icon",
+                        "caption",
+                    ),
+                ),
+                img(pic(532), 0.82),
+            ),
+        ),
+        section(
+            "improvements",
+            group(
+                t("ALSO SHIPPED", "label"),
+                bullets(
+                    "Dashboards load 2.1× faster on accounts with 50+ charts",
+                    "Funnels support custom windows: hour, week, or your fiscal month",
+                    "CSV export keeps your column order, at last",
+                    "Dark mode no longer flashes white while loading, which we regret took this long",
+                ),
+            ),
+        ),
+        section(
+            "fixes",
+            group(
+                t("FIXED", "label"),
+                table(
+                    "What broke,Where,Status\nTimezone drift on weekly rollups,Charts,Fixed\nDuplicate members after SSO rename,Admin,Fixed\nSafari copy button doing nothing,Everywhere,Fixed · sorry Safari",
+                ),
+            ),
+        ),
+        section(
+            "sunset",
+            group(
+                t("RETIRING", "label"),
+                t("Two goodbyes, both with a bridge.", "h3"),
+                t(
+                    "Legacy embeds stop rendering October 15; the new embed is one attribute change. The v1 API sunsets January 1 and every v1 call already returns a header telling you its v2 twin.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "alerts2",
+            split(
+                40,
+                img(pic(0), 1.05),
+                group(
+                    t("HOW TEAMS USE IT", "label"),
+                    t("Three alerts worth copying.", "h2"),
+                    bullets(
+                        "Signups vs. 7-day average, into #growth, threshold 15%",
+                        "Checkout errors above zero, into the on-call phone, immediately",
+                        "The Friday digest: every metric that moved double digits this week",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "adoption",
+            row(
+                stat("41%", "of workspaces set an alert in week one"),
+                stat("2.1×", "faster dashboards on big accounts"),
+                stat("214", "community upvotes on the Safari fix"),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "voice",
+            group(
+                quote(
+                    "The alert caught a pricing bug at 11pm that would have cost us the weekend. This feature paid for the year in one night.",
+                    "Tom Becker · Founder, Haloway",
+                ),
+            ),
+        ),
+        section(
+            "gallery",
+            group(
+                t("SHIP WEEK, DOCUMENTED", "label"),
+                row(
+                    group(img(pic(4), 1.4), t("The alert spec, drafted on paper first", "caption")),
+                    group(img(pic(7), 1.4), t("The team read-through before the post", "caption")),
+                    group(img(pic(0), 1.4), t("2am, the Safari fix finally landing", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "next",
+            group(
+                t("NEXT MONTH", "label"),
+                t("Saved views for every team, and something for the CFO.", "body"),
+                linked("caption", "The full changelog lives at ", [
+                    "northwind.dev/changelog",
+                    "https://northwind.dev/changelog",
+                ]),
+            ),
+        ),
+    ],
+    bgImage(pic(930, 1700, 1100), 0.3),
+);
+
+export const pressKit: ArtifactContent = doc(
+    "moss",
+    [
+        section(
+            "head",
+            group(
+                t("PRESS KIT · EMBARGO MARCH 4, 6AM PT", "label"),
+                t("Aer launches the purifier you forget is on", "h1"),
+                t(
+                    "Aer One reads the room and clears it in twelve minutes, at the volume of a library. Pre-orders open today at $249; units ship in March.",
+                    "subtitle",
+                ),
+                t("Contact: press@aerone.com · Assets: aerone.com/press", "caption"),
+            ),
+            { background: bgImage(pic(311, 1700, 1100), 0.55) },
+        ),
+        section(
+            "facts",
+            row(
+                stat("99.97%", "of particles down to 0.1 microns"),
+                stat("21 dB", "quieter than a library"),
+                stat("$249", "pre-order · ships March"),
+            ),
+        ),
+        section(
+            "story",
+            group(
+                t("THE STORY", "label"),
+                t(
+                    "Indoor air is two to five times more polluted than the street outside, and the machines built to fix it are ugly, loud, and confusing enough that people turn them off. Aer's founding team (ex-Dyson, ex-Nest) spent three years on a purifier with no app requirement and one glowing ring: amber while it works, white when the air is clear. You plug it in and stop thinking about it, which was the whole idea.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "quotes",
+            group(
+                t("QUOTABLE", "label"),
+                quote(
+                    "We built the appliance version of a deep breath. It should disappear into the room and take the worry with it.",
+                    "Mara Chen, co-founder & CEO",
+                ),
+                quote(
+                    "I stopped waking up congested within a week. I didn't expect to feel the difference, but the whole house notices when it's off.",
+                    "Dr. Lena Osei · pulmonologist, early tester",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "assets",
+            group(
+                t("WHAT'S IN THE KIT", "label"),
+                table(
+                    "Asset,Format,Where\nProduct photography · 14 shots,JPG + RAW,aerone.com/press\nFounder portraits,JPG,aerone.com/press\nB-roll · 90 seconds,ProRes,On request\nSpec sheet,PDF,In this kit",
+                ),
+                t("Everything is cleared for editorial use with credit to Aer.", "caption"),
+            ),
+        ),
+        section(
+            "product",
+            split(
+                60,
+                group(
+                    t("THE PRODUCT, FOR THE CAPTION", "label"),
+                    t("One ring, no app required.", "h2"),
+                    t(
+                        "Aer One senses the room sixty times a second and clears a sealed 400 sq ft kitchen in twelve minutes. The ring fades amber to white as the air clears, which is the entire interface, and the reason reviewers keep calling it furniture.",
+                        "body",
+                    ),
+                ),
+                img(pic(305), 0.82),
+            ),
+        ),
+        section(
+            "timeline",
+            group(
+                t("THE STORY SO FAR", "label"),
+                table(
+                    "When,What\n2023,Founded by the ex-Dyson airflow team\n2024,Seed round · 1400-home beta begins\n2025,The ring interface locks · CES honoree\nMarch 2026,Aer One ships",
+                ),
+            ),
+        ),
+        section(
+            "angles",
+            group(
+                t("THREE ANGLES THAT FILE WELL", "label"),
+                bullets(
+                    "The anti-app appliance: design's quiet rebellion against screens",
+                    "Indoor air is the pollution nobody measures; the numbers are wild",
+                    "Hardware that ships on time, from a team that has done it twice",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "gallery",
+            group(
+                t("FROM THE PHOTO KIT", "label"),
+                row(
+                    group(
+                        img(pic(41), 1.4),
+                        t("The sensor array, sixty reads a second", "caption"),
+                    ),
+                    group(
+                        img(pic(252), 1.4),
+                        t("The teardown shot reviewers request first", "caption"),
+                    ),
+                    group(img(pic(691), 1.4), t("Sleep mode, in its natural habitat", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "contact",
+            group(
+                t("Talk to us.", "h2"),
+                linked(
+                    "body",
+                    ["press@aerone.com", "mailto:press@aerone.com"],
+                    " · interviews with the founders available launch week · ",
+                    ["aerone.com/press", "https://aerone.com/press"],
+                ),
+            ),
+            { background: bgImage(pic(385, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(133, 1700, 1100), 0.3),
+);
+
+export const launchPlaybook: ArtifactContent = doc(
+    "cement",
+    [
+        section(
+            "head",
+            group(
+                t("TIDEPOOL · LAUNCH PLAYBOOK", "label"),
+                t("Thirty days out, thirty days back", "h1"),
+                t(
+                    "The working checklist for the September 15 launch: every workstream, every owner, every date, and the go/no-go bar we hold ourselves to.",
+                    "subtitle",
+                ),
+                t("Living document · Owned by Priya · Updated Fridays", "caption"),
+            ),
+            { background: bgImage(pic(185, 1700, 1100), 0.55) },
+        ),
+        section(
+            "tminus",
+            group(
+                t("T-MINUS 30 TO 8", "label"),
+                table(
+                    "When,What,Owner\nT-30,Pricing v2 final · billing tested with real cards,Priya\nT-21,Press list locked · embargo briefings booked,Tomas\nT-14,Load test at 10× signup rate,Marco\nT-10,Support macros & surge shifts staffed,Renee\nT-8,Feature flag rehearsal · full dry run,Everyone",
+                ),
+            ),
+        ),
+        section(
+            "week",
+            group(
+                t("LAUNCH WEEK", "label"),
+                table(
+                    "Day,What,Bar\nT-3,Go/no-go · all workstreams green,No red · no maybes\nT-1,Freeze · only launch-critical merges,CTO approves each\nT-0,Flip at 6am · press at 7 · AMA at 9,Smoke tests pass\nT+1,Metrics review · scale or steady call,Error rate under 0.5%",
+                ),
+            ),
+        ),
+        section(
+            "gonogo",
+            group(
+                t("THE GO/NO-GO BAR", "label"),
+                checks(
+                    "Billing charges and refunds correctly in production",
+                    "Signup to first forecast under ten minutes, tested by someone who didn't build it",
+                    "Support can answer the top 20 questions without engineering",
+                    "Rollback rehearsed and under five minutes",
+                ),
+            ),
+            { background: bgTone("contrast") },
+        ),
+        section(
+            "after",
+            group(
+                t("T-PLUS 7 TO 30", "label"),
+                bullets(
+                    "T+7: first cohort retention read · pricing objections logged",
+                    "T+14: launch retro · what we keep, what we never do again",
+                    "T+30: decide the next bet from real usage, not the roadmap we guessed",
+                ),
+            ),
+        ),
+        section(
+            "comms",
+            split(
+                60,
+                group(
+                    t("THE COMMS LADDER", "label"),
+                    t("Who hears what, in which order.", "h2"),
+                    bullets(
+                        "T-7: beta customers get the personal note and the founder's cell",
+                        "T-3: waitlist hears the date; replies go to a staffed inbox",
+                        "T-0 6:59am: the embargo lifts and the founder post goes up at 7:01",
+                    ),
+                ),
+                img(pic(885), 0.82),
+            ),
+        ),
+        section(
+            "risks",
+            group(
+                t("THE RISK REGISTER", "label"),
+                table(
+                    "Risk,Likelihood,The move\nSignup surge past load test,Medium,Queue page ready · scale plan rehearsed\nPricing confusion in press,Medium,One-pager pre-briefed to every desk\nShopify feature slips,Low,Launch stands alone · feature becomes week-two news",
+                ),
+            ),
+        ),
+        section(
+            "owners2",
+            group(
+                t("ONE PAGE OF PHONE NUMBERS", "label"),
+                t(
+                    "The war-room card lists every owner, their backup, and the decision each is allowed to make alone. It is printed, laminated, and taped inside the office door, because launch-day wifi is a risk on the register too.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "gallery",
+            group(
+                t("SCENES FROM THE LAST DRY RUN", "label"),
+                row(
+                    group(img(pic(348), 1.4), t("Retail traffic, simulated at 10×", "caption")),
+                    group(
+                        img(pic(396), 1.4),
+                        t("The war room, calm by rehearsal three", "caption"),
+                    ),
+                    group(
+                        img(pic(951), 1.4),
+                        t("The launch wall, color-coded and argued over", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("A launch is a Tuesday if the list is done.", "h2"),
+                t(
+                    "Anything not on this list does not block. Add it Friday or let it go.",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(563, 1700, 1100), 0.6) },
+        ),
+    ],
+    bgImage(pic(115, 1700, 1100), 0.28),
+);
+
+export const messagingGuide: ArtifactContent = doc(
+    "cement",
+    [
+        section(
+            "head",
+            group(
+                t("TIDEPOOL · MESSAGING GUIDE", "label"),
+                t("What we say, to whom, in which words", "h1"),
+                t(
+                    "The positioning, the three pillars, and the exact sentences that carry them. If marketing, sales, and the founder sound alike, this document is working.",
+                    "subtitle",
+                ),
+                t("v3 · Post-launch edition · Owned by brand", "caption"),
+            ),
+            { background: bgImage(pic(535, 1700, 1100), 0.6) },
+        ),
+        section(
+            "positioning",
+            group(
+                t("THE POSITIONING", "label"),
+                quote(
+                    "For operators at growing multi-channel brands, Tidepool is the inventory platform that forecasts demand and flags stockouts before they happen, without an ERP project or a six-figure contract.",
+                    "Say it whole; it falls apart in pieces",
+                ),
+            ),
+        ),
+        section(
+            "pillars",
+            group(
+                t("THREE PILLARS, WITH PROOF", "label"),
+                row(
+                    group(
+                        t("See it coming", "h3"),
+                        t(
+                            "Forecasts per SKU per channel · 94% four-week accuracy across the beta",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        t("Act in one tap", "h3"),
+                        t("Reorders drafted to par · POs out in minutes, not Mondays", "caption"),
+                    ),
+                    group(
+                        t("Live by lunch", "h3"),
+                        t("40-minute connect · no consultant · first forecast same day", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "words",
+            group(
+                t("THE WORDS", "label"),
+                table(
+                    "We say,We never say\nInventory brain,AI-powered platform\nKnow what to reorder,Optimize your supply chain\nBuilt for brands · not the enterprise,Enterprise-grade\nLive in an afternoon,Seamless onboarding",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "audiences",
+            group(
+                t("BY AUDIENCE", "label"),
+                bullets(
+                    "Operators: lead with the 2am spreadsheet; they have all been in it",
+                    "Founders: lead with margin recovered; stockouts read as growth pain",
+                    "Press: lead with the anti-ERP angle; David and Goliath still files",
+                ),
+            ),
+        ),
+        section(
+            "objections",
+            group(
+                t("THE OBJECTION DRILLS", "label"),
+                table(
+                    "They say,We say\nWe already have an ERP,Keep it · Tidepool runs beside it and pays for itself first\nAI forecasts feel risky,Every number shows its inputs · no black boxes\nWe're too small,If you juggle three channels · you're exactly the size",
+                ),
+            ),
+        ),
+        section(
+            "story",
+            split(
+                40,
+                img(pic(396), 1.05),
+                group(
+                    t("THE STORY WE TELL", "label"),
+                    t("The 2am spreadsheet.", "h2"),
+                    t(
+                        "Every operator has one: the reorder sheet checked in bed, the stockout discovered by a customer. Open with it and the room nods; that nod is the pipeline.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "voice2",
+            group(
+                t("PROOF IN THE WILD", "label"),
+                quote(
+                    "Their landing page read like our ops standup. We booked the demo before the coffee finished.",
+                    "Operator, 9-figure DTC brand · sales call, May",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "field",
+            split(
+                40,
+                img(pic(348), 1.05),
+                group(
+                    t("THE MESSAGE, IN THE WILD", "label"),
+                    t("Where the words go to work.", "h2"),
+                    t(
+                        "The positioning runs unchanged from the homepage to the sales deck to the booth backdrop. When a prospect repeats it back in their own words on a call, log the phrasing; the guide's next edition is built from those.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("One voice, many mouths.", "h2"),
+                t(
+                    "New claim? It needs a number and a customer behind it before it ships. Bring both to brand.",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(951, 1700, 1100), 0.6) },
+        ),
+    ],
+    bgImage(pic(185, 1700, 1100), 0.3),
+);
+
+export const pricingPage: ArtifactContent = web(
+    "press",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "NORTHWIND",
+                    navLink("Plans", "#plans"),
+                    navLink("Compare", "#detail"),
+                    navLink("FAQ", "#faq"),
+                    navCta("Start free", "https://app.northwind.dev/signup"),
+                ),
+                t("PRICING", "label"),
+                t("Simple on purpose.", "h1"),
+                t(
+                    "Three plans, unlimited viewers on all of them, and a free tier that stays free. You pay when the team grows, not when curiosity does.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(9, 1700, 1100), 0.62),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "plans",
+            row(
+                { align: "start" },
+                pricing(
+                    "FREE",
+                    "$0",
+                    "For a side project",
+                    ["3 data sources", "Unlimited viewers", "7-day history", "Community support"],
+                    button("Start free", "https://app.northwind.dev/signup"),
+                ),
+                pricing(
+                    "TEAM",
+                    "$49",
+                    "Per month, for a growing startup",
+                    [
+                        "15 data sources",
+                        "Alerts and Slack digests",
+                        "12-month history",
+                        "Email support",
+                    ],
+                    button("Start a trial", "https://app.northwind.dev/signup", {
+                        variant: "outline",
+                    }),
+                ),
+                pricing(
+                    "BUSINESS",
+                    "$199",
+                    "Per month, for a scaling company",
+                    [
+                        "Unlimited sources",
+                        "SSO and audit log",
+                        "Unlimited history",
+                        "Named support engineer",
+                    ],
+                    button("Talk to us", "mailto:sales@northwind.dev", { variant: "outline" }),
+                ),
+            ),
+        ),
+        section(
+            "detail",
+            group(
+                t("THE FINE PRINT, LARGE", "label"),
+                table(
+                    "What,Free,Team,Business\nViewers,Unlimited,Unlimited,Unlimited\nEditors,2,10,Unlimited\nAlerts,·,Yes,Yes\nSSO & audit log,·,·,Yes\nAnnual discount,·,2 months,2 months",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "quote",
+            group(
+                testimonial(
+                    "We put the whole company on viewers for free and pay for ten editors. Our BI bill fell 97% and usage went up.",
+                    "Tom Becker",
+                    "Founder, Haloway",
+                    "https://i.pravatar.cc/240?img=12",
+                ),
+            ),
+        ),
+        section(
+            "faq",
+            group(
+                t("QUESTIONS, ANSWERED", "label"),
+                faq(
+                    "collapsible",
+                    [
+                        [
+                            "Is the free plan really free?",
+                            "Yes, and permanently: three sources, unlimited viewers, no trial clock and no card. We only charge when you outgrow it.",
+                        ],
+                        [
+                            "What counts as a viewer?",
+                            "Anyone who reads dashboards without editing them. We never charge for reading; a metric nobody can see is not worth collecting.",
+                        ],
+                        [
+                            "Can I change plans anytime?",
+                            "Up, down, or off, in one click, prorated to the day. Downgrades keep your data; it just pauses past your plan's history window.",
+                        ],
+                        [
+                            "Do you offer discounts?",
+                            "Two months free on annual billing, 50% off for nonprofits and education, and the free plan for everyone else.",
+                        ],
+                    ],
+                    true,
+                ),
+            ),
+        ),
+        section(
+            "calculator",
+            split(
+                60,
+                group(
+                    t("WHAT TEAMS ACTUALLY PAY", "label"),
+                    t("Median bill: $49. Yes, really.", "h2"),
+                    t(
+                        "Most teams live on Team for their first two years; the ones who upgrade do it for SSO, not limits. Nobody has ever hit the viewer cap, because there isn't one.",
+                        "body",
+                    ),
+                ),
+                img(pic(2), 0.82),
+            ),
+        ),
+        section(
+            "compare2",
+            group(
+                t("AGAINST THE ALTERNATIVES", "label"),
+                table(
+                    "Annual cost at 50 people,Them,Northwind\nLegacy BI,$90K+,$2.4K\nSpreadsheet chaos,Free · plus one analyst's sanity,$2.4K\nDoing nothing,Unmeasured · expensive,$0 to start",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "guarantee",
+            group(
+                t("THE GUARANTEE", "label"),
+                t("Ninety days, full refund, export included.", "h2"),
+                t(
+                    "If Northwind isn't answering questions your old stack couldn't, we refund the quarter and help you leave cleanly.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "cta",
+            group(
+                t("Start free. Grow when you're ready.", "h2"),
+                button("Create your workspace", "https://app.northwind.dev/signup", { size: "lg" }),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "gallery",
+            group(
+                t("TEAMS ON NORTHWIND", "label"),
+                row(
+                    group(
+                        img(pic(7), 1.4),
+                        t("Cedarworks · 40 viewers, 6 editors, $49", "caption"),
+                    ),
+                    group(
+                        img(pic(4), 1.4),
+                        t("A solo founder's Monday report, free plan", "caption"),
+                    ),
+                    group(img(pic(192), 1.4), t("Haloway's exec review, Business plan", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Northwind", "h3")),
+                        fitW(t("Analytics for teams without a data team.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("KEEP READING", "label")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["The comparison", "https://northwind.dev/compare"],
+                                " · ",
+                                ["Docs", "https://docs.northwind.dev"],
+                            ),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("QUESTIONS", "label")),
+                        fitW(
+                            linked("caption", [
+                                "hello@northwind.dev",
+                                "mailto:hello@northwind.dev",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(930, 1700, 1100), 0.3),
+);
+
+// ---- client work: winning it, starting it, and keeping the client in the loop
+
+export const kickoffDeck: ArtifactContent = deck(
+    "chalk",
+    [
+        section(
+            "cover",
+            group(
+                t("ANVIL & OAK × WEXFORD OUTDOOR CO.", "label"),
+                t("Kickoff: twelve weeks to a faster store.", "h1"),
+                t(
+                    "The SOW is signed and the clock starts Monday. This hour covers who's who, how we work, what happens first, and how we keep this the calmest project either of us runs this year.",
+                    "subtitle",
+                ),
+                t("Kickoff call · July 8 · 60 minutes", "caption"),
+            ),
+            { background: bgImage(pic(532, 1700, 1100), 0.6) },
+        ),
+        section(
+            "agenda",
+            group(
+                t("01 · THIS HOUR", "label"),
+                table(
+                    "Minutes,Topic\n0 to 10,Introductions · who decides what\n10 to 25,The plan · twelve weeks in five phases\n25 to 40,Ways of working · demos · sign-offs\n40 to 55,Week one · what we need from you\n55 to 60,Questions & the first decision",
+                ),
+            ),
+        ),
+        section(
+            "team",
+            group(
+                t("02 · WHO'S WHO", "label"),
+                row(
+                    group(
+                        t("Dana Okonkwo", "h3"),
+                        t("Anvil & Oak · engagement lead · your first call", "caption"),
+                    ),
+                    group(
+                        t("Marcus Vey", "h3"),
+                        t("Anvil & Oak · tech lead · owns the architecture", "caption"),
+                    ),
+                    group(
+                        t("Tom Bryce", "h3"),
+                        t("Wexford · product owner · owns every decision", "caption"),
+                    ),
+                ),
+                t(
+                    "One decision-maker per side. Everyone else advises, loudly and welcome.",
+                    "caption",
+                ),
+            ),
+        ),
+        section(
+            "working",
+            split(
+                60,
+                group(
+                    t("03 · HOW WE WORK", "label"),
+                    t("Demos on Friday, decisions by Tuesday.", "h2"),
+                    bullets(
+                        "One-week iterations, each ending in something you can click",
+                        "Friday demo, written sign-off request, Tuesday deadline",
+                        "A silent Tuesday counts as approval, and we say so out loud now",
+                        "One shared Slack channel; email is for contracts only",
+                    ),
+                ),
+                img(pic(7), 0.82),
+            ),
+        ),
+        section(
+            "first",
+            group(
+                t("04 · WEEK ONE", "label"),
+                t("What we need before Friday.", "h2"),
+                checks(
+                    "Shopify Plus admin access · read-only is fine to start",
+                    "The clean product export from operations",
+                    "Brand assets · fonts, logos, and the photography drive",
+                    "45 minutes with whoever answers returns email today",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "risks",
+            group(
+                t("05 · WHAT USUALLY GOES WRONG", "label"),
+                t("We've done this replatform eleven times.", "h2"),
+                bullets(
+                    "Content migration surprises: we run it twice, weeks 4 and 9",
+                    "Peak-season freeze: nothing ships to production in your top sales week",
+                    "Scope wobble: new ideas go to the backlog we review together in week 6",
+                ),
+            ),
+        ),
+        section(
+            "plan",
+            split(
+                60,
+                group(
+                    t("06 · THE TWELVE WEEKS", "label"),
+                    t("Five phases, no surprises.", "h2"),
+                    bullets(
+                        "Weeks 1 to 2: discovery · the audit and the honest findings",
+                        "Weeks 2 to 4: design system · closed by week four, on purpose",
+                        "Weeks 4 to 9: build · demo every Friday without exception",
+                        "Weeks 10 to 12: QA, UAT, and a calm launch",
+                    ),
+                ),
+                img(pic(180), 0.82),
+            ),
+        ),
+        section(
+            "tools",
+            group(
+                t("07 · WHERE THINGS LIVE", "label"),
+                table(
+                    "Thing,Where,Who can see it\nThe build,staging.wexfordoutdoor.com,Everyone on the project\nStatus & decisions,The project hub · one page,Everyone · updated Fridays\nFiles & assets,The shared drive,Both teams\nThe contract,Signed SOW · linked from the hub,Leads",
+                ),
+            ),
+        ),
+        section(
+            "history",
+            group(
+                t("08 · WHY US, ONE MORE TIME", "label"),
+                quote(
+                    "Eleven replatforms, zero missed launch dates, and the calmest Slack channel we've ever had with an agency.",
+                    "Product lead · the reference you called",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("See you Friday at the first demo.", "h2"),
+                t("It will be small, and it will be real.", "subtitle"),
+            ),
+            { background: bgImage(pic(26, 1700, 1100), 0.6) },
+        ),
+    ],
+    bgImage(pic(115, 1700, 1100), 0.28),
+);
+
+export const capabilitiesDeck: ArtifactContent = deck(
+    "couture",
+    [
+        section(
+            "cover",
+            group(
+                t("STUDIO HALVORSEN · CAPABILITIES", "label"),
+                t("Light, made deliberate.", "h1"),
+                t(
+                    "An independent design studio for interiors, identities, and the objects in between. Sixteen years, three continents, one obsession with proportion.",
+                    "subtitle",
+                ),
+                t("Prepared for prospective clients · 2026", "caption"),
+            ),
+            { background: bgImage(pic(546, 1700, 1100), 0.55) },
+        ),
+        section(
+            "statement",
+            split(
+                40,
+                img(pic(508), 1.05),
+                group(
+                    t("THE STUDIO", "label"),
+                    t("We design the pause before the room speaks.", "h2"),
+                    t(
+                        "Founded in Oslo, Studio Halvorsen makes spaces and identities that hold their composure. We start with restraint, remove until only what matters is left, and then make that one thing unforgettable.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "practices",
+            group(
+                t("THREE PRACTICES", "label"),
+                row(
+                    group(
+                        img(pic(1051), 1.4),
+                        t("Interiors", "h3"),
+                        t(
+                            "Residential and hospitality, from first sketch to last switch plate.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(1059), 1.4),
+                        t("Identity", "h3"),
+                        t("Naming, type, and the small printed things people keep.", "caption"),
+                    ),
+                    group(
+                        img(pic(21), 1.4),
+                        t("Objects", "h3"),
+                        t("Limited-run furniture and lighting, made in-house.", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "work",
+            group(
+                t("SELECTED WORK", "label"),
+                row(
+                    group(img(pic(428), 1.4), t("The Glasshouse · Oslo", "caption")),
+                    group(img(pic(420), 1.4), t("Linen Apartment · Paris", "caption")),
+                    group(img(pic(882), 1.4), t("Hotel Amber · Copenhagen", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("120+", "projects completed"),
+                stat("16", "years independent"),
+                stat("9", "design awards"),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "process",
+            group(
+                t("HOW AN ENGAGEMENT RUNS", "label"),
+                t("Slowly at first, then all at once.", "h2"),
+                bullets(
+                    "Weeks 1 to 3: we listen, measure, and say very little",
+                    "Weeks 4 to 8: one direction, argued properly, then chosen",
+                    "Weeks 9 onward: built, supervised, and photographed in the right light",
+                ),
+            ),
+        ),
+        section(
+            "craft",
+            group(
+                t("THE CRAFT", "label"),
+                t("Materials we keep coming back to.", "h2"),
+                row(
+                    group(img(pic(123), 1.4), t("Stone, honest about its weight", "caption")),
+                    group(img(pic(307), 1.4), t("Wood, old enough to have opinions", "caption")),
+                    group(img(pic(418), 1.4), t("Light, the only free material", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "voices",
+            group(
+                t("CLIENTS SAY", "label"),
+                quote(
+                    "They handed us a building we'd stopped seeing and gave it back as somewhere we never want to leave.",
+                    "Ines Lund · Owner, Hotel Amber",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "engage",
+            group(
+                t("ENGAGEMENTS AT A GLANCE", "label"),
+                table(
+                    "Practice,Timeline,From\nInteriors,4 to 9 months,60K\nIdentity,8 to 12 weeks,24K\nObjects,Seasonal editions,By edition",
+                ),
+                t("Full scope and fees follow the first conversation, not precede it.", "caption"),
+            ),
+        ),
+        section(
+            "contact",
+            group(
+                t("Tell us about the space.", "h2"),
+                t("We take a handful of projects a year so each one gets all of us.", "subtitle"),
+                linked("caption", ["studio@halvorsen.no", "mailto:studio@halvorsen.no"], " · ", [
+                    "+47 22 40 18 06",
+                    "tel:+4722401806",
+                ]),
+            ),
+            { background: bgImage(pic(550, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(12, 1700, 1100), 0.3),
+);
+
+export const workshopDeck: ArtifactContent = deck(
+    "studio",
+    [
+        section(
+            "cover",
+            group(
+                t("FOLDWORK · DISCOVERY WORKSHOP", "label"),
+                t("One day to agree what we're making.", "h1"),
+                t(
+                    "Before we design anything, we spend a day in a room with the people who know the truth. This is the plan for that day, and what you'll walk out holding.",
+                    "subtitle",
+                ),
+                t("Atlas Coffee · The roastery loft · July 15, 9 to 4", "caption"),
+            ),
+            { background: bgImage(pic(526, 1700, 1100), 0.55) },
+        ),
+        section(
+            "why",
+            split(
+                60,
+                group(
+                    t("01 · WHY A WORKSHOP", "label"),
+                    t("Briefs lie; rooms don't.", "h2"),
+                    t(
+                        "Written briefs average everyone's opinion into no one's. A day together surfaces the disagreements early, while they're cheap, and gets every decision-maker looking at the same wall by lunchtime.",
+                        "body",
+                    ),
+                ),
+                img(pic(20), 0.82),
+            ),
+        ),
+        section(
+            "day",
+            group(
+                t("02 · THE DAY", "label"),
+                table(
+                    "Time,Block,What happens\n9:00,Where we are,Everyone's honest read · ten minutes each\n10:30,Who it's for,Two customers on the phone · live\n12:30,Lunch,From the roastery bar · obviously\n13:15,What matters,Forced ranking · the argument we came for\n15:00,What's next,Decisions signed on the wall",
+                ),
+            ),
+        ),
+        section(
+            "exercises",
+            group(
+                t("03 · THE EXERCISES", "label"),
+                row(
+                    group(
+                        img(pic(403), 1.4),
+                        t("Twenty questions", "h3"),
+                        t("Fast, written, anonymous; the quiet people win this one.", "caption"),
+                    ),
+                    group(
+                        img(pic(532), 1.4),
+                        t("The shelf test", "h3"),
+                        t(
+                            "Your bag against six rivals, at arm's length, three seconds.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(63), 1.4),
+                        t("Kill the darling", "h3"),
+                        t("Everyone sacrifices one beloved idea, publicly, kindly.", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "outputs",
+            group(
+                t("04 · WHAT YOU WALK OUT WITH", "label"),
+                checks(
+                    "One sentence everyone signed, literally",
+                    "Three priorities, ranked, with the losing ideas honored in the notes",
+                    "The photo of the wall, which becomes page one of the brief",
+                    "A decision log with names attached",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "logistics",
+            group(
+                t("05 · LOGISTICS", "label"),
+                bullets(
+                    "Six to nine people; above nine the honest ones go quiet",
+                    "Phones in the basket; there is a real emergency number on the door",
+                    "We facilitate, you decide; the wall belongs to Atlas",
+                ),
+            ),
+        ),
+        section(
+            "roles",
+            split(
+                60,
+                group(
+                    t("06 · WHO'S IN THE ROOM", "label"),
+                    t("Six voices, one wall.", "h2"),
+                    bullets(
+                        "Atlas: both founders, the head roaster, and the wholesale lead",
+                        "Foldwork: Nora facilitating, Devin on the wall, Lina documenting",
+                        "One empty chair for the customer, kept honest by the morning's calls",
+                    ),
+                ),
+                img(pic(7), 0.82),
+            ),
+        ),
+        section(
+            "after",
+            group(
+                t("07 · WHAT HAPPENS AFTER", "label"),
+                table(
+                    "When,What you get\nDay + 2,The wall · transcribed and organized\nDay + 5,The brief · one page · signed sentence on top\nWeek 2,Strategy work begins against it\nWeek 8,You point at the wall photo and say 'that's it'",
+                ),
+            ),
+        ),
+        section(
+            "why2",
+            group(
+                quote(
+                    "The workshop cost us a day and saved us the month of polite disagreement we didn't know we were scheduled for.",
+                    "Previous client · said during the week-8 reveal",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("Bring opinions. Wear comfortable shoes.", "h2"),
+                t("Coffee is handled. It's the one thing we're not worried about.", "subtitle"),
+            ),
+            { background: bgImage(pic(1060, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(98, 1700, 1100), 0.3),
+);
+
+export const clientStatus: ArtifactContent = doc(
+    "chalk",
+    [
+        section(
+            "head",
+            group(
+                t("ANVIL & OAK × WEXFORD · WEEKLY STATUS", "label"),
+                t("Week 6 of 12: on track, one flag", "h1"),
+                t(
+                    "The storefront is ahead of plan, the returns portal is on it, and content migration raised its hand early, which is exactly when we want flags raised.",
+                    "subtitle",
+                ),
+                t("Sent Friday, August 14 · Next demo: Friday 10am", "caption"),
+            ),
+            { background: bgImage(pic(532, 1700, 1100), 0.62) },
+        ),
+        section(
+            "status",
+            group(
+                t("BY WORKSTREAM", "label"),
+                table(
+                    "Workstream,Status,This week\nStorefront build,Ahead,Product & collection pages done · reviews live\nReturns portal,On track,Label generation working · policy engine in test\nContent migration,Flag,See below · decision needed Tuesday\nAnalytics & CI/CD,On track,Staging pipeline green since Monday",
+                ),
+            ),
+        ),
+        section(
+            "shipped",
+            group(
+                t("SHIPPED THIS WEEK", "label"),
+                bullets(
+                    "Cart and checkout flows, tested against your live tax rules",
+                    "Search with typo tolerance, which your catalog genuinely needs",
+                    "The 18th and final page template · design system is now closed",
+                ),
+            ),
+        ),
+        section(
+            "flag",
+            group(
+                t("THE FLAG", "label"),
+                t("Migration found 240 products with hand-edited HTML.", "h3"),
+                t(
+                    "The old theme let editors paste raw HTML, and a tenth of the catalog did. We can migrate them as-is (ugly but faithful), strip to clean text (fast but loses formatting), or hand-fix the 60 best sellers and strip the rest. We recommend the third: two days, most of the value. Your call by Tuesday keeps week 9's second migration run on schedule.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("52%", "of budget used at week 6 of 12"),
+                stat("0", "open blockers on your side"),
+                stat("9 days", "to the mid-project review"),
+            ),
+        ),
+        section(
+            "demo",
+            split(
+                40,
+                img(pic(3), 1.05),
+                group(
+                    t("FROM FRIDAY'S DEMO", "label"),
+                    t("Checkout, end to end, on your live tax rules.", "h2"),
+                    t(
+                        "The recording is in the hub. Watch the express-lane moment at 4:12; it's the reason mobile conversion is up in staging tests.",
+                        "body",
+                    ),
+                    linked("caption", "Demo recording: ", [
+                        "hub · demos · week 6",
+                        "https://anvilandoak.studio/wexford/demos",
+                    ]),
+                ),
+            ),
+        ),
+        section(
+            "risks",
+            group(
+                t("RISKS WE'RE WATCHING", "label"),
+                table(
+                    "Risk,State,The move\nPeak-season freeze window,On calendar,Nothing ships to prod in your top sales week\nPhoto assets for 40 new SKUs,Yellow,Your shoot is booked for Tuesday\nThird-party review API rate limits,Watching,Cache layer ready if it bites",
+                ),
+            ),
+        ),
+        section(
+            "decisions",
+            group(
+                t("DECISIONS TAKEN THIS WEEK", "label"),
+                bullets(
+                    "Search synonyms list approved by Tom · live in staging",
+                    "Gift wrap ships as post-launch fast-follow · agreed Wednesday",
+                    "The 404 page gets the topo-map treatment · nobody could resist",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "gallery",
+            group(
+                t("FROM STAGING, FRIDAY MORNING", "label"),
+                row(
+                    group(img(pic(26), 1.4), t("The product page, gear laid flat", "caption")),
+                    group(img(pic(9), 1.4), t("Returns portal, label in one tap", "caption")),
+                    group(img(pic(4), 1.4), t("The punch list, shrinking on schedule", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "next",
+            group(
+                t("NEXT WEEK", "label"),
+                bullets(
+                    "Returns portal end-to-end demo, with a real (sacrificial) order",
+                    "Migration decision applied and re-run started",
+                    "Performance pass one: the sub-1.5s target gets its first real test",
+                ),
+                linked("caption", "Questions before Friday: ", [
+                    "dana@anvilandoak.studio",
+                    "mailto:dana@anvilandoak.studio",
+                ]),
+            ),
+        ),
+    ],
+    bgImage(pic(115, 1700, 1100), 0.26),
+);
+
+export const proposalSite: ArtifactContent = web(
+    "gazette",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "FOLDWORK",
+                    navLink("The plan", "#plan"),
+                    navLink("Team", "#team"),
+                    navLink("Investment", "#investment"),
+                    navCta("Accept & book kickoff", "#accept"),
+                ),
+                t("A PROPOSAL FOR ATLAS COFFEE", "label"),
+                t("A rebrand worth waking up for.", "h1"),
+                t(
+                    "Atlas makes the best coffee in the valley and looks like the third best. Here is our plan to close that gap in eight weeks, shared as a page so it's easy to pass around, argue with, and say yes to.",
+                    "subtitle",
+                ),
+                t("Valid 30 days · Prepared June 2026 · Nora, Devin & Lina", "caption"),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(425, 1700, 1100), 0.58),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "read",
+            group(
+                t("WHAT WE HEARD", "label"),
+                t("Great coffee, hiding behind a tired bag.", "h2"),
+                t(
+                    "Your wholesale doubled in two years; your shelf presence didn't. Three roasters in the valley now look more considered than the one that taught them the craft. The product needs no work. The story wrapped around it does.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "plan",
+            group(
+                t("THE PLAN", "label"),
+                t("Eight weeks, three moves.", "h2"),
+                row(
+                    group(
+                        img(pic(20), 1.4),
+                        t("Weeks 1–3 · Strategy", "h3"),
+                        t(
+                            "Positioning, naming audit, and the one sentence everything hangs on.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(526), 1.4),
+                        t("Weeks 3–6 · Identity", "h3"),
+                        t(
+                            "Mark, type, color, and packaging, tested at arm's length on a real shelf.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(431), 1.4),
+                        t("Weeks 6–8 · Rollout", "h3"),
+                        t(
+                            "Bags, menus, site, and the guidelines that keep it all standing.",
+                            "caption",
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "team",
+            group(
+                t("WHO SHOWS UP", "label"),
+                row(
+                    group(
+                        img(pic(528), 1),
+                        t("Nora Espen", "h3"),
+                        t("Creative director · every review, no exceptions", "caption"),
+                    ),
+                    group(
+                        img(pic(403), 1),
+                        t("Devin Marsh", "h3"),
+                        t("Brand strategist · the words and the why", "caption"),
+                    ),
+                    group(
+                        img(pic(532), 1),
+                        t("Lina Vogel", "h3"),
+                        t("Design & web lead · from sketch to shipped", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "investment",
+            group(
+                t("THE INVESTMENT", "label"),
+                table(
+                    "Phase,Weeks,Fee\nStrategy & positioning,1 to 3,$14K\nIdentity & packaging,3 to 6,$26K\nRollout & guidelines,6 to 8,$12K\nTotal · fixed,Eight weeks,$52K",
+                ),
+                t(
+                    "Fixed fee, no surprises: changes to scope get a written note before they get a dollar.",
+                    "caption",
+                ),
+            ),
+        ),
+        section(
+            "work",
+            group(
+                t("WORK LIKE YOURS", "label"),
+                row(
+                    group(
+                        img(pic(24), 1.4),
+                        t("Novel Press", "h3"),
+                        t("Publisher rebrand · shelf sales up 22% in year one", "caption"),
+                    ),
+                    group(
+                        img(pic(627), 1.4),
+                        t("Orchard Grocery", "h3"),
+                        t("Identity and packaging · from farmers market to 40 doors", "caption"),
+                    ),
+                    group(
+                        img(pic(871), 1.4),
+                        t("Tidal", "h3"),
+                        t("Clean-energy launch · the campaign your barista mentioned", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "process",
+            group(
+                t("HOW WEEKS FEEL", "label"),
+                dish(
+                    "Mondays",
+                    "the working session",
+                    "Ninety minutes, decisions on the wall, coffee handled by you, obviously",
+                ),
+                dish(
+                    "Thursdays",
+                    "work in progress",
+                    "Real artifacts in your inbox, never a status theater deck",
+                ),
+                dish(
+                    "Always",
+                    "one channel",
+                    "Slack for speed, email for contracts, nothing lost in either",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "proof",
+            group(
+                testimonial(
+                    "Eight weeks, zero drama, and a brand our own team started defending in meetings. Worth every euro.",
+                    "Rui Almeida",
+                    "Founder, Novel Press",
+                    "https://i.pravatar.cc/240?img=59",
+                ),
+            ),
+        ),
+        section(
+            "accept",
+            group(
+                t("If this resonates, the kickoff is one click away.", "h2"),
+                t(
+                    "We hold a start date for 30 days. The coffee for the workshop is, of course, yours.",
+                    "subtitle",
+                ),
+                button("Accept & schedule kickoff", "mailto:nora@foldwork.studio", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(63, 1700, 1100), 0.58) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(col(fitW(t("Foldwork", "h3")), fitW(t("Brand studio · Lisbon", "caption")))),
+                fitW(
+                    col(
+                        fitW(t("THIS PROPOSAL", "label")),
+                        fitW(t("Valid 30 days · fixed fee · start date held", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("TALK TO NORA", "label")),
+                        fitW(
+                            linked("caption", [
+                                "nora@foldwork.studio",
+                                "mailto:nora@foldwork.studio",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(98, 1700, 1100), 0.3),
+);
+
+export const projectHub: ArtifactContent = web(
+    "chalk",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "ANVIL & OAK",
+                    navLink("Status", "#now"),
+                    navLink("Timeline", "#timeline"),
+                    navLink("Decisions", "#decisions"),
+                    navCta("Book the Friday demo", "mailto:dana@anvilandoak.studio"),
+                ),
+                t("WEXFORD REPLATFORM · PROJECT HUB", "label"),
+                t("Everything about the build, on one page.", "h1"),
+                t(
+                    "Bookmark this. Status every Friday, the timeline as it actually stands, every decision with a date on it, and the one place to raise anything.",
+                    "subtitle",
+                ),
+                t("Updated Fridays by 4pm · Last update: August 14", "caption"),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(26, 1700, 1100), 0.6),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "now",
+            group(
+                t("WHERE WE ARE", "label"),
+                t("Week 6 of 12: green, with one flag.", "h2"),
+                row(
+                    stat("52%", "budget used, on plan"),
+                    stat("18 / 18", "page templates done"),
+                    stat("1", "decision waiting on Wexford"),
+                ),
+            ),
+        ),
+        section(
+            "timeline",
+            group(
+                t("THE TWELVE WEEKS", "label"),
+                table(
+                    "Phase,Weeks,State\nDiscovery,1 to 2,Done\nDesign system,2 to 4,Done\nBuild,4 to 9,In progress · ahead\nQA & UAT,10 to 11,Ahead of us\nLaunch,12,September 29 · unchanged",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "decisions",
+            group(
+                t("DECISION LOG", "label"),
+                table(
+                    "Date,Decision,Who\nJul 12,Headless storefront on Next.js,Tom · recommended by Marcus\nJul 26,Returns portal ships at launch · not phase 2,Tom\nAug 9,Reviews platform: keep Yotpo,Tom\nOpen,Hand-edited product HTML · fix 60 & strip rest?,Due Tuesday",
+                ),
+            ),
+        ),
+        section(
+            "links",
+            group(
+                t("THE USUAL DOORS", "label"),
+                linked(
+                    "body",
+                    ["Staging site", "https://staging.wexfordoutdoor.com"],
+                    " · ",
+                    ["Friday demo recordings", "https://anvilandoak.studio/wexford/demos"],
+                    " · ",
+                    ["The signed SOW", "https://anvilandoak.studio/wexford/sow"],
+                ),
+                t(
+                    "Access issues? Slack #wexford-build and someone fixes it inside the hour.",
+                    "caption",
+                ),
+            ),
+        ),
+        section(
+            "shipped",
+            group(
+                t("SHIPPED LAST WEEK", "label"),
+                bullets(
+                    "Cart and checkout flows against live tax rules",
+                    "Search with typo tolerance across all 4,100 SKUs",
+                    "The final page template · the design system is closed",
+                ),
+            ),
+        ),
+        section(
+            "gallery",
+            group(
+                t("FROM STAGING, THIS MORNING", "label"),
+                row(
+                    group(img(pic(26), 1.4), t("The new product page, gear laid flat", "caption")),
+                    group(
+                        img(pic(532), 1.4),
+                        t("Checkout on desktop, three steps flat", "caption"),
+                    ),
+                    group(img(pic(9), 1.4), t("The returns portal, label in one tap", "caption")),
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "cadence",
+            group(
+                t("THE WEEKLY RHYTHM", "label"),
+                dish(
+                    "Friday 10am",
+                    "the demo",
+                    "Thirty minutes · recorded · sign-off request follows by noon",
+                ),
+                dish(
+                    "Tuesday noon",
+                    "decision deadline",
+                    "Silence counts as approval; we put that in writing on purpose",
+                ),
+                dish(
+                    "Friday 4pm",
+                    "this page updates",
+                    "Status, budget, and the flag of the week, if any",
+                ),
+            ),
+        ),
+        section(
+            "raise",
+            group(
+                t("See something? Say something small, early.", "h2"),
+                t(
+                    "The cheap time to change course is always this week, never week eleven.",
+                    "subtitle",
+                ),
+                button("Raise it in Slack", "https://wexford.slack.com/channels/wexford-build", {
+                    size: "lg",
+                }),
+            ),
+            { bleed: true, background: bgImage(pic(9, 1700, 1100), 0.6) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Anvil & Oak", "h3")),
+                        fitW(t("Commerce engineering studio.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("THE PROJECT", "label")),
+                        fitW(t("Wexford replatform · week 6 of 12", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("RAISE ANYTHING", "label")),
+                        fitW(
+                            linked("caption", [
+                                "dana@anvilandoak.studio",
+                                "mailto:dana@anvilandoak.studio",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(115, 1700, 1100), 0.26),
+);
+
+export const caseStudySite: ArtifactContent = web(
+    "gazette",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "TEMPO",
+                    navLink("The story", "#story"),
+                    navLink("Results", "#results"),
+                    navCta("Book a demo", "https://tempo.works/demo"),
+                ),
+                t("CUSTOMER STORY · MARLOW HOSPITALITY GROUP", "label"),
+                t("Scaling hospitality without scaling the chaos.", "h1"),
+                t(
+                    "How a 22-restaurant group cut labor costs 18% and opened six new locations in a year, with one platform running the floor behind the scenes.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(395, 1700, 1100), 0.62),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "story",
+            split(
+                60,
+                group(
+                    t("THE STORY", "label"),
+                    t("Growth was outrunning the spreadsheet.", "h2"),
+                    t(
+                        "Every general manager built next week's schedule by hand on Sunday night. Forecasts were a guess, overtime was a surprise, and a sick line cook in Boston could not be covered by an off-shift cook two blocks away. With six new locations on the calendar, doing nothing was the most expensive option on the table.",
+                        "body",
+                    ),
+                ),
+                img(pic(437), 0.82),
+            ),
+        ),
+        section(
+            "results",
+            row(
+                stat("−18%", "labor cost as a share of sales"),
+                stat("$2.4M", "annualized savings across the group"),
+                stat("9 days", "to fully staff a new opening"),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "how",
+            group(
+                t("HOW IT LANDED", "label"),
+                t("Pilot one city, then earn the rest.", "h2"),
+                t(
+                    "Tempo started where the pain was sharpest: the four Boston restaurants. Scheduling was rebuilt around demand forecasts drawn from three years of POS data; results were let to speak, then the other 18 locations asked for it themselves.",
+                    "body",
+                ),
+                bullets(
+                    "Sales-driven forecasts auto-build the first draft of every schedule",
+                    "A shared shift marketplace lets staff cover across all 22 locations",
+                    "Live labor-versus-target alerts catch overtime before it happens",
+                ),
+            ),
+        ),
+        section(
+            "quote",
+            group(
+                testimonial(
+                    "I got my Sundays back, and my GMs got their floors back. Tempo didn't just save us money. It let us open six restaurants without losing the thing that makes Marlow, Marlow.",
+                    "Daniela Marlow",
+                    "COO, Marlow Hospitality Group",
+                    "https://i.pravatar.cc/240?img=44",
+                ),
+            ),
+            { bleed: true, background: bgImage(pic(999, 1700, 1100), 0.6) },
+        ),
+        section(
+            "detail",
+            group(
+                t("WHERE THE SAVINGS CAME FROM", "label"),
+                table(
+                    "Line,Before,After\nOvertime hours / week,410,140\nManager hours on schedules,6 per week each,45 minutes\nOpen-shift coverage time,2 days,4 hours\nNew-location staffing,6 weeks,9 days",
+                ),
+            ),
+        ),
+        section(
+            "rollout",
+            split(
+                40,
+                img(pic(488), 1.05),
+                group(
+                    t("THE ROLLOUT, HONESTLY", "label"),
+                    t("Week three was the hard one.", "h2"),
+                    t(
+                        "Two GMs kept shadow spreadsheets until the forecasts beat them publicly, three weeks running. Marlow's COO let the numbers argue instead of the memo, which is why the other eighteen locations asked instead of resisted.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "gallery",
+            group(
+                t("THE FLOORS IN QUESTION", "label"),
+                row(
+                    group(img(pic(42), 1.4), t("Marlow Beacon Hill, the pilot room", "caption")),
+                    group(img(pic(163), 1.4), t("The patio at Marlow Cambridge", "caption")),
+                    group(img(pic(999), 1.4), t("Service, mid-Saturday, unbothered", "caption")),
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "cta",
+            group(
+                t("See what your floors look like on Tempo.", "h2"),
+                t(
+                    "A 30-minute walkthrough could find your labor line's missing points.",
+                    "subtitle",
+                ),
+                button("Book a demo", "https://tempo.works/demo", { size: "lg" }),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Tempo", "h3")),
+                        fitW(t("Workforce platform for hospitality.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("MORE STORIES", "label")),
+                        fitW(
+                            linked("caption", [
+                                "tempo.works/customers",
+                                "https://tempo.works/customers",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("SEE IT LIVE", "label")),
+                        fitW(linked("caption", ["Book a demo", "https://tempo.works/demo"])),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(135, 1700, 1100), 0.3),
+);
+
+export const servicesPage: ArtifactContent = web(
+    "couture",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "STUDIO HALVORSEN",
+                    navLink("Services", "#services"),
+                    navLink("Process", "#process"),
+                    navLink("FAQ", "#faq"),
+                    navCta("Enquire", "#enquire"),
+                ),
+                t("SERVICES & ENGAGEMENTS", "label"),
+                t("Three ways to work with us.", "h1"),
+                t(
+                    "Interiors, identity, and objects, taken on a few at a time. What each engagement includes, how long it runs, and where the fees start.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(32, 1700, 1100), 0.5),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "services",
+            row(
+                { align: "start" },
+                pricing(
+                    "INTERIORS",
+                    "from 60K",
+                    "Residential & hospitality · 4 to 9 months",
+                    [
+                        "Full architecture of the interior",
+                        "Every material, fixture & maker",
+                        "Site supervision to handover",
+                        "The photography, in the right light",
+                    ],
+                    button("Enquire", "#enquire"),
+                ),
+                pricing(
+                    "IDENTITY",
+                    "from 24K",
+                    "Places & makers · 8 to 12 weeks",
+                    [
+                        "Naming and voice",
+                        "Mark, type & color",
+                        "The printed things people keep",
+                        "Guidelines that survive you",
+                    ],
+                    button("Enquire", "#enquire", { variant: "outline" }),
+                ),
+                pricing(
+                    "OBJECTS",
+                    "by edition",
+                    "Furniture & lighting · seasonal",
+                    [
+                        "Limited runs, numbered",
+                        "Made in-house in Oslo",
+                        "Trade enquiries welcome",
+                        "Waitlist opens each spring",
+                    ],
+                    button("Join the waitlist", "#enquire", { variant: "outline" }),
+                ),
+            ),
+        ),
+        section(
+            "process",
+            group(
+                t("HOW IT RUNS", "label"),
+                t("We say no to most things, slowly and kindly.", "h2"),
+                t(
+                    "Every engagement begins with a conversation and a site visit, unhurried. If the fit is right, you get one direction, argued properly, rather than three diluted ones. Sixteen years in, this is still the part clients thank us for.",
+                    "body",
+                ),
+            ),
+            { bleed: true, background: bgImage(pic(418, 1700, 1100), 0.55) },
+        ),
+        section(
+            "faq",
+            group(
+                t("ASKED OFTEN", "label"),
+                faq(
+                    "collapsible",
+                    [
+                        [
+                            "Do you take projects outside Norway?",
+                            "Yes; a third of our work is abroad. Travel is billed plainly, at cost, and we batch visits so you never pay for a commute twice.",
+                        ],
+                        [
+                            "Can we start with something small?",
+                            "The identity practice is the usual door in. Several interior clients began with a menu and a logotype.",
+                        ],
+                        [
+                            "Why is there no portfolio PDF?",
+                            "The portfolio lives at halvorsen.no and stays current. What we send instead is three references who will take your call.",
+                        ],
+                    ],
+                    true,
+                ),
+            ),
+        ),
+        section(
+            "recent",
+            group(
+                t("RECENTLY FINISHED", "label"),
+                row(
+                    group(
+                        img(pic(1051), 1.4),
+                        t("Fjord House · private residence, Bergen", "caption"),
+                    ),
+                    group(img(pic(882), 1.4), t("Hotel Amber · 28 rooms, Copenhagen", "caption")),
+                    group(
+                        img(pic(21), 1.4),
+                        t("Marlowe Flagship · retail identity, London", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "voice",
+            group(
+                testimonial(
+                    "Every studio says no to things. Halvorsen says no to the right things, and what survives is exactly the project you should have asked for.",
+                    "Sofia Marques",
+                    "Client, twice",
+                    "https://i.pravatar.cc/240?img=44",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("6", "projects taken per year"),
+                stat("16", "years independent"),
+                stat("2", "continents shipped to this year"),
+            ),
+        ),
+        section(
+            "enquire",
+            group(
+                t("Tell us about the space.", "h2"),
+                t(
+                    "A room, a brand, or an idea that deserves restraint. We reply within two days.",
+                    "subtitle",
+                ),
+                button("Write to the studio", "mailto:studio@halvorsen.no", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(550, 1700, 1100), 0.55) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Studio Halvorsen", "h3")),
+                        fitW(t("Thorvald Meyers gate 12, Oslo", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("STUDIO", "label")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["studio@halvorsen.no", "mailto:studio@halvorsen.no"],
+                                " · ",
+                                ["+47 22 40 18 06", "tel:+4722401806"],
+                            ),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("ELSEWHERE", "label")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["Instagram", "https://www.instagram.com/studiohalvorsen"],
+                                " · ",
+                                ["The portfolio", "https://halvorsen.no"],
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(12, 1700, 1100), 0.3),
+);
+
+// ---- reports & reviews: the cadence decks and the public-facing report sites
+
+export const allHandsDeck: ArtifactContent = deck(
+    "foundry",
+    [
+        section(
+            "cover",
+            group(
+                t("TIDELINE · ALL-HANDS · SEPTEMBER", "label"),
+                t("Sixty people, one scoreboard.", "h1"),
+                t(
+                    "The monthly all-hands: the numbers as they are, what shipped, what hurt, and where we point the next thirty days.",
+                    "subtitle",
+                ),
+                t("First Thursday · 45 minutes · questions always win", "caption"),
+            ),
+            { background: bgImage(pic(378, 1700, 1100), 0.6) },
+        ),
+        section(
+            "numbers",
+            group(
+                t("01 · THE SCOREBOARD", "label"),
+                row(
+                    stat("$48.6M", "ARR · +9% QoQ"),
+                    stat("119%", "net revenue retention"),
+                    stat("612", "customers · 84 new"),
+                ),
+                t("Same three numbers every month, so trends beat theater.", "caption"),
+            ),
+        ),
+        section(
+            "shipped",
+            split(
+                60,
+                group(
+                    t("02 · WHAT SHIPPED", "label"),
+                    t("Signals went GA, and it's landing.", "h2"),
+                    bullets(
+                        "38% of active customers adopted within three weeks",
+                        "First enterprise deal closed on the back of it",
+                        "The migration tool nobody notices, which was the goal",
+                    ),
+                ),
+                img(pic(201), 0.82),
+            ),
+        ),
+        section(
+            "hard",
+            group(
+                t("03 · THE HARD THING", "label"),
+                t("We missed the new-logo number, again.", "h2"),
+                t(
+                    "84 new logos against 95 forecast, second miss in a row. It is not the market and it is not the product: our SDR ramp is five weeks slower than planned. The fix is in motion (see priorities), and the honest read is that Q4 pipeline starts thinner than we'd like.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("contrast") },
+        ),
+        section(
+            "priorities",
+            group(
+                t("04 · THE NEXT THIRTY DAYS", "label"),
+                bullets(
+                    "Rebuild pipeline coverage to 4.0× by mid-quarter",
+                    "Ship Reverse ETL to GA in week six; two stalled deals are waiting on it",
+                    "Every leader spends one hour in support tickets; calendar holds go out Friday",
+                ),
+            ),
+        ),
+        section(
+            "shoutouts",
+            split(
+                40,
+                img(pic(407), 1.05),
+                group(
+                    t("05 · SHOUTOUTS", "label"),
+                    t("The quarter had heroes.", "h2"),
+                    bullets(
+                        "Renee's support team: 96 CSAT through the busiest month ever",
+                        "The Signals crew, for shipping the boring parts first",
+                        "Marco, who deleted 40,000 lines of code and nothing broke",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "customers",
+            split(
+                60,
+                group(
+                    t("06 · CUSTOMER OF THE MONTH", "label"),
+                    t("Cobalt Health, from pilot to platform.", "h2"),
+                    t(
+                        "Two business units became seven this quarter, a $640K upsell that started as one analyst's dashboard. The quote on the next slide is going in the deck for the board too.",
+                        "body",
+                    ),
+                ),
+                img(pic(2), 0.82),
+            ),
+        ),
+        section(
+            "quote",
+            group(
+                quote(
+                    "Tessera quietly became the system the rest of our stack reports into. We'd feel its absence in a day.",
+                    "Director of Data Platform, Cobalt Health",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "people",
+            group(
+                t("07 · PEOPLE NEWS", "label"),
+                bullets(
+                    "Nine new faces this month; the wall of intros is in the kitchen",
+                    "Parental leave policy extended to 20 weeks, effective immediately",
+                    "The Lisbon offsite lands March 9 to 13; flights book next week",
+                ),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("Questions. The real ones.", "h1"),
+                t(
+                    "Slido is open, anonymous works too, and we stay until they're done.",
+                    "subtitle",
+                ),
+            ),
+            { background: bgImage(pic(625, 1700, 1100), 0.6) },
+        ),
+    ],
+    bgImage(pic(115, 1700, 1100), 0.3),
+);
+
+export const growthReview: ArtifactContent = deck(
+    "cement",
+    [
+        section(
+            "cover",
+            group(
+                t("TIDEPOOL · MARKETING · Q3 REVIEW", "label"),
+                t("What we spent, what it bought.", "h1"),
+                t(
+                    "The quarter in acquisition: every channel against its target, the two bets that paid, the one that didn't, and where Q4's budget moves because of it.",
+                    "subtitle",
+                ),
+                t("Growth review · October 3 · numbers as of September 30", "caption"),
+            ),
+            { background: bgImage(pic(396, 1700, 1100), 0.6) },
+        ),
+        section(
+            "headline",
+            row(
+                stat("1,140", "signups · 114% of target"),
+                stat("$96", "blended CAC · target $120"),
+                stat("31%", "signup-to-paid at day 30"),
+            ),
+        ),
+        section(
+            "channels",
+            group(
+                t("01 · CHANNEL BY CHANNEL", "label"),
+                table(
+                    "Channel,Spend,Signups,CAC,Verdict\nContent & SEO,$18K,410,$44,Double it\nShopify listing,$0,290,$0,Feature won us\nPaid social,$42K,300,$140,Trim & retest\nPodcast sponsorships,$24K,140,$171,Cut",
+                ),
+            ),
+        ),
+        section(
+            "worked",
+            split(
+                60,
+                group(
+                    t("02 · WHAT WORKED", "label"),
+                    t("The unglamorous compounding stuff.", "h2"),
+                    bullets(
+                        "Operator guides now drive 36% of signups at a $44 CAC",
+                        "The Shopify feature outperformed every paid channel at zero cost",
+                        "Founder posts beat the brand account 6:1 on the same content",
+                    ),
+                ),
+                img(pic(885), 0.82),
+            ),
+        ),
+        section(
+            "didnt",
+            group(
+                t("03 · WHAT DIDN'T", "label"),
+                t("Podcasts sounded right and priced wrong.", "h2"),
+                t(
+                    "Three shows, $24K, 140 signups, and a day-30 conversion half our average: listeners were founders, our buyer is operators. The creative was good, the audience was wrong, and we're cutting it without regret. The budget moves to the guides engine.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "next",
+            group(
+                t("04 · Q4 BETS", "label"),
+                bullets(
+                    "Guides engine at 2× budget, with a dedicated writer hired by November",
+                    "Retest paid social on operator lookalikes only, $15K cap",
+                    "First customer-referral program: the ask ships in the product, not email",
+                ),
+            ),
+        ),
+        section(
+            "cohorts",
+            split(
+                40,
+                img(pic(668), 1.05),
+                group(
+                    t("05 · COHORT QUALITY", "label"),
+                    t("Content signups stay; paid signups shop.", "h2"),
+                    t(
+                        "Day-90 retention: 71% from guides, 44% from paid social. The channel mix isn't just a cost question; it decides who we're building for next year.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "experiments",
+            group(
+                t("06 · EXPERIMENT LEDGER", "label"),
+                table(
+                    "Test,Result,Decision\nPricing page rewrite,+18% trial starts,Shipped\nExit-intent popup,+2% signups · -9 brand dignity,Killed\nFounder podcast tour,Unmeasurable · fun,Retired\nComparison page,+31% organic entrances,Doubling down",
+                ),
+            ),
+        ),
+        section(
+            "asks",
+            group(
+                t("07 · WHAT GROWTH NEEDS", "label"),
+                bullets(
+                    "The content writer req approved before the holidays eat the pipeline",
+                    "Engineering: two weeks for the referral mechanic in Q4",
+                    "Keep the Shopify relationship warm; that feature was worth $42K of spend",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("Budget follows evidence.", "h2"),
+                t("Same review, same table, first Friday of January.", "subtitle"),
+            ),
+            { background: bgImage(pic(563, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(185, 1700, 1100), 0.3),
+);
+
+export const researchReadout: ArtifactContent = deck(
+    "studio",
+    [
+        section(
+            "cover",
+            group(
+                t("NORTHWIND INSTITUTE · CONFERENCE READOUT", "label"),
+                t("Where work lives now.", "h1"),
+                t(
+                    "Twenty minutes on the four findings that matter from our 4,000-worker study, for people who will not read the ninety pages. The ninety pages exist, and we'll point at them.",
+                    "subtitle",
+                ),
+                t("Future of Work Summit · 18 minutes + questions", "caption"),
+            ),
+            { background: bgImage(pic(445, 1700, 1100), 0.55) },
+        ),
+        section(
+            "one",
+            group(
+                t("FINDING 01", "label"),
+                t("Hybrid won, and then it calcified.", "h1"),
+                t(
+                    "54% of knowledge workers are hybrid and the number has not moved in 18 months. The experiment phase is over; what we have now is the settlement.",
+                    "subtitle",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "two",
+            split(
+                60,
+                group(
+                    t("FINDING 02", "label"),
+                    t("The office became a meeting room.", "h2"),
+                    t(
+                        "In-office days are 71% meetings, up from 43% pre-pandemic. Focus work went home and stayed there. Companies still planning space around desks are building for a workforce that no longer exists.",
+                        "body",
+                    ),
+                ),
+                img(pic(625), 0.82),
+            ),
+        ),
+        section(
+            "three",
+            split(
+                40,
+                img(pic(513), 1.05),
+                group(
+                    t("FINDING 03", "label"),
+                    t("Mentorship is the casualty nobody budgeted.", "h2"),
+                    t(
+                        "Workers under 30 report 40% less unplanned contact with seniors than the 2019 cohort, and it shows in ramp times. The firms beating this run deliberate pairing, not more office days.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "four",
+            group(
+                t("FINDING 04", "label"),
+                t("Distributed hiring is now the default, quietly.", "h2"),
+                row(
+                    stat("68%", "of 2026 postings are location-flexible"),
+                    stat("2.4×", "applicant pool vs. office-bound roles"),
+                    stat("−12%", "median salary premium for metro roles"),
+                ),
+            ),
+        ),
+        section(
+            "sowhat",
+            group(
+                t("WHAT TO DO WITH THIS", "label"),
+                bullets(
+                    "Plan space for meetings and mentorship, not desks",
+                    "Make pairing deliberate; proximity stopped being free",
+                    "Write the hybrid contract down; ambiguity taxes your best people",
+                ),
+            ),
+            { background: bgTone("contrast") },
+        ),
+        section(
+            "meth",
+            split(
+                60,
+                group(
+                    t("THE METHOD, FOR THE SKEPTICS", "label"),
+                    t("4,000 workers, weighted, replicable.", "h2"),
+                    t(
+                        "Census-weighted on five dimensions, fielded March and April, instruments public. Every crosstab in this talk ships in the appendix, because a finding you can't check is a press release.",
+                        "body",
+                    ),
+                ),
+                img(pic(119), 0.82),
+            ),
+        ),
+        section(
+            "surprise",
+            group(
+                t("THE FINDING THAT SURPRISED US", "label"),
+                t("Juniors want MORE office, not less.", "h2"),
+                t(
+                    "Workers under 26 want 3.1 anchored days; their managers assume they want 1.5. The generation gap runs the opposite direction from the discourse, and nobody's floor plan accounts for it.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("contrast") },
+        ),
+        section(
+            "quote",
+            group(
+                quote(
+                    "This is the dataset we quote in every workplace decision now.",
+                    "Head of Workplace, Bright Coast · study member",
+                ),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("The ninety pages, if you want them.", "h2"),
+                linked("subtitle", "The full report is free at ", [
+                    "northwind.institute/work",
+                    "https://northwind.institute/work",
+                ]),
+                t(
+                    "Slides and data downloads live there too. Questions now, or at the coffee table.",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(692, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(114, 1700, 1100), 0.3),
+);
+
+export const annualPlan: ArtifactContent = deck(
+    "press",
+    [
+        section(
+            "cover",
+            group(
+                t("SOLSTICE ENERGY · THE 2027 PLAN", "label"),
+                t("The year we make boring beautiful.", "h1"),
+                t(
+                    "2026 proved the model. 2027 is about doing it a thousand more times, safely, profitably, and without losing the crew culture that got us here.",
+                    "subtitle",
+                ),
+                t("Presented to the whole company · December 12", "caption"),
+            ),
+            { background: bgImage(pic(448, 1700, 1100), 0.55) },
+        ),
+        section(
+            "recap",
+            row(
+                stat("2,340", "systems installed in 2026"),
+                stat("$41M", "revenue · first profitable year"),
+                stat("94", "crew members · zero lost-time incidents"),
+            ),
+        ),
+        section(
+            "p1",
+            split(
+                60,
+                group(
+                    t("PRIORITY ONE", "label"),
+                    t("A thousand more roofs, same safety record.", "h2"),
+                    t(
+                        "3,400 installs is the number: forty percent growth, no new metros, deeper crews in the ones we own. Every install still starts with the same walkaround and ends with the same sign-off, because the streak matters more than the speed.",
+                        "body",
+                    ),
+                ),
+                img(pic(543), 0.82),
+            ),
+        ),
+        section(
+            "p2",
+            split(
+                40,
+                img(pic(887), 1.05),
+                group(
+                    t("PRIORITY TWO", "label"),
+                    t("GridShare grows up.", "h2"),
+                    t(
+                        "The neighborhood-battery network goes from pilot to product: 400 homes sharing storage by December, and the first utility contract that pays our customers for the privilege.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "p3",
+            group(
+                t("PRIORITY THREE", "label"),
+                t("The crew pipeline becomes a school.", "h2"),
+                t(
+                    "Twelve apprentices in 2026 became eight great installers. In 2027 the academy takes thirty, pays from day one, and graduates people other companies will try to poach and mostly fail to.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "targets",
+            group(
+                t("THE TARGETS, ON ONE SLIDE", "label"),
+                table(
+                    "Metric,2026 actual,2027 target\nInstalls,2340,3400\nRevenue,$41M,$58M\nGridShare homes,60 pilot,400\nApprentices,12,30",
+                ),
+            ),
+        ),
+        section(
+            "how",
+            split(
+                60,
+                group(
+                    t("HOW WE'LL WORK", "label"),
+                    t("Same rhythm, bigger crews.", "h2"),
+                    bullets(
+                        "Quarterly targets on the wall, reviewed the first Friday, no theater",
+                        "Every metro keeps a training bay; the academy feeds them",
+                        "GridShare gets its own team of six; no more borrowed engineers",
+                    ),
+                ),
+                img(pic(514), 0.82),
+            ),
+        ),
+        section(
+            "risks",
+            group(
+                t("WHAT COULD GO WRONG", "label"),
+                table(
+                    "Risk,Reading,The hedge\nPanel supply tightens,Medium,Two suppliers locked · Q1 buffer stock\nRate environment slows roofs,Medium,Lease product launches March\nCrew growth dilutes safety culture,Low · watched,Academy ratio capped at 1:3",
+                ),
+            ),
+        ),
+        section(
+            "north",
+            group(
+                quote(
+                    "Boring is the compliment. Every install that makes no story is a family that just has power now.",
+                    "Naomi Okonkwo · CEO · from last year's letter",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("Boring, beautiful, a thousand times.", "h2"),
+                t(
+                    "Thank you for a year worth building on. Now let's go do the unglamorous part.",
+                    "subtitle",
+                ),
+            ),
+            { background: bgImage(pic(110, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(133, 1700, 1100), 0.3),
+);
+
+export const impactSite: ArtifactContent = web(
+    "press",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "SOLSTICE",
+                    navLink("The numbers", "#numbers"),
+                    navLink("Stories", "#stories"),
+                    navLink("2027", "#goals"),
+                    navCta("Download the report", "https://solstice.energy/impact.pdf"),
+                ),
+                t("IMPACT REPORT · 2026", "label"),
+                t("What 2,340 roofs add up to.", "h1"),
+                t(
+                    "Our first profitable year was also our biggest for the grid, the crews, and the neighborhoods we work in. The whole account, in public, like every year.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(448, 1700, 1100), 0.55),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("31 GWh", "clean energy generated by our fleet"),
+                stat("22K tons", "of CO₂ avoided this year"),
+                stat("$4.1M", "saved on customer power bills"),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "how",
+            split(
+                60,
+                group(
+                    t("HOW WE COUNT", "label"),
+                    t("Real meters, third-party checked.", "h2"),
+                    t(
+                        "Every number on this page comes from production meters, not models, and the methodology is audited by Meridian Climate Verification. Where we estimate, we say so and show the math in the appendix.",
+                        "body",
+                    ),
+                ),
+                img(pic(816), 0.82),
+            ),
+        ),
+        section(
+            "stories",
+            group(
+                t("THREE ROOFS AMONG THOUSANDS", "label"),
+                row(
+                    group(
+                        img(pic(1008), 1.4),
+                        t("The Alvarez family", "h3"),
+                        t("$97 average monthly bill became $11, battery included.", "caption"),
+                    ),
+                    group(
+                        img(pic(887), 1.4),
+                        t("Casa Verde co-op", "h3"),
+                        t("Forty units sharing one GridShare battery wall.", "caption"),
+                    ),
+                    group(
+                        img(pic(514), 1.4),
+                        t("Crew 7", "h3"),
+                        t("Four apprentices, 212 installs, zero incidents.", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "goals",
+            group(
+                t("2027, IN WRITING", "label"),
+                table(
+                    "Goal,Target,We'll report\nInstalls,3400,Quarterly\nGridShare homes,400,Quarterly\nApprentice academy,30 paid seats,Twice a year",
+                ),
+                t(
+                    "Last year's goals hit 2 of 3; the miss and the why are on page 31 of the PDF.",
+                    "caption",
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "grid",
+            split(
+                60,
+                group(
+                    t("THE GRID EFFECT", "label"),
+                    t("Our fleet is a small power plant now.", "h2"),
+                    t(
+                        "On the August 14 heat event, Solstice homes returned 4.1 MWh to the grid at peak, the output of a mid-size gas peaker, from rooftops that were making their owners money. That afternoon is the company thesis in one data point.",
+                        "body",
+                    ),
+                ),
+                img(pic(182), 0.82),
+            ),
+        ),
+        section(
+            "people",
+            group(
+                t("THE CREWS", "label"),
+                row(
+                    stat("94", "crew members, all W-2"),
+                    stat("$31", "median hourly, plus production"),
+                    stat("12 → 30", "apprentice seats next year"),
+                ),
+                t(
+                    "Every number audited alongside the energy figures; people are impact too.",
+                    "caption",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "quote2",
+            group(
+                testimonial(
+                    "They put panels on our co-op and apprenticed two of our residents in the same summer. That's what neighborhood infrastructure means.",
+                    "Rosa Delgado",
+                    "Board president, Casa Verde",
+                    "https://i.pravatar.cc/240?img=25",
+                ),
+            ),
+        ),
+        section(
+            "cta",
+            group(
+                t("The whole report, no email wall.", "h2"),
+                button("Download the PDF", "https://solstice.energy/impact.pdf", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(110, 1700, 1100), 0.5) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Solstice Energy", "h3")),
+                        fitW(t("Rooftop solar, done boringly well.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("THE REPORT", "label")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["Full PDF", "https://solstice.energy/impact.pdf"],
+                                " · ",
+                                ["Methodology", "https://solstice.energy/impact/method"],
+                            ),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("QUESTIONS", "label")),
+                        fitW(
+                            linked("caption", [
+                                "impact@solstice.energy",
+                                "mailto:impact@solstice.energy",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(133, 1700, 1100), 0.3),
+);
+export const researchSite: ArtifactContent = web(
+    "studio",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "NORTHWIND INSTITUTE",
+                    navLink("Findings", "#findings"),
+                    navLink("Method", "#method"),
+                    navCta("Get the report", "#download"),
+                ),
+                t("THE 2026 STUDY · FREE, NO EMAIL WALL", "label"),
+                t("Where Work Lives Now", "h1"),
+                t(
+                    "4,000 workers, 14 industries, and the clearest picture yet of how hybrid actually settled. Read the findings here or take the ninety pages to go.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(445, 1700, 1100), 0.55),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "topline",
+            row(
+                stat("54%", "of knowledge work is hybrid, and holding"),
+                stat("71%", "of office time is now meetings"),
+                stat("68%", "of new postings are location-flexible"),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "findings",
+            group(
+                t("THE FOUR FINDINGS", "label"),
+                row(
+                    group(
+                        img(pic(48), 1.4),
+                        t("Hybrid calcified", "h3"),
+                        t("The experiment ended; the settlement is two anchored days.", "caption"),
+                    ),
+                    group(
+                        img(pic(625), 1.4),
+                        t("Offices became meeting rooms", "h3"),
+                        t("Focus work moved home and is not coming back.", "caption"),
+                    ),
+                    group(
+                        img(pic(513), 1.4),
+                        t("Mentorship pays the price", "h3"),
+                        t("Unplanned senior contact fell 40% for workers under 30.", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "quote",
+            group(
+                testimonial(
+                    "This is the dataset we quote in every workplace decision now. Nothing else out there is this current or this honest about its methods.",
+                    "Ines Duarte",
+                    "Head of Workplace, Bright Coast",
+                    "https://i.pravatar.cc/240?img=20",
+                ),
+            ),
+        ),
+        section(
+            "method",
+            split(
+                60,
+                group(
+                    t("THE METHOD, BRIEFLY", "label"),
+                    t("4,000 workers, weighted, replicable.", "h2"),
+                    t(
+                        "Panel-recruited, census-weighted on five dimensions, fielded in March and April 2026. Every instrument, crosstab, and weighting decision ships in the appendix, because a finding you can't check is a press release.",
+                        "body",
+                    ),
+                ),
+                img(pic(119), 0.82),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "finding4",
+            split(
+                60,
+                group(
+                    t("AND THE FOURTH", "label"),
+                    t("Distributed hiring became the quiet default.", "h2"),
+                    t(
+                        "68% of 2026 postings are location-flexible, applicant pools run 2.4× deeper, and the metro salary premium fell to 12%. The map stopped mattering faster than the org charts admit.",
+                        "body",
+                    ),
+                ),
+                img(pic(830), 0.82),
+            ),
+        ),
+        section(
+            "numbers2",
+            group(
+                t("BY THE NUMBERS", "label"),
+                table(
+                    "Measure,2019,2026\nFully remote,4%,22%\nHybrid,12%,54%\nOffice-first,84%,24%\nUnplanned senior contact · under-30s,Baseline,−40%",
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "press",
+            group(
+                t("COVERED BY", "label"),
+                row(
+                    fitW(t("THE ATLANTIC", "h3")),
+                    fitW(t("FT WORK", "h3")),
+                    fitW(t("PLACES JOURNAL", "h3")),
+                    fitW(t("WORKLIFE", "h3")),
+                ),
+            ),
+        ),
+        section(
+            "download",
+            group(
+                t("Take the ninety pages.", "h2"),
+                t(
+                    "PDF, data tables, and the citation file. Free forever; funded by our members.",
+                    "subtitle",
+                ),
+                button("Download the report", "https://northwind.institute/work.pdf", {
+                    size: "lg",
+                }),
+            ),
+            { bleed: true, background: bgImage(pic(692, 1700, 1100), 0.55) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Northwind Institute", "h3")),
+                        fitW(t("Independent research on how work actually happens.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("THE STUDY", "label")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["Download", "https://northwind.institute/work.pdf"],
+                                " · ",
+                                ["Data tables", "https://northwind.institute/work/data"],
+                            ),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("CONTACT", "label")),
+                        fitW(
+                            linked("caption", [
+                                "research@northwind.institute",
+                                "mailto:research@northwind.institute",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(114, 1700, 1100), 0.3),
+);
+
+export const changelogSite: ArtifactContent = web(
+    "stark",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "VANTA",
+                    navLink("Latest", "#latest"),
+                    navLink("Earlier", "#earlier"),
+                    navCta("Get Vanta", "https://vanta.app"),
+                ),
+                t("CHANGELOG", "label"),
+                t("What changed, and why we bothered.", "h1"),
+                t(
+                    "Every release, newest first, written by the people who built it. No growth hacks disguised as features; if it's here, it made the product quieter.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(68, 1700, 1100), 0.55),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "latest",
+            group(
+                t("NOVEMBER · 1.4", "label"),
+                t("The rhythm release.", "h2"),
+                t(
+                    "Vanta now notices when your focus hours drift with the season and moves its quiet blocks with them. Built after we watched winter break everyone's October settings.",
+                    "body",
+                ),
+                bullets(
+                    "Focus hours follow your actual rhythm, reviewed monthly on-device",
+                    "The queue got 40% faster on decade-old laptops, our favorite benchmark",
+                    "New: one keystroke sends any window to tomorrow morning",
+                ),
+            ),
+        ),
+        section(
+            "earlier",
+            group(
+                t("EARLIER", "label"),
+                dish(
+                    "October · 1.3",
+                    "the offline release",
+                    "Drafting and summaries now run fully on-device; the network light stays dark",
+                ),
+                dish(
+                    "September · 1.2",
+                    "the calendar truce",
+                    "Meetings block focus time automatically, and vice versa, and both sides win",
+                ),
+                dish(
+                    "August · 1.1",
+                    "the first apology",
+                    "We shipped badges in 1.0; we're sorry; they're gone",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "principles",
+            group(
+                t("WHAT SHIPS AND WHAT NEVER WILL", "label"),
+                bullets(
+                    "Ships: anything that removes a decision from your day",
+                    "Never: streaks, badges, or anything that wants you back",
+                    "Never: your data leaving the machine, even for our convenience",
+                ),
+            ),
+            { bleed: true, background: bgImage(pic(831, 1700, 1100), 0.7) },
+        ),
+        section(
+            "asked",
+            group(
+                t("MOST REQUESTED, WITH VERDICTS", "label"),
+                table(
+                    "Request,Votes,Verdict\nAndroid,914,Building · spring\nCalendar two-way sync,610,Shipped in 1.2\nThemes,244,One more theme · then we stop\nStreaks,198,Never · see principles",
+                ),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("14", "releases since 1.0"),
+                stat("0", "features that want you back"),
+                stat("40%", "faster on decade-old laptops"),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "written",
+            group(
+                testimonial(
+                    "The only changelog I read for pleasure. August's apology should be taught in product schools.",
+                    "A reader",
+                    "who emailed, unprompted",
+                    "https://i.pravatar.cc/240?img=26",
+                ),
+            ),
+        ),
+        section(
+            "subscribe",
+            group(
+                t("One email per release, four lines long.", "h2"),
+                button("Subscribe to the changelog", "https://vanta.app/changelog", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(416, 1700, 1100), 0.5) },
+        ),
+        section(
+            "desk",
+            split(
+                60,
+                group(
+                    t("WHERE IT'S MADE", "label"),
+                    t("Two people, one room, no roadmap wall.", "h2"),
+                    t(
+                        "Every entry above was built, tested, and written by the same two hands. The queue of ideas lives on index cards; the ones that survive winter get built in spring.",
+                        "body",
+                    ),
+                ),
+                img(pic(794), 0.82),
+            ),
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Vanta", "h3")),
+                        fitW(t("The workspace that disappears.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("ELSEWHERE", "label")),
+                        fitW(
+                            linked("caption", ["vanta.app", "https://vanta.app"], " · ", [
+                                "The waitlist",
+                                "https://vanta.app/waitlist",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("WRITE TO US", "label")),
+                        fitW(linked("caption", ["hello@vanta.app", "mailto:hello@vanta.app"])),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+    ],
+    bgImage(pic(642, 1700, 1100), 0.3),
+);
+
+export const openMetrics: ArtifactContent = web(
+    "clay",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "CADENCE",
+                    navLink("The numbers", "#numbers"),
+                    navLink("Commentary", "#commentary"),
+                    navLink("Why open", "#why"),
+                    navCta("Try Cadence", "https://cadence.dev"),
+                ),
+                t("OPEN METRICS · UPDATED MONTHLY", "label"),
+                t("Our dashboard, in public.", "h1"),
+                t(
+                    "Revenue, retention, and runway, published since the month we started. Investors get nothing you can't see here.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(6, 1700, 1100), 0.6),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("$248K", "MRR · +16% MoM"),
+                stat("124%", "net revenue retention"),
+                stat("21 mo", "runway at current burn"),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "detail",
+            group(
+                t("THE LONG TABLE", "label"),
+                table(
+                    "Metric,May,June,July,August\nMRR,$248K,$263K,$281K,$302K\nNew logos,14,11,16,18\nLogo churn,1.1%,1.4%,0.9%,1.0%\nTeam size,19,19,21,22",
+                ),
+            ),
+        ),
+        section(
+            "commentary",
+            split(
+                60,
+                group(
+                    t("AUGUST, HONESTLY", "label"),
+                    t("Best month ever, with an asterisk.", "h2"),
+                    t(
+                        "$302K MRR and 18 new logos read great; two of those logos are pilots that convert or churn in Q4, and infra costs jumped 22% before our autoscaling fix landed. September's number tells us if the fix held. We'll write it here either way.",
+                        "body",
+                    ),
+                ),
+                img(pic(668), 0.82),
+            ),
+        ),
+        section(
+            "why",
+            group(
+                t("WHY WE PUBLISH", "label"),
+                t("Sunlight is a forcing function.", "h2"),
+                t(
+                    "We sell billing software to usage-based startups; asking for your revenue pipeline means showing ours. Publishing monthly keeps our own numbers clean, our story straight, and our worst quarter on the record next to our best.",
+                    "body",
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "history",
+            split(
+                40,
+                img(pic(366), 1.05),
+                group(
+                    t("THE WORST MONTH, KEPT UP", "label"),
+                    t("March 2025 stays on the page.", "h2"),
+                    t(
+                        "MRR fell 6%, two logos churned loudly, and the commentary that month was hard to write. It stays published because the good months only mean something next to it.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "principles",
+            group(
+                t("THE RULES WE PUBLISH BY", "label"),
+                checks(
+                    "Same metrics, same definitions, every month, no vanity swaps",
+                    "Bad months get the same word count as good ones",
+                    "Customer names only with written permission",
+                    "If we ever stop publishing, the last post says why",
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "peers",
+            group(
+                t("OTHERS DOING THIS", "label"),
+                t(
+                    "We keep a list of open-metrics companies we admire and steal formatting from, because sunlight compounds when it spreads.",
+                    "body",
+                ),
+                linked("caption", "The list: ", [
+                    "cadence.dev/open-friends",
+                    "https://cadence.dev/open-friends",
+                ]),
+            ),
+        ),
+        section(
+            "cta",
+            group(
+                t("Metering your revenue? That's the product.", "h2"),
+                button("Try Cadence free", "https://cadence.dev", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(0, 1700, 1100), 0.6) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Cadence", "h3")),
+                        fitW(t("Billing for usage-based software.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("THE NUMBERS", "label")),
+                        fitW(t("Updated the first Monday, since 2024", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("ASK ANYTHING", "label")),
+                        fitW(
+                            linked("caption", [
+                                "metrics@cadence.dev",
+                                "mailto:metrics@cadence.dev",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(115, 1700, 1100), 0.28),
+);
+
+export const statusPage: ArtifactContent = web(
+    "graphite",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "NORTHWIND STATUS",
+                    navLink("Systems", "#systems"),
+                    navLink("History", "#history"),
+                    navCta("Subscribe", "#subscribe"),
+                ),
+                t("ALL SYSTEMS OPERATIONAL", "label"),
+                t("Boring, as designed.", "h1"),
+                t(
+                    "Live status for every Northwind system, the ninety-day record, and the honest write-up whenever we break something.",
+                    "subtitle",
+                ),
+                t("Last checked 40 seconds ago · Updates every minute", "caption"),
+            ),
+            { bleed: true, background: bgTone("contrast"), frame: { aspect: 16 / 9 } },
+        ),
+        section(
+            "systems",
+            group(
+                t("SYSTEMS", "label"),
+                checks(
+                    "Dashboards & app · operational",
+                    "Data ingestion · operational",
+                    "Alerts & digests · operational",
+                    "API · operational",
+                    "Embeds · operational",
+                ),
+            ),
+        ),
+        section(
+            "uptime",
+            group(
+                t("NINETY DAYS", "label"),
+                table(
+                    "System,Uptime,Worst day\nApp,99.99%,Aug 12 · 4 min deploy blip\nIngestion,99.97%,Jul 30 · vendor outage\nAPI,100%,Clean quarter\nAlerts,99.98%,Aug 2 · delayed 6 min",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "history",
+            group(
+                t("INCIDENT HISTORY", "label"),
+                dish(
+                    "Jul 30",
+                    "41 min",
+                    "Upstream queue outage delayed ingestion; no data lost; buffered and replayed",
+                ),
+                dish(
+                    "Jun 14",
+                    "12 min",
+                    "Bad deploy slowed dashboards; rolled back; deploy gate added",
+                ),
+                dish(
+                    "May 3",
+                    "0 min",
+                    "Precautionary failover during provider maintenance; nobody noticed, which was the point",
+                ),
+                t("Every incident gets a public post-mortem within five working days.", "caption"),
+            ),
+        ),
+        section(
+            "postmortem",
+            group(
+                t("THE LATEST POST-MORTEM, SUMMARIZED", "label"),
+                t("July 30: the 41 minutes, explained.", "h2"),
+                t(
+                    "An upstream queue provider failed over without draining. Our buffer held every event; ingestion replayed clean within the hour. What changed: we now drain-test that failover monthly, and the vendor knows we publish these.",
+                    "body",
+                ),
+                linked("caption", "Full write-up: ", [
+                    "status.northwind.dev/pm/2026-07-30",
+                    "https://status.northwind.dev/pm/2026-07-30",
+                ]),
+            ),
+            { bleed: true, background: bgImage(pic(220, 1700, 1100), 0.66) },
+        ),
+        section(
+            "principles",
+            group(
+                t("HOW WE RUN STATUS", "label"),
+                checks(
+                    "Status flips before the tweetstorm, not after",
+                    "Every incident gets a public post-mortem in five working days",
+                    "Scheduled maintenance appears here a week out, always",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "subscribe",
+            group(
+                t("Hear about it from us first.", "h2"),
+                t(
+                    "Email or webhook, the moment status changes. Median notice: 90 seconds.",
+                    "subtitle",
+                ),
+                button("Subscribe to updates", "https://status.northwind.dev/subscribe", {
+                    size: "lg",
+                }),
+            ),
+            { bleed: true, background: bgTone("accent") },
+        ),
+        section(
+            "oncall",
+            split(
+                60,
+                group(
+                    t("THE HUMANS BEHIND THE GREEN", "label"),
+                    t("Four engineers, one quiet pager.", "h2"),
+                    t(
+                        "On-call rotates weekly, pages have fallen 70% in two years, and every alert that wakes someone gets a follow-up ticket asking why it had to. Boring status is an engineering budget, spent deliberately.",
+                        "body",
+                    ),
+                ),
+                img(pic(304), 0.82),
+            ),
+        ),
+        section(
+            "watch",
+            group(
+                t("WHAT WE MEASURE FROM OUTSIDE", "label"),
+                bullets(
+                    "Synthetic checks from six regions, every 30 seconds",
+                    "Real-user timings from the app itself, sampled at 10%",
+                    "A dead-man's switch: if status can't update, that IS the incident",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Northwind Status", "h3")),
+                        fitW(t("Independent of the app it watches.", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("HISTORY", "label")),
+                        fitW(
+                            linked("caption", [
+                                "All post-mortems",
+                                "https://status.northwind.dev/history",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("REACH US", "label")),
+                        fitW(
+                            linked("caption", [
+                                "status@northwind.dev",
+                                "mailto:status@northwind.dev",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(930, 1700, 1100), 0.3),
+);
+
+// ---- you & your work: the personal wing's decks, papers, and pages
+
+export const conferenceTalk: ArtifactContent = deck(
+    "vellum",
+    [
+        section(
+            "title",
+            group(
+                t("SMALL SOFTWARE CONF · LISBON", "label"),
+                t("Making Things Small", "h1"),
+                t(
+                    "A talk about building software that ends, tools that stay quiet, and why less has been the whole point all along.",
+                    "subtitle",
+                ),
+                t("Wren Halloran · Quiet Machines · 25 minutes", "caption"),
+            ),
+            { background: bgImage(pic(962, 1700, 1100), 0.55) },
+        ),
+        section(
+            "who",
+            split(
+                60,
+                group(
+                    t("WHO'S TALKING", "label"),
+                    t("I ship tools four people love.", "h2"),
+                    t(
+                        "Ten years between writing and design, three products still alive and maintained, and a weekly letter to 24,000 people about paying attention. Everything I know fits in this talk, which is the first lesson.",
+                        "body",
+                    ),
+                ),
+                img(pic(788), 0.82),
+            ),
+        ),
+        section(
+            "claim",
+            group(
+                t("THE CLAIM", "label"),
+                t("Software rots from ambition, not age.", "h1"),
+                t("Every dead product I've loved died of a roadmap.", "subtitle"),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "one",
+            split(
+                40,
+                img(pic(251), 1.05),
+                group(
+                    t("LESSON ONE", "label"),
+                    t("Decide what it will never do.", "h2"),
+                    t(
+                        "Margin has no feed, no algorithm, and no expiry, and those three sentences took two years to earn. The feature you refuse defines the product more than the ten you ship.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "two",
+            split(
+                60,
+                group(
+                    t("LESSON TWO", "label"),
+                    t("Charge money, stay small, sleep.", "h2"),
+                    t(
+                        "Margin makes a modest living from people who pay for it twice, as one reader put it. No investors means no growth theater, and no growth theater means the roadmap fits on an index card, which is the correct size.",
+                        "body",
+                    ),
+                ),
+                img(pic(885), 0.82),
+            ),
+        ),
+        section(
+            "three",
+            split(
+                40,
+                img(pic(910), 1.05),
+                group(
+                    t("LESSON THREE", "label"),
+                    t("Finish things. It's allowed.", "h2"),
+                    t(
+                        "The Attention Book will ship, be done, and never get an update, like books have managed for five hundred years. A finished thing is not a dead thing; it is a kept promise.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "evidence",
+            group(
+                t("THE RECEIPTS", "label"),
+                row(
+                    stat("10 yrs", "of Margin's data retention promise, kept"),
+                    stat("3", "products alive · zero pivots"),
+                    stat("24K", "readers who chose slower software"),
+                ),
+            ),
+        ),
+        section(
+            "counter",
+            split(
+                60,
+                group(
+                    t("THE OBJECTION I ALWAYS GET", "label"),
+                    t("Doesn't small mean irrelevant?", "h2"),
+                    t(
+                        "Basecamp is small. Pinboard was one person. The tools you'll still use in 2040 are being built by teams who can share one pizza, because they're the only ones whose incentives let software finish.",
+                        "body",
+                    ),
+                ),
+                img(pic(486), 0.82),
+            ),
+        ),
+        section(
+            "quote",
+            group(
+                quote(
+                    "Every dead product I've loved died of a roadmap.",
+                    "The line people tweet · so it goes on its own slide",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("Build something that ends.", "h1"),
+                t("Slides, the reading list, and the letter: quietmachines.co/talk", "subtitle"),
+                t("Thank you. Questions welcome, small ones especially.", "caption"),
+            ),
+            { background: bgImage(pic(552, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(552, 1700, 1100), 0.3),
+);
+
+export const portfolioDeck: ArtifactContent = deck(
+    "studio",
+    [
+        section(
+            "cover",
+            group(
+                t("ELENA MARIS VANCE · SELECTED WORK", "label"),
+                t("Calm, durable software.", "h1"),
+                t(
+                    "Nine years of product design for tools people open every day: three projects, the decisions inside them, and what shipped.",
+                    "subtitle",
+                ),
+                t("Prepared for the Northwind design team · 12 minutes", "caption"),
+            ),
+            { background: bgImage(pic(533, 1700, 1100), 0.55) },
+        ),
+        section(
+            "p1",
+            split(
+                60,
+                group(
+                    t("01 · ASTER DESIGN SYSTEM", "label"),
+                    t("Four teams, one voice, 80 components.", "h2"),
+                    t(
+                        "A fractured UI became one coherent system: tokens, components, and the usage guidelines that made adoption feel like relief instead of homework. Documented, versioned, and adopted across web and mobile without a mandate.",
+                        "body",
+                    ),
+                    t(
+                        "Impact: new-feature design time down 40% · brand drift, visibly gone",
+                        "caption",
+                    ),
+                ),
+                img(pic(532), 0.82),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("9 yrs", "designing shipping product"),
+                stat("40k+", "businesses on my last product"),
+                stat("80", "components in the system that stayed"),
+            ),
+        ),
+        section(
+            "p2",
+            split(
+                40,
+                img(pic(180), 1.05),
+                group(
+                    t("02 · MERCHANT DASHBOARD 2.0", "label"),
+                    t("The redesign that read like a receipt.", "h2"),
+                    t(
+                        "Payments data for 40,000 small businesses, rebuilt around the one question every owner asks: where's my money. Weekly active use rose 34%, and time-to-first-invoice fell from 11 minutes to under 3.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "p3",
+            split(
+                60,
+                group(
+                    t("03 · CADENCE CARE PLANS", "label"),
+                    t("Chronic care, without the dread.", "h2"),
+                    t(
+                        "Onboarding and daily tracking for a health app that grew from 5k to 220k monthly users. The accessibility overhaul took every core flow from WCAG A to AA, and the 40-patient research sprint reframed the entire care-plan model.",
+                        "body",
+                    ),
+                ),
+                img(pic(48), 0.82),
+            ),
+        ),
+        section(
+            "how",
+            group(
+                t("HOW I WORK", "label"),
+                bullets(
+                    "Prototype in code when fidelity matters, in paper when speed does",
+                    "The edge cases and empty states are the design, not the cleanup",
+                    "Ship one flow that respects people's time over ten that demo well",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "practice",
+            split(
+                40,
+                img(pic(533), 1.05),
+                group(
+                    t("THE THREAD", "label"),
+                    t("Systems over screens.", "h2"),
+                    t(
+                        "All three projects are the same job in different clothes: find the pattern under forty screens, name it, and hand the team a language instead of a mockup. That job travels across any product domain.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "words",
+            group(
+                t("COLLEAGUES SAY", "label"),
+                quote(
+                    "Elena's specs read like well-written law: you can tell what to do in the cases she didn't draw.",
+                    "Staff engineer · Merchant Dashboard team",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "offer",
+            group(
+                t("WHAT I'M LOOKING FOR", "label"),
+                bullets(
+                    "A team that ships weekly and reads its support tickets",
+                    "Design systems work or 0-to-1 with systems ambitions",
+                    "Hybrid SF or fully remote · start date flexible",
+                ),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("Let's build the quiet version.", "h2"),
+                linked("subtitle", ["elena@vance.design", "mailto:elena@vance.design"], " · ", [
+                    "vance.design",
+                    "https://vance.design",
+                ]),
+            ),
+            { background: bgImage(pic(119, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(114, 1700, 1100), 0.3),
+);
+
+export const teachingDeck: ArtifactContent = deck(
+    "brut",
+    [
+        section(
+            "cover",
+            group(
+                t("WORKSHOP · 90 MINUTES · BRING A LAPTOP", "label"),
+                t("Design systems that survive reorgs.", "h1"),
+                t(
+                    "A working session on building component systems that outlive their authors, their sponsors, and the next org chart.",
+                    "subtitle",
+                ),
+                t("Elena Vance · Config 2026 workshop track", "caption"),
+            ),
+            { background: bgImage(pic(945, 1700, 1100), 0.6) },
+        ),
+        section(
+            "premise",
+            group(
+                t("THE PREMISE", "label"),
+                t("Systems don't die of bad tokens.", "h2"),
+                t(
+                    "They die when the one person who understood the versioning leaves, when a reorg orphans the repo, and when adoption was always one team deep. Today is about the boring structures that prevent all three.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "agenda",
+            group(
+                t("THE 90 MINUTES", "label"),
+                table(
+                    "Block,Minutes,What we do\nAutopsies,20,Three dead systems · what actually killed them\nExercise one,25,Stress-test your governance on paper\nExercise two,25,Write the two-paragraph succession plan\nThe rule,10,One rule that outlives everything\nQuestions,10,Including the awkward ones",
+                ),
+            ),
+        ),
+        section(
+            "exercise",
+            split(
+                60,
+                group(
+                    t("THE CORE EXERCISE", "label"),
+                    t("Kill your system on paper first.", "h2"),
+                    bullets(
+                        "Your sponsor quits Monday: who signs the next breaking change?",
+                        "Two teams fork the button: which one is canonical, says who?",
+                        "Budget halves: what do you stop documenting first?",
+                    ),
+                ),
+                img(pic(4), 0.82),
+            ),
+        ),
+        section(
+            "rule",
+            group(t("THE ONE RULE", "label"), t("If it needs you, it isn't a system yet.", "h1")),
+            { background: bgTone("accent") },
+        ),
+        section(
+            "cases",
+            group(
+                t("THE THREE AUTOPSIES", "label"),
+                table(
+                    "System,Lifespan,Cause of death\nA fintech's 'Polaris',3 years,Sponsor left · repo orphaned in the reorg\nAn agency's kit,18 months,One team deep · died with the contract\nA unicorn's system,5 years · alive,Survived twice · we study why",
+                ),
+            ),
+        ),
+        section(
+            "takeaway",
+            split(
+                40,
+                img(pic(180), 1.05),
+                group(
+                    t("THE TWO-PARAGRAPH SUCCESSION PLAN", "label"),
+                    t("Write the obituary before the birth.", "h2"),
+                    t(
+                        "Paragraph one: who inherits, by role not name. Paragraph two: what gets deleted when nobody does. Teams that write this ship calmer systems, because scarcity was designed in.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "prep",
+            group(
+                t("BEFORE YOU ARRIVE", "label"),
+                checks(
+                    "Bring your system's repo URL and its bus factor, honestly counted",
+                    "Know who signed your last breaking change",
+                    "Install nothing; paper beats laptops for the first hour",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("Templates, checklists, and the autopsies.", "h2"),
+                linked("subtitle", "Everything from today: ", [
+                    "vance.design/workshop",
+                    "https://vance.design/workshop",
+                ]),
+                t("Stay for the hallway; that's where the real questions live.", "caption"),
+            ),
+            { background: bgImage(pic(119, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(115, 1700, 1100), 0.3),
+);
+
+export const yearInReview: ArtifactContent = deck(
+    "atelier",
+    [
+        section(
+            "cover",
+            group(
+                t("A PERSONAL ACCOUNTING", "label"),
+                t("2026, in small things", "h1"),
+                t(
+                    "One year, counted honestly: the photographs, the miles, the mornings, and the handful of moments that turned out to be the point.",
+                    "subtitle",
+                ),
+                t("Jonah Reyes · made in the last week of December", "caption"),
+            ),
+            { background: bgImage(pic(860, 1700, 1100), 0.55) },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("14,206", "photographs, 31 worth keeping"),
+                stat("1,940 km", "walked, mostly before 7am"),
+                stat("52", "Sunday calls home, unbroken"),
+            ),
+        ),
+        section(
+            "spring",
+            split(
+                40,
+                img(pic(821), 1.05),
+                group(
+                    t("SPRING", "label"),
+                    t("The essay got published.", "h2"),
+                    t(
+                        "Before the City Wakes ran in March, and strangers wrote to say they'd started waking early. The city didn't change; the inbox did. Best thing I made all year, and it was made of mornings.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "summer",
+            split(
+                60,
+                group(
+                    t("SUMMER", "label"),
+                    t("I learned to be terrible at surfing.", "h2"),
+                    t(
+                        "Four months of Saturdays, one wave ridden clean, and a standing appointment with humility. Recommended without reservation.",
+                        "body",
+                    ),
+                ),
+                img(pic(846), 0.82),
+            ),
+        ),
+        section(
+            "fall",
+            split(
+                40,
+                img(pic(998), 1.05),
+                group(
+                    t("FALL", "label"),
+                    t("Grandpa's letters, finally scanned.", "h2"),
+                    t(
+                        "Two hundred and six of them, 1961 to 1989, archived and shared with the cousins. The family group chat went quiet for a week in the best way.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "lessons",
+            group(
+                t("WHAT THE YEAR ARGUED", "label"),
+                bullets(
+                    "The early hour is undefeated; everything good started before eight",
+                    "Counting things is a way of caring about them",
+                    "Finish the small project; the big one is usually a costume it wears",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "gallery",
+            group(
+                t("TWELVE MONTHS, SIX FRAMES", "label"),
+                row(
+                    group(img(pic(860), 1.4), t("January, the bridge to myself", "caption")),
+                    group(img(pic(846), 1.4), t("July, wave number one", "caption")),
+                    group(img(pic(407), 1.4), t("December, the cousins' sparklers", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "failures",
+            group(
+                t("HONORABLE FAILURES", "label"),
+                bullets(
+                    "The novel: 40 pages, then honorably shelved for the essay",
+                    "Running a marathon: became running most mornings, which is better",
+                    "Inbox zero: achieved twice · witnessed once",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "thanks",
+            group(
+                quote(
+                    "Counting things is a way of caring about them.",
+                    "The year's working theory · held up",
+                ),
+            ),
+        ),
+        section(
+            "next",
+            group(
+                t("2027, provisionally", "h2"),
+                t(
+                    "More mornings, the second essay, and one wave ridden with witnesses.",
+                    "subtitle",
+                ),
+            ),
+            { background: bgImage(pic(862, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(255, 1700, 1100), 0.3),
+);
+
+export const sideProjectPitch: ArtifactContent = deck(
+    "vellum",
+    [
+        section(
+            "cover",
+            group(
+                t("MARGIN 2.0 · A SMALL PITCH", "label"),
+                t("The reading app grows up, barely.", "h1"),
+                t(
+                    "Margin saves what you read and never loses it. 2.0 is the version I've owed the four thousand people who pay for it: the rebuild, the reader, and nothing else.",
+                    "subtitle",
+                ),
+                t("Wren Halloran · pitching collaborators, not capital", "caption"),
+            ),
+            { background: bgImage(pic(24, 1700, 1100), 0.55) },
+        ),
+        section(
+            "what",
+            split(
+                60,
+                group(
+                    t("WHAT MARGIN IS", "label"),
+                    t("A library, not a feed.", "h2"),
+                    t(
+                        "Save anything, highlight freely, and trust it will still be there in ten years. No algorithm, no social layer, no expiry. It gets more valuable the longer you tend it, like a shelf.",
+                        "body",
+                    ),
+                ),
+                img(pic(251), 0.82),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("4,100", "paying readers"),
+                stat("$71K", "a year, after fees"),
+                stat("31%", "open the app daily"),
+            ),
+        ),
+        section(
+            "twozero",
+            group(
+                t("WHAT 2.0 ADDS", "label"),
+                bullets(
+                    "The rebuilt reader: typography worth the name, offline everything",
+                    "One-tap send from anywhere, finally including email newsletters",
+                    "Nothing else; forty feature requests politely declined and archived",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "plan",
+            group(
+                t("THE PLAN", "label"),
+                table(
+                    "When,What,State\nJanuary,Reader beta to the letter's readers,Designed\nMarch,2.0 ships · price stays $4,On track\nJune,The API three people asked for,If the spring is kind",
+                ),
+            ),
+        ),
+        section(
+            "reader",
+            split(
+                60,
+                group(
+                    t("THE REBUILT READER", "label"),
+                    t("Typography worth the name.", "h2"),
+                    bullets(
+                        "Real margins, real leading, your type size remembered per book",
+                        "Offline everything: planes are where reading happens",
+                        "Highlights export to plain text, forever portable",
+                    ),
+                ),
+                img(pic(367), 0.82),
+            ),
+        ),
+        section(
+            "principles",
+            group(
+                t("THE PRODUCT RULES", "label"),
+                checks(
+                    "No feed, no algorithm, no expiry, ever",
+                    "Price stays $4; the business plan is patience",
+                    "Every feature request answered, most with a kind no",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "words",
+            group(
+                quote(
+                    "Margin is the only app I'd grieve. Everything else is replaceable.",
+                    "A reader's email · the retention strategy in one line",
+                ),
+            ),
+        ),
+        section(
+            "ask",
+            group(
+                t("THE ASK", "label"),
+                t("One iOS contractor, three months, good taste.", "h2"),
+                t(
+                    "Paid properly from the product's own revenue. You'd be the second person ever to touch this codebase, and the first is friendly.",
+                    "body",
+                ),
+                linked("caption", "Sound like you? ", [
+                    "wren@quietmachines.co",
+                    "mailto:wren@quietmachines.co",
+                ]),
+            ),
+            { background: bgImage(pic(910, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(552, 1700, 1100), 0.3),
+);
+
+export const designCaseStudy: ArtifactContent = doc(
+    "studio",
+    [
+        section(
+            "head",
+            group(
+                t("CASE STUDY · DESIGN SYSTEMS", "label"),
+                t("Aster: one voice for four teams", "h1"),
+                t(
+                    "How a fractured product UI became a design system with 80 components, real adoption, and no mandate from above. The decisions, the mistakes, and the numbers.",
+                    "subtitle",
+                ),
+                t("Elena Vance · Lead Product Designer · 8 minute read", "caption"),
+            ),
+            { background: bgImage(pic(533, 1700, 1100), 0.55) },
+        ),
+        section(
+            "problem",
+            group(
+                t("THE PROBLEM", "label"),
+                t("Four teams, four button heights, one brand.", "h2"),
+                t(
+                    "By 2023 the product had 23 shades of gray, three date pickers, and a design review process that mostly relitigated spacing. New designers took a month to learn which patterns were load-bearing. Nobody owned the whole, so the whole drifted.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "bet",
+            split(
+                60,
+                group(
+                    t("THE BET", "label"),
+                    t("Adoption over coverage.", "h2"),
+                    t(
+                        "Instead of building the complete system and announcing it, we shipped eight components that solved the loudest pain, embedded with the team that hurt most, and let the second team ask. Coverage came later; credibility came first.",
+                        "body",
+                    ),
+                ),
+                img(pic(532), 0.82),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("80", "components, documented"),
+                stat("−40%", "new-feature design time"),
+                stat("4 / 4", "teams adopted, zero mandated"),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "mistakes",
+            group(
+                t("WHAT I'D DO DIFFERENTLY", "label"),
+                bullets(
+                    "Version from day one; our first breaking change broke trust, not builds",
+                    "Write the contribution guide before the tenth component, not the fiftieth",
+                    "Put a designer AND an engineer on rotation; solo ownership was the fragile part",
+                ),
+            ),
+        ),
+        section(
+            "process",
+            group(
+                t("THE PROCESS, IN PICTURES", "label"),
+                row(
+                    group(
+                        img(pic(4), 1.4),
+                        t("The audit wall: every gray, every button, every sin", "caption"),
+                    ),
+                    group(img(pic(20), 1.4), t("Token naming, round three of five", "caption")),
+                    group(
+                        img(pic(180), 1.4),
+                        t("The first eight components, shipped embedded", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "governance",
+            group(
+                t("THE GOVERNANCE THAT STUCK", "label"),
+                table(
+                    "Question,Answer,Written where\nWho approves a new component?,Any two of the four team reps,CONTRIBUTING.md\nWho breaks an API?,RFC + a migration script,Versioning doc\nWho owns it after a reorg?,The role · not the person,The succession note",
+                ),
+            ),
+        ),
+        section(
+            "quote",
+            group(
+                quote(
+                    "The system survived two reorgs and a rebrand. That's the only metric that matters.",
+                    "The line I put on my resume · because it's true",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("THE SYSTEM TODAY", "label"),
+                t(
+                    "Aster outlived my tenure, two reorgs, and a rebrand, which is the only metric that matters. The full component inventory, governance doc, and the before/after screens are at vance.design/aster.",
+                    "body",
+                ),
+                linked("caption", ["vance.design/aster", "https://vance.design/aster"], " · ", [
+                    "elena@vance.design",
+                    "mailto:elena@vance.design",
+                ]),
+            ),
+            { background: bgImage(pic(119, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(114, 1700, 1100), 0.3),
+);
+
+export const speakerKit: ArtifactContent = doc(
+    "vellum",
+    [
+        section(
+            "head",
+            group(
+                t("SPEAKER ONE-SHEET", "label"),
+                t("Wren Halloran", "h1"),
+                t(
+                    "Writer and toolmaker. Talks about small software, durable tools, and the craft of paying attention, for rooms that prefer thinking to hype.",
+                    "subtitle",
+                ),
+                t("Lisbon, most of the year · speaks in English & Portuguese", "caption"),
+            ),
+            { background: bgImage(pic(962, 1700, 1100), 0.55) },
+        ),
+        section(
+            "bio",
+            split(
+                60,
+                group(
+                    t("THE BIO, TWO SIZES", "label"),
+                    t(
+                        "Short: Wren Halloran makes small, durable software and writes Slow Tools, a weekly letter about attention read by 24,000 people.",
+                        "body",
+                    ),
+                    t(
+                        "Longer: Wren spent a decade between editing and design before founding Quiet Machines, a two-person studio behind Margin and The Attention Book. Their talks argue, gently, that most software should be smaller, quieter, and finished.",
+                        "body",
+                    ),
+                ),
+                img(pic(788), 0.82),
+            ),
+        ),
+        section(
+            "talks",
+            group(
+                t("CURRENT TALKS", "label"),
+                dish(
+                    "Making Things Small",
+                    "25 min",
+                    "Why software rots from ambition, and how to build things that end",
+                ),
+                dish(
+                    "The Attention Ledger",
+                    "40 min",
+                    "What a decade of reading data taught me about how people actually focus",
+                ),
+                dish(
+                    "Finished Software",
+                    "keynote",
+                    "A defense of tools that ship, settle, and stay",
+                ),
+            ),
+        ),
+        section(
+            "logistics",
+            group(
+                t("THE PRACTICAL PART", "label"),
+                bullets(
+                    "Remote or in person; Lisbon departures, happy to batch European dates",
+                    "No slides needed from you; I bring my own deck and a backup PDF",
+                    "Recording is fine; the talk goes on my site 90 days later",
+                    "Fee is honest and negotiable for nonprofits and student rooms",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "press",
+            group(
+                t("SAID ABOUT THE TALKS", "label"),
+                quote(
+                    "The rare conference talk people quoted at dinner. Quiet, funny, and structurally ruthless.",
+                    "Organizer, Small Software Conf 2025",
+                ),
+            ),
+        ),
+        section(
+            "clips",
+            split(
+                40,
+                img(pic(494), 1.05),
+                group(
+                    t("WATCH FIRST", "label"),
+                    t("Twelve minutes tells you everything.", "h2"),
+                    t(
+                        "The Small Software Conf recording is the honest sample: real audience, one flubbed slide handled fine, and the Q&A where the talk actually lives.",
+                        "body",
+                    ),
+                    linked("caption", "The recording: ", [
+                        "quietmachines.co/talks/small",
+                        "https://quietmachines.co/talks/small",
+                    ]),
+                ),
+            ),
+        ),
+        section(
+            "hosted",
+            group(
+                t("ROOMS THIS YEAR", "label"),
+                row(
+                    fitW(t("SMALL SOFTWARE CONF", "h3")),
+                    fitW(t("XOXO", "h3")),
+                    fitW(t("HANDMADE SEATTLE", "h3")),
+                    fitW(t("READING RHYTHMS LISBON", "h3")),
+                ),
+                t("Plus eleven podcasts, listed on the site, most of them still good.", "caption"),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "gallery",
+            group(
+                t("PHOTOS FOR YOUR PROGRAM", "label"),
+                row(
+                    group(img(pic(788), 1.4), t("The usual headshot · print-safe", "caption")),
+                    group(img(pic(910), 1.4), t("On stage, Small Software Conf", "caption")),
+                    group(img(pic(251), 1.4), t("The landscape crop, for wide layouts", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "contact",
+            group(
+                t("Book a talk.", "h2"),
+                linked(
+                    "body",
+                    ["wren@quietmachines.co", "mailto:wren@quietmachines.co"],
+                    " · photos & intro paragraphs: ",
+                    ["quietmachines.co/speaking", "https://quietmachines.co/speaking"],
+                ),
+            ),
+            { background: bgImage(pic(910, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(552, 1700, 1100), 0.3),
+);
+
+export const linkHub: ArtifactContent = web(
+    "vellum",
+    [
+        section(
+            "hero",
+            group(
+                t("WREN HALLORAN", "label"),
+                t("Everything, one page.", "h1"),
+                t(
+                    "The letter, the apps, the book, and the ways to say hello. Bookmark this; everything else moves.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(962, 1700, 1100), 0.6),
+                frame: { aspect: 16 / 9 },
+            },
+        ),
+        section(
+            "links",
+            group(
+                t("THE DOORS", "label"),
+                dish(
+                    "Slow Tools, the letter",
+                    "weekly",
+                    "One essay on attention, most Sunday mornings, 24,000 readers",
+                ),
+                dish("Margin, the reading app", "$4/mo", "Save anything, lose nothing, no feed"),
+                dish(
+                    "The Attention Book",
+                    "out next year",
+                    "A short, illustrated book on focus as a craft",
+                ),
+                dish("The essays", "free", "In Praise of Software That Ends, and the rest"),
+            ),
+        ),
+        section(
+            "now",
+            group(
+                t("NOW", "label"),
+                t("Winter: heads-down on the Margin reader, letters as usual.", "body"),
+                t("Updated December · the honest status, not the aspirational one", "caption"),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "latest",
+            group(
+                t("LATEST FROM THE LETTER", "label"),
+                dish(
+                    "In Praise of Software That Ends",
+                    "9 min",
+                    "The essay that keeps getting passed around · 2026",
+                ),
+                dish(
+                    "The Last Honest Inbox",
+                    "12 min",
+                    "Why I rebuilt email for one person · me · 2025",
+                ),
+                dish(
+                    "Notes on Making Things Small",
+                    "7 min",
+                    "A working theory of why less software outlives more",
+                ),
+            ),
+        ),
+        section(
+            "photo",
+            group(
+                t("Lisbon, most mornings.", "h2"),
+                t("The office is whichever café has the corner table free.", "caption"),
+            ),
+            { bleed: true, background: bgImage(pic(419, 1700, 1100), 0.5) },
+        ),
+        section(
+            "gear",
+            group(
+                t("ASKED CONSTANTLY", "label"),
+                dish("The pen", "Lamy 2000", "Twenty years, two nibs, zero drama"),
+                dish("The keyboard", "quiet, obviously", "Reviewed in the letter · issue 141"),
+                dish(
+                    "The notebook",
+                    "grid, softcover",
+                    "One per season · archived like the letters",
+                ),
+            ),
+        ),
+        section(
+            "readers",
+            group(
+                quote(
+                    "Wren's letter is the only email I open before coffee.",
+                    "A reader · representative of the inbox",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "hello",
+            split(
+                60,
+                group(
+                    t("Say hello.", "h2"),
+                    linked(
+                        "body",
+                        ["wren@quietmachines.co", "mailto:wren@quietmachines.co"],
+                        " · ",
+                        ["Mastodon", "https://mastodon.social/@wrenhalloran"],
+                        " · ",
+                        ["Read.cv", "https://read.cv/wrenhalloran"],
+                    ),
+                    t("I reply to every note within two days, shorter ones faster.", "caption"),
+                ),
+                img(pic(788), 0.82),
+            ),
+        ),
+    ],
+    bgImage(pic(552, 1700, 1100), 0.3),
+);
+
+export const speakingPage: ArtifactContent = web(
+    "studio",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "ELENA VANCE",
+                    navLink("Talks", "#talks"),
+                    navLink("Hosts say", "#hosts"),
+                    navCta("Book Elena", "#book"),
+                ),
+                t("SPEAKING", "label"),
+                t("Talks about calm, durable software.", "h1"),
+                t(
+                    "Design systems, accessibility, and the unglamorous middle of product work: talks for teams who ship, from someone still shipping.",
+                    "subtitle",
+                ),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(585, 1700, 1100), 0.6),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "talks",
+            group(
+                t("THE TALKS", "label"),
+                dish(
+                    "Design systems that survive reorgs",
+                    "45 min or workshop",
+                    "The governance, succession, and adoption playbook, with autopsies",
+                ),
+                dish(
+                    "The edge cases are the design",
+                    "30 min",
+                    "Empty states, error copy, and the craft of the unglamorous middle",
+                ),
+                dish(
+                    "Accessible by default",
+                    "45 min",
+                    "How one team went from WCAG A to AA without a compliance panic",
+                ),
+            ),
+        ),
+        section(
+            "hosts",
+            group(
+                t("HOSTS SAY", "label"),
+                row(
+                    testimonial(
+                        "Highest-rated session of the conference, and the only one engineers and designers argued about at the same table after.",
+                        "Programming chair",
+                        "Config 2026",
+                        "https://i.pravatar.cc/240?img=47",
+                    ),
+                    testimonial(
+                        "Elena rebuilt her workshop around our team's actual system the night before. Nobody does that.",
+                        "Head of Design",
+                        "Meridian Bank",
+                        "https://i.pravatar.cc/240?img=68",
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "practical",
+            group(
+                t("THE PRACTICAL PART", "label"),
+                bullets(
+                    "San Francisco based; happy to pair talks with a team workshop day",
+                    "Corporate, conference, and student rates, in that descending order",
+                    "A recording for your team's library is always included",
+                ),
+            ),
+        ),
+        section(
+            "formats",
+            group(
+                t("FORMATS", "label"),
+                dish(
+                    "The keynote",
+                    "45 min",
+                    "The full argument, with the autopsies and the one rule",
+                ),
+                dish(
+                    "The workshop day",
+                    "up to 6 hrs",
+                    "Your actual system on the table · NDAs welcome",
+                ),
+                dish(
+                    "The team talk",
+                    "60 min remote",
+                    "Your design org, your questions, cameras optional",
+                ),
+            ),
+        ),
+        section("photo", group(t("Rooms are where the work argues back.", "h2")), {
+            bleed: true,
+            background: bgImage(pic(117, 1700, 1100), 0.6),
+        }),
+        section(
+            "logistics",
+            group(
+                t("BOOKING NOTES", "label"),
+                checks(
+                    "Book eight weeks out for conferences, three for team talks",
+                    "Slides ship to you after · recording rights included",
+                    "One student-room talk per quarter, free, first come",
+                ),
+            ),
+        ),
+        section(
+            "book",
+            group(
+                t("Book a talk or a workshop day.", "h2"),
+                t(
+                    "Tell me the room, the team, and what should be different afterward.",
+                    "subtitle",
+                ),
+                button("Email elena@vance.design", "mailto:elena@vance.design", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(119, 1700, 1100), 0.55) },
+        ),
+        section(
+            "workshop",
+            split(
+                40,
+                img(pic(4), 1.05),
+                group(
+                    t("THE WORKSHOP DAY, UP CLOSE", "label"),
+                    t("Paper first, laptops after lunch.", "h2"),
+                    t(
+                        "Morning is autopsies and governance on paper; afternoon runs against your live system with your own components on the wall. Teams leave with a succession plan two paragraphs long and oddly reassuring.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Elena Vance", "h3")),
+                        fitW(t("Product designer · San Francisco", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("THE WORK", "label")),
+                        fitW(
+                            linked("caption", ["vance.design", "https://vance.design"], " · ", [
+                                "The Aster case study",
+                                "https://vance.design/aster",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("BOOK", "label")),
+                        fitW(
+                            linked("caption", ["elena@vance.design", "mailto:elena@vance.design"]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(114, 1700, 1100), 0.3),
+);
+
+export const appSite: ArtifactContent = web(
+    "vellum",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "MARGIN",
+                    navLink("How it works", "#how"),
+                    navLink("Philosophy", "#philosophy"),
+                    navLink("Pricing", "#pricing"),
+                    navCta("Start reading", "https://margin.app/start"),
+                ),
+                t("THE READING APP THAT FORGETS NOTHING", "label"),
+                t("Your library, not your feed.", "h1"),
+                t(
+                    "Save anything, highlight freely, and trust that it will still be there in ten years. Margin gets more valuable the longer you tend it.",
+                    "subtitle",
+                ),
+                button("Start your library", "https://margin.app/start", { size: "lg" }),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(24, 1700, 1100), 0.55),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "how",
+            group(
+                t("HOW IT WORKS", "label"),
+                row(
+                    group(
+                        img(pic(3), 1.4),
+                        t("Save from anywhere", "h3"),
+                        t(
+                            "One tap from the share sheet, one click from the browser, or forward any email.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(367), 1.4),
+                        t("Read beautifully", "h3"),
+                        t(
+                            "Typography worth the name, offline always, in your type size.",
+                            "caption",
+                        ),
+                    ),
+                    group(
+                        img(pic(24), 1.4),
+                        t("Keep forever", "h3"),
+                        t(
+                            "No expiry, no algorithm, full export any time. It's your shelf.",
+                            "caption",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "philosophy",
+            group(
+                quote(
+                    "Half my saved-articles graveyard is now things I've actually read, because Margin is the only place that doesn't rush me.",
+                    "Theo Marsh · reader since 2021",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "pricing",
+            group(
+                t("PRICING", "label"),
+                t("Four dollars a month. That's the pricing page.", "h2"),
+                t(
+                    "No tiers, no seats, no annual-only tricks. Free for 30 days, then $4, and your library exports in full the day you leave, though we'd rather you stayed.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("4,100", "readers who pay for calm"),
+                stat("10 yrs", "the retention promise, in writing"),
+                stat("0", "notifications, as policy"),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+        section(
+            "second",
+            group(
+                t("READERS SAY", "label"),
+                row(
+                    testimonial(
+                        "I read forty saved essays on one flight. The app did nothing flashy, which is exactly the feature.",
+                        "Dana K.",
+                        "reader since 2023",
+                        "https://i.pravatar.cc/240?img=32",
+                    ),
+                    testimonial(
+                        "It's the only software I've paid for twice: once for me, once for my dad.",
+                        "Theo Marsh",
+                        "reader since 2021",
+                        "https://i.pravatar.cc/240?img=12",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "faq",
+            group(
+                t("FAIR QUESTIONS", "label"),
+                faq(
+                    "collapsible",
+                    [
+                        [
+                            "What happens if Margin shuts down?",
+                            "The export button produces plain HTML and Markdown of everything, and the shutdown plan in our terms promises 12 months' notice. We build like books: to last.",
+                        ],
+                        [
+                            "Is there a family plan?",
+                            "The $4 covers you; gift subscriptions exist for everyone else, and half our growth is gifts.",
+                        ],
+                        [
+                            "Android?",
+                            "Spring. The web app works today and doesn't apologize for itself.",
+                        ],
+                    ],
+                    true,
+                ),
+            ),
+        ),
+        section(
+            "cta",
+            group(
+                t("Build the shelf your reading deserves.", "h2"),
+                button("Start free for 30 days", "https://margin.app/start", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(251, 1700, 1100), 0.55) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(col(fitW(t("Margin", "h3")), fitW(t("A Quiet Machines product.", "caption")))),
+                fitW(
+                    col(
+                        fitW(t("MORE", "label")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["The changelog", "https://margin.app/changelog"],
+                                " · ",
+                                ["The letter", "https://slowtools.substack.com"],
+                            ),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("SUPPORT", "label")),
+                        fitW(linked("caption", ["help@margin.app", "mailto:help@margin.app"])),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+    ],
+    bgImage(pic(552, 1700, 1100), 0.3),
+);
+
+// ---- everyday & occasions: the decks and sites for the life side of the catalog
+
+export const celebrationSlideshow: ArtifactContent = deck(
+    "orchard",
+    [
+        section(
+            "title",
+            group(
+                t("SEPTEMBER 12 · THE STONE BARN", "label"),
+                t("Amara & Théo", "h1"),
+                t("Eight years, two cities, and one very good dog later.", "subtitle"),
+                t("A few pictures before the first dance. Dinner is safe; cry freely.", "caption"),
+            ),
+            { background: bgImage(pic(62, 1700, 1100), 0.5) },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("8", "years since the rained-out queue"),
+                stat("2", "cities called home"),
+                stat("1", "very good dog, in a bow tie tonight"),
+            ),
+        ),
+        section(
+            "beginning",
+            split(
+                40,
+                img(pic(129), 1.05),
+                group(
+                    t("HOW IT STARTED", "label"),
+                    t("A film neither of them saw.", "h2"),
+                    t(
+                        "The screening was rained out; the queue was not. Two hours under one awning, and the movie has never once come up since.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "years",
+            group(
+                t("THE YEARS BETWEEN", "label"),
+                row(
+                    group(img(pic(699), 1.4), t("The Sintra hikes", "caption")),
+                    group(
+                        img(pic(838), 1.4),
+                        t("Lagos, London, and every kitchen between", "caption"),
+                    ),
+                    group(img(pic(1001), 1.4), t("The families, finally in one photo", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "words",
+            group(
+                quote(
+                    "These two make everyone around them feel like the most interesting person in the room.",
+                    "Lena · maid of honour · repeated tonight for the record",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "thanks",
+            group(
+                t("FROM THE TWO OF US", "label"),
+                t("You crossed oceans for this. We noticed.", "h2"),
+                t(
+                    "To our parents, who started all of this; to the friends who moved boxes and held phones and kept secrets: tonight is yours too.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "dog",
+            split(
+                40,
+                img(pic(659), 1.05),
+                group(
+                    t("A WORD ON BISCUIT", "label"),
+                    t("The dog knew first.", "h2"),
+                    t(
+                        "Adopted the week they moved in together, present for the proposal (asleep), and tonight's ring bearer (supervised). He would like you to know the bow tie was not his idea.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "sintra",
+            group(
+                t("Why Sintra: the hills kept our secrets.", "h2"),
+                t(
+                    "Every anniversary walk ended at this quinta. Now you know why this address.",
+                    "caption",
+                ),
+            ),
+            { background: bgImage(pic(982, 1700, 1100), 0.5) },
+        ),
+        section(
+            "table",
+            group(
+                t("TONIGHT, FOR THE RECORD", "label"),
+                row(
+                    stat("112", "guests from 9 countries"),
+                    stat("14", "dishes from both grandmothers' books"),
+                    stat("1", "sparkler send-off at midnight"),
+                ),
+            ),
+        ),
+        section(
+            "dance",
+            group(
+                t("Now: the first dance.", "h1"),
+                t("Then the floor is everyone's. Sparklers at midnight, on the drive.", "subtitle"),
+            ),
+            { background: bgImage(pic(407, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(255, 1700, 1100), 0.3),
+);
+
+export const triviaNight: ArtifactContent = deck(
+    "arcade",
+    [
+        section(
+            "title",
+            group(
+                t("THURSDAY · 8PM · THE BACK ROOM", "label"),
+                t("Quiz Night No. 47", "h1"),
+                t(
+                    "Six rounds, one champion table, and the return of the music round nobody asked for.",
+                    "subtitle",
+                ),
+                t("Teams of four to six · winners drink free · scores are final-ish", "caption"),
+            ),
+            { background: bgImage(pic(96, 1700, 1100), 0.6) },
+        ),
+        section(
+            "rules",
+            group(
+                t("THE RULES, BRIEFLY", "label"),
+                bullets(
+                    "Phones face-down on the table; we can see you, Table Three",
+                    "Answers in pen; charm changes nothing, bribes must be edible",
+                    "The quizmaster is always right, especially when wrong",
+                ),
+            ),
+        ),
+        section(
+            "rounds",
+            group(
+                t("TONIGHT'S ROUNDS", "label"),
+                table(
+                    "Round,Topic,Points\n1,General knowledge · warm-up,10\n2,Maps & flags,10\n3,The music round · 90s edition,15\n4,Food & drink,10\n5,Pictures · zoomed too far in,15\n6,The finale · wagers allowed,20",
+                ),
+            ),
+        ),
+        section(
+            "tiebreak",
+            group(
+                t("THE TIEBREAKER", "label"),
+                t("Closest number wins the night.", "h2"),
+                t(
+                    "One question, one number, no conferring limits. Last month's: how many meters of fairy lights are in this room? The answer was 214, and two tables cried.",
+                    "body",
+                ),
+            ),
+            { background: bgTone("accent") },
+        ),
+        section(
+            "prizes",
+            group(
+                t("PRIZES", "label"),
+                dish(
+                    "First place",
+                    "the tab",
+                    "Your table's round is on the house, within reason, Marcus",
+                ),
+                dish(
+                    "Second place",
+                    "the hats",
+                    "Championship hats · deeply coveted · mildly cursed",
+                ),
+                dish("Best team name", "one pitcher", "Judged on groans per syllable"),
+            ),
+        ),
+        section(
+            "history",
+            group(
+                t("HALL OF FAME", "label"),
+                table(
+                    "Month,Champions,Margin\nJuly,The Quizzly Bears,1 point\nJune,Let's Get Quizzical,4 points\nMay,The Quizzly Bears,tiebreaker\nApril,Agatha Quiztie,11 points · still discussed",
+                ),
+            ),
+        ),
+        section(
+            "sample",
+            split(
+                60,
+                group(
+                    t("WARM-UP QUESTION", "label"),
+                    t("Free point if your table talks to each other.", "h2"),
+                    t(
+                        "Which country consumes the most coffee per person: Finland, Italy, or the United States? Argue it out; the answer opens round one.",
+                        "body",
+                    ),
+                ),
+                img(pic(63), 0.82),
+            ),
+        ),
+        section(
+            "house",
+            group(
+                t("HOUSE NOTES", "label"),
+                bullets(
+                    "Kitchen open through round four; the flatbread ends arguments",
+                    "Next month's theme round: 'Movies you pretend you've seen'",
+                    "Bring a new table of four, both tables get a free pitcher",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "room",
+            group(
+                t("The back room, mid-round three.", "h2"),
+                t("Someone is always this confident. They are rarely this correct.", "caption"),
+            ),
+            { background: bgImage(pic(30, 1700, 1100), 0.55) },
+        ),
+        section(
+            "close",
+            group(
+                t("Pens up. Round one.", "h1"),
+                t("Good luck, and remember: it's just a quiz, except it isn't.", "subtitle"),
+            ),
+            { background: bgImage(pic(56, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(56, 1700, 1100), 0.3),
+);
+
+export const travelRecap: ArtifactContent = deck(
+    "graphite",
+    [
+        section(
+            "title",
+            group(
+                t("TRIP REPORT · FOR THE GROUP CHAT", "label"),
+                t("Iceland: the debrief.", "h1"),
+                t(
+                    "Five days, 1,340 km, seven waterfalls, and one car seat that will never fully dry.",
+                    "subtitle",
+                ),
+                t("October 12 to 17 · as promised, with numbers", "caption"),
+            ),
+            { background: bgImage(pic(507, 1700, 1100), 0.5) },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("1,340", "kilometers driven"),
+                stat("11", "hot pools, a personal best"),
+                stat("0", "regrets · 1 near-miss with a sheep"),
+            ),
+        ),
+        section(
+            "best",
+            group(
+                t("THE PODIUM", "label"),
+                row(
+                    group(
+                        img(pic(509), 1.4),
+                        t("Gold: behind Seljalandsfoss at 8am, soaked and alone", "caption"),
+                    ),
+                    group(
+                        img(pic(907), 1.4),
+                        t("Silver: the glacier lagoon doing its slow blue theater", "caption"),
+                    ),
+                    group(
+                        img(pic(901), 1.4),
+                        t("Bronze: Kp 5 aurora from a gas station parking lot", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "fails",
+            group(
+                t("HONORABLE FAILURES", "label"),
+                bullets(
+                    "The plane-wreck walk, into horizontal rain, both ways",
+                    "One fermented shark cube each; never again; no photos survive",
+                    "Believing the road sign that said 20 minutes; Iceland lies in kilometers",
+                ),
+            ),
+            { background: bgTone("contrast") },
+        ),
+        section(
+            "verdict",
+            split(
+                40,
+                img(pic(515), 1.05),
+                group(
+                    t("THE VERDICT", "label"),
+                    t("Go in the shoulder season. Go hungry.", "h2"),
+                    t(
+                        "October gave us empty trails, aurora nights, and langoustine without a reservation. Rent the 4x4, skip the itinerary apps, trust the hot dog stand.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "numbers2",
+            group(
+                t("THE LEDGER", "label"),
+                table(
+                    "Line,Count,Note\nHot dogs at the famous stand,6,Two each · no regrets\nWaterfalls walked behind,2,Soaked both times\nSheep encounters,31,One near-miss · see next slide\nTotal spend,$2.4K each,Flights included · worth double",
+                ),
+            ),
+        ),
+        section(
+            "sheep",
+            group(
+                t("The near-miss, immortalized.", "h2"),
+                t("It had right of way. It knew it had right of way.", "caption"),
+            ),
+            { background: bgImage(pic(699, 1700, 1100), 0.5) },
+        ),
+        section(
+            "tips",
+            group(
+                t("STEAL THIS PLAYBOOK", "label"),
+                checks(
+                    "Book the 4x4, skip every tour, trust road.is over any app",
+                    "Pools at 7am: locals, steam, and zero influencers",
+                    "Grocery store hot dogs are a lie; the stand is not",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("Same crew, next fjord?", "h1"),
+                t(
+                    "The Faroes are 1 hour 20 from Reykjavík. Just saying. Vote in the chat.",
+                    "subtitle",
+                ),
+            ),
+            { background: bgImage(pic(964, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(971, 1700, 1100), 0.3),
+);
+
+export const birthdayToast: ArtifactContent = deck(
+    "pueblo",
+    [
+        section(
+            "title",
+            group(
+                t("SATURDAY · THE BACKYARD · 7PM", "label"),
+                t("Rosa turns 60", "h1"),
+                t(
+                    "Six decades of feeding everyone, fixing everything, and dancing first.",
+                    "subtitle",
+                ),
+                t("A few slides before cake. She has approved none of them.", "caption"),
+            ),
+            { background: bgImage(pic(695, 1700, 1100), 0.5) },
+        ),
+        section(
+            "early",
+            split(
+                40,
+                img(pic(100), 1.05),
+                group(
+                    t("THE EARLY YEARS", "label"),
+                    t("Fastest kid on the beach, 1974.", "h2"),
+                    t(
+                        "Ask her about the bicycle race she won in a dress. Better: ask her sister, who has the accurate version.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "mom",
+            split(
+                60,
+                group(
+                    t("THE MOM DECADES", "label"),
+                    t("Four kids, one rule: everybody eats.", "h2"),
+                    t(
+                        "The kitchen table sat six and regularly held eleven. Homework got checked, hems got fixed, and nobody left without a container of something.",
+                        "body",
+                    ),
+                ),
+                img(pic(838), 0.82),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("60", "years young tonight"),
+                stat("4", "kids who turned out mostly fine"),
+                stat("1,000s", "of Sunday dinners, minimum"),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "toasts",
+            group(
+                t("RAISE A GLASS", "label"),
+                bullets(
+                    "To the woman who taught us that showing up is the whole secret",
+                    "To her salsa verde, which has ended arguments and started marriages",
+                    "To the next sixty; she has plans, and we are not ready",
+                ),
+            ),
+        ),
+        section(
+            "grand",
+            split(
+                40,
+                img(pic(1001), 1.05),
+                group(
+                    t("THE GRANDMA YEARS", "label"),
+                    t("Retired from the hospital, never from the job.", "h2"),
+                    t(
+                        "Seven grandkids, one beach house rule (sunscreen before breakfast), and a group chat she runs like an air traffic controller. The kids' table has never once been quiet.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "salsa",
+            group(
+                t("THE FAMOUS SALSA VERDE, FINALLY DISCLOSED", "label"),
+                dish("Tomatillos", "a dozen", "Charred on the comal she refuses to replace"),
+                dish("The secret", "two limes", "Everyone guessed one · everyone was wrong"),
+                dish("Availability", "Sundays", "And whenever someone looks like they need it"),
+            ),
+        ),
+        section(
+            "gallery",
+            group(
+                t("SIXTY YEARS, THREE FRAMES", "label"),
+                row(
+                    group(img(pic(100), 1.4), t("The beach, 1974", "caption")),
+                    group(img(pic(822), 1.4), t("The school run era", "caption")),
+                    group(img(pic(755), 1.4), t("Sunday coffee, last month", "caption")),
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "close",
+            group(
+                t("Happy birthday, Rosa.", "h1"),
+                t("Cake now. Dancing after. She picked the playlist herself.", "subtitle"),
+            ),
+            { background: bgImage(pic(976, 1700, 1100), 0.5) },
+        ),
+    ],
+    bgImage(pic(255, 1700, 1100), 0.3),
+);
+
+export const bookClub: ArtifactContent = deck(
+    "gazette",
+    [
+        section(
+            "title",
+            group(
+                t("THE TUESDAY BOOK CLUB · SEASON NINE", "label"),
+                t("The winter list.", "h1"),
+                t(
+                    "Six books, six first Tuesdays, and the snack rule we finally wrote down.",
+                    "subtitle",
+                ),
+                t("First meeting January 6 · Priya's place · 7:30", "caption"),
+            ),
+            { background: bgImage(pic(1073, 1700, 1100), 0.55) },
+        ),
+        section(
+            "list",
+            group(
+                t("THE SIX", "label"),
+                dish(
+                    "January · The Lighthouse Keepers",
+                    "Ida Brandt",
+                    "Norwegian modern classic · 210 pages · Priya hosts",
+                ),
+                dish(
+                    "February · Salt & Cedar",
+                    "M. Okonkwo",
+                    "Food memoir · the one with the recipes · Dev hosts",
+                ),
+                dish(
+                    "March · The Quiet Machine",
+                    "R. Halloran",
+                    "Essays on attention · short but dense · Sam hosts",
+                ),
+                dish(
+                    "April · Small Rain",
+                    "T. Aoki",
+                    "The Tokyo novel everyone kept recommending · Priya again",
+                ),
+                dish(
+                    "May · The Orchard Ledger",
+                    "C. Vasquez",
+                    "Multi-generation farm saga · 480 pages · start early · Marta",
+                ),
+                dish(
+                    "June · Reread month",
+                    "your pick",
+                    "Bring the book you defend against all evidence · potluck",
+                ),
+            ),
+        ),
+        section(
+            "rules",
+            group(
+                t("HOUSE RULES, SEASON NINE", "label"),
+                bullets(
+                    "Not finishing the book is fine; pretending you did is not",
+                    "The snack rule: whoever hated the book most brings snacks next time",
+                    "Spoiler-free until 8pm sharp for stragglers",
+                    "One wildcard swap allowed per season, by majority groan",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "numbers",
+            row(
+                stat("9", "seasons and counting"),
+                stat("52", "books argued about"),
+                stat("2", "friendships tested · both recovered"),
+            ),
+        ),
+        section(
+            "last",
+            split(
+                60,
+                group(
+                    t("SEASON EIGHT, ADJUDICATED", "label"),
+                    t("The verdicts are in.", "h2"),
+                    bullets(
+                        "Best book: The Salt Path · unanimous, suspiciously",
+                        "Biggest fight: the unreliable narrator one · still unresolved",
+                        "Snack champion: Dev's honey cake, three-time winner",
+                    ),
+                ),
+                img(pic(367), 0.82),
+            ),
+        ),
+        section(
+            "how",
+            group(
+                t("HOW TUESDAYS RUN", "label"),
+                table(
+                    "Time,What\n7:30,Arrivals · wine open · no book talk yet\n8:00,Spoiler embargo lifts · the argument begins\n9:15,Next month's book defended by its nominator\n9:30,Officially over · actually over by 10:40",
+                ),
+            ),
+            { background: bgTone("tint") },
+        ),
+        section(
+            "quote",
+            group(
+                quote(
+                    "Nine seasons and nobody has ever finished the June reread. It's tradition now.",
+                    "Marta · founding member · keeper of the spreadsheet",
+                ),
+            ),
+        ),
+        section(
+            "reading",
+            group(
+                t("Where the reading actually happens.", "h2"),
+                t("Tuesday is the meeting; the book gets read wherever it gets read.", "caption"),
+            ),
+            { background: bgImage(pic(1010, 1700, 1100), 0.55) },
+        ),
+        section(
+            "snacks",
+            group(
+                t("SNACK HALL OF FAME", "label"),
+                dish(
+                    "Dev's honey cake",
+                    "3 wins",
+                    "Retired to the judges' table by popular demand",
+                ),
+                dish(
+                    "Priya's chili crisp cookies",
+                    "1 win",
+                    "Divisive · which is the point of this club",
+                ),
+                dish(
+                    "The June potluck",
+                    "annual",
+                    "Everyone brings the food of their reread's country",
+                ),
+            ),
+        ),
+        section(
+            "close",
+            group(
+                t("January 6. Read the Brandt.", "h1"),
+                t("Or at least the first hundred pages. We'll know.", "subtitle"),
+            ),
+            { background: bgImage(pic(832, 1700, 1100), 0.55) },
+        ),
+    ],
+    bgImage(pic(1073, 1700, 1100), 0.3),
+);
+
+export const partyInvite: ArtifactContent = web(
+    "royal",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "L TURNS 40",
+                    navLink("Details", "#details"),
+                    navLink("The night", "#night"),
+                    navCta("RSVP", "#rsvp"),
+                ),
+                t("YOU'RE INVITED · NOVEMBER 21", "label"),
+                t("Léo turns 40.", "h1"),
+                t(
+                    "One long table, too many candles, and the good playlist. Dinner in the courtyard at Bar Amélie, and dancing after until they make us stop.",
+                    "subtitle",
+                ),
+                button("RSVP by November 7", "#rsvp", { size: "lg" }),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(195, 1700, 1100), 0.55),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "details",
+            group(
+                t("THE DETAILS", "label"),
+                dish(
+                    "When",
+                    "Nov 21 · 7:30",
+                    "Doors at 7:30 · seated at 8 · nobody seated after the soup",
+                ),
+                dish("Where", "Bar Amélie", "12 Rue des Carmes · the courtyard in back"),
+                dish(
+                    "Dress",
+                    "nice-ish",
+                    "Whatever makes you dance; the floor is cobblestone, plan heels accordingly",
+                ),
+                dish("Gifts", "none", "Your presence, a story about Léo, and your appetite"),
+            ),
+        ),
+        section(
+            "night",
+            group(
+                t("THE SHAPE OF THE NIGHT", "label"),
+                table(
+                    "Hour,What\n7:30,Aperitifs & the good olives\n8:00,Dinner · long table · no seating plan\n10:00,The toast · one story each · keep it kind-ish\n10:30,Cake & dancing\nLate,Digestifs for the survivors",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "leo",
+            split(
+                40,
+                img(pic(863), 1.05),
+                group(
+                    t("ABOUT THE BIRTHDAY BOY", "label"),
+                    t("Forty things we love; here are three.", "h2"),
+                    bullets(
+                        "Has never once let a visitor leave hungry",
+                        "Claims he doesn't dance; the playlist says otherwise",
+                        "Will deny this party was his idea · it was entirely his idea",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "stay",
+            group(
+                t("COMING FROM OUT OF TOWN?", "label"),
+                dish(
+                    "Sleep",
+                    "Hôtel du Parc",
+                    "Ten rooms held under 'Léo 40' until Nov 1 · two blocks away",
+                ),
+                dish(
+                    "Trains",
+                    "Gare Centrale",
+                    "Last one back is 00:40 · the party will outlast it",
+                ),
+                dish(
+                    "Sunday",
+                    "recovery brunch",
+                    "Same courtyard, 11am, dark sunglasses respected",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "toast",
+            group(
+                testimonial(
+                    "Forty looks good on anyone who still closes the dance floor.",
+                    "Amélie",
+                    "proprietor & co-conspirator",
+                    "https://i.pravatar.cc/240?img=47",
+                ),
+            ),
+        ),
+        section(
+            "rsvp",
+            group(
+                t("Say you're coming.", "h2"),
+                t(
+                    "By November 7, so Amélie knows how much duck to order. Plus-ones welcome; babysitters encouraged.",
+                    "subtitle",
+                ),
+                button("RSVP to Léo", "mailto:leo@fourzero.party", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(959, 1700, 1100), 0.55) },
+        ),
+        section(
+            "courtyard",
+            group(
+                t("The courtyard, as it will look at ten.", "h2"),
+                t(
+                    "String lights, one long table, and the cobblestones your heels were warned about.",
+                    "caption",
+                ),
+            ),
+            { bleed: true, background: bgImage(pic(369, 1700, 1100), 0.5) },
+        ),
+        section(
+            "moments",
+            group(
+                t("PREVIOUS LÉO PARTIES, FOR THE RECORD", "label"),
+                row(
+                    group(
+                        img(pic(660), 1.4),
+                        t("The 35th: sparklers, briefly confiscated", "caption"),
+                    ),
+                    group(img(pic(56), 1.4), t("The 38th: the dance floor at 1am", "caption")),
+                    group(img(pic(835), 1.4), t("Every year: Amélie's lime shortbread", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Léo turns 40", "h3")),
+                        fitW(t("November 21 · Bar Amélie", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("QUESTIONS", "label")),
+                        fitW(
+                            linked("caption", ["leo@fourzero.party", "mailto:leo@fourzero.party"]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("CAN'T MAKE IT?", "label")),
+                        fitW(t("Send a story for the toast book instead", "caption")),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(255, 1700, 1100), 0.3),
+);
+
+export const reunionSite: ArtifactContent = web(
+    "gazette",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "LAKESIDE '16",
+                    navLink("The night", "#night"),
+                    navLink("Who's coming", "#coming"),
+                    navCta("RSVP", "#rsvp"),
+                ),
+                t("TEN YEARS · CAN YOU BELIEVE IT", "label"),
+                t("Lakeside High, Class of 2016.", "h1"),
+                t(
+                    "One night, the old gym, a better DJ than prom had, and everyone you've been meaning to catch up with. October 10. Come.",
+                    "subtitle",
+                ),
+                button("RSVP now", "#rsvp", { size: "lg" }),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(1029, 1700, 1100), 0.55),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "night",
+            group(
+                t("THE NIGHT", "label"),
+                dish(
+                    "6:30",
+                    "doors & name tags",
+                    "Yearbook photos on them · yes really · blame the committee",
+                ),
+                dish("7:30", "dinner", "Catered by Rossi's, who also did prom, and has improved"),
+                dish(
+                    "9:00",
+                    "the slideshow",
+                    "Ten minutes · submit photos by October 1 · mercy shown to no one",
+                ),
+                dish(
+                    "9:30",
+                    "dancing",
+                    "The DJ has the 2016 playlist and instructions to use it responsibly",
+                ),
+            ),
+        ),
+        section(
+            "numbers",
+            row(
+                stat("87", "classmates already in"),
+                stat("11", "states represented"),
+                stat("3", "teachers promising to come"),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "coming",
+            group(
+                t("THEN VS NOW", "label"),
+                bullets(
+                    "The gym: same floor, better lighting, drinks allowed this time",
+                    "Mr. Halvorsen retired but is bringing the trophy nobody returned",
+                    "The time capsule gets opened at 9:15; the committee has not peeked, mostly",
+                ),
+            ),
+        ),
+        section(
+            "memory",
+            group(
+                t("THE MEMORY WALL", "label"),
+                t("Bring one photo, leave with a hundred.", "h2"),
+                t(
+                    "The committee is printing every submission for the gym wall: field trips, terrible haircuts, the drama club's entire archive. Digital copies go to everyone after; originals return to their owners, laminated whether they like it or not.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "faces",
+            group(
+                t("ALREADY CONFIRMED", "label"),
+                row(
+                    testimonial(
+                        "Flying in from Portland. If Mr. H brings the trophy, I'm finally confessing.",
+                        "Dana Okafor",
+                        "Class treasurer · still organized",
+                        "https://i.pravatar.cc/240?img=44",
+                    ),
+                    testimonial(
+                        "I DJ'd prom off an iPod nano. I've been told the bar is higher now.",
+                        "Marcus Webb",
+                        "This time just dancing",
+                        "https://i.pravatar.cc/240?img=15",
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "give",
+            group(
+                t("THE CLASS GIFT", "label"),
+                t("The library's makerspace, $10 at a time.", "h2"),
+                t(
+                    "Whatever the night raises past costs goes to Lakeside's library, matched by two classmates who did suspiciously well.",
+                    "body",
+                ),
+            ),
+        ),
+        section(
+            "rsvp",
+            group(
+                t("Ten years is long enough.", "h2"),
+                t(
+                    "$45 covers dinner and the first round. Scholarships quietly available; message Dana.",
+                    "subtitle",
+                ),
+                button("RSVP & pay", "https://lakeside16.reunion.page/rsvp", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(924, 1700, 1100), 0.5) },
+        ),
+        section(
+            "gallery",
+            group(
+                t("FROM THE ARCHIVE", "label"),
+                row(
+                    group(img(pic(840), 1.4), t("The courts where gym class happened", "caption")),
+                    group(img(pic(553), 1.4), t("The quad benches · still there", "caption")),
+                    group(img(pic(596), 1.4), t("Skate club, yearbook page 47", "caption")),
+                ),
+            ),
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("Lakeside Class of 2016", "h3")),
+                        fitW(t("Ten-year reunion · October 10", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("THE COMMITTEE", "label")),
+                        fitW(
+                            linked("caption", [
+                                "reunion@lakeside16.page",
+                                "mailto:reunion@lakeside16.page",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("PHOTOS", "label")),
+                        fitW(
+                            linked("caption", [
+                                "Submit for the wall",
+                                "https://lakeside16.reunion.page/photos",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(135, 1700, 1100), 0.3),
+);
+
+export const restaurantSite: ArtifactContent = web(
+    "vellum",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "THE QUINCE",
+                    navLink("Menu", "#menu"),
+                    navLink("The room", "#room"),
+                    navLink("Find us", "#find"),
+                    navCta("Reserve", "https://thequince.com/reserve"),
+                ),
+                t("PORTLAND · EST. 2019", "label"),
+                t("Dinner, from three farms away.", "h1"),
+                t(
+                    "A neighborhood restaurant with a short menu and long opinions. The farms are within forty miles; the menu changes when they do.",
+                    "subtitle",
+                ),
+                button("Reserve a table", "https://thequince.com/reserve", { size: "lg" }),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(999, 1700, 1100), 0.58),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "menu",
+            group(
+                t("TONIGHT, ROUGHLY", "label"),
+                dish("Charred leeks, romesco, hazelnut", "14"),
+                dish("Squash agnolotti, brown butter, sage", "19"),
+                dish("Half chicken, schmaltz potatoes, salsa verde", "29"),
+                dish("Quince tarte tatin, crème fraîche", "12"),
+                linked("caption", "The full menu changes weekly: ", [
+                    "see this week's",
+                    "https://thequince.com/menu",
+                ]),
+            ),
+        ),
+        section(
+            "room",
+            split(
+                60,
+                group(
+                    t("THE ROOM", "label"),
+                    t("Thirty-eight seats, one long bench.", "h2"),
+                    t(
+                        "Brick, candlelight, and a kitchen you can see into. The bar seats walk-ins; the bench is for groups who stay too long, which is the point of the bench.",
+                        "body",
+                    ),
+                ),
+                img(pic(42), 0.82),
+            ),
+        ),
+        section(
+            "farms",
+            group(
+                t("THE FARMS", "label"),
+                t("Three farms, forty miles.", "h2"),
+                t(
+                    "Winterspring for greens, Broken Fence for pork and eggs, Quince Hill for the fruit that named the room. Their names are on the menu because they did most of the work.",
+                    "body",
+                ),
+            ),
+            { bleed: true, background: bgImage(pic(674, 1700, 1100), 0.55) },
+        ),
+        section(
+            "find",
+            group(
+                t("FIND US", "label"),
+                dish(
+                    "Hours",
+                    "Tue to Sun",
+                    "5:30 to 10 · bar from 5 · closed Mondays for the farms run",
+                ),
+                dish(
+                    "Where",
+                    "1214 SE Ankeny",
+                    "Two blocks off the bus mall · bike rack out front",
+                ),
+                dish(
+                    "Contact",
+                    "(503) 555-0177",
+                    "Or hello@thequince.com · we answer between services",
+                ),
+            ),
+        ),
+        section(
+            "chef",
+            split(
+                40,
+                img(pic(292), 1.05),
+                group(
+                    t("THE KITCHEN", "label"),
+                    t("June Aldana cooks like the farms are watching.", "h2"),
+                    t(
+                        "Twelve years on other people's lines, five on her own. The menu is short because the walk-in is honest: when the last delicata goes, so does the dish, and something better takes the chalkboard.",
+                        "body",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "press",
+            group(
+                t("KIND WORDS", "label"),
+                row(
+                    testimonial(
+                        "The rare farm-to-table room where the phrase isn't marketing. Order whatever has quince in it.",
+                        "The Oregonian",
+                        "Restaurant of the Year shortlist",
+                        "https://i.pravatar.cc/240?img=53",
+                    ),
+                    testimonial(
+                        "Went for a birthday, stayed till close, left with a jar of their chili oil and a farm's phone number.",
+                        "A regular",
+                        "five years running",
+                        "https://i.pravatar.cc/240?img=20",
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "events",
+            group(
+                t("BEYOND DINNER", "label"),
+                dish(
+                    "Farm dinners",
+                    "monthly",
+                    "One long table at Winterspring · dates on the letter",
+                ),
+                dish("The whole room", "up to 38", "Buyouts Tuesday and Wednesday · ask for Sam"),
+                dish("The letter", "seasonal", "Menu changes and farm news · no spam, we promise"),
+            ),
+        ),
+        section(
+            "reserve",
+            group(
+                t("The bench is waiting.", "h2"),
+                t("Walk-ins nightly at the bar; the dining room books two weeks out.", "subtitle"),
+                button("Reserve a table", "https://thequince.com/reserve", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(835, 1700, 1100), 0.55) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("The Quince", "h3")),
+                        fitW(t("1214 SE Ankeny, Portland", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("HOURS", "label")),
+                        fitW(t("Tue to Sun · 5:30 to 10 · bar from 5", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("RESERVE", "label")),
+                        fitW(
+                            linked(
+                                "caption",
+                                ["thequince.com/reserve", "https://thequince.com/reserve"],
+                                " · ",
+                                ["(503) 555-0177", "tel:+15035550177"],
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(307, 1700, 1100), 0.3),
+);
+
+export const rentalSite: ArtifactContent = web(
+    "pueblo",
+    [
+        section(
+            "hero",
+            group(
+                siteNav(
+                    "THE CANAL FLAT",
+                    navLink("The flat", "#flat"),
+                    navLink("Guests say", "#reviews"),
+                    navCta("Check dates", "#book"),
+                ),
+                t("PRINSENGRACHT 214B · AMSTERDAM", "label"),
+                t("Two rooms over a quiet canal.", "h1"),
+                t(
+                    "A light-filled flat in the Nine Streets: steep stairs, wide windows, two bikes included, and hosts who leave you alone until you don't want them to.",
+                    "subtitle",
+                ),
+                button("Check dates", "#book", { size: "lg" }),
+            ),
+            {
+                bleed: true,
+                background: bgImage(pic(826, 1700, 1100), 0.5),
+                frame: { aspect: 16 / 8 },
+            },
+        ),
+        section(
+            "flat",
+            group(
+                t("THE FLAT", "label"),
+                row(
+                    group(
+                        img(pic(859), 1.4),
+                        t("The green door by the bikes; your key waits in the lockbox.", "caption"),
+                    ),
+                    group(
+                        img(pic(273), 1.4),
+                        t("The canal view that does the vacation's heavy lifting.", "caption"),
+                    ),
+                    group(
+                        img(pic(212), 1.4),
+                        t("The neighborhood runs on two wheels; so will you.", "caption"),
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "amenities",
+            group(
+                t("WHAT'S INCLUDED", "label"),
+                checks(
+                    "Fast wifi that survives video calls",
+                    "Two city bikes, helmets, and the lock code",
+                    "A kitchen people actually cook in · moka pot included",
+                    "A guest guide written like a friend wrote it, because one did",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "reviews",
+            group(
+                t("GUESTS SAY", "label"),
+                row(
+                    testimonial(
+                        "The guide alone was worth the stay. We ate like locals from day one and the bakery warning was accurate.",
+                        "Marta & Jon",
+                        "Stayed in May",
+                        "https://i.pravatar.cc/240?img=31",
+                    ),
+                    testimonial(
+                        "Steepest stairs of my life and I'd book again tomorrow. The canal at 7am is a personality-changing experience.",
+                        "Priyanka",
+                        "Stayed in September",
+                        "https://i.pravatar.cc/240?img=25",
+                    ),
+                ),
+            ),
+        ),
+        section(
+            "hosts",
+            split(
+                60,
+                group(
+                    t("YOUR HOSTS", "label"),
+                    t("Iris & Daan, three floors down.", "h2"),
+                    t(
+                        "We've lived on this canal for eleven years and can book you a table, a boat, or a babysitter with one text. Otherwise, you won't hear from us.",
+                        "body",
+                    ),
+                ),
+                img(pic(755), 0.82),
+            ),
+        ),
+        section(
+            "neighborhood",
+            group(
+                t("OUT THE GREEN DOOR", "label"),
+                dish(
+                    "Café Zog",
+                    "3 doors",
+                    "Sit outside · order the apple cake · tell them the flat sent you",
+                ),
+                dish("The floating market", "4 bridges", "Saturday mornings · arrive before ten"),
+                dish("The Nine Streets", "10 min walk", "The good kind of getting lost"),
+            ),
+        ),
+        section(
+            "seasons",
+            group(
+                t("WHEN TO COME", "label"),
+                table(
+                    "Season,The case for it\nSpring,Tulips · king's day chaos · book early\nSummer,Canal swimming · yes really · towels provided\nFall,Museum weather · our favorite\nWinter,Candlelit canals · the flat's fireplace era",
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
+        ),
+        section(
+            "morning",
+            group(
+                t("The canal at 7am is the whole argument.", "h2"),
+                t("Coffee on the sill, boats starting up, the city not quite awake.", "caption"),
+            ),
+            { bleed: true, background: bgImage(pic(273, 1700, 1100), 0.5) },
+        ),
+        section(
+            "book",
+            group(
+                t("The canal is waiting.", "h2"),
+                t(
+                    "Three-night minimum · quiet hours after ten · the bakery sells out by nine.",
+                    "subtitle",
+                ),
+                button("Check dates & book", "https://thecanalflat.nl/book", { size: "lg" }),
+            ),
+            { bleed: true, background: bgImage(pic(164, 1700, 1100), 0.5) },
+        ),
+        section(
+            "footer",
+            row(
+                { justify: "between", align: "start" },
+                fitW(
+                    col(
+                        fitW(t("The Canal Flat", "h3")),
+                        fitW(t("Prinsengracht 214B, Amsterdam", "caption")),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("BOOK", "label")),
+                        fitW(
+                            linked("caption", [
+                                "thecanalflat.nl/book",
+                                "https://thecanalflat.nl/book",
+                            ]),
+                        ),
+                    ),
+                ),
+                fitW(
+                    col(
+                        fitW(t("YOUR HOSTS", "label")),
+                        fitW(
+                            linked("caption", [
+                                "iris@thecanalflat.nl",
+                                "mailto:iris@thecanalflat.nl",
+                            ]),
+                        ),
+                    ),
+                ),
+            ),
+            { bleed: true, background: bgTone("contrast") },
+        ),
+    ],
+    bgImage(pic(210, 1700, 1100), 0.3),
 );
 
 const BODIES: Record<string, ArtifactContent> = {
@@ -7488,6 +15676,60 @@ const BODIES: Record<string, ArtifactContent> = {
     "guest-guide": guestGuide,
     "recipe-collection": recipeCollection,
     "event-program": eventProgram,
+    "exec-summary": execSummary,
+    "product-sheet": productSheet,
+    "fact-sheet": factSheet,
+    "partnership-pitch": partnershipPitch,
+    "about-page": aboutPage,
+    "demo-page": demoPage,
+    "wall-of-love": wallOfLove,
+    "solution-page": solutionPage,
+    "compare-page": comparePage,
+    "campaign-pitch": campaignPitch,
+    "brand-guidelines": brandGuidelines,
+    "announcement-keynote": announcementKeynote,
+    "launch-briefing": launchBriefing,
+    "release-notes": releaseNotes,
+    "press-kit": pressKit,
+    "launch-playbook": launchPlaybook,
+    "messaging-guide": messagingGuide,
+    "pricing-page": pricingPage,
+    "kickoff-deck": kickoffDeck,
+    "capabilities-deck": capabilitiesDeck,
+    "workshop-deck": workshopDeck,
+    "client-status": clientStatus,
+    "proposal-site": proposalSite,
+    "project-hub": projectHub,
+    "case-study-site": caseStudySite,
+    "services-page": servicesPage,
+    "all-hands": allHandsDeck,
+    "growth-review": growthReview,
+    "research-readout": researchReadout,
+    "annual-plan": annualPlan,
+    "impact-site": impactSite,
+    "research-site": researchSite,
+    "changelog-site": changelogSite,
+    "open-metrics": openMetrics,
+    "status-page": statusPage,
+    "conference-talk": conferenceTalk,
+    "portfolio-deck": portfolioDeck,
+    "teaching-deck": teachingDeck,
+    "year-in-review": yearInReview,
+    "side-project-pitch": sideProjectPitch,
+    "design-case-study": designCaseStudy,
+    "speaker-kit": speakerKit,
+    "link-hub": linkHub,
+    "speaking-page": speakingPage,
+    "app-site": appSite,
+    "celebration-slideshow": celebrationSlideshow,
+    "trivia-night": triviaNight,
+    "travel-recap": travelRecap,
+    "birthday-toast": birthdayToast,
+    "book-club": bookClub,
+    "party-invite": partyInvite,
+    "reunion-site": reunionSite,
+    "restaurant-site": restaurantSite,
+    "rental-site": rentalSite,
 };
 
 export function templateBody(id: string): ArtifactContent | null {

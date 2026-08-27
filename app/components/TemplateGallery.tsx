@@ -18,7 +18,12 @@ const CARD_ASPECT = 16 / 9;
 // The template gallery — category rows, live-preview modal, and the use action — shared by the
 // Templates page and the intake's in-place browser. `onCreated` runs before the navigate, so a
 // host inside the studio can close itself.
-export const TemplateGallery: Component<{ onCreated?: () => void; from?: string }> = (props) => {
+export const TemplateGallery: Component<{
+    onCreated?: () => void;
+    from?: string;
+    /** Offered where a run is being set up: borrow this starter's shapes instead of starting from it. */
+    onShape?: (t: ApiTemplate) => void;
+}> = (props) => {
     const navigate = useNavigate();
     const [templates, setTemplates] = createSignal<ApiTemplate[]>([]);
     const [loading, setLoading] = createSignal(true);
@@ -163,6 +168,7 @@ export const TemplateGallery: Component<{ onCreated?: () => void; from?: string 
                         onBack={props.from ? () => setPreview(null) : undefined}
                         onClose={() => setPreview(null)}
                         onUse={(fmt) => void use(t(), fmt)}
+                        onShape={props.onShape ? () => props.onShape?.(t()) : undefined}
                     />
                 )}
             </Show>

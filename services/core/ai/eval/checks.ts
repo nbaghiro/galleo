@@ -1,6 +1,8 @@
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import type { CheckDimension, EvalCheck } from "@model/eval";
+import { sectionForms } from "@model/artifact";
 import { sectionsForLength } from "@model/tools";
+import { templateBody } from "@services/core/templates";
 import { PLACEHOLDER, contentOf, structureIssues } from "@services/core/ai/quality";
 
 // Deterministic quality checks: free to run and they never drift, so everything that can be decided
@@ -20,6 +22,8 @@ export interface Check {
 interface CheckCtx {
     surface: string;
     length?: string;
+    /** The starter this run borrowed its shapes from, when the reader picked one. */
+    shapeTemplateId?: string;
 }
 
 type CheckResult = EvalCheck;
@@ -105,6 +109,33 @@ export const CHECKS: Check[] = [
                 if (sigs[i] && sigs[i] === sigs[i - 1] && sigs[i] === sigs[i - 2])
                     return `sections ${i - 1}–${i + 1} share a shape`;
             return null;
+        },
+    },
+    {
+        // The promise the borrowed shape makes, measured where it can actually be broken. The plan
+        // is snapped onto the starter, so a mismatch here is the section writer having laid its
+        // columns out differently from the beat it was handed.
+        id: "keeps-the-borrowed-shape",
+        dimension: "layout",
+        describe: "a run that borrowed a shape renders it, section for section",
+        artifact: (c, ctx) => {
+            if (!ctx.shapeTemplateId) return null;
+            const body = templateBody(ctx.shapeTemplateId);
+            if (!body) return null;
+            const want = sectionForms(body);
+            const got = sectionForms(c);
+            const shared = Math.min(want.length, got.length);
+            const off = Array.from({ length: shared }, (_, i) => i).filter(
+                (i) =>
+                    want[i]!.layout !== got[i]!.layout ||
+                    want[i]!.blocks.join() !== got[i]!.blocks.join(),
+            );
+            return off.length
+                ? `${off.length} of ${shared} sections drifted from the borrowed shape (${off
+                      .slice(0, 4)
+                      .map((i) => `${i + 1}: wanted ${want[i]!.layout}, got ${got[i]!.layout}`)
+                      .join("; ")})`
+                : null;
         },
     },
     {

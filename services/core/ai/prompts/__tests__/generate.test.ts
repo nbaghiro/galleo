@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GenerateInput, SectionInput } from "@model/ai";
-import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import type { ArtifactContent, ElementInstance, Section, SectionForm } from "@model/artifact";
 import { BLOCK_KINDS } from "@model/elements";
 import type { Beat, Outline } from "@services/core/ai/schema";
 import {
@@ -313,5 +313,36 @@ describe("relayoutSectionParts", () => {
     it("folds the user's direction into the arrangement block", () => {
         const out = relayoutSectionParts(content, content.sections[0]!, "Typographic.", "more air");
         expect(out.prompt).toContain("The user adds: more air");
+    });
+});
+
+// The borrowed shape, which is the one fragment that travels without a word of the lender's copy.
+describe("the shape a picked starter lends the outline", () => {
+    const forms: SectionForm[] = [
+        { id: "a", layout: "full", blocks: ["text"], image: true },
+        { id: "b", layout: "three-up", blocks: ["stat", "stat", "stat"], image: false },
+    ];
+
+    it("is absent when nothing was picked, so an ordinary run reads as it always did", () => {
+        expect(outlineParts(input).prompt).not.toContain("The shape to follow");
+    });
+
+    it("names the starter and lists every beat's layout and blocks in order", () => {
+        const out = outlineParts(input, { forms, shapeName: "Startup Pitch Deck" }).prompt;
+        expect(out).toContain("The shape to follow");
+        expect(out).toContain("Startup Pitch Deck");
+        expect(out).toContain("1. full · text · full-bleed image");
+        expect(out).toContain("2. three-up · stat | stat | stat");
+    });
+
+    it("says the shape travels without its subject, since that is the whole difference from source material", () => {
+        const out = outlineParts(input, { forms }).prompt;
+        expect(out).toContain("never its subject and never its facts");
+        expect(out).not.toContain("build the piece FROM this");
+    });
+
+    it("licenses text where a block asks for data the brief cannot supply", () => {
+        // the alternative is a confident invented figure, which the voice rules would ask for
+        expect(outlineParts(input, { forms }).prompt).toContain("rather than inventing data");
     });
 });
