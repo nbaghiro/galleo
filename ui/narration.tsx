@@ -286,6 +286,9 @@ export function createSoundtrackPlayer(opts: {
     };
 }
 
+/** The pause on a section change: about as long as a presenter takes to glance at a new slide. */
+const SECTION_BEAT_MS = 800;
+
 export interface NarrationPlayer {
     ready: Accessor<boolean>;
     playing: Accessor<boolean>;
@@ -352,6 +355,7 @@ export function createNarrationPlayer(opts: {
     // than a plain variable because the caption and the progress bar both read it.
     const [speaking, setSpeaking] = createSignal<string | undefined>(undefined);
 
+    let beat: ReturnType<typeof setTimeout> | undefined;
     const [made, setMade] = createSignal<Map<string, NarrationTrack>>(new Map());
     const [recording, setRecording] = createSignal(false);
     // what the manifest had, plus anything recorded since; a just-made track wins
@@ -382,12 +386,15 @@ export function createNarrationPlayer(opts: {
     };
 
     const stop = (completed = false): void => {
+        clearTimeout(beat);
         audio?.pause();
         setPlaying(false);
         setSpeaking(undefined);
         report(completed);
     };
 
+    // the section changes, then a beat, then the voice picks up: speaking straight across the change
+    // is what makes an auto-run sound like a machine reading rather than someone presenting
     const advance = (): void => {
         const from = speaking();
         if (!from) return;
@@ -397,7 +404,10 @@ export function createNarrationPlayer(opts: {
             return;
         }
         opts.goToSection(next);
-        speak(next);
+        clearTimeout(beat);
+        beat = setTimeout(() => {
+            if (playing()) speak(next);
+        }, SECTION_BEAT_MS);
     };
 
     const playTrack = (track: NarrationTrack): void => {
@@ -515,6 +525,7 @@ export function createNarrationPlayer(opts: {
      */
     const retarget = (sectionId: string): void => {
         if (!playing() || sectionId === speaking()) return;
+        clearTimeout(beat); // someone navigated; they are not waiting out a transition
         speak(sectionId);
     };
 

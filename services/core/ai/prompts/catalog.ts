@@ -127,6 +127,11 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 values: TEXT_ALIGN,
                 desc: "text alignment; omit for default left/start",
             },
+            {
+                key: "maxLines",
+                type: "number",
+                desc: "clamp to at most N lines with an ellipsis; use 2-3 on card titles that must stay tidy, omit otherwise",
+            },
         ],
     },
     {

@@ -8,7 +8,12 @@ import type { PromptParts } from "./system";
 
 const SPOKEN_RULES = `## Writing the spoken script
 - Write what a person SAYS, not what a page shows. Read every line back in your head; if it sounds like a caption, rewrite it.
-- Short sentences. One idea each. A listener cannot re-read, so a clause they have to hold is a clause that fails.
+- One idea per sentence. A listener cannot re-read, so a clause they have to hold is a clause that fails.
+- Vary the length. Sentences all cut to the same size read as a machine working through a list; let a longer one carry the idea and a short one land it.
+- Use contractions the way speech does: "we're", "it's", "that's", "here's".
+- Punctuate for breath, because the voice pauses where you do. A comma is a beat and a full stop is a breath. Avoid semicolons and colons, which a voice cannot hear.
+- Open by joining to what came before instead of starting cold: "so that leaves the question of", "which is where the numbers change".
+- No filler and no performed hesitation. Never write "um", "uh", "you know" or "so, yeah". What makes a script sound human is its rhythm, not noise in it.
 - Say numbers the way a person says them: "about a third", "twelve thousand", "roughly two and a half times". Never "~1/3", "12k", "2.5x".
 - Do not read the slide aloud. The audience can already see the headline; the script says what the headline does not.
 - No bullet fragments, no parentheticals, no asides in brackets, no stage directions.

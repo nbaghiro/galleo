@@ -10,6 +10,7 @@ import {
     manifestFor,
     narratable,
     prepare,
+    previousSpoken,
     pruneOrphans,
     trackFor,
 } from "@services/core/narration";
@@ -93,6 +94,14 @@ describe("narratable", () => {
             "s1",
             "s4",
         ]);
+    });
+});
+
+describe("previousSpoken", () => {
+    it("is the nearest section behind this one that actually says something", () => {
+        const c = content("one", null, "  ", "four");
+        expect(previousSpoken(c, "s4")).toBe("one"); // s2 and s3 are silent, so they are skipped
+        expect(previousSpoken(c, "s1")).toBe("");
     });
 });
 
