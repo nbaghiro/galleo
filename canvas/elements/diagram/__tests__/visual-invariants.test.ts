@@ -143,7 +143,7 @@ const kidsFor = (diagram: ResolvedDiagram): EngineNode[] =>
 
 interface Audit {
     commands: RenderCommand[];
-    cellFills: Rect[]; // engine-painted cell fill rects
+    cellFills: Rect[];
     labelTexts: Rect[]; // engine text command boxes
     chrome: { surface: Rect; ops: Op[] }[];
     fills: Extract<RenderCommand, { kind: "rect" }>[];

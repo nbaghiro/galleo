@@ -1,4 +1,5 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
+import { LINE_HEIGHT_FACTOR } from "@canvas/render/commands";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import type { BulletMarker } from "@model/elements";
@@ -63,7 +64,7 @@ function markerNode(marker: BulletMarker, i: number, ctx: LayoutCtx, checked: bo
 // the marker centres on the child's FIRST LINE box, not the row top: a top-aligned 8px dot floats
 // visibly above a ~23px line's glyphs (the line's leading sits above the caps)
 function alignedMarker(marker: EngineNode, k: EngineNode): EngineNode {
-    const line = k.text ? (k.text.lineHeight ?? k.text.size * 1.35) : undefined;
+    const line = k.text ? (k.text.lineHeight ?? k.text.size * LINE_HEIGHT_FACTOR) : undefined;
     if (!line) return marker;
     return { w: fit(), h: fixed(line), alignY: "center", children: [marker] };
 }

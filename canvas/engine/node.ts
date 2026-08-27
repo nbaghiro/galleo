@@ -76,10 +76,38 @@ export interface DrawContext {
     measureText(text: string, style: DrawTextStyle): { width: number };
 }
 
+// One styled span on one line; `from` is the source offset into `TextLeaf.text` (UTF-16, the same
+// space Mark/cm offsets use), so chrome maps character ranges to pixels without re-deriving a wrap.
+export interface TextFrag {
+    text: string;
+    from: number;
+    font: string;
+    color?: string;
+    underline: boolean;
+    strike: boolean;
+    code: boolean;
+    highlight?: string;
+    link?: string;
+    x: number; // line-local, pre-align
+    width: number;
+}
+
+export interface TextLine {
+    from: number;
+    to: number; // source range rendered; wrap-eaten whitespace falls in the gap to the next line
+    y: number; // top, relative to the leaf's box
+    baseline: number; // from the line's own top; real font metrics in phase B, painted midline until then
+    width: number;
+    frags: TextFrag[]; // visual order
+}
+
 // Named `Measured` to avoid clashing with the DOM `TextMetrics` global.
 export interface Measured {
     width: number;
     height: number;
+    lines?: TextLine[]; // per-line geometry for text leaves; the wrap that sized the box
+    ascent?: number; // px above the alphabetic baseline, from the leaf's base font bounding box
+    descent?: number; // px below it
 }
 
 // Injected so the engine stays pure (no DOM).
@@ -98,6 +126,8 @@ export interface TextLeaf {
     align?: Align;
     wrap: "words" | "none";
     level?: 1 | 2 | 3; // heading rank (h1/h2/h3); absent = not a heading
+    maxLines?: number; // clamp the wrap to this many lines; absent = unbounded
+    overflow?: "clip" | "ellipsis"; // what the last clamped line does; default ellipsis
     // Invariant: the concatenation of `runs[].text` equals `text`; absent → the plain `text` path.
     runs?: Run[];
 }
@@ -142,8 +172,10 @@ export interface EngineNode {
     padding?: BoxInsets;
     gap?: number;
     alignX?: Align;
-    alignY?: Align;
-    alignSelf?: Align; // overrides the parent's cross-axis alignment
+    // "baseline": a row's flow children meet at their deepest first baseline (rows only; a child
+    // with no text in its first-child chain sits its box bottom on the shared baseline)
+    alignY?: Align | "baseline";
+    alignSelf?: Align | "baseline"; // overrides the parent's cross-axis alignment
     // Spreads leftover main-axis space across the flow children instead of aligning it; a `fit` main
     // axis has no leftover and distributes nothing. Floats are unaffected.
     distribute?: "between" | "around" | "evenly";
@@ -180,6 +212,9 @@ export type RenderCommand =
           kind: "text";
           box: Rect;
           text: TextLeaf;
+          lines?: TextLine[];
+          // a fragmented page's window into `lines`: [start, end). The command is whole otherwise.
+          lineRange?: { start: number; end: number };
           id?: string;
           opacity?: number;
           clip?: Rect;

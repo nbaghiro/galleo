@@ -12,7 +12,8 @@ import { getElement } from "@elements/spec";
 import { elementRegionId } from "@model/artifact";
 import { panelHugWidth, panelNode, panelWidth, popupData } from "@elements/composite/popup";
 import { profileFor } from "@engine/profile";
-import { ctxFor, measureText } from "@canvas/render/commands";
+import type { RunLayout } from "@canvas/render/commands";
+import { LINE_HEIGHT_FACTOR, ctxFor, measureText } from "@canvas/render/commands";
 import { sectionLayoutWidth } from "@canvas/render/backends";
 import { canvasContentWidth, editor, editorTokens, sectionFitScale } from "./store";
 
@@ -92,6 +93,16 @@ export function paintedNodeFor(address: ElementAddress): EngineNode | null {
 // The text leaf for an address as painted, for chrome that must match the screen (the inline
 // editor's overlay, the bar's color swatch). The composed leaf carries container restyling and
 // the section's contrast swap; the spec's own leaf covers a bare element.
+/** The painted leaf's line boxes at its painted width — the same memoized entry the paint read. */
+export function paintedLinesFor(address: ElementAddress, width: number): RunLayout | null {
+    const leaf = paintedLeafFor(address);
+    if (!leaf) return null;
+    const m = measureText(leaf, width);
+    if (!m.lines) return null;
+    const lineHeight = leaf.lineHeight ?? leaf.size * LINE_HEIGHT_FACTOR;
+    return { lines: m.lines, width: m.width, height: m.height, lineHeight };
+}
+
 export function paintedLeafFor(address: ElementAddress): TextLeaf | null {
     const inst = getElementAt(editor.artifact, address);
     const spec = inst ? getElement(inst.type) : undefined;

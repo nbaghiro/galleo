@@ -3,7 +3,8 @@ import type { RenderCommand, TextLeaf } from "@engine/node";
 import type { ArtifactContent } from "@model/artifact";
 import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
 import { fontFileUrl } from "@canvas/render/fonts";
-import type { RunLine } from "@canvas/render/commands";
+import type { TextLine } from "@engine/node";
+import { leafForRuns } from "@canvas/render/commands";
 import {
     SLIDE_IN_H,
     SLIDE_IN_W,
@@ -17,7 +18,6 @@ import {
     hasText,
     inch,
     italicFromFont,
-    leafForRuns,
     localize,
     patchContentTypes,
     patchPresentationRels,
@@ -252,13 +252,16 @@ describe("leafForRuns / hasText", () => {
         expect(leafForRuns(withRuns)).toBe(withRuns);
     });
     it("detects whether any line carries visible text", () => {
-        expect(hasText([{ frags: [], width: 0 }])).toBe(false);
+        const empty: TextLine = { from: 0, to: 0, y: 0, baseline: 8, width: 0, frags: [] };
+        expect(hasText([empty])).toBe(false);
         expect(
             hasText([
                 {
+                    ...empty,
                     frags: [
                         {
                             text: "x",
+                            from: 0,
                             font: "12px X",
                             underline: false,
                             strike: false,
@@ -275,8 +278,9 @@ describe("leafForRuns / hasText", () => {
 });
 
 describe("textSpec", () => {
-    const frag = (text: string, over: Partial<RunLine["frags"][number]> = {}) => ({
+    const frag = (text: string, over: Partial<TextLine["frags"][number]> = {}) => ({
         text,
+        from: 0,
         font: "600 40px 'Fraunces', serif",
         underline: false,
         strike: false,
@@ -284,6 +288,14 @@ describe("textSpec", () => {
         x: 0,
         width: 10,
         ...over,
+    });
+    const line = (frags: TextLine["frags"], width: number): TextLine => ({
+        from: 0,
+        to: 0,
+        y: 0,
+        baseline: 27,
+        width,
+        frags,
     });
     const leaf: TextLeaf = {
         text: "Line one Line two",
@@ -296,9 +308,9 @@ describe("textSpec", () => {
     };
 
     it("builds one styled run per fragment with a breakLine at each line end but the last", () => {
-        const lines: RunLine[] = [
-            { frags: [frag("Line"), frag("one")], width: 20 },
-            { frags: [frag("Line"), frag("two")], width: 20 },
+        const lines: TextLine[] = [
+            line([frag("Line"), frag("one")], 20),
+            line([frag("Line"), frag("two")], 20),
         ];
         const { runs, options } = textSpec(leaf, { x: 96, y: 96, w: 480, h: 108 }, lines);
         expect(runs.map((r) => r.text)).toEqual(["Line", "one", "Line", "two"]);
@@ -313,17 +325,17 @@ describe("textSpec", () => {
     });
 
     it("maps run marks: italic, underline, strike, code→mono, color, highlight", () => {
-        const lines: RunLine[] = [
-            {
-                frags: [
+        const lines: TextLine[] = [
+            line(
+                [
                     frag("i", { font: "italic 400 40px 'X', serif" }),
                     frag("u", { underline: true }),
                     frag("s", { strike: true }),
                     frag("c", { code: true, font: "400 40px ui-monospace, monospace" }),
                     frag("k", { color: "#FF0000", highlight: "#FFFF00" }),
                 ],
-                width: 50,
-            },
+                50,
+            ),
         ];
         const { runs } = textSpec(leaf, { x: 0, y: 0, w: 480, h: 54 }, lines);
         expect(runs[0]!.options!.italic).toBe(true);
@@ -335,11 +347,8 @@ describe("textSpec", () => {
     });
 
     it("hyperlinks a run from its own mark, and the whole box from a command-level link", () => {
-        const lines: RunLine[] = [
-            {
-                frags: [frag("plain"), frag("linked", { link: "https://galleo.app/docs" })],
-                width: 20,
-            },
+        const lines: TextLine[] = [
+            line([frag("plain"), frag("linked", { link: "https://galleo.app/docs" })], 20),
         ];
         const { runs } = textSpec(leaf, { x: 0, y: 0, w: 480, h: 54 }, lines);
         expect(runs[0]!.options!.hyperlink).toBeUndefined();
@@ -349,10 +358,7 @@ describe("textSpec", () => {
     });
 
     it("emits a blank breaking run for an empty (blank) line", () => {
-        const lines: RunLine[] = [
-            { frags: [], width: 0 },
-            { frags: [frag("after")], width: 10 },
-        ];
+        const lines: TextLine[] = [line([], 0), line([frag("after")], 10)];
         const { runs } = textSpec(leaf, { x: 0, y: 0, w: 480, h: 108 }, lines);
         expect(runs[0]).toEqual({ text: "", options: { breakLine: true } });
     });

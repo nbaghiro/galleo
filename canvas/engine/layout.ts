@@ -334,6 +334,25 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText, 
     if (ln.h + 0.5 < childrenH + padY(node)) ln.clip = mergeClip(ln.clip, { y: true });
 }
 
+// "baseline" resolves before this is called; a grid or column treats it as start
+const asBoxAlign = (a: Align | "baseline" | undefined): Align | undefined =>
+    a === "baseline" ? "start" : a;
+
+// First baseline of a height-resolved subtree, from its own top: a text leaf answers from its
+// measured first line; a container from its first flow child's lead plus that child's baseline.
+// Null when nothing in the first-child chain carries text.
+function firstBaseline(ln: LayoutNode, measure: MeasureText): number | null {
+    const n = ln.node;
+    if (n.text) {
+        const b = measure(n.text, ln.w).lines?.[0]?.baseline;
+        return b === undefined ? null : b;
+    }
+    const first = ln.children.find((c) => !c.node.float);
+    if (!first) return null;
+    const fb = firstBaseline(first, measure);
+    return fb === null ? null : (n.padding?.top ?? 0) + fb;
+}
+
 function mainOffset(extra: number, align: Align | undefined): number {
     if (extra <= 0) return 0;
     if (align === "center") return extra / 2;
@@ -353,7 +372,7 @@ function spread(
     return { lead: extra / (n + 1), gap: extra / (n + 1) };
 }
 
-function layoutPositions(ln: LayoutNode, x: number, y: number): void {
+function layoutPositions(ln: LayoutNode, x: number, y: number, measure: MeasureText): void {
     ln.x = x;
     ln.y = y;
     const node = ln.node;
@@ -377,8 +396,8 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
             for (let i = 0; i < cols; i++) {
                 const c = flow[r * cols + i];
                 if (!c) break;
-                const off = mainOffset(rowH[r]! - c.h, c.node.alignSelf ?? node.alignY);
-                layoutPositions(c, cx, cy + off);
+                const off = mainOffset(rowH[r]! - c.h, asBoxAlign(c.node.alignSelf ?? node.alignY));
+                layoutPositions(c, cx, cy + off, measure);
                 cx += colW[i]! + gap;
             }
             cy += rowH[r]! + rg;
@@ -387,20 +406,37 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
         const totalW = flow.reduce((s, c) => s + c.w, 0) + gap * Math.max(0, flow.length - 1);
         const extra = contentW - totalW;
         const sp = spread(node.distribute, extra, flow.length);
+        // children meeting at a baseline share the deepest first baseline among them
+        const onBaseline = (c: LayoutNode): boolean =>
+            (c.node.alignSelf ?? node.alignY) === "baseline";
+        const deepest = flow.reduce((mx, c) => {
+            if (!onBaseline(c)) return mx;
+            return Math.max(mx, firstBaseline(c, measure) ?? c.h);
+        }, 0);
         let cx = x + cl + (node.distribute ? sp.lead : mainOffset(extra, node.alignX));
         for (const c of flow) {
-            const cy = y + ct + mainOffset(contentH - c.h, c.node.alignSelf ?? node.alignY);
-            layoutPositions(c, cx, cy);
+            let cy: number;
+            if (onBaseline(c)) {
+                const fb = firstBaseline(c, measure);
+                cy = y + ct + deepest - (fb ?? c.h); // no baseline: box bottom sits on it
+            } else {
+                cy =
+                    y +
+                    ct +
+                    mainOffset(contentH - c.h, asBoxAlign(c.node.alignSelf ?? node.alignY));
+            }
+            layoutPositions(c, cx, cy, measure);
             cx += c.w + gap + sp.gap;
         }
     } else {
         const totalH = flow.reduce((s, c) => s + c.h, 0) + gap * Math.max(0, flow.length - 1);
         const extra = contentH - totalH;
         const sp = spread(node.distribute, extra, flow.length);
-        let cy = y + ct + (node.distribute ? sp.lead : mainOffset(extra, node.alignY));
+        let cy = y + ct + (node.distribute ? sp.lead : mainOffset(extra, asBoxAlign(node.alignY)));
         for (const c of flow) {
-            const cx = x + cl + mainOffset(contentW - c.w, c.node.alignSelf ?? node.alignX);
-            layoutPositions(c, cx, cy);
+            const cx =
+                x + cl + mainOffset(contentW - c.w, asBoxAlign(c.node.alignSelf) ?? node.alignX);
+            layoutPositions(c, cx, cy, measure);
             cy += c.h + gap + sp.gap;
         }
     }
@@ -409,7 +445,7 @@ function layoutPositions(ln: LayoutNode, x: number, y: number): void {
         const f = c.node.float;
         const fx = x + cl + mainOffset(contentW - c.w, f.x) + (f.dx ?? 0);
         const fy = y + ct + mainOffset(contentH - c.h, f.y) + (f.dy ?? 0);
-        layoutPositions(c, fx, fy);
+        layoutPositions(c, fx, fy, measure);
     }
 }
 
@@ -428,6 +464,7 @@ function emit(
     ln: LayoutNode,
     commands: RenderCommand[],
     regions: Region[],
+    measure: MeasureText,
     opacity = 1,
     clip?: Rect,
     link?: string,
@@ -470,11 +507,13 @@ function emit(
             link: href,
             ...dec,
         });
+    // the memoized measurement at this exact (leaf, width) — the height pass already paid for it
     if (node.text)
         commands.push({
             kind: "text",
             box,
             text: node.text,
+            lines: measure(node.text, ln.w).lines,
             id: node.id,
             opacity: o,
             clip,
@@ -498,11 +537,13 @@ function emit(
         .filter((c) => c.node.float)
         .sort((a, b) => (a.node.float?.z ?? 0) - (b.node.float?.z ?? 0));
     for (const c of floats)
-        if ((c.node.float?.z ?? 0) < 0) emit(c, commands, regions, acc, childClip, href, true);
+        if ((c.node.float?.z ?? 0) < 0)
+            emit(c, commands, regions, measure, acc, childClip, href, true);
     for (const c of ln.children)
-        if (!c.node.float) emit(c, commands, regions, acc, childClip, href, decor);
+        if (!c.node.float) emit(c, commands, regions, measure, acc, childClip, href, decor);
     for (const c of floats)
-        if ((c.node.float?.z ?? 0) >= 0) emit(c, commands, regions, acc, childClip, href, decor);
+        if ((c.node.float?.z ?? 0) >= 0)
+            emit(c, commands, regions, measure, acc, childClip, href, decor);
 }
 
 function offsetRegion(r: Region, dx: number, dy: number): Region {
@@ -519,20 +560,61 @@ export function layout(
 ): { commands: RenderCommand[]; regions: Region[] } {
     const ln = layoutWidths(node, container.w, measure);
     layoutHeights(ln, container.h, measure);
-    layoutPositions(ln, container.x, container.y);
+    layoutPositions(ln, container.x, container.y, measure);
     const commands: RenderCommand[] = [];
     const regions: Region[] = [];
-    emit(ln, commands, regions);
+    emit(ln, commands, regions, measure);
     return { commands, regions };
 }
 
-// Greedy: break at the lowest bottom edge that splits no command; each page's commands shift to y = 0.
+// Greedy: break at the lowest bottom edge that splits no command — or, failing that, at a line
+// boundary inside a paragraph — and each page's commands shift to y = 0.
 
 const EPS = 0.5;
+// a line-boundary break must leave at least this many lines on each side of the cut
+const KEEP_LINES = 2;
 
 function shiftY(c: RenderCommand, dy: number): RenderCommand {
     const box = { ...c.box, y: c.box.y + dy };
     return c.clip ? { ...c, box, clip: { ...c.clip, y: c.clip.y + dy } } : { ...c, box };
+}
+
+const lineCount = (c: RenderCommand): number =>
+    c.kind === "text" && c.lines
+        ? c.lineRange
+            ? c.lineRange.end - c.lineRange.start
+            : c.lines.length
+        : 0;
+
+const lineHeightOf = (c: Extract<RenderCommand, { kind: "text" }>): number =>
+    c.lines!.length > 1 ? c.lines![1]!.y - c.lines![0]!.y : c.box.h;
+
+// interior line tops (stage space, relative to the command's current window) that keep the guard
+function lineBreaks(c: RenderCommand, top: number, limit: number): number[] {
+    const count = lineCount(c);
+    if (c.kind !== "text" || count < KEEP_LINES * 2) return [];
+    const lh = lineHeightOf(c);
+    const out: number[] = [];
+    for (let i = KEEP_LINES; i <= count - KEEP_LINES; i++) {
+        const y = c.box.y + i * lh;
+        if (y > top + EPS && y <= limit + EPS) out.push(y);
+    }
+    return out;
+}
+
+// slice the command's current window at [cutStart, cutEnd), indices relative to that window
+function lineSlice(
+    c: Extract<RenderCommand, { kind: "text" }>,
+    cutStart: number,
+    cutEnd: number,
+): RenderCommand {
+    const lh = lineHeightOf(c);
+    const base = c.lineRange?.start ?? 0;
+    return {
+        ...c,
+        box: { ...c.box, y: c.box.y + cutStart * lh, h: (cutEnd - cutStart) * lh },
+        lineRange: { start: base + cutStart, end: base + cutEnd },
+    };
 }
 
 export function fragment(
@@ -550,6 +632,7 @@ export function fragment(
     while (top < totalHeight - EPS && guard++ < 4096) {
         const limit = top + pageHeight;
         let breakY = Math.min(limit, totalHeight);
+        let atLine = false;
 
         if (limit < totalHeight) {
             const cands = sorted
@@ -565,13 +648,54 @@ export function fragment(
                     breakY = y;
                     break;
                 }
+                if (y >= limit - EPS) {
+                    // the hard limit would slice glyphs: prefer the lowest line boundary that
+                    // splits only text commands, cutting each between lines instead
+                    const lines = sorted
+                        .flatMap((c) => lineBreaks(c, top, limit))
+                        .sort((a, b) => b - a);
+                    for (const ly of lines) {
+                        const bad = sorted.some(
+                            (c) =>
+                                c.box.y < ly - EPS &&
+                                c.box.y + c.box.h > ly + EPS &&
+                                lineCount(c) < KEEP_LINES * 2,
+                        );
+                        if (!bad) {
+                            breakY = ly;
+                            atLine = true;
+                            break;
+                        }
+                    }
+                }
             }
         }
 
-        const pageCmds = sorted
-            .filter((c) => c.box.y < breakY - EPS && c.box.y + c.box.h > top + EPS)
-            .map((c) => shiftY(c, -top));
+        const pageCmds: RenderCommand[] = [];
+        for (const c of sorted) {
+            if (c.box.y >= breakY - EPS || c.box.y + c.box.h <= top + EPS) continue;
+            const crosses = c.box.y < breakY - EPS && c.box.y + c.box.h > breakY + EPS;
+            if (atLine && crosses && c.kind === "text" && c.lines) {
+                const cut = Math.round((breakY - c.box.y) / lineHeightOf(c));
+                if (cut > 0 && cut < lineCount(c))
+                    pageCmds.push(shiftY(lineSlice(c, 0, cut), -top));
+                continue;
+            }
+            pageCmds.push(shiftY(c, -top));
+        }
         pages.push(pageCmds);
+
+        if (atLine) {
+            // the next page carries each cut command's remaining window
+            for (let i = 0; i < sorted.length; i++) {
+                const c = sorted[i]!;
+                if (!(c.box.y < breakY - EPS && c.box.y + c.box.h > breakY + EPS)) continue;
+                if (c.kind !== "text" || !c.lines) continue;
+                const cut = Math.round((breakY - c.box.y) / lineHeightOf(c));
+                if (cut > 0 && cut < lineCount(c)) sorted[i] = lineSlice(c, cut, lineCount(c));
+            }
+            sorted.sort((a, b) => a.box.y - b.box.y);
+        }
         top = breakY > top + EPS ? breakY : limit; // always make progress
     }
 

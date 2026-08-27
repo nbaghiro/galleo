@@ -14,6 +14,7 @@ interface TextData {
     style: TextStyle;
     align?: TextAlign;
     color?: string; // explicit override; else the style's theme tone
+    maxLines?: number; // clamp to N lines with an ellipsis; 0/absent = unbounded
     marks?: Mark[]; // inline formatting, offset ranges over `text`; absent → plain
 }
 
@@ -72,6 +73,7 @@ export const textElement: ElementSpec<TextData> = {
         };
         const level = HEADING_LEVEL[data.style];
         if (level) text.level = level;
+        if (data.maxLines && data.maxLines > 0) text.maxLines = data.maxLines;
         // only build runs when marks exist; plain text leaf stays unchanged.
         if (data.marks && data.marks.length > 0) {
             text.runs = toRuns(data.text, data.marks);
@@ -87,6 +89,7 @@ export const textElement: ElementSpec<TextData> = {
             options: TEXT_STYLES.map((v) => ({ value: v, label: STYLE_LABELS[v] })),
         },
         { key: "align", label: "Align", control: "align" },
+        { key: "maxLines", label: "Max lines", control: "slider", min: 0, max: 6, step: 1 },
         { key: "color", label: "Color override", control: "color", group: "Appearance" },
     ],
 };

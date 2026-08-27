@@ -2,7 +2,7 @@ import type { DrawContext, DrawStyle, DrawTextStyle, RenderCommand } from "@engi
 import type { PDFDocument, PDFFont, PDFPage, PDFPageDrawSVGOptions } from "pdf-lib";
 import { LineCapStyle, PDFString, StandardFonts, rgb } from "pdf-lib";
 import { buildPathData } from "./svg-emit";
-import { CODE_BG, layoutRuns } from "./commands";
+import { CODE_BG, LINE_HEIGHT_FACTOR, layoutRuns, leafForRuns } from "./commands";
 import { fetchFontTtf, familyFromFont, italicFromFont, slotFor, weightFromFont } from "./fonts";
 
 type RGB = [number, number, number];
@@ -238,7 +238,7 @@ export function emitRect(
     if (style.fill || style.stroke) drawPathAbs(c, d, style);
 }
 
-// mirrors backends.drawRuns; wrap comes from layoutRuns so breaks match screen
+// mirrors backends.drawRuns; the command's own lines, so breaks match screen
 export function emitText(
     c: Ctx,
     cmd: Extract<RenderCommand, { kind: "text" }>,
@@ -246,11 +246,11 @@ export function emitText(
 ): void {
     const t = cmd.text;
     const b = cmd.box;
-    const leaf = t.runs && t.runs.length ? t : { ...t, runs: [{ text: t.text }] };
-    const laid = layoutRuns(measureCx, leaf, b.w);
-    const lh = laid.lineHeight;
+    const all = cmd.lines ?? layoutRuns(measureCx, leafForRuns(t), b.w).lines;
+    const lines = cmd.lineRange ? all.slice(cmd.lineRange.start, cmd.lineRange.end) : all;
+    const lh = t.lineHeight ?? t.size * LINE_HEIGHT_FACTOR;
     const baseColor = t.color ?? "#1a1a1a";
-    laid.lines.forEach((line, i) => {
+    lines.forEach((line, i) => {
         const dx =
             t.align === "center"
                 ? (b.w - line.width) / 2
@@ -317,10 +317,8 @@ export async function buildFontBook(
         if (!want.has(k)) want.set(k, { family, weight, italic });
     };
     for (const cmd of textCmds) {
-        const leaf = cmd.text.runs?.length
-            ? cmd.text
-            : { ...cmd.text, runs: [{ text: cmd.text.text }] };
-        for (const line of layoutRuns(measureCx, leaf, cmd.box.w).lines)
+        const lines = cmd.lines ?? layoutRuns(measureCx, leafForRuns(cmd.text), cmd.box.w).lines;
+        for (const line of lines)
             for (const f of line.frags)
                 if (f.text)
                     add(familyFromFont(f.font), weightFromFont(f.font), italicFromFont(f.font));

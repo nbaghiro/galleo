@@ -1,10 +1,10 @@
 import type { ArtifactContent } from "@model/artifact";
 import type { FillLeaf, Rect, RenderCommand, TextLeaf } from "@engine/node";
-import type { RunLine } from "./commands";
+import type { TextLine } from "@engine/node";
 import type { Tokens } from "@themes";
 import type PptxGenJS from "pptxgenjs";
 import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
-import { layoutRuns, sectionSlides } from "./commands";
+import { LINE_HEIGHT_FACTOR, layoutRuns, leafForRuns, sectionSlides } from "./commands";
 import { applyFallbacks } from "@elements/ops";
 import { EXPORT_SCALE, renderToCanvas } from "./backends";
 import { svgStringContext } from "./svg-emit";
@@ -129,7 +129,7 @@ export function frameCommand(c: RenderCommand, t: Transform): RenderCommand {
                 text: {
                     ...c.text,
                     size: c.text.size * t.fit,
-                    lineHeight: (c.text.lineHeight ?? c.text.size * 1.35) * t.fit,
+                    lineHeight: (c.text.lineHeight ?? c.text.size * LINE_HEIGHT_FACTOR) * t.fit,
                 },
             };
         case "image":
@@ -213,17 +213,12 @@ export interface TextSpec {
 const hAlign = (a: TextLeaf["align"]): PptxGenJS.HAlign =>
     a === "center" ? "center" : a === "end" ? "right" : "left";
 
-// wrap a plain leaf as one run so a single runs path serves everything
-export function leafForRuns(leaf: TextLeaf): TextLeaf {
-    return leaf.runs && leaf.runs.length > 0 ? leaf : { ...leaf, runs: [{ text: leaf.text }] };
-}
-
 // an all-empty box is skipped, not emitted
-export const hasText = (lines: RunLine[]): boolean =>
+export const hasText = (lines: TextLine[]): boolean =>
     lines.some((l) => l.frags.some((f) => f.text.length > 0));
 
 // lines arrive pre-wrapped (breaks match screen), so wrap/autoFit stay off and PowerPoint never re-flows
-export function textSpec(text: TextLeaf, box: Rect, lines: RunLine[], link?: string): TextSpec {
+export function textSpec(text: TextLeaf, box: Rect, lines: TextLine[], link?: string): TextSpec {
     const baseColor = cssColor(text.color)?.color ?? DEFAULT_INK;
     const runs: PptxGenJS.TextProps[] = [];
     lines.forEach((line, li) => {
@@ -262,7 +257,7 @@ export function textSpec(text: TextLeaf, box: Rect, lines: RunLine[], link?: str
         fontFace: familyFromFont(text.fontId),
         fontSize: pt(text.size),
         color: baseColor,
-        lineSpacing: pt(text.lineHeight ?? text.size * 1.35),
+        lineSpacing: pt(text.lineHeight ?? text.size * LINE_HEIGHT_FACTOR),
         wrap: false,
         autoFit: false,
     };
@@ -492,7 +487,8 @@ export async function buildPptx(
                             spec.options,
                         );
                 } else if (kind === "text" && c.kind === "text" && framed.kind === "text") {
-                    const lines = layoutRuns(cx, leafForRuns(c.text), c.box.w).lines;
+                    const all = c.lines ?? layoutRuns(cx, leafForRuns(c.text), c.box.w).lines;
+                    const lines = c.lineRange ? all.slice(c.lineRange.start, c.lineRange.end) : all;
                     if (!hasText(lines)) continue;
                     for (const line of lines)
                         for (const f of line.frags)

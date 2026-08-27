@@ -13,7 +13,9 @@ import { arcSegments, buildPathData, gradientDir, gradientUnitPoints } from "./s
 import {
     CODE_BG,
     MONO_FONT_STACK,
+    LINE_HEIGHT_FACTOR,
     layoutRuns,
+    leafForRuns,
     measureText,
     layoutSection,
     layoutSlide,
@@ -63,7 +65,7 @@ function appendRuns(el: HTMLElement, runs: Run[]): void {
     }
 }
 
-function paintText(el: HTMLElement, t: TextLeaf): void {
+function paintText(el: HTMLElement, t: TextLeaf, range?: { start: number; end: number }): void {
     // reused elements keep their attributes, so an absent level must clear the previous one
     if (t.level) {
         el.setAttribute("role", "heading");
@@ -72,14 +74,30 @@ function paintText(el: HTMLElement, t: TextLeaf): void {
         el.removeAttribute("role");
         el.removeAttribute("aria-level");
     }
+    const lh = t.lineHeight ?? t.size * LINE_HEIGHT_FACTOR;
     el.style.font = `${t.weight ?? 400} ${t.size}px ${t.fontId}`;
-    el.style.lineHeight = `${t.lineHeight ?? t.size * 1.35}px`;
+    el.style.lineHeight = `${lh}px`;
     el.style.color = t.color ?? "#1a1a1a";
     el.style.textAlign = t.align ?? "start";
     el.style.whiteSpace = t.wrap === "none" ? "pre" : "pre-wrap"; // honor \n hard breaks
     el.style.overflow = "hidden";
-    if (t.runs && t.runs.length > 0) appendRuns(el, t.runs);
-    else el.textContent = t.text;
+    if (t.maxLines && !range && t.overflow !== "clip") {
+        // the UA clamps and draws its own ellipsis; the measured one is for the other backends
+        el.style.display = "-webkit-box";
+        el.style.webkitBoxOrient = "vertical";
+        el.style.webkitLineClamp = String(t.maxLines);
+    }
+    // a fragmented page shows a window into the CSS-wrapped block: shift the content, clip the rest
+    const host = range
+        ? (() => {
+              const inner = document.createElement("div");
+              inner.style.marginTop = `${-range.start * lh}px`;
+              el.appendChild(inner);
+              return inner;
+          })()
+        : el;
+    if (t.runs && t.runs.length > 0) appendRuns(host, t.runs);
+    else host.textContent = t.text;
 }
 
 // conservative bbox of a path build: every coordinate the sink sees, control points included
@@ -525,7 +543,7 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
             if (im.radius !== undefined) el.style.borderRadius = `${im.radius}px`;
         }
     } else if (c.kind === "text") {
-        paintText(el, c.text);
+        paintText(el, c.text, c.lineRange);
     } else {
         // surfaces paint as vector SVG on the DOM backend
         const svg = document.createElementNS(SVG_NS, "svg");
@@ -576,25 +594,6 @@ function paintReconcile(host: HTMLElement, commands: RenderCommand[]): HTMLEleme
     return out;
 }
 
-// greedy wrap must match measure.ts so line breaks agree
-function wrapLines(cx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
-    const words = text.split(/\s+/).filter(Boolean);
-    if (words.length === 0) return [""];
-    const lines: string[] = [];
-    let line = "";
-    for (const word of words) {
-        const candidate = line === "" ? word : `${line} ${word}`;
-        if (cx.measureText(candidate).width > maxWidth && line !== "") {
-            lines.push(line);
-            line = word;
-        } else {
-            line = candidate;
-        }
-    }
-    lines.push(line);
-    return lines;
-}
-
 function roundRectPath(
     cx: CanvasRenderingContext2D,
     x: number,
@@ -643,14 +642,20 @@ function drawImageFit(
     cx.restore();
 }
 
-// export-fidelity path (PNG/PDF): wrap identical to engine measure, per-run geometry must be exact
-function drawRuns(cx: CanvasRenderingContext2D, t: TextLeaf, b: Rect): void {
-    const laid = layoutRuns(cx, t, b.w);
+// export-fidelity path (PNG/PDF): the command's own lines, so geometry is the measure's exactly
+function drawRuns(
+    cx: CanvasRenderingContext2D,
+    c: Extract<RenderCommand, { kind: "text" }>,
+    b: Rect,
+): void {
+    const t = c.text;
+    const all = c.lines ?? layoutRuns(cx, leafForRuns(t), b.w).lines;
+    const lines = c.lineRange ? all.slice(c.lineRange.start, c.lineRange.end) : all;
     const baseColor = t.color ?? "#1a1a1a";
-    const lh = laid.lineHeight;
+    const lh = t.lineHeight ?? t.size * LINE_HEIGHT_FACTOR;
     cx.textAlign = "left";
     cx.textBaseline = "middle";
-    laid.lines.forEach((line, i) => {
+    lines.forEach((line, i) => {
         const dx =
             t.align === "center"
                 ? (b.w - line.width) / 2
@@ -736,21 +741,8 @@ function drawCommands(
                 cx.stroke();
                 cx.setLineDash([]);
             }
-        } else if (c.kind === "text" && c.text.runs && c.text.runs.length > 0) {
-            drawRuns(cx, c.text, b);
         } else if (c.kind === "text") {
-            const t = c.text;
-            cx.font = `${t.weight ?? 400} ${t.size}px ${t.fontId}`;
-            cx.fillStyle = t.color ?? "#1a1a1a";
-            cx.textBaseline = "middle";
-            cx.textAlign = t.align === "center" ? "center" : t.align === "end" ? "right" : "left";
-            const x = t.align === "center" ? b.x + b.w / 2 : t.align === "end" ? b.x + b.w : b.x;
-            const lh = t.lineHeight ?? t.size * 1.35;
-            const lines =
-                t.wrap === "none"
-                    ? t.text.split("\n")
-                    : t.text.split("\n").flatMap((seg) => wrapLines(cx, seg, b.w));
-            lines.forEach((line, i) => cx.fillText(line, x, b.y + i * lh + lh / 2));
+            drawRuns(cx, c, b);
         } else {
             cx.save();
             cx.translate(b.x, b.y);

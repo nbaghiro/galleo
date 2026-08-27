@@ -14,17 +14,17 @@ import type { ElementLayout, FormatDescriptor, Size } from "@model/geometry";
 import type { LayoutCtx } from "@elements/spec";
 import { fit, fixed, grow } from "@model/geometry";
 import { layout } from "@engine/layout";
+import { layoutRuns, leafForRuns } from "@canvas/render/commands";
 import { resolveProfile } from "@engine/profile";
 import { DEFAULT_THEME } from "@themes";
 
 // `measure` is the only mocked dep (see .docs/testing.md)
 
-// deterministic glyph metrics: 8px/char, 16px/line, wraps at maxWidth
+// the real wrap at deterministic glyph metrics (8px/char): line boxes and offsets are genuine,
+// only advance widths are fake
 export const measure: MeasureText = (leaf, maxW) => {
-    const unwrapped = leaf.text.length * 8;
-    if (leaf.wrap === "none" || !Number.isFinite(maxW)) return { width: unwrapped, height: 16 };
-    const lines = Math.max(1, Math.ceil(unwrapped / Math.max(1, maxW)));
-    return { width: Math.min(unwrapped, maxW), height: lines * 16 };
+    const laid = layoutRuns(textMetricsCtx(), leafForRuns(leaf), maxW);
+    return { width: laid.width, height: laid.height, lines: laid.lines };
 };
 
 // within eps px (solver works in floats)
@@ -61,7 +61,7 @@ export const colNode = (children: EngineNode[], extra?: Partial<EngineNode>): En
 export const textNode = (text: string, extra?: Partial<EngineNode>): EngineNode => ({
     w: fit(),
     h: grow(),
-    text: { text, fontId: "f", size: 12, wrap: "words" },
+    text: { text, fontId: "f", size: 12, lineHeight: 16, wrap: "words" },
     ...extra,
 });
 

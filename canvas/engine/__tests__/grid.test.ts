@@ -3,9 +3,15 @@ import type { EngineNode, Region } from "@engine/node";
 import { fit, fixed, grow } from "@model/geometry";
 import { boxNode, boxOf, near, runLayout, textNode } from "@canvas/testkit";
 
-// the testkit measurer is 8px/char and 16px/line
+// the testkit measurer is 8px/char and 16px/line; 4-char words so the real wrap can break
 const cell = (id: string, chars: number, extra?: Partial<EngineNode>): EngineNode =>
-    textNode("x".repeat(chars), { id, w: fit(), h: fit(), ...extra });
+    textNode(
+        Array.from({ length: Math.ceil(chars / 4) }, () => "xxxx")
+            .join(" ")
+            .slice(0, chars)
+            .replace(/ $/, "x"),
+        { id, w: fit(), h: fit(), ...extra },
+    );
 
 const gridNode = (
     children: EngineNode[],

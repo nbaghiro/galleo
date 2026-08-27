@@ -6,7 +6,9 @@ import type {
     RenderCommand,
     Measured,
     Run,
+    TextFrag,
     TextLeaf,
+    TextLine,
 } from "@engine/node";
 import type { Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
@@ -423,41 +425,54 @@ export function runFont(leaf: TextLeaf, run: Run): string {
     return `${style}${weight} ${leaf.size}px ${family}`;
 }
 
-// run-aware wrap: shared by measure + canvas backend so breaks + geometry match
-export interface RunFrag {
-    text: string;
-    font: string;
-    color?: string;
-    underline: boolean;
-    strike: boolean;
-    code: boolean;
-    highlight?: string;
-    link?: string;
-    x: number;
-    width: number;
-}
-
-export interface RunLine {
-    frags: RunFrag[];
-    width: number;
-}
-
+// run-aware wrap: shared by measure + every backend so breaks + geometry match
 export interface RunLayout {
-    lines: RunLine[];
+    lines: TextLine[];
     width: number; // widest line (clamped to maxWidth when wrapping)
     height: number;
     lineHeight: number;
 }
 
+export const LINE_HEIGHT_FACTOR = 1.35;
+
+// Per-font-string metrics, from the font bounding box so they never jitter with content; the "Hg"
+// probe is only a carrier string. Falls back to em-square factors where the boxes are unsupported.
+interface FontMetrics {
+    ascent: number;
+    descent: number;
+}
+const fontMetricsCache = new Map<string, FontMetrics>();
+
+export function fontMetrics(cx: CanvasRenderingContext2D, font: string, size: number): FontMetrics {
+    const hit = fontMetricsCache.get(font);
+    if (hit) return hit;
+    cx.font = font;
+    const m = cx.measureText("Hg");
+    const out = {
+        ascent: m.fontBoundingBoxAscent ?? size * 0.8,
+        descent: m.fontBoundingBoxDescent ?? size * 0.2,
+    };
+    fontMetricsCache.set(font, out);
+    return out;
+}
+
+/** Wrap a plain leaf as one run so the single runs path serves everything. */
+export function leafForRuns(leaf: TextLeaf): TextLeaf {
+    return leaf.runs && leaf.runs.length > 0 ? leaf : { ...leaf, runs: [{ text: leaf.text }] };
+}
+
 interface Piece {
     text: string;
+    from: number;
     font: string;
     run: Run;
 }
 
-type Token = { kind: "box" | "glue" | "break"; pieces: Piece[] };
+type Token =
+    | { kind: "box" | "glue"; pieces: Piece[] }
+    | { kind: "break"; pieces: Piece[]; at: number };
 
-// boxes may span runs, glue collapses whitespace; mirrors measure's wrap
+// boxes may span runs, glue collapses whitespace; `from` is the piece's source offset
 function tokenize(leaf: TextLeaf): Token[] {
     const tokens: Token[] = [];
     let word: Piece[] = [];
@@ -474,30 +489,36 @@ function tokenize(leaf: TextLeaf): Token[] {
         tokens.push({ kind: "glue", pieces: [piece] });
     };
 
+    let base = 0;
     for (const run of leaf.runs ?? []) {
         const font = runFont(leaf, run);
-        const parts = run.text.match(/\n|[^\S\n]+|[^\s]+/g) ?? [];
-        for (const part of parts) {
+        const re = /\n|[^\S\n]+|[^\s]+/g;
+        let m: RegExpExecArray | null;
+        while ((m = re.exec(run.text))) {
+            const part = m[0];
+            const from = base + m.index;
             if (part === "\n") {
                 flushWord();
-                tokens.push({ kind: "break", pieces: [] });
+                tokens.push({ kind: "break", pieces: [], at: from });
             } else if (/\S/.test(part)) {
-                word.push({ text: part, font, run });
+                word.push({ text: part, from, font, run });
             } else {
-                pushGlue({ text: " ", font, run });
+                pushGlue({ text: " ", from, font, run });
             }
         }
+        base += run.text.length;
     }
     flushWord();
     return tokens;
 }
 
-function toFrag(cx: CanvasRenderingContext2D, piece: Piece, x: number): RunFrag {
+function toFrag(cx: CanvasRenderingContext2D, piece: Piece, x: number): TextFrag {
     cx.font = piece.font;
     const width = cx.measureText(piece.text).width;
     const r = piece.run;
     return {
         text: piece.text,
+        from: piece.from,
         font: piece.font,
         color: r.color,
         underline: !!r.underline,
@@ -516,20 +537,33 @@ export function layoutRuns(
     leaf: TextLeaf,
     maxWidth: number,
 ): RunLayout {
-    const lineHeight = leaf.lineHeight ?? leaf.size * 1.35;
+    const lineHeight = leaf.lineHeight ?? leaf.size * LINE_HEIGHT_FACTOR;
     const noWrap = leaf.wrap === "none" || !Number.isFinite(maxWidth);
     const tokens = tokenize(leaf);
+    const fm = fontMetrics(cx, `${leaf.weight ?? 400} ${leaf.size}px ${leaf.fontId}`, leaf.size);
+    // where all four backends already paint: the midline anchor resolved to an alphabetic baseline
+    const baseline = (lineHeight - (fm.ascent + fm.descent)) / 2 + fm.ascent;
 
-    const lines: RunLine[] = [];
-    let frags: RunFrag[] = [];
+    const lines: TextLine[] = [];
+    let frags: TextFrag[] = [];
     let width = 0;
     let pendingGlue: Piece | undefined;
+    let lineStart = 0;
 
-    const endLine = (): void => {
-        lines.push({ frags, width });
+    const endLine = (nextStart: number): void => {
+        const last = frags[frags.length - 1];
+        lines.push({
+            from: frags[0]?.from ?? lineStart,
+            to: last ? last.from + last.text.length : lineStart,
+            y: lines.length * lineHeight,
+            baseline,
+            width,
+            frags,
+        });
         frags = [];
         width = 0;
         pendingGlue = undefined;
+        lineStart = nextStart;
     };
     const place = (piece: Piece): void => {
         const frag = toFrag(cx, piece, width);
@@ -539,7 +573,7 @@ export function layoutRuns(
 
     for (const tok of tokens) {
         if (tok.kind === "break") {
-            endLine();
+            endLine(tok.at + 1);
             continue;
         }
         if (tok.kind === "glue") {
@@ -559,7 +593,7 @@ export function layoutRuns(
             glueW = cx.measureText(pendingGlue.text).width;
         }
         if (!noWrap && hasLead && width + glueW + boxW > maxWidth) {
-            endLine(); // wrap: the leading space is dropped at the new line's start
+            endLine(tok.pieces[0]!.from); // wrap: the leading space is dropped at the new line's start
             for (const p of tok.pieces) place(p);
         } else {
             if (pendingGlue && hasLead) place(pendingGlue);
@@ -567,7 +601,10 @@ export function layoutRuns(
             for (const p of tok.pieces) place(p);
         }
     }
-    endLine();
+    endLine(0);
+
+    const max = leaf.maxLines;
+    if (max && max > 0 && lines.length > max) truncate(cx, leaf, lines, max, maxWidth);
 
     const rawWidth = Math.max(0, ...lines.map((l) => l.width));
     return {
@@ -578,48 +615,69 @@ export function layoutRuns(
     };
 }
 
+const ELLIPSIS = "…";
+
+// Clamp to `max` lines. Ellipsis (the default) trims the last kept line until the glyph fits and
+// appends it as its own fragment: base styling only, never the trimmed fragment's link or
+// decorations — a decorated ellipsis reads as content, a clickable one promises what it hides.
+function truncate(
+    cx: CanvasRenderingContext2D,
+    leaf: TextLeaf,
+    lines: TextLine[],
+    max: number,
+    maxWidth: number,
+): void {
+    lines.length = max;
+    if (leaf.overflow === "clip") return;
+    const last = lines[max - 1]!;
+    const baseFont = `${leaf.weight ?? 400} ${leaf.size}px ${leaf.fontId}`;
+    const frags = [...last.frags];
+    const fontOf = (): string => frags[frags.length - 1]?.font ?? baseFont;
+    cx.font = fontOf();
+    let ellW = cx.measureText(ELLIPSIS).width;
+    let width = frags.reduce((wsum, f) => wsum + f.width, 0);
+    while (frags.length && width + ellW > maxWidth) {
+        const f = frags[frags.length - 1]!;
+        if (f.text.length > 1) {
+            const text = f.text.slice(0, -1);
+            cx.font = f.font;
+            const w = cx.measureText(text).width;
+            width -= f.width - w;
+            frags[frags.length - 1] = { ...f, text, width: w };
+        } else {
+            width -= f.width;
+            frags.pop();
+            cx.font = fontOf();
+            ellW = cx.measureText(ELLIPSIS).width;
+        }
+    }
+    const tail = frags[frags.length - 1];
+    const cut = tail ? tail.from + tail.text.length : last.from;
+    frags.push({
+        text: ELLIPSIS,
+        from: cut,
+        font: tail?.font ?? baseFont,
+        color: tail?.color,
+        underline: false,
+        strike: false,
+        code: false,
+        x: width,
+        width: ellW,
+    });
+    lines[max - 1] = { ...last, to: cut, width: width + ellW, frags };
+}
+
 const measureUncached = (leaf: TextLeaf, maxWidth: number): Measured => {
     const cx = getCtx();
-    const lineHeight = leaf.lineHeight ?? leaf.size * 1.35;
-
-    // run-aware: bold/italic/code change advance width
-    if (leaf.runs && leaf.runs.length > 0) {
-        const laid = layoutRuns(cx, leaf, maxWidth);
-        return { width: laid.width, height: laid.height };
-    }
-
-    cx.font = `${leaf.weight ?? 400} ${leaf.size}px ${leaf.fontId}`;
-    const hard = leaf.text.split("\n"); // explicit (shift-enter) line breaks
-
-    if (leaf.wrap === "none" || !Number.isFinite(maxWidth)) {
-        const width = Math.max(0, ...hard.map((l) => cx.measureText(l).width));
-        return { width, height: hard.length * lineHeight };
-    }
-
-    let lines = 0;
-    let widest = 0;
-    for (const seg of hard) {
-        const words = seg.split(/\s+/).filter(Boolean);
-        if (words.length === 0) {
-            lines += 1; // an empty hard line still occupies a row
-            continue;
-        }
-        let line = "";
-        let segLines = 1;
-        for (const word of words) {
-            const candidate = line === "" ? word : `${line} ${word}`;
-            if (cx.measureText(candidate).width > maxWidth && line !== "") {
-                widest = Math.max(widest, cx.measureText(line).width);
-                line = word;
-                segLines += 1;
-            } else {
-                line = candidate;
-            }
-        }
-        widest = Math.max(widest, cx.measureText(line).width);
-        lines += segLines;
-    }
-    return { width: Math.min(widest, maxWidth), height: lines * lineHeight };
+    const laid = layoutRuns(cx, leafForRuns(leaf), maxWidth);
+    const fm = fontMetrics(cx, `${leaf.weight ?? 400} ${leaf.size}px ${leaf.fontId}`, leaf.size);
+    return {
+        width: laid.width,
+        height: laid.height,
+        lines: laid.lines,
+        ascent: fm.ascent,
+        descent: fm.descent,
+    };
 };
 
 // memoized measurement, keyed on metric-affecting inputs only; cleared on font load (below)
@@ -628,7 +686,7 @@ const MEASURE_CACHE_CAP = 6000;
 
 function measureKey(leaf: TextLeaf, maxWidth: number): string {
     const mw = leaf.wrap === "none" || !Number.isFinite(maxWidth) ? "*" : maxWidth;
-    const base = `${leaf.size};${leaf.weight ?? 400};${leaf.lineHeight ?? 0};${leaf.wrap};${mw};${leaf.fontId}`;
+    const base = `${leaf.size};${leaf.weight ?? 400};${leaf.lineHeight ?? 0};${leaf.wrap};${mw};${leaf.maxLines ?? 0};${leaf.overflow ?? ""};${leaf.fontId}`;
     if (leaf.runs && leaf.runs.length > 0) {
         let r = "";
         for (const run of leaf.runs)
@@ -661,5 +719,8 @@ export const measureText = (leaf: TextLeaf, maxWidth: number): Measured => {
 
 // fonts load after first paint → drop the cache so the next layout re-measures with real metrics
 if (typeof document !== "undefined" && document.fonts) {
-    document.fonts.addEventListener("loadingdone", clearMeasureCache);
+    document.fonts.addEventListener("loadingdone", () => {
+        clearMeasureCache();
+        fontMetricsCache.clear();
+    });
 }

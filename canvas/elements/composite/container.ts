@@ -18,11 +18,12 @@ import { DIRECTION_OPTIONS } from "@elements/composite/shared";
 // provably layout-neutral against the eval corpus.
 
 type Align = "start" | "center" | "end";
+type CrossAlign = Align | "baseline";
 
 export interface ContainerData {
     children: ElementInstance[];
     direction?: FlexDirection;
-    align?: Align; // cross-axis
+    align?: CrossAlign; // cross-axis; "baseline" applies to rows only
     justify?: FlexJustify; // main-axis: spread the leftover space instead of packing
     // absent = a bare stack (what `group` was). Any style = a surface (what `card` was). Flat rather
     // than nested because the control system reads and writes data keys directly.
@@ -50,7 +51,9 @@ function inferredAlign(d: ContainerData): Align | undefined {
     return undefined;
 }
 
-const crossAlign = (d: ContainerData): Align | undefined => d.align ?? inferredAlign(d);
+// a column's cross axis is horizontal, where a baseline means nothing
+const colAlign = (d: ContainerData): Align | undefined =>
+    d.align === "baseline" ? inferredAlign(d) : (d.align ?? inferredAlign(d));
 
 // column fractions describe a row; once stacked each block owns the full width
 const unfraction = (n: EngineNode): EngineNode =>
@@ -60,14 +63,13 @@ const bare = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode 
     const stacked = d.direction === "row" && stacksAtWidth(ctx.format, ctx.availWidth);
     const dir: FlexDirection = stacked ? "col" : (d.direction ?? "col");
     // a stacked row's explicit `align` was a row-axis instruction, so only the text inference survives
-    const cross = stacked ? inferredAlign(d) : dir === "col" ? crossAlign(d) : d.align;
     return {
         w: grow(),
         h: fit(),
         direction: dir,
         gap: 14,
-        alignX: dir === "row" ? undefined : cross,
-        alignY: dir === "row" ? cross : undefined,
+        alignX: dir === "row" ? undefined : stacked ? inferredAlign(d) : colAlign(d),
+        alignY: dir === "row" ? d.align : undefined,
         ...(d.justify ? { distribute: d.justify } : {}),
         children: stacked ? kids.map(unfraction) : kids,
     };
@@ -157,6 +159,7 @@ export const containerElement: ElementSpec<ContainerData> = {
                 { label: "Align start", value: "start", icon: "alignItemsStart" },
                 { label: "Align center", value: "center", icon: "alignItemsCenter" },
                 { label: "Align end", value: "end", icon: "alignItemsEnd" },
+                { label: "Baseline", value: "baseline" },
             ],
         },
         {

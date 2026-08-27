@@ -18,6 +18,7 @@ interface TableData {
     density?: Density;
     cells?: ElementInstance[];
     data?: string; // legacy: rows by newline, cells by comma
+    clamp?: number;
 }
 
 const MAX_COLS = 8;
@@ -44,6 +45,7 @@ interface Grid {
     lines: Lines;
     zebra: boolean;
     density: Density;
+    clamp?: number; // clamp every text cell to N lines; 0/absent = unbounded
     cells: ElementInstance[]; // exactly rows * cols, row-major
 }
 
@@ -72,6 +74,7 @@ function grid(d: TableData): Grid {
         lines: d.lines ?? "rows",
         zebra: !!d.zebra,
         density: d.density ?? "cozy",
+        clamp: d.clamp,
     };
 }
 
@@ -103,6 +106,7 @@ function arrangeTable(g: Grid, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
             const head = g.header && row === 0;
             k.text.weight = head ? 700 : 400;
             k.text.color = head ? ctx.theme.ink : ctx.theme.soft;
+            if (g.clamp && g.clamp > 0) k.text.maxLines = g.clamp;
         }
         const zebra = g.zebra && row % 2 === 1;
         const inner: EngineNode = { w: k.w, h: fit(), padding: pad, children: [k] };
@@ -210,6 +214,7 @@ export const tableElement: ElementSpec<TableData> = {
             ],
         },
         { key: "zebra", label: "Zebra rows", control: "toggle", icon: "stack" },
+        { key: "clamp", label: "Clamp cells", control: "slider", min: 0, max: 4, step: 1 },
         {
             key: "density",
             label: "Density",
