@@ -1033,8 +1033,9 @@ const emptyExamples = (): string[] => (inEditor() ? EDITOR_EXAMPLES : LIBRARY_EX
 export const ChatPanel: Component = () => {
     const [input, setInput] = createSignal("");
     // the studio hosts the same thread in its console, so the dock stands down while it is open;
-    // the eval views are an operator tool where a product chat bubble is only in the way
-    const hidden = (): boolean => generateOpen() || getContext("eval");
+    // the eval views are an operator tool where a product chat bubble is only in the way, and the
+    // welcome screen has no artifact to talk about yet
+    const hidden = (): boolean => generateOpen() || getContext("eval") || getContext("welcome");
     let list!: HTMLDivElement;
     let field!: HTMLTextAreaElement;
 

@@ -147,6 +147,13 @@ with high-fidelity export. Net-new, TypeScript.
   box-drawing rules), or comments that restate the code/name/type. Always keep runtime directive comments
   (`@vitest-environment`, `/* @refresh reload */`), `TODO`/`FIXME`, and license headers. No
   build-phase/iteration numbers in comments or docstrings (plan docs are fine).
+  **The test is restatement, not length.** A comment that records _why_ the code is this way earns its
+  lines however many it takes: the DMARC alignment behind the From address (`services/core/mail.ts`),
+  why the ingest route is not named "analytics" (`services/api/ingest.ts`), why a section's fit has
+  exactly one solution (`canvas/render/fit.ts`), why nothing on the collaboration wire carries a pixel
+  (`model/collab.ts`). What is banned is prose that narrates what the code already says, and a heading
+  that only announces the section beneath it. The question to ask is whether deleting the comment would
+  let someone reasonably undo the decision: if it would, it stays.
 - **No suppressions — fix the cause, never silence the check.** The repo carries **zero**
   `eslint-disable`, `@ts-ignore`, `@ts-expect-error`, `@ts-nocheck`, `prettier-ignore`, and coverage
   pragmas (`v8`/`c8`/`istanbul ignore`); `any` is banned. Do not add one to make a gate pass. Writing

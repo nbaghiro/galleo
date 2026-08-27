@@ -9,9 +9,9 @@ One command, `pnpm test:e2e`, does everything:
 
 1. **Global setup** (`e2e/setup/global.ts`) creates the `galleo_e2e` database on the dev Postgres
    (:8602) if absent, installs the `vector` extension, `drizzle-kit push`es the schema, and runs
-   the REAL `pnpm seed`. The demo seed is the fixture system: six role-named logins
-   (`demo@` … `demo+invited-admin@`), five workspaces across plan states, pinned invite tokens
-   and published-link slugs that survive reseeds.
+   the REAL `pnpm seed`. The demo seed is the fixture system: four role-named logins
+   (`demo@`, `demo+admin@`, `demo+member@`, `demo+invited@`), one workspace per plan, pinned invite
+   tokens and published-link slugs that survive reseeds.
 2. **webServer** builds the SPA (`vite build`) and starts the real server in production mode
    (`NODE_ENV=production PORT=8611`, strong constant `SESSION_SECRET`) against that database —
    the same one-origin topology as prod, on its own port so it runs beside the dev stack.

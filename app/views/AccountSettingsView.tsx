@@ -141,7 +141,6 @@ export const AccountSettingsView: Component = () => {
         }
     };
 
-    // password
     const hasPassword = (): boolean => me()?.hasPassword ?? true;
     const [current, setCurrent] = createSignal("");
     const [next, setNext] = createSignal("");
@@ -170,7 +169,6 @@ export const AccountSettingsView: Component = () => {
         }
     };
 
-    // connections
     const [connections, setConnections] = createSignal<AccountConnection[]>([]);
     const [googleReady, setGoogleReady] = createSignal(false);
     const [connError, setConnError] = createSignal<string | null>(null);
