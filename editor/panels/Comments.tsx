@@ -9,7 +9,7 @@ import { elementIdMap } from "@elements/ops";
 import { profileFor } from "@engine/profile";
 import { sectionLayoutWidth } from "@canvas/render/backends";
 import type { RunLayout } from "@canvas/render/commands";
-import { layoutRuns, measureContext } from "@canvas/render/commands";
+
 import { Avatar } from "@ui/avatar";
 import { Badge, Button, Eyebrow, IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
@@ -34,7 +34,7 @@ import {
 } from "@editor/core/store";
 import { drag } from "@editor/core/dnd";
 import { liveEdit } from "./Selection";
-import { paintedLeafFor } from "@editor/core/leaf";
+import { paintedLinesFor } from "@editor/core/leaf";
 import { textSelection } from "@editor/core/text";
 import {
     activeThreadId,
@@ -156,7 +156,7 @@ export const CommentLayer: Component = () => {
             const section = address.section;
             const box = regionMap().get(elementRegionId(address))?.box;
             const ranges = commentMarkRanges(thread);
-            const layout = box && ranges.length ? runLayoutFor(address, box.w) : null;
+            const layout = box && ranges.length ? paintedLinesFor(address, box.w) : null;
             const line = layout && ranges[0] ? lineOfOffset(layout, ranges[0].from) : 0;
             out.push({
                 thread,
@@ -384,14 +384,6 @@ export const CommentLayer: Component = () => {
         </Show>
     );
 };
-
-// The painted leaf plus the box the engine gave it: laying the same runs out again is how chrome
-// finds a character offset on screen without reading the DOM.
-function runLayoutFor(address: ElementAddress, width: number): RunLayout | null {
-    const leaf = paintedLeafFor(address);
-    if (!leaf?.runs?.length) return null;
-    return layoutRuns(measureContext(), leaf, width);
-}
 
 const degradedOf = (spot: ThreadSpot): boolean => {
     const state = anchorStateOf(spot.thread.root.anchor, {

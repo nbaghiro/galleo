@@ -2,6 +2,7 @@ import type { ElementAddress } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, Show } from "solid-js";
 import { elementRegionId } from "@model/artifact";
+import { capture } from "@ui/analytics";
 import { getElementAt, setElementLayout, sharedParent, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { runCommand } from "@ui/keys";
@@ -69,6 +70,9 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         commit(updateDataAt(editor.artifact, props.address, { ...data(), [key]: value }), {
             coalesce,
         });
+        // the one inspector writer: every clamp control funnels through here
+        if ((key === "maxLines" || key === "clamp") && typeof value === "number" && value > 0)
+            capture("text_clamped", { element_type: inst()?.type ?? "text", max_lines: value });
     };
     const del = (): void => deleteSelectedElements();
 

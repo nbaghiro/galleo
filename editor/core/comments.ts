@@ -442,21 +442,16 @@ export function placeMarkers(requests: MarkerRequest[], stageWidth: number): Pla
     return out;
 }
 
-// Which laid-out line a character offset falls on. The layout drops the space it wrapped at (and
-// collapses a whitespace run to one), so a line boundary consumes one source character no fragment
-// carries; the walk adds it back rather than drifting a line further with every wrap.
+// Which laid-out line a character offset falls on: the last line whose source range has started.
+// An offset past the end (or inside a clamp) lands on the last visible line — the degraded posture.
 export function lineOfOffset(layout: RunLayout, offset: number): number {
-    let consumed = 0;
-    for (const [i, line] of layout.lines.entries()) {
-        const len = line.frags.reduce((n, f) => n + f.text.length, 0);
-        if (offset < consumed + len) return i;
-        consumed += len + 1; // the newline, or the space the wrap ate
-    }
-    return Math.max(0, layout.lines.length - 1);
+    let at = 0;
+    for (const [i, line] of layout.lines.entries()) if (line.from <= offset) at = i;
+    return at;
 }
 
 /** The top of a line inside a text element's box, for a marker or a tint rect. */
-export const lineTop = (layout: RunLayout, line: number): number => line * layout.lineHeight;
+export const lineTop = (layout: RunLayout, line: number): number => layout.lines[line]?.y ?? 0;
 
 export interface RangeRect {
     x: number;
@@ -465,30 +460,28 @@ export interface RangeRect {
     h: number;
 }
 
-// One rect per line a range covers, in the text element's own coordinates. Edges inside a fragment
-// are interpolated across its characters rather than re-measured: this paints a translucent wash,
-// and the alternative is a per-character measure pass on every repaint.
+// One rect per line a range covers, in the text element's own coordinates, straight off the
+// engine's source offsets. Edges inside a fragment are interpolated across its characters rather
+// than re-measured: this paints a translucent wash, not a caret.
 export function rangeRects(layout: RunLayout, from: number, to: number): RangeRect[] {
     const out: RangeRect[] = [];
-    let consumed = 0;
-    for (const [i, line] of layout.lines.entries()) {
-        const len = line.frags.reduce((n, f) => n + f.text.length, 0);
-        const a = Math.max(from - consumed, 0);
-        const b = Math.min(to - consumed, len);
-        consumed += len + 1; // the newline, or the space the wrap ate
+    for (const line of layout.lines) {
+        const a = Math.max(from, line.from);
+        const b = Math.min(to, line.to);
         if (b <= a) continue;
         const xAt = (offset: number): number => {
-            let seen = 0;
             for (const frag of line.frags) {
-                const end = seen + frag.text.length;
+                if (offset < frag.from) return frag.x; // a gap the wrap ate
+                const end = frag.from + frag.text.length;
                 if (offset <= end)
-                    return frag.x + (frag.width * (offset - seen)) / Math.max(1, frag.text.length);
-                seen = end;
+                    return (
+                        frag.x + (frag.width * (offset - frag.from)) / Math.max(1, frag.text.length)
+                    );
             }
             return line.width;
         };
         const x = xAt(a);
-        out.push({ x, y: lineTop(layout, i), w: Math.max(1, xAt(b) - x), h: layout.lineHeight });
+        out.push({ x, y: line.y, w: Math.max(1, xAt(b) - x), h: layout.lineHeight });
     }
     return out;
 }

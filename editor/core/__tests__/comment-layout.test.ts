@@ -26,30 +26,39 @@ import type { RunLayout } from "@canvas/render/commands";
 
 // a stand-in RunLayout at 8px per character, laid out left to right like the real one
 const CHAR = 8;
-const layoutOf = (lines: string[][], lineHeight = 20): RunLayout => ({
-    lines: lines.map((frags) => {
+const layoutOf = (lines: string[][], lineHeight = 20): RunLayout => {
+    let offset = 0;
+    const laid = lines.map((frags, li) => {
         let x = 0;
+        const from = offset;
+        const built = frags.map((text) => {
+            const frag = {
+                text,
+                from: offset,
+                font: "16px sans-serif",
+                underline: false,
+                strike: false,
+                code: false,
+                x,
+                width: text.length * CHAR,
+            };
+            x += frag.width;
+            offset += text.length;
+            return frag;
+        });
+        const to = offset;
+        offset += 1; // the wrap-eaten space between lines
         return {
-            frags: frags.map((text) => {
-                const frag = {
-                    text,
-                    font: "16px sans-serif",
-                    underline: false,
-                    strike: false,
-                    code: false,
-                    x,
-                    width: text.length * CHAR,
-                };
-                x += frag.width;
-                return frag;
-            }),
+            from,
+            to,
+            y: li * lineHeight,
+            baseline: lineHeight / 2,
             width: frags.join("").length * CHAR,
+            frags: built,
         };
-    }),
-    width: 400,
-    height: lines.length * lineHeight,
-    lineHeight,
-});
+    });
+    return { lines: laid, width: 400, height: lines.length * lineHeight, lineHeight };
+};
 
 describe("markerX", () => {
     it("sits just outside a section that has margin to spare", () => {
@@ -296,6 +305,18 @@ describe("rangeRects", () => {
         const layout = layoutOf([["hello"]]);
         expect(rangeRects(layout, 2, 2)).toEqual([]);
         expect(rangeRects(layout, 4, 1)).toEqual([]);
+    });
+
+    it("paints nothing for a range entirely past the visible lines", () => {
+        const layout = layoutOf([["hello"], ["world"]]);
+        expect(rangeRects(layout, 40, 60)).toEqual([]);
+    });
+
+    it("skips an empty line inside a spanning range without a zero-width rect", () => {
+        const layout = layoutOf([["hello"], [], ["world"]]);
+        const rects = rangeRects(layout, 0, 13);
+        expect(rects).toHaveLength(2);
+        expect(rects[1]!.y).toBe(40);
     });
 });
 
