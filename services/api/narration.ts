@@ -115,7 +115,12 @@ narration.post("/artifacts/:id/narration", requireWorkspace, async (c) => {
     const role = gate.role ?? "member";
     if (!featuresFor(ws).voiceNarration)
         return c.json(
-            { error: "Narration needs a higher plan.", reason: "feature" as const, upgrade: true },
+            {
+                error: "Narration needs a higher plan.",
+                reason: "feature" as const,
+                feature: "voiceNarration",
+                upgrade: true,
+            },
             402,
         );
     const body = await readJson(c, zPrepare);
@@ -174,7 +179,12 @@ narration.post("/artifacts/:id/narration/section/:sectionId", requireWorkspace, 
     const role = gate.role ?? "member";
     if (!featuresFor(ws).voiceNarration)
         return c.json(
-            { error: "Narration needs a higher plan.", reason: "feature" as const, upgrade: true },
+            {
+                error: "Narration needs a higher plan.",
+                reason: "feature" as const,
+                feature: "voiceNarration",
+                upgrade: true,
+            },
             402,
         );
     const body = await readJson(c, zPrepare);
@@ -357,6 +367,7 @@ narration.post("/artifacts/:id/soundtrack", requireWorkspace, async (c) => {
             {
                 error: "Background music needs a higher plan.",
                 reason: "feature" as const,
+                feature: "backgroundMusic",
                 upgrade: true,
             },
             402,

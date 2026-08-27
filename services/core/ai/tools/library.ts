@@ -36,19 +36,16 @@ export const findTemplatesTool = implement(
     },
 );
 
-export const listWorkspacesTool = implement(
-    "list-workspaces",
-    async function* (_input, ctx): AsyncGenerator<TurnEvent, unknown[]> {
-        return ctx.account ? await ctx.account.workspaces() : [];
-    },
-);
+implement("list-workspaces", async function* (_input, ctx): AsyncGenerator<TurnEvent, unknown[]> {
+    return ctx.account ? await ctx.account.workspaces() : [];
+});
 
-export const createArtifactTool = implement(
-    "create-artifact",
-    async function* (input, ctx): AsyncGenerator<TurnEvent, { title: string; sections: number }> {
-        // The body only shapes it; storing is the effect path's job, the same as generation's, so
-        // there is one place that writes an artifact however it was made.
-        void ctx;
-        return { title: input.title, sections: input.content.sections.length };
-    },
-);
+implement("create-artifact", async function* (input, ctx): AsyncGenerator<
+    TurnEvent,
+    { title: string; sections: number }
+> {
+    // The body only shapes it; storing is the effect path's job, the same as generation's, so
+    // there is one place that writes an artifact however it was made.
+    void ctx;
+    return { title: input.title, sections: input.content.sections.length };
+});

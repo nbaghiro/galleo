@@ -107,7 +107,7 @@ export async function createComment(
         .where(ownedArtifact(artifactId, ws.id));
     if (!a) return { status: 404, error: "not found" };
 
-    // A digest written before section ids cannot answer the question, so it does not get to refuse.
+    // An empty index means a zero-section piece, which has no known sections to refuse against.
     const known = (a.digest?.sections ?? [])
         .map((s) => s.id)
         .filter((id): id is string => typeof id === "string");

@@ -203,7 +203,7 @@ describe("composing a bed from a description", () => {
         expect(out.row.workspaceId).toBe(workspaceId);
         expect(out.row.prompt).toContain("slow dub with a warm bassline");
         expect(out.row.prompt).toContain("no vocals"); // the bed rules still apply
-        expect(await names(workspaceId)).toEqual(["slow dub with a warm bassline"]);
+        expect(await names(workspaceId)).toEqual(["Slow Dub Warm"]); // a label, not the sentence
     });
 
     it("asking twice for the same thing composes once", async () => {

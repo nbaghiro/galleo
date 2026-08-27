@@ -10,7 +10,7 @@ import type {
     SectionOp,
     SectionSummary,
 } from "@model/artifact";
-import type { PlanLimits } from "@model/billing";
+import type { PlanId, PlanLimits } from "@model/billing";
 import type { TurnEvent, TurnRequest } from "@model/ai";
 import type { IconPick, MediaCredit, MediaItem, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
@@ -241,11 +241,18 @@ export function selectedAddresses(): ElementAddress[] {
 export const multiSelected = (): boolean => extras().length > 0;
 
 // defaults are the most-restrictive Free set, so a studio with no host never leaks paid exports
-export type ExportFeatures = Pick<PlanLimits, "exportFormats" | "removeBranding" | "publicLinks">;
+export type ExportFeatures = Pick<
+    PlanLimits,
+    "exportFormats" | "removeBranding" | "publicLinks"
+> & {
+    // the host's plan, so a wall can name the tier that lifts it (upgradeFor is in @model)
+    planId: PlanId;
+};
 const [features, setFeatures] = createSignal<ExportFeatures>({
     exportFormats: ["png"],
     removeBranding: false,
     publicLinks: false,
+    planId: "free",
 });
 export { features, setFeatures };
 
@@ -655,7 +662,6 @@ const scheduleCheckpoint = (): void => {
     checkpointTimer = window.setTimeout(checkpointLiveEdit, CHECKPOINT_MS);
 };
 
-// ---- collaboration: ops out, ops in ---------------------------------------------------------
 //
 // The room is the persistence driver while it is up, so every local batch goes out here and the
 // server's ack is what advances the saved baseline. Remote batches come back through
@@ -1391,17 +1397,6 @@ export function moveSectionBy(id: string, delta: number): void {
     }
 }
 
-// index is 0..n in the pre-move ordering (drag-to-reorder)
-export function moveSectionTo(id: string, index: number): void {
-    const i = editor.artifact.sections.findIndex((s) => s.id === id);
-    if (i < 0) return;
-    const delta = (index > i ? index - 1 : index) - i;
-    if (delta !== 0) {
-        commit(moveSection(editor.artifact, id, delta));
-        capture("section_reordered", { from_index: i, to_index: i + delta });
-    }
-}
-
 export const [presenting, setPresenting] = createSignal(false);
 
 // Presenting is an output, so it counts toward activation the same way an export does. The surface
@@ -1440,7 +1435,6 @@ export const [leftOpen, setLeftOpen] = createSignal(isDesktop());
 // the open flyout: a category, "search", "inspector", or null
 export const [rightTab, setRightTab] = createSignal<string | null>(null);
 
-// ---- the section rail's width ----------------------------------------------------------------
 // Drag-resized, and the canvas reserves it, so a wider rail costs canvas and a narrower one buys it
 // back. Per device rather than per account, like the library layout and the slide frame.
 
@@ -1475,7 +1469,6 @@ export function setMinimapWidth(px: number): void {
     }
 }
 
-// ---- canvas zoom -----------------------------------------------------------------------------
 // A view scale on the painted stack, not a layout change: the engine keeps laying out at the same
 // width, so nothing re-wraps and the zoom is one CSS transform on the stage. Everything the canvas
 // publishes (regions, hitboxes, drop slots, section tops) stays in unscaled layout coordinates,

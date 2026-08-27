@@ -293,6 +293,40 @@ describe("preparing a piece before anyone asks", () => {
         expect(await recordings(artifactId)).toBe(1);
     });
 
+    /**
+     * Every spend here reaches the ledger under its own tool. Composing a bed without a reservation
+     * made background music free and invisible: a prepared piece showed its narration and nothing
+     * beside it for the music, which reads as the two sharing one entry.
+     */
+    it("bills the bed and the voice as separate entries", async () => {
+        const { workspaceId, userId } = await seedReady();
+        const artifactId = await seedArtifact(workspaceId, userId, content(section("s1", "A")));
+
+        await prepare({ artifactId, workspaceId });
+
+        const rows = await db
+            .select({ reason: schema.credits.reason })
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        const reasons = rows.map((r) => r.reason);
+        expect(reasons).toContain("narrate-artifact");
+        expect(reasons).toContain("compose-soundtrack");
+        expect(reasons).toContain("write-speaker-notes");
+    });
+
+    // out of credits means no bed either, not a free one
+    it("composes no bed when the workspace cannot pay for it", async () => {
+        const { workspaceId, userId } = await seedReady();
+        await db
+            .update(schema.workspaces)
+            .set({ aiCreditsBalance: 0 })
+            .where(eq(schema.workspaces.id, workspaceId));
+        const artifactId = await seedArtifact(workspaceId, userId, content(section("s1", "A")));
+
+        await prepare({ artifactId, workspaceId });
+        expect(await beds(artifactId)).toBe(0);
+    });
+
     it("does nothing at all for a workspace that has not asked for it", async () => {
         const { workspaceId, userId } = await seedReady(false);
         const artifactId = await seedArtifact(workspaceId, userId, content(section("s1", "A")));

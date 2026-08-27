@@ -123,7 +123,7 @@ export async function writeSpeakerNotes(
     return collectNotes(object.notes, targets, content.sections);
 }
 
-export const writeSpeakerNotesTool = implement("write-speaker-notes", async function* (input, ctx) {
+implement("write-speaker-notes", async function* (input, ctx) {
     if (!ctx.artifact) throw new Error("There is no open artifact to write notes for.");
     return await writeSpeakerNotes(ctx.artifact, input.sectionIds, {
         tier: ctx.tier,

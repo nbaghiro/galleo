@@ -83,6 +83,7 @@ voices.post("/voices", requireWorkspace, async (c) => {
             {
                 error: "This workspace has as many voices as its plan allows.",
                 reason: "feature" as const,
+                feature: "maxWorkspaceVoices",
                 upgrade: true,
             },
             402,
@@ -134,6 +135,7 @@ voices.post("/voices/design", requireWorkspace, async (c) => {
             {
                 error: "Designing a voice needs a higher plan.",
                 reason: "feature" as const,
+                feature: "voiceDesign",
                 upgrade: true,
             },
             402,
@@ -183,6 +185,7 @@ voices.post("/voices/design/keep", requireWorkspace, async (c) => {
             {
                 error: "Designing a voice needs a higher plan.",
                 reason: "feature" as const,
+                feature: "voiceDesign",
                 upgrade: true,
             },
             402,
@@ -198,6 +201,7 @@ voices.post("/voices/design/keep", requireWorkspace, async (c) => {
             {
                 error: "This workspace has as many voices as its plan allows.",
                 reason: "feature" as const,
+                feature: "maxWorkspaceVoices",
                 upgrade: true,
             },
             402,

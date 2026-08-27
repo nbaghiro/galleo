@@ -110,6 +110,7 @@ export const EditorView: Component = () => {
             exportFormats: exportFormatsOf(),
             removeBranding: can("removeBranding"),
             publicLinks: can("publicLinks"),
+            planId: billing()?.plan ?? "free",
         });
     });
     onCleanup(() => setFaviconOverride(null));
@@ -161,7 +162,7 @@ export const EditorView: Component = () => {
             sendToGoogleSlides(bytes, currentTitle().trim() || "Galleo deck"),
         );
         onPersistTitle((id, title) => renameArtifactById(id, title));
-        onUpgrade(() => navigate("/pricing"));
+        onUpgrade(() => navigate("/settings/plan"));
         onShare(() => {
             if (params.id) openShare({ artifactId: params.id, title: currentTitle() });
         });

@@ -146,8 +146,7 @@ uuid so a malformed id reaches the route as a 400 rather than the uuid column as
 
 Three failures are 409 rather than 400, because each one is a well-formed request about a world that
 does not match: an unknown `sectionId`, an unknown or cross-artifact `parentId`, and a reply on a
-reply. The section check reads the artifact's stored digest, and a digest written before section ids
-existed cannot answer the question, so it abstains rather than refusing.
+reply. The section check reads the artifact's stored digest.
 
 ## The editor seam
 

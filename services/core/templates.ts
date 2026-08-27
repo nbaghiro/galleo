@@ -44,7 +44,7 @@ import {
 // category the index uses. @model/templates carries the client-facing half (ids, labels, grouping);
 // this file is the other half, plus the id → body resolution the /templates route and the seed use.
 
-// ---- site chrome
+// site chrome
 //
 // The nav is one flat row: a nested one would reflow to a column at the share of the width it would
 // get. The brand takes the slack, which is what puts the links hard right without a justify rule.
@@ -73,7 +73,7 @@ const pic = (id: number, w = 1100, h = 900): string => `https://picsum.photos/id
 
 const DEMO_VIDEO = "https://www.youtube.com/watch?v=WhWc3b3KhnY";
 
-// ---- creative
+// creative
 
 export const resume: ArtifactContent = doc(
     "studio",
@@ -1372,7 +1372,7 @@ export const photoEssay: ArtifactContent = doc(
     bgImage("photoessay-paper-bg", 0.3),
 );
 
-// ---- marketing
+// marketing
 
 export const productLaunch: ArtifactContent = web(
     "moss",
@@ -2995,7 +2995,7 @@ export const newsletter: ArtifactContent = doc(
     bgImage("commonground-paper-grain-bg", 0.26),
 );
 
-// ---- pitch
+// pitch
 
 export const startupPitch: ArtifactContent = deck(
     "noir",
@@ -4131,7 +4131,7 @@ export const gtmPlan: ArtifactContent = deck(
     bgImage(pic(185, 1700, 1100), 0.34),
 );
 
-// ---- proposals
+// proposals
 
 export const projectProposal: ArtifactContent = deck(
     "studio",
@@ -5306,7 +5306,7 @@ export const sow: ArtifactContent = doc(
     bgImage("sow-bg-grid-paper", 0.3),
 );
 
-// ---- reports
+// reports
 
 export const annualReport: ArtifactContent = doc(
     "press",
@@ -6602,7 +6602,7 @@ export const trendsReport: ArtifactContent = doc(
 
 // keyed by the same ids as @model/workspace's TEMPLATE_INDEX; a missing key is a 404, so the two
 // must stay in sync (the index is the client-facing half, this is the body half)
-// ---- everyday documents
+// everyday documents
 
 // A between-row line: name left, value right, an optional note under. What a menu is (dishes and
 // prices), and a concert program too (pieces and durations).
@@ -7609,7 +7609,7 @@ export const eventProgram: ArtifactContent = doc(
     bgImage(pic(546, 1700, 1100), 0.35),
 );
 
-// ---- pitch & sell: the paper and pages around the decks
+// pitch & sell: the paper and pages around the decks
 
 export const execSummary: ArtifactContent = doc(
     "noir",
@@ -9047,7 +9047,7 @@ export const comparePage: ArtifactContent = web(
     bgImage(pic(930, 1700, 1100), 0.3),
 );
 
-// ---- launch & market: the campaign, the brand, the announcement, and the paper behind them
+// launch & market: the campaign, the brand, the announcement, and the paper behind them
 
 export const campaignPitch: ArtifactContent = deck(
     "moss",
@@ -10325,7 +10325,7 @@ export const pricingPage: ArtifactContent = web(
     bgImage(pic(930, 1700, 1100), 0.3),
 );
 
-// ---- client work: winning it, starting it, and keeping the client in the loop
+// client work: winning it, starting it, and keeping the client in the loop
 
 export const kickoffDeck: ArtifactContent = deck(
     "chalk",
@@ -11600,7 +11600,7 @@ export const servicesPage: ArtifactContent = web(
     bgImage(pic(12, 1700, 1100), 0.3),
 );
 
-// ---- reports & reviews: the cadence decks and the public-facing report sites
+// reports & reviews: the cadence decks and the public-facing report sites
 
 export const allHandsDeck: ArtifactContent = deck(
     "foundry",
@@ -12962,7 +12962,7 @@ export const statusPage: ArtifactContent = web(
     bgImage(pic(930, 1700, 1100), 0.3),
 );
 
-// ---- you & your work: the personal wing's decks, papers, and pages
+// you & your work: the personal wing's decks, papers, and pages
 
 export const conferenceTalk: ArtifactContent = deck(
     "vellum",
@@ -14315,7 +14315,7 @@ export const appSite: ArtifactContent = web(
     bgImage(pic(552, 1700, 1100), 0.3),
 );
 
-// ---- everyday & occasions: the decks and sites for the life side of the catalog
+// everyday & occasions: the decks and sites for the life side of the catalog
 
 export const celebrationSlideshow: ArtifactContent = deck(
     "orchard",

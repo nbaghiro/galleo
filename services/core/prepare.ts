@@ -96,14 +96,42 @@ export async function prepare({ artifactId, workspaceId }: PrepareTarget): Promi
         await recordSections(artifactId, workspaceId, ws, spender, content);
     }
 
-    // Composed, but left unattached: turning music on is the artifact's choice, not this one's. The
-    // bed is cached on (artifact, prompt), so the press that does turn it on hits it and pays zero.
-    if (features.backgroundMusic && musicReady() && !content.music?.trackId) {
-        await composeForArtifact(artifactId, content, DEFAULT_MS).catch((e: unknown) => {
+    if (features.backgroundMusic && musicReady() && !content.music?.trackId)
+        await composeBed(artifactId, workspaceId, ws, spender, content);
+}
+
+/**
+ * Composed, but left unattached: turning music on is the artifact's choice, not this one's. The bed
+ * is cached on (artifact, prompt), so the press that does turn it on hits it and pays zero.
+ *
+ * Billed like everything else here. Composing without a reservation made background music free and
+ * invisible: it never reached the ledger, so a prepared piece showed its narration and nothing for
+ * the music beside it, and a workspace out of credits still got beds.
+ */
+async function composeBed(
+    artifactId: string,
+    workspaceId: string,
+    ws: typeof schema.workspaces.$inferSelect,
+    spender: string,
+    content: ArtifactContent,
+): Promise<void> {
+    const held = await reserve(ws, spender, "compose-soundtrack", {
+        size: { musicMinutes: 1 },
+        rates: ratesFor(ws, {}),
+        surface: "direct",
+    });
+    if (!held.ok) return;
+
+    await held.settle(async (billed) => {
+        try {
+            const out = await composeForArtifact(artifactId, content, DEFAULT_MS);
+            // a bed this deployment already had reports zero, so a second pass owes nothing
+            billed({ music: out.ms ? Math.max(1, Math.ceil(out.ms / 60_000)) : 0 });
+        } catch (e: unknown) {
+            billed({ music: 0 });
             warn(`prepare bed ${artifactId}: ${e instanceof Error ? e.message : "failed"}`);
-            return null;
-        });
-    }
+        }
+    });
 }
 
 const workspaceFor = async (

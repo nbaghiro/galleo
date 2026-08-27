@@ -86,7 +86,7 @@ export function areaFor(path: string): AppArea {
     if (path === "/welcome") return "studio";
     if (path === "/login" || path.startsWith("/invite/") || path.startsWith("/collab/"))
         return "auth";
-    if (path === "/settings" || path === "/account" || path === "/pricing") return "settings";
+    if (path.startsWith("/settings") || path.startsWith("/account")) return "settings";
     return "library";
 }
 
@@ -519,7 +519,7 @@ export interface Events {
         credits_remaining: number;
     };
     credit_balance_low: { credits_remaining: number; threshold: number };
-    pricing_viewed: { from: PricingOrigin; plan_id: PlanId };
+    pricing_viewed: { from: PricingOrigin; plan_id: PlanId; tab: "plan" | "billing" };
     checkout_started: {
         target_plan: PlanId;
         interval: Interval;

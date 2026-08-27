@@ -84,6 +84,58 @@ export function designedName(description: string): string {
     return name ? name.charAt(0).toUpperCase() + name.slice(1) : "New voice";
 }
 
+/**
+ * Words that carry no character of their own. A name built out of these describes nothing, and a
+ * description is written as a sentence ("slow dub with a warm bassline") rather than as a label.
+ */
+const FILLER = new Set([
+    "a",
+    "an",
+    "and",
+    "bit",
+    "for",
+    "in",
+    "kind",
+    "like",
+    "of",
+    "on",
+    "really",
+    "some",
+    "sort",
+    "that",
+    "the",
+    "to",
+    "very",
+    "with",
+]);
+
+/** As long as a house preset's label: past this it stops reading as a name and starts as a sentence. */
+const NAME_WORDS = 3;
+const NAME_CHARS = 24;
+
+/**
+ * A short title for a bed composed from a description, in the shape the house presets already use:
+ * two or three capitalised words. What someone types is a sentence, and a shelf of sentences beside
+ * "Calm" and "Cinematic" reads as a different kind of thing entirely.
+ *
+ * The description itself is not lost: it stays on the row as the prompt that produced the music.
+ */
+export function composedName(description: string): string {
+    const words = description
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}\s]/gu, " ")
+        .split(/\s+/)
+        .filter((w) => w && !FILLER.has(w));
+    const picked: string[] = [];
+    for (const word of words) {
+        if (picked.length >= NAME_WORDS) break;
+        if (picked.join(" ").length + word.length + 1 > NAME_CHARS && picked.length) break;
+        picked.push(word);
+    }
+    if (!picked.length) return "New music";
+    return picked.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
 /** One take from the voice designer. Nothing is stored until a candidate is kept. */
 export interface DesignedCandidate {
     generatedVoiceId: string;
