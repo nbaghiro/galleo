@@ -636,8 +636,6 @@ export async function* streamImages(
     }
 }
 
-// ---- the workspace asset library
-
 const MB = 1024 * 1024;
 export const LIBRARY_LIMIT = 48;
 

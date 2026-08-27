@@ -143,7 +143,7 @@ describe("ok flag", () => {
     });
 });
 
-// ---- the structural rules, held against the catalog the model is handed ----
+// the structural rules, held against the catalog the model is handed
 
 const one = (issues: string[], re: RegExp): string => {
     const hit = issues.filter((i) => re.test(i));

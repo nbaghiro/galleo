@@ -79,11 +79,6 @@ export async function currentUser(token: string | undefined): Promise<User | nul
     return toUser(u);
 }
 
-export async function firstWorkspaceId(userId: string): Promise<string | null> {
-    const ws = await currentWorkspace(userId);
-    return ws?.id ?? null;
-}
-
 // The user's chosen membership when it's still real, else the oldest (their own, created at signup).
 // Also lazily rolls the monthly credit window on read, since there is no cron. The role rides along
 // from the join that was already happening, so no route pays a second query to learn it.

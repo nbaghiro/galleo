@@ -247,19 +247,6 @@ export async function getRun(workspaceId: string, id: string): Promise<EvalRun |
     };
 }
 
-/** Runs are traces, not records of account: prune on age so the table cannot grow without bound. */
-export async function pruneRuns(workspaceId: string, keepDays = 30): Promise<void> {
-    const cutoff = new Date(Date.now() - keepDays * 24 * 60 * 60 * 1000);
-    await db
-        .delete(schema.evalRuns)
-        .where(
-            and(
-                eq(schema.evalRuns.workspaceId, workspaceId),
-                lt(schema.evalRuns.createdAt, cutoff),
-            ),
-        );
-}
-
 /**
  * Merge checks computed outside the server into a run. Layout-derived checks need the engine, which
  * services may not import, so the app computes them and posts them here. Replaces by id so a repost

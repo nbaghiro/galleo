@@ -16,7 +16,7 @@ export const RUBRIC: Rubric = {
     // pinned on purpose: the same judge scores differently across model releases
     judgeModel: "google:gemini-3.5-flash",
     questions: [
-        // ---- the outline: does the plan hold together as an argument ----
+        // the outline: does the plan hold together as an argument
         {
             id: "opens-specific",
             dimension: "specificity",
@@ -54,7 +54,7 @@ export const RUBRIC: Rubric = {
             ask: "Are the beat labels specific to this brief, rather than generic section names that would suit any piece?",
         },
 
-        // ---- a section: does the copy earn its place ----
+        // a section: does the copy earn its place
         {
             id: "headline-claims",
             dimension: "specificity",

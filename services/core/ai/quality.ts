@@ -43,7 +43,7 @@ interface SectionCheck {
     issues: string[];
 }
 
-// ---- what the model was told, held against what it sent back ----
+// what the model was told, held against what it sent back
 //
 // The catalog in prompts/catalog.ts is the contract: it names every type the model may emit and,
 // per type, the fields without which the element says nothing. Checking a reply against that same

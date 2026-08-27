@@ -15,7 +15,6 @@ import {
 import "@elements/register";
 import { tokens } from "@canvas/testkit";
 
-// ---- the visual eval harness -------------------------------------------------------------------
 // Deterministic geometry invariants over the composed output, run across a matrix of types, item
 // counts, sizes, shapes, and options. These encode the mechanical half of "does it look right":
 //   1. clip safety — nothing a decorate surface paints may leave its box (a badge disc half

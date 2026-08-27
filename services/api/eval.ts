@@ -5,7 +5,6 @@ import {
     isEvalAdmin,
     listRuns,
     mergeChecks,
-    pruneRuns,
     saveJudgements,
 } from "@services/core/ai/eval/runs";
 import { judgeRun } from "@services/core/ai/eval/judge";
@@ -120,9 +119,3 @@ function pngFromDataUrl(url: string | undefined): Uint8Array | null {
         return null;
     }
 }
-
-evals.post("/eval/prune", requireWorkspace, async (c) => {
-    if (!gate(c.get("user"))) return c.json({ error: "not found" }, 404);
-    await pruneRuns(c.get("ws").id);
-    return c.json({ ok: true });
-});

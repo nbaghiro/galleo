@@ -215,8 +215,6 @@ export class Room {
         }
     }
 
-    // ---- internals ---------------------------------------------------------------------------
-
     private write(member: Member, tag: string, ops: SectionOp[]): void {
         if (!atLeast(member.access, "edit")) {
             member.conn.send({ t: "reject", tag, reason: "read only" });
@@ -335,8 +333,6 @@ export class Room {
         for (const m of this.members.values()) if (m.connId !== connId) m.conn.send(msg);
     }
 }
-
-// ---- the process-wide registry ----------------------------------------------------------------
 
 const rooms = new Map<string, Room>();
 let sweeper: ReturnType<typeof setInterval> | null = null;

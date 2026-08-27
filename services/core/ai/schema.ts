@@ -137,10 +137,6 @@ export const zOutline = z.object({
 export const zSectionPlan = zBeat.omit({ id: true });
 export type SectionPlan = z.infer<typeof zSectionPlan>;
 
-export const zRewrite = z.object({
-    text: z.string().describe("the rewritten text, same language, ready to drop back in"),
-});
-
 // matches @themes Tokens
 export const zTokens = z.object({
     bg: z.string().describe("page background hex"),

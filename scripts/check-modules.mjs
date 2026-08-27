@@ -71,7 +71,7 @@ const files = readdirSync("model")
     .map((f) => f.replace(/\.ts$/, ""))
     .sort();
 
-// ---- self-check: plant a drift and confirm the check sees it -------------------------------
+// self-check: plant a drift and confirm the check sees it
 const doc = readFileSync(DOC, "utf8");
 const planted = check(doc, [...files, "definitely-not-a-real-module"]);
 if (!planted.missing?.includes("definitely-not-a-real-module")) {

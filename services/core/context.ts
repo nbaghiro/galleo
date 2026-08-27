@@ -34,7 +34,7 @@ export interface ContextItemMeta {
     createdAt: string;
 }
 
-// ---- Pure text logic: chunking for the vector store, pack assembly for prompts ----
+// Pure text logic: chunking for the vector store, pack assembly for prompts
 
 const CHUNK_SIZE = 1200;
 const CHUNK_OVERLAP = 200;
@@ -549,7 +549,7 @@ export function makeContextRetriever(
     };
 }
 
-// ---- Conversation memory: the chat thread's durable, retrievable record ----
+// Conversation memory: the chat thread's durable, retrievable record
 
 const RECENT_SKIP = 16; // the client replays the newest turns verbatim; recall covers what's older
 const RECALL_K = 6;

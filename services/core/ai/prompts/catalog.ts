@@ -20,7 +20,7 @@ import {
     TEXT_ALIGN,
     TEXT_STYLES,
 } from "@model/elements";
-import { THEME_LIST, resolveTheme } from "@themes";
+import { resolveTheme } from "@themes";
 
 // The vocabulary the LLM writes against, and the markdown it is handed. Data and renderer sit
 // together so a new element can't be described in the prompt without being declared here first;
@@ -690,11 +690,4 @@ export function describeTheme(id: string): string {
     const t = resolveTheme(id);
     const mode = t.dark ? "dark" : "light";
     return `The active theme is "${t.name}" (${t.tag}, ${mode}). Write in a register that fits a ${t.tag} ${mode} design.`;
-}
-
-export function themeCatalog(): string {
-    const rows = THEME_LIST.map(
-        (t) => `- \`${t.id}\`, ${t.name} (${t.tag}, ${t.dark ? "dark" : "light"})`,
-    ).join("\n");
-    return ["## Themes", "Pick a theme id whose mood fits the content:", "", rows].join("\n");
 }

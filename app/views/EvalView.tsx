@@ -50,8 +50,6 @@ const scrollPane = "min-h-0 flex-1 overflow-y-auto lg:h-full";
 const paneCol =
     "flex min-w-0 flex-col border-b border-line lg:h-full lg:min-h-0 lg:border-r lg:border-b-0";
 
-/* --------------------------------------------------------------- run list */
-
 const SORTERS: Record<string, (a: EvalRunSummary, b: EvalRunSummary) => number> = {
     recent: (a, b) => b.at.localeCompare(a.at),
     failures: (a, b) => b.checksRun - b.checksPassed - (a.checksRun - a.checksPassed),
@@ -458,8 +456,6 @@ const RunList: Component<{
     );
 };
 
-/* ------------------------------------------------------------ run detail */
-
 const TopBar: Component<{ run: EvalRun; onClose: () => void }> = (props) => (
     <div class="flex flex-none flex-wrap items-center gap-2 border-b border-line bg-panel px-3 py-2">
         <IconButton size="sm" tone="muted" title="Back to runs" onClick={props.onClose}>
@@ -717,8 +713,6 @@ const CallDetail: Component<{ run: EvalRun; step: string }> = (props) => {
         </>
     );
 };
-
-/* ------------------------------------------------------- rendered output */
 
 /**
  * What the run produced, painted by the same engine the product paints with. Selection is shared
@@ -1073,8 +1067,6 @@ const RunDetail: Component<{ id: string; onClose: () => void }> = (props) => {
         </Show>
     );
 };
-
-/* ------------------------------------------------------------------ shell */
 
 export const EvalView: Component = () => {
     const [runs, setRuns] = createSignal<EvalRunSummary[]>([]);

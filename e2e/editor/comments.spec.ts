@@ -1,8 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "@e2e/fixtures";
 import { colOf, makeArtifact, paintedText, sec, txt } from "@e2e/helpers";
-import { E2E_DB } from "@e2e/env";
-import postgres from "postgres";
 
 // Commenting is interaction-only chrome (a chip on the selection, a marker in the section's border
 // revealed on hover, a floating thread), so the browser is the only place the whole path can be
@@ -84,39 +82,6 @@ test("a text-range comment keeps its quote and survives a later edit", async ({ 
     const listed = await (await page.request.get(`/api/artifacts/${id}/comments`)).json();
     expect(listed.comments[0].anchor.kind).toBe("text");
     expect(listed.comments[0].quote.length).toBeGreaterThan(0);
-});
-
-// The bug this pins: element ids the client mints are that tab's only, so an anchor written against
-// one is unresolvable on the next read. A row with no ids has to be stamped before it is served.
-test("a comment on a document written before element ids still resolves after a reload", async ({
-    page,
-}) => {
-    const id = await makeArtifact(page.request, "e2e legacy anchors", [
-        sec("s1", colOf([txt("Legacy headline", "h2"), txt("Legacy body line")])),
-    ]);
-    // straight to the database, not through a named dev container: CI runs Postgres as a service
-    const sql = postgres(E2E_DB, { max: 1 });
-    try {
-        await sql`update artifacts set draft_content = regexp_replace(draft_content::text, '"id": ?"e-[0-9a-f]+", ?', '', 'g')::jsonb where id = ${id}::uuid`;
-    } finally {
-        await sql.end();
-    }
-
-    await page.goto(`/edit/${id}`);
-    const headline = paintedText(page, "Legacy headline");
-    await headline.click();
-    await page.keyboard.press("Escape");
-    await page.getByTitle("Comment on this").click();
-    await page.getByPlaceholder("Leave a comment").fill("Survives a reload");
-    await page.getByRole("button", { name: "Comment", exact: true }).click();
-    await expect(page.getByText("Survives a reload")).toBeVisible();
-    await page.keyboard.press("Escape");
-
-    await page.reload();
-    await hoverStack(page, "inside");
-    // still anchored: a marker on the section border, not a thread stranded on removed content
-    await expect(page.getByRole("button", { name: /Survives a reload/ })).toBeVisible();
-    await expect(page.getByTestId("orphan-stack")).toHaveCount(0);
 });
 
 // Nothing may become unreachable just because its element is gone.

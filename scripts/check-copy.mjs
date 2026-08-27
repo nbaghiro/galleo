@@ -105,7 +105,6 @@ export function scan(files, read = (f) => readFileSync(f, "utf8")) {
 
 const w = (s) => process.stdout.write(`${s}\n`);
 
-// ---- self-check: plant a violation and confirm the scan sees it ----------------------------
 function selfCheck() {
     const dir = mkdtempSync(join(process.cwd(), "app", "copy-check-"));
     const file = join(dir, "probe.tsx");

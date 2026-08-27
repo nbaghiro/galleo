@@ -60,7 +60,8 @@ const ALLOW: Record<string, string> = {
         "narrate-artifact + compose-soundtrack: provider calls, no registered tool body",
     // Same tool, same reason, from the background path: its notes call DOES go through the executor,
     // so this covers only the synthesis reserve beside it.
-    "services/core/prepare.ts": "narrate-artifact: provider synthesis, no registered tool body",
+    "services/core/prepare.ts":
+        "narrate-artifact + compose-soundtrack: provider calls, no registered tool body",
     "services/api/voices.ts": "audition-voice / design-voice: provider calls, no registered body",
     "services/api/media.ts": "generate-video: no registered tool body yet",
     // the agent turn holds ONE reservation for the whole turn and passes holds:"caller" down, which
@@ -117,7 +118,6 @@ export function scan(
     return hits;
 }
 
-// ---- self-check: plant every violation shape and confirm the scan sees them ------------------
 // The wrapped form is deliberate: the first version of this guard matched a single line, and every
 // reserve() in the routes had already been reformatted across five of them.
 const PROBES: Record<string, string> = {
@@ -171,7 +171,7 @@ if (hits.length) {
     process.exit(1);
 }
 
-// ---- the catalog half, which no amount of text scanning can answer ---------------------------
+// the catalog half, which no amount of text scanning can answer
 
 const catalogFaults: string[] = [];
 for (const [id, def] of Object.entries(TOOLS)) {

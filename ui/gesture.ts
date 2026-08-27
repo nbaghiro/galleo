@@ -43,7 +43,6 @@ export const CONTENT_PRESS = "a, [data-live]";
 export const pressOnContent = (target: EventTarget | null): boolean =>
     target instanceof Element && !!target.closest(CONTENT_PRESS);
 
-// ---- outside dismissal ------------------------------------------------------------------------
 //
 // What a pointerdown means for a surface that is already open. The caller does the containment test
 // (composedPath against its own element and whatever opened it) and this decides what follows. The
@@ -68,7 +67,6 @@ export function dismissalFor(press: PressOn, rules: DismissRules): Dismissal {
     return press.onCanvas && rules.deferOnCanvas ? "defer" : "close";
 }
 
-// ---- overlay ownership ------------------------------------------------------------------------
 //
 // A popover portals to <body>, so a menu opened inside a panel is a sibling of that panel rather
 // than a descendant, and no containment test can find it. Ownership is stamped instead of inferred:

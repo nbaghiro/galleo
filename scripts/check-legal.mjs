@@ -42,7 +42,6 @@ export function scan(files, read = (f) => readFileSync(f, "utf8")) {
 
 const w = (s) => process.stdout.write(`${s}\n`);
 
-// ---- self-check: the scan must see a planted marker and stay quiet on clean code ------------
 const PLANTED = [
     'text: "[LEGAL ENTITY NAME] operates Galleo at galleo.app.",',
     'text: "We answer within 60 days at [DESIGNATED REQUEST ADDRESS].",',

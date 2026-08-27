@@ -9,8 +9,8 @@ export interface ElementInstance {
     data: unknown;
     layout?: ElementLayout;
     // Stable identity for anything pointing at this node from outside the tree (a comment anchor).
-    // Optional because it is minted lazily: a tree written before ids, or an element the AI just
-    // produced, simply has none until the next stamping pass.
+    // Optional because an element the AI just produced has none until the write path stamps it
+    // (contentWithElementIds via contentWrite).
     id?: Id;
 }
 
@@ -277,43 +277,6 @@ const withChildrenRaw = (inst: ElementInstance, children: ElementInstance[]): El
     data: { ...(inst.data as Record<string, unknown>), children },
 });
 
-/**
- * `group` and `card` merged into `container`. Pure so it can be tested without a database and reused
- * by the backfill (scripts/migrate-container.ts).
- *
- * A card with no explicit `style` still rendered solid, so the mapping fills that default in rather
- * than dropping it. Recursion goes through `childrenRaw`, which reaches table cells and the children
- * of closed units, because a card could legitimately sit inside one. Returns the same object when
- * nothing changed, so a caller can skip a write.
- */
-export function toContainer(inst: ElementInstance): ElementInstance {
-    const kids = childrenRaw(inst);
-    const nextKids = kids?.map(toContainer);
-    const kidsChanged = !!kids && !!nextKids && kids.some((k, i) => k !== nextKids[i]);
-    const withKids = kidsChanged ? withChildrenRaw(inst, nextKids!) : inst;
-
-    if (inst.type === "group") return { ...withKids, type: "container" };
-    if (inst.type === "card") {
-        const d = (withKids.data ?? {}) as Record<string, unknown>;
-        const { style, ...rest } = d;
-        return {
-            ...withKids,
-            type: "container",
-            data: { ...rest, surface: typeof style === "string" ? style : "solid" },
-        };
-    }
-    return withKids;
-}
-
-/** Every section's root run through `toContainer`; the same object back when nothing moved. */
-export function contentToContainer(content: ArtifactContent): ArtifactContent {
-    const sections = content.sections.map((sec) => {
-        const root = toContainer(sec.root);
-        return root === sec.root ? sec : { ...sec, root };
-    });
-    return sections.some((s, i) => s !== content.sections[i]) ? { ...content, sections } : content;
-}
-
 // replace the node at path; [] targets the root
 export function updateAtPath(
     root: ElementInstance,
@@ -538,7 +501,7 @@ export interface Cover {
 export interface SectionSummary {
     title?: string;
     kind: string;
-    id?: Id; // stable section id; absent on digests written before windowed loading
+    id?: Id; // stable section id; optional only because the digest derives from raw jsonb
     size?: number; // serialized bytes; a not-yet-loaded section reserves height from it
 }
 

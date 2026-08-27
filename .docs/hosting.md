@@ -172,12 +172,6 @@ services:
 - **Migrations on deploy:** the build command ends with `pnpm db:migrate` against `DATABASE_URL` before the new
   version takes traffic. Requires committed migrations (repo change) + `drizzle-kit`/`tsx` resolvable at
   deploy time (repo change).
-- **One-off backfill, media assets.** The deploy that lands the asset invariant needs
-  `pnpm media:migrate --write` run once against production after cutover: it adopts the media urls
-  already sitting in older artifacts so they appear in the workspace library. It is not part of
-  `db:migrate`, and nothing breaks without it: those artifacts still render, and any one of them
-  heals itself the next time it is saved, since the write path adopts on the way through. Re-running
-  it is free (it reports `0 foreign urls` once there is nothing left to do).
 - **Migration window, that same deploy.** `db:migrate` finishes before cutover, so for the minute
   between the migration and the new instance taking traffic the _old_ code is running against the
   new schema: `assets.url` is gone and the two check constraints are live, so media writes on the

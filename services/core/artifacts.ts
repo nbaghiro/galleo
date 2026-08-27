@@ -9,13 +9,7 @@ import type {
     Section,
     SectionOp,
 } from "@model/artifact";
-import {
-    accessFor,
-    applySectionOps,
-    artifactDigest,
-    asContent,
-    contentWithElementIds,
-} from "@model/artifact";
+import { accessFor, applySectionOps, artifactDigest, asContent } from "@model/artifact";
 import type { WorkspaceRole } from "@model/workspace";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
@@ -315,56 +309,15 @@ export async function readArtifact(workspaceId: string, id: string): Promise<Art
     return a ?? null;
 }
 
-/** The stamped tree when this one needed stamping, else null. Identity tells the two apart. */
-export const stampedContent = (draft: unknown): ArtifactContent | null => {
-    const current = asContent(draft);
-    const next = contentWithElementIds(current);
-    return next === current ? null : next;
-};
-
-/**
- * Element ids are what a comment anchors to, and a client mints its own for any element that
- * arrives without one. Those ids live in that tab's memory only, so a row written before ids
- * existed hands every reader a different set and every anchor created against them orphans on the
- * next read. A read that finds an unstamped row therefore stamps it, once, before answering.
- *
- * Under a row lock, and re-checked inside it: two readers arriving together must not mint two
- * different ids for the same element, and the second one has to return what the first wrote.
- */
-export async function ensureElementIds(id: string): Promise<ArtifactContent | null> {
-    return db.transaction(async (tx) => {
-        const [row] = await tx
-            .select({ draftContent: schema.artifacts.draftContent })
-            .from(schema.artifacts)
-            .where(eq(schema.artifacts.id, id))
-            .for("update");
-        if (!row) return null;
-        const stamped = stampedContent(row.draftContent);
-        // another reader got there first, so its ids are the ones to serve
-        if (!stamped) return asContent(row.draftContent);
-        // deliberately not updatedAt or seq: stamping is not an edit, and bumping either would
-        // reorder the library and resync every collaborator over a write nobody made
-        await tx
-            .update(schema.artifacts)
-            .set(contentWrite(stamped))
-            .where(eq(schema.artifacts.id, id));
-        return stamped;
-    });
-}
-
-// Only trusts the stored digest's index when it carries section ids: a digest written before
-// windowed loading has none, and guessing them would strand unmatchable placeholders.
+// The write path derives the digest on every write, so a row's digest is the index; deriving
+// here is only for a null column, which contentWrite never leaves behind.
 export function windowOf(
     a: NonNullable<Awaited<ReturnType<typeof readArtifact>>>,
     win: { from: number; count: number },
 ): ArtifactWindow {
     const content = asContent(a.draftContent);
     const { sections, ...shell } = content;
-    const stored = a.digest?.sections;
-    const index =
-        stored?.length && stored.every((s) => s.id)
-            ? stored
-            : artifactDigest(a.draftContent).sections;
+    const index = a.digest?.sections ?? artifactDigest(a.draftContent).sections;
     return {
         id: a.id,
         title: a.title,
@@ -378,14 +331,6 @@ export function windowOf(
         sections: sections.slice(win.from, win.from + win.count),
         seq: a.seq,
     };
-}
-
-export async function readAiMeta(workspaceId: string, id: string) {
-    const [a] = await db
-        .select({ aiMeta: schema.artifacts.aiMeta })
-        .from(schema.artifacts)
-        .where(owned(id, workspaceId));
-    return a ? (a.aiMeta ?? null) : undefined; // undefined = no such artifact
 }
 
 export async function readSections(workspaceId: string, id: string): Promise<Section[] | null> {

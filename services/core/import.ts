@@ -41,8 +41,6 @@ const dbStore =
     async (m) =>
         (await storeUpload(workspaceId, m)).url;
 
-// ---- geometry: absolute boxes → flow ----
-
 interface Placed {
     box: Box;
     el: ElementInstance;
@@ -110,8 +108,6 @@ export function assembleRoot(items: Placed[]): ElementInstance {
     if (rows.length === 1) return rowNode(rows[0]!);
     return colGroup(rows.map(rowNode));
 }
-
-// ---- text mapping ----
 
 // our type ramp in px (STYLE in @elements/text/text) bucketed from the run's pt size × 4/3
 export function styleForSize(px: number | undefined, fallback: TextStyle): TextStyle {
@@ -210,8 +206,6 @@ export function textBlocksOf(
     flush();
     return out;
 }
-
-// ---- shape mapping ----
 
 const GEOM_SHAPES: [RegExp, string][] = [
     [/^(rect|roundRect|snip)/, "rectangle"],
@@ -335,8 +329,6 @@ function elementOf(shape: PptxShape, ctx: SlideMapCtx): ElementInstance | null {
     return inner;
 }
 
-// ---- backgrounds ----
-
 const BG_COVERAGE = 0.88;
 
 const coversSlide = (box: Box, w: number, h: number): boolean =>
@@ -372,8 +364,6 @@ function slideBackgroundOf(
     return { bg, consumed };
 }
 
-// ---- theme ----
-
 const dist = (a: string, b: string): number => {
     const [r1, g1, b1] = hexToRgb(a);
     const [r2, g2, b2] = hexToRgb(b);
@@ -399,8 +389,6 @@ export function nearestThemeId(scheme: ColorScheme): string {
     }
     return best;
 }
-
-// ---- the deck walk ----
 
 const ARTIFACT_W = 1280;
 const MIN_SHAPE_AREA = 0.002; // of the slide; smaller is decoration
@@ -452,8 +440,6 @@ export function deckToContent(deck: PptxDeck, mediaUrl: SlideMapCtx["mediaUrl"])
         ...(pageH !== 720 ? { page: { width: ARTIFACT_W, height: pageH } } : {}),
     };
 }
-
-// ---- entry points ----
 
 export interface Imported {
     content: ArtifactContent;

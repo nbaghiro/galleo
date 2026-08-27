@@ -190,24 +190,6 @@ describe("GET /artifacts/:id — windowed read", () => {
         ).toEqual(["c", "d"]);
     });
 
-    it("recomputes the index when the stored digest predates section ids", async () => {
-        const { userId, workspaceId } = await seedUser();
-        const draft = content(["a", "b"]);
-        const [row] = await db
-            .insert(schema.artifacts)
-            .values({
-                workspaceId,
-                title: "Legacy",
-                draftContent: draft,
-                // an old digest: summaries without ids or sizes
-                digest: { cover: {}, sections: [{ kind: "cover" }, { kind: "content" }] },
-            })
-            .returning({ id: schema.artifacts.id });
-        const res = await authed(userId, `/artifacts/${row!.id}?window=0:1`);
-        const { artifact } = (await res.json()) as { artifact: ArtifactWindow };
-        expect(artifact.index.map((s) => s.id)).toEqual(["a", "b"]);
-    });
-
     it("won't serve another workspace's sections", async () => {
         const mine = await seedUser();
         const theirs = await seedUser();

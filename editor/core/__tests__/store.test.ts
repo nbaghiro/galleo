@@ -34,7 +34,6 @@ import {
     keepPreviewedTheme,
     loadArtifactContent,
     moveSectionBy,
-    moveSectionTo,
     previewingTheme,
     previewSavedTheme,
     redo,
@@ -243,31 +242,6 @@ describe("commitOver", () => {
 });
 
 describe("section management", () => {
-    it("moveSectionTo applies the self-removal shift", () => {
-        inRoot(() => {
-            loadArtifactContent("doc", makeArt(["a", "b", "c", "d"]));
-            // Drop "a" (index 0) at absolute drop index 2 → delta = (2-1)-0 = 1 → lands after "b".
-            moveSectionTo("a", 2);
-            expect(sectionIds()).toEqual(["b", "a", "c", "d"]);
-        });
-    });
-
-    it("moveSectionTo dropping a section just after its own position is delta 0 (no commit)", () => {
-        inRoot(() => {
-            loadArtifactContent("doc", makeArt(["a", "b", "c"]));
-            const base = editor.artifact;
-            const seq0 = editSeq();
-
-            moveSectionTo("b", 2); // i=1, index=2 → delta = (2-1)-1 = 0
-            moveSectionTo("a", 0); // i=0, index=0 → delta = 0-0 = 0
-            moveSectionTo("missing", 1); // i<0 → early return
-
-            expect(editor.artifact).toBe(base);
-            expect(canUndo()).toBe(false);
-            expect(editSeq()).toBe(seq0);
-        });
-    });
-
     it("moveSectionBy reorders and records a commit", () => {
         inRoot(() => {
             loadArtifactContent("doc", makeArt(["a", "b", "c"]));

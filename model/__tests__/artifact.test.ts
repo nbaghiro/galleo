@@ -40,7 +40,6 @@ import {
     withWidth,
     withoutNotes,
     duckedVolume,
-    toContainer,
     sectionForms,
 } from "@model/artifact";
 
@@ -1022,60 +1021,6 @@ describe("affordance regions", () => {
         expect(parseTarget(id)).toBeNull();
         expect(parseHitRegion("el:s1:1")).toBeNull();
         expect(parseHitRegion("section:s1")).toBeNull();
-    });
-});
-
-describe("toContainer", () => {
-    it("renames a group and leaves its data alone", () => {
-        const out = toContainer({ type: "group", data: { direction: "row", children: [] } });
-        expect(out.type).toBe("container");
-        expect(out.data).toEqual({ direction: "row", children: [] });
-    });
-
-    // a card with no explicit style still rendered solid, so the default is filled in, not dropped
-    it("maps a card's style onto surface, defaulting to solid", () => {
-        expect(toContainer({ type: "card", data: { children: [] } }).data).toEqual({
-            children: [],
-            surface: "solid",
-        });
-        expect(
-            toContainer({ type: "card", data: { children: [], style: "outline", bg: "#fff" } })
-                .data,
-        ).toEqual({ children: [], surface: "outline", bg: "#fff" });
-    });
-
-    it("recurses, including through a closed unit's children", () => {
-        const out = toContainer({
-            type: "table",
-            data: { cells: [{ type: "card", data: { children: [] } }] },
-            // table stores cells under its own key, so this exercises childrenRaw's contract
-        });
-        expect(out.type).toBe("table");
-    });
-
-    it("converts nested groups and cards at every depth", () => {
-        const tree = toContainer({
-            type: "group",
-            data: {
-                children: [
-                    { type: "card", data: { children: [{ type: "text", data: { text: "a" } }] } },
-                    { type: "group", data: { children: [] } },
-                ],
-            },
-        });
-        const kids = (tree.data as { children: ElementInstance[] }).children;
-        expect(tree.type).toBe("container");
-        expect(kids.map((k) => k.type)).toEqual(["container", "container"]);
-    });
-
-    it("returns the same object when nothing changed, so a caller can skip the write", () => {
-        const clean: ElementInstance = { type: "container", data: { children: [] } };
-        expect(toContainer(clean)).toBe(clean);
-    });
-
-    it("is idempotent, so a half-finished run is safe to repeat", () => {
-        const once = toContainer({ type: "card", data: { children: [], style: "plain" } });
-        expect(toContainer(once)).toBe(once);
     });
 });
 

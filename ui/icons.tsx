@@ -125,12 +125,6 @@ const PATHS: Record<string, () => JSX.Element> = {
             <rect x="3.5" y="15" width="7" height="5" rx="1.4" fill="currentColor" stroke="none" />
         </>
     ),
-    decoration: () => (
-        <>
-            <circle cx="12" cy="12" r="8.5" />
-            <path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor" stroke="none" />
-        </>
-    ),
     container: () => (
         <>
             <rect x="8" y="3" width="13" height="13" rx="2" />
@@ -184,24 +178,6 @@ const PATHS: Record<string, () => JSX.Element> = {
         </>
     ),
     row: () => <path d="M7 5v14M12 5v14M17 5v14" />,
-    distStart: () => (
-        <>
-            <rect x="5" y="4" width="14" height="16" rx="2" opacity="0.35" />
-            <path d="M8 7.5h8M8 10.5h8" />
-        </>
-    ),
-    distCenter: () => (
-        <>
-            <rect x="5" y="4" width="14" height="16" rx="2" opacity="0.35" />
-            <path d="M8 10.5h8M8 13.5h8" />
-        </>
-    ),
-    distEnd: () => (
-        <>
-            <rect x="5" y="4" width="14" height="16" rx="2" opacity="0.35" />
-            <path d="M8 13.5h8M8 16.5h8" />
-        </>
-    ),
     alignItemsStart: () => (
         <>
             <path d="M4.5 4v16" />
@@ -317,7 +293,6 @@ const PATHS: Record<string, () => JSX.Element> = {
             <path d="M10.5 8v5M8 10.5h5" />
         </>
     ),
-    corner: () => <path d="M5 19v-8a6 6 0 0 1 6-6h8" />,
     library: () => (
         <>
             <rect x="3" y="3" width="7.5" height="7.5" />
@@ -584,5 +559,3 @@ export const GlobeIcon = named("globe");
 export const MailIcon = named("mail");
 export const EyeIcon = named("eye");
 export const CopyIcon = named("copy");
-
-export const ICON_NAMES: string[] = Object.keys(PATHS);

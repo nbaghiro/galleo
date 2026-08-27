@@ -125,8 +125,6 @@ export function collabClosed(): void {
     setSelfUserId(null);
 }
 
-// ---- the maps, as pure reductions ----------------------------------------------------------
-
 export const rosterOf = (roster: Peer[]): PeerMap =>
     new Map(roster.map((p) => [p.connId, p] as const));
 
@@ -153,8 +151,6 @@ export function withoutConnection(current: LeaseMap, connId: string): LeaseMap {
     for (const [key, lease] of current) if (lease.connId === connId) next.delete(key);
     return next;
 }
-
-// ---- what the editor calls back out ---------------------------------------------------------
 
 type PresenceSender = (state: PresenceState) => void;
 type LeaseCaller = (element: ElementRef) => void;
@@ -183,8 +179,6 @@ export function clearCollabHandlers(): void {
 export const sendPresence = (state: PresenceState): void => presenceSender?.(state);
 export const claimLease = (element: ElementRef): void => leaseClaimer?.(element);
 export const releaseLease = (element: ElementRef): void => leaseReleaser?.(element);
-
-// ---- outbound throttling ---------------------------------------------------------------------
 
 // A time gate rather than a queue: presence is state, not events, so a dropped intermediate
 // position costs nothing and the next one carries the truth.
@@ -231,8 +225,6 @@ function sameCursor(a: CollabCursor | null, b: CollabCursor | null): boolean {
 // a cursor that moved by well under a pixel of a typical element is not news
 const CURSOR_EPSILON = 0.002;
 const near = (a: number, b: number): boolean => Math.abs(a - b) < CURSOR_EPSILON;
-
-// ---- addressing ------------------------------------------------------------------------------
 
 /** What the encoder reads from its own engine output; injected so the walk itself stays pure. */
 export interface CursorSource {
@@ -351,7 +343,6 @@ export function cursorForPoint(
     });
 }
 
-// ---- follow mode ------------------------------------------------------------------------------
 //
 // Clicking a peer's avatar ties this viewport to where they are working. Keyed on the person rather
 // than the connection, so a follow survives their reconnect: the socket changes underneath, the
@@ -437,8 +428,6 @@ export function scrollFollowing(focus: CursorBox, force = false): void {
     const to = followScroll(focus, view, force);
     if (to !== null) el.scrollTo({ top: to * z, behavior: "smooth" });
 }
-
-// ---- the lease, as the editor asks about it --------------------------------------------------
 
 /** Who is editing this element, when it is someone else. Null means it is free to enter. */
 export function leaseHolder(address: ElementAddress): Lease | null {

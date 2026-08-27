@@ -413,9 +413,3 @@ export type TurnEvent =
     | { type: "chat.block"; blockId: string; block: ChatBlock }
     | { type: "turn.done"; summary?: string }
     | { type: "error"; message: string };
-
-// monotonic seq is the SSE resume cursor
-export interface LoggedEvent {
-    seq: number;
-    event: TurnEvent;
-}

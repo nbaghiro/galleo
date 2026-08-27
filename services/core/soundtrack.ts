@@ -1,6 +1,7 @@
 import { and, eq, isNull, ne } from "drizzle-orm";
 import type { ArtifactContent, Id } from "@model/artifact";
 import type { Soundtrack, WorkspaceBed } from "@model/speech";
+import { composedName } from "@model/speech";
 import { DEFAULT_PRESET } from "@model/speech";
 import { THEMES } from "@themes";
 import { db } from "@services/db/client";
@@ -248,7 +249,6 @@ export const orphanedPresets = async (): Promise<number> => {
     return rows.length;
 };
 
-// ---- The workspace's shelf -------------------------------------------------------------------
 //
 // The same shape the voice shelf has, for the same reason: a house preset belongs to the whole
 // deployment, so what one workspace did with it (named it, made it the default) is a fact about the
@@ -415,7 +415,7 @@ export async function composeForWorkspace(
             and(eq(schema.soundtracks.workspaceId, workspaceId), eq(schema.soundtracks.hash, hash)),
         );
     if (held) {
-        await shelve(workspaceId, held.id, { name: said });
+        await shelve(workspaceId, held.id, { name: composedName(said) });
         return { row: held, ms: 0 };
     }
 
@@ -435,7 +435,7 @@ export async function composeForWorkspace(
         })
         .returning();
     if (!row) throw new BedError("the bed could not be saved", 502);
-    await shelve(workspaceId, row.id, { name: said });
+    await shelve(workspaceId, row.id, { name: composedName(said) });
     return { row, ms: out.ms };
 }
 

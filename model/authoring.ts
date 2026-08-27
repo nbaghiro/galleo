@@ -248,7 +248,6 @@ export const callout = (tone: string, ...children: ElementInstance[]): ElementIn
 export const card = (...children: ElementInstance[]): ElementInstance =>
     container("col", [{ surface: "solid" }, ...children]);
 
-// ---- smart blocks
 //
 // Each composite element reads its children by position (testimonial indexes four fixed slots,
 // faq walks question/answer pairs), so these builders are how an author gets the order right.

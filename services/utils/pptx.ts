@@ -7,7 +7,6 @@ import { decodeEntities } from "./webpage";
 // both. Fidelity scope: shape boxes, placeholder roles (inherited from layout/master), text runs,
 // bullets, pictures, tables, charts, solid/image backgrounds, notes, and the theme color scheme.
 
-// ---- minimal XML tree ----
 // OOXML is machine-written: no DTDs, attribute values always quoted. Element names match by local
 // name (prefixes vary between producers); attribute keys keep their prefix, since `p:sldId` carries
 // both `id` and `r:id` and localizing would collide.
@@ -97,8 +96,6 @@ const rAttr = (n: XmlNode, local: string): string | undefined => {
     return undefined;
 };
 
-// ---- package plumbing ----
-
 interface Rel {
     type: string;
     target: string; // resolved package path
@@ -132,8 +129,6 @@ const relsPathOf = (partPath: string): string => {
     return `${partPath.slice(0, i)}/_rels/${partPath.slice(i + 1)}.rels`;
 };
 
-// ---- units + colors ----
-
 const EMU_PER_PX = 9525;
 export const emuToPx = (emu: number): number => Math.round(emu / EMU_PER_PX);
 
@@ -155,8 +150,6 @@ export function resolveColor(n: XmlNode | undefined, scheme: ColorScheme): strin
     if (name) return scheme[SCHEME_ALIASES[name] ?? name];
     return undefined;
 }
-
-// ---- IR ----
 
 export interface Box {
     x: number;
@@ -216,8 +209,6 @@ export interface PptxDeck {
     slides: PptxSlide[];
 }
 
-// ---- geometry ----
-
 interface Transform {
     x: number;
     y: number;
@@ -252,8 +243,6 @@ const boxToPx = (b: Box): Box => ({
     w: emuToPx(b.w),
     h: emuToPx(b.h),
 });
-
-// ---- text ----
 
 const ALIGN: Record<string, "start" | "center" | "end"> = { l: "start", ctr: "center", r: "end" };
 
@@ -306,8 +295,6 @@ export const parasText = (paras: PptxPara[]): string =>
         .replace(/\n{3,}/g, "\n\n")
         .trim();
 
-// ---- placeholders ----
-
 const PH_ROLES: Record<string, PhRole> = {
     title: "title",
     ctrTitle: "ctrTitle",
@@ -353,8 +340,6 @@ function inheritedBox(ph: Placeholder, inherited: Map<string, Box>): Box | null 
         null
     );
 }
-
-// ---- tables + charts ----
 
 function parseTable(tbl: XmlNode, scheme: ColorScheme): { cells: string[][]; header: boolean } {
     const cells: string[][] = [];
@@ -420,8 +405,6 @@ export function parseChartXml(xml: string): PptxChart | null {
     return null;
 }
 
-// ---- media ----
-
 const MEDIA_MIME: Record<string, string> = {
     png: "image/png",
     jpg: "image/jpeg",
@@ -429,8 +412,6 @@ const MEDIA_MIME: Record<string, string> = {
     gif: "image/gif",
     webp: "image/webp",
 };
-
-// ---- the walk ----
 
 interface PartCtx {
     zip: JSZip;
@@ -543,8 +524,6 @@ const compose = (outer: Transform, inner: Transform): Transform => ({
     sx: outer.sx * inner.sx,
     sy: outer.sy * inner.sy,
 });
-
-// ---- parts ----
 
 async function partXml(zip: JSZip, path: string): Promise<XmlNode | null> {
     const file = zip.file(path);

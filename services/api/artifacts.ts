@@ -19,7 +19,6 @@ import {
     createArtifact,
     decodeCursor,
     deleteArtifact,
-    ensureElementIds,
     emptyTrash,
     isArtifactContent,
     isSectionOp,
@@ -28,10 +27,8 @@ import {
     setArtifactAccess,
     pageLimit,
     parseWindow,
-    readAiMeta,
     readSections,
     setTrashed,
-    stampedContent,
     updateArtifact,
     windowOf,
 } from "@services/core/artifacts";
@@ -140,12 +137,7 @@ artifacts.get("/artifacts/:id/credits", requireUser, async (c) => {
 artifacts.get("/artifacts/:id", requireUser, async (c) => {
     const gate = await gateShared(c, c.req.param("id"), "view");
     if (isResponse(gate)) return gate;
-    // A row written before element ids existed hands every reader a different client-minted set,
-    // so anything anchored to one (a comment) dies on the next read. Stamp it before answering.
-    const stamped = stampedContent(gate.artifact.draftContent)
-        ? await ensureElementIds(gate.artifact.id)
-        : null;
-    const a = stamped ? { ...gate.artifact, draftContent: stamped } : gate.artifact;
+    const a = gate.artifact;
     if (gate.grant) await markGrantSeen(a.id, c.get("user").id);
     // Opening a piece is the other moment worth preparing from, so someone who edits nothing and
     // walks straight to present still finds it ready. Never awaited: this answers first.
@@ -164,13 +156,6 @@ artifacts.get("/artifacts/:id", requireUser, async (c) => {
             seq: a.seq,
         },
     });
-});
-
-artifacts.get("/artifacts/:id/ai-meta", requireUser, async (c) => {
-    const gate = await gateShared(c, c.req.param("id"), "view");
-    if (isResponse(gate)) return gate;
-    const meta = await readAiMeta(gate.ws.id, c.req.param("id"));
-    return meta === undefined ? c.json({ error: "not found" }, 404) : c.json({ meta });
 });
 
 artifacts.get("/artifacts/:id/sections", requireUser, async (c) => {

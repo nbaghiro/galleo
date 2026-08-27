@@ -17,7 +17,6 @@ import {
     adoptUrls,
     adoptable,
     assetForBytes,
-    assetUsage,
     deleteAsset,
     searchStock,
     stockReady,
@@ -273,10 +272,6 @@ media.delete("/media/asset/:id", requireWorkspace, async (c) => {
         409,
     );
 });
-
-media.get("/media/asset/:id/usage", requireWorkspace, async (c) =>
-    c.json({ usedBy: await assetUsage(c.get("ws").id, c.req.param("id")) }),
-);
 
 // Public by opaque uuid so <img>/canvas/export load credential-less, like a stock CDN url. A row we
 // hold bytes for serves them; an adopted one redirects to where they still live, which is what lets

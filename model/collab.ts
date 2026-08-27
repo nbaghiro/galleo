@@ -17,8 +17,6 @@ export const PRESENCE_TTL_MS = 30_000;
 /** How many recent op broadcasts a room keeps for cheap catch-up; a longer gap resyncs. */
 export const OP_BUFFER = 256;
 
-// ---- presence -------------------------------------------------------------------------------
-
 export interface CollabUser {
     id: string;
     name: string | null;
@@ -70,8 +68,6 @@ export interface Lease {
     color: string;
 }
 
-// ---- messages -------------------------------------------------------------------------------
-
 export type ClientMessage =
     | { t: "hello"; lastSeq?: number }
     | { t: "presence"; state: PresenceState }
@@ -98,7 +94,6 @@ export type ServerMessage =
     | { t: "access"; access: ArtifactAccess }
     | { t: "resync"; seq: number };
 
-// ---- guards ---------------------------------------------------------------------------------
 //
 // A socket frame is untrusted input under the same rule as a request body: parse it, never cast it.
 // These are guards rather than parsers on purpose, so an op keeps every field it arrived with (the
@@ -261,8 +256,6 @@ const isOpAuthor = (v: unknown): v is OpAuthor =>
     isObj(v) &&
     ((v.kind === "user" && typeof v.connId === "string" && typeof v.userId === "string") ||
         v.kind === "ai");
-
-// ---- pure helpers ---------------------------------------------------------------------------
 
 /** The map key for a lease or a pending write; section ids never contain ":". */
 export const leaseKey = (el: ElementRef): string => `${el.sectionId}:${el.elementId}`;

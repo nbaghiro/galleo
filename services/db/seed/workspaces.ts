@@ -1,9 +1,6 @@
-import { inArray } from "drizzle-orm";
 import type { CreditPackId, FeatureOverrides, PlanId, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { ToolId } from "@model/tools";
-import { db } from "@services/db/client";
-import { schema } from "@services/db/schema";
 
 // The demo universe as data: who exists, which workspaces they hold, and in what state. Separate
 // from seed.ts so the specs can be read without importing an entry point that would run the seed on
@@ -843,18 +840,3 @@ export const WORKSPACES: WorkspaceSpec[] = [
         ],
     },
 ];
-
-const NOT_SEEDED = "run `pnpm seed` first";
-
-/** email → user id, over the seeded cast. */
-export async function seededUserIds(): Promise<Map<string, string>> {
-    const emails = PEOPLE.map((p) => p.email);
-    const rows = await db
-        .select({ id: schema.users.id, email: schema.users.email })
-        .from(schema.users)
-        .where(inArray(schema.users.email, emails));
-    const found = new Map(rows.map((r) => [r.email, r.id]));
-    const missing = emails.filter((e) => !found.has(e));
-    if (missing.length) throw new Error(`users not seeded: ${missing.join(", ")} — ${NOT_SEEDED}`);
-    return found;
-}

@@ -91,7 +91,6 @@ function hasElsewhere(name) {
 
 const doc = readFileSync(DOC, "utf8");
 
-// ---- self-check: plant a drift and confirm the check sees it -------------------------------
 const planted = check(doc, (dir) => [...filesIn(dir), "definitely-not-a-real-file.ts"]);
 if (!planted.problems?.some((p) => p.missing.includes("definitely-not-a-real-file.ts"))) {
     w("");

@@ -330,7 +330,6 @@ export const frame = (W: number, H: number, pad = PAD): Rect => ({
 export const NODE_RADIUS = 6; // charts round marks 2-3px; nodes are bigger, so a touch more
 export const NODE_TEXT = 12;
 
-// ---- node silhouettes ------------------------------------------------------------------------
 // A silhouette is box-parametric (a chevron's notch derives from the node's height), so shapes are
 // registered as PathSink builders rather than fixed-viewBox vectors — the same sink the Vector IR,
 // d3 generators, and all four render backends already speak. Adding a shape = one registration;

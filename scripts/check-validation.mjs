@@ -46,7 +46,6 @@ export function scan(files, read = (f) => readFileSync(f, "utf8")) {
 
 const w = (s) => process.stdout.write(`${s}\n`);
 
-// ---- self-check: plant every violation shape and confirm the scan sees them ------------------
 // The nested generic is deliberate: the first version of this guard matched <…> with [^>]*, which
 // a readJson<Partial<FolderInput>>(c) slipped straight through while a probe using <Thing> passed.
 const PROBES = {

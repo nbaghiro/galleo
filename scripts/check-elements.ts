@@ -62,7 +62,6 @@ if (unregistered.length) {
     w(`ok   AI catalog types all registered (${ELEMENTS.length} entries)`);
 }
 
-// ---- AGENTS.md palette tally ----------------------------------------------------------------
 // Palette-hidden: `avatar` and the two storage elements the chart/diagram variants live behind.
 const HIDDEN = new Set(["avatar", "chart", "diagram"]);
 const AGENTS = "AGENTS.md";

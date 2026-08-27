@@ -8,7 +8,6 @@ import {
     elementCatalog,
     layoutCatalog,
     siteAnatomy,
-    themeCatalog,
 } from "@services/core/ai/prompts/catalog";
 
 describe("elementCatalog", () => {
@@ -118,12 +117,5 @@ describe("describeTheme", () => {
         const out = describeTheme(dark.id);
         expect(out).toContain(dark.name);
         expect(out).toContain("dark");
-    });
-});
-
-describe("themeCatalog", () => {
-    it("lists EVERY built-in theme id", () => {
-        const out = themeCatalog();
-        for (const t of THEME_LIST) expect(out).toContain(`\`${t.id}\``);
     });
 });

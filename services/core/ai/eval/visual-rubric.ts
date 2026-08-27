@@ -12,7 +12,7 @@ export const VISUAL_RUBRIC: Rubric = {
     // pinned: the same judge scores differently across model releases
     judgeModel: "google:gemini-3.5-flash",
     questions: [
-        // ---- the section as a still image ----
+        // the section as a still image
         {
             id: "one-focal-point",
             dimension: "craft",
@@ -50,7 +50,7 @@ export const VISUAL_RUBRIC: Rubric = {
             ask: "Do the biggest and boldest things on the section happen to be the most important ones?",
         },
 
-        // ---- the artifact as a set, which no single section can answer ----
+        // the artifact as a set, which no single section can answer
         {
             id: "looks-designed",
             dimension: "voice",

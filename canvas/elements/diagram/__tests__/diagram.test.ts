@@ -302,7 +302,7 @@ describe("registry", () => {
     });
 });
 
-// ---- the composed path: arrange → engine layout → commands, the way compose runs it ----
+// the composed path: arrange → engine layout → commands, the way compose runs it
 
 const measure = (
     leaf: { text: string; size: number },

@@ -12,7 +12,6 @@ import {
     zBriefDraft,
     zOutline,
     zSectionPlan,
-    zRewrite,
     zTokens,
     zTheme,
 } from "@services/core/ai/schema";
@@ -364,12 +363,7 @@ describe("zSectionPlan (zBeat.omit({ id }))", () => {
     });
 });
 
-describe("zRewrite / zTokens / zTheme", () => {
-    it("zRewrite requires a `text` string", () => {
-        expect(zRewrite.safeParse({ text: "done" }).success).toBe(true);
-        expect(zRewrite.safeParse({}).success).toBe(false);
-    });
-
+describe("zTokens / zTheme", () => {
     it("zTokens validates the required color/font/number token set", () => {
         const tokens = {
             bg: "#0d0e13",

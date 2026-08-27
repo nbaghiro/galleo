@@ -178,8 +178,6 @@ export const tokensOf = (spans: readonly ModelSpan[]): { input: number; output: 
 /** Rough token count for a prompt fragment: ~4 chars per token. Labelled approximate in the UI. */
 export const approxTokens = (text: string): number => Math.round(text.length / 4);
 
-/* ------------------------------------------------------- visual: shape vs intent */
-
 /**
  * The shape a rendered section takes, independent of what it says. Classified from geometry and
  * element mix (`@canvas/render/archetype`), because two sections can use different elements to make
@@ -272,7 +270,3 @@ export function questionRates(rubric: Rubric, judgements: EvalJudgement[]): Gate
         };
     });
 }
-
-/** Only the questions stable enough to fail a build; see `RubricQuestion.gate`. */
-export const gateResults = (rubric: Rubric, judgements: EvalJudgement[]): GateResult[] =>
-    questionRates(rubric, judgements).filter((g) => g.floor !== null);

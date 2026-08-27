@@ -209,10 +209,6 @@ export function verifyCodeError(raw: string): string | null {
     return null;
 }
 
-export interface ConfirmBody {
-    code?: string;
-}
-
 // The fixed code every account accepts outside production, so trying the flow by hand needs no
 // mailbox. The server decides whether it is live (accounts.ts); this constant only names it, so the
 // dev hint under the field and the route cannot drift apart.
@@ -228,36 +224,6 @@ const CONFIRM_GATE_FROM = Date.parse("2026-08-22T00:00:00Z");
 
 export const mustConfirmEmail = (u: { emailVerified: boolean; createdAt: string }): boolean =>
     !u.emailVerified && Date.parse(u.createdAt) >= CONFIRM_GATE_FROM;
-
-export interface LoginBody {
-    email?: string;
-    password?: string;
-}
-
-export interface SignupBody {
-    email?: string;
-    password?: string;
-    name?: string;
-}
-
-export interface ForgotBody {
-    email?: string;
-}
-
-export interface ResetBody {
-    token?: string;
-    password?: string;
-}
-
-export interface ProfileBody {
-    name?: string | null;
-}
-
-// current is absent on an OAuth-only account, which is setting a first password rather than changing one
-export interface PasswordBody {
-    current?: string;
-    password?: string;
-}
 
 // matches oauth_accounts.provider on the backend
 export type AuthProvider = "google";

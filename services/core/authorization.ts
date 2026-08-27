@@ -64,7 +64,6 @@ export async function registerClient(input: {
         : ((await findClient(clientId)) as OAuthClient);
 }
 
-// ---- Client ID Metadata Documents -------------------------------------------------------------
 //
 // A client identifies itself by an https URL that serves its own metadata, instead of registering a
 // row here first. The spec now prefers this over dynamic registration, and the practical reason is
@@ -342,8 +341,8 @@ export interface AccessGrant {
 
 // A token is a credential for one audience. Presenting it somewhere else is what resource
 // indicators exist to stop, so the check is here rather than at the transport: every reader of a
-// token gets it. A token minted before the column existed carries "" and is accepted, since it was
-// issued when this server was the only audience there was.
+// token gets it. A machine token carries "" (services/api/v1.ts mints it that way, there being no
+// MCP endpoint it was bound to) and is accepted.
 export async function verifyAccessToken(
     raw: string,
     resource: string,
@@ -478,7 +477,6 @@ export async function purgeSpent(): Promise<void> {
         .where(lt(schema.oauthTokens.createdAt, new Date(now.getTime() - REFRESH_TTL_MS)));
 }
 
-// ---- machine credentials ----------------------------------------------------------------------
 //
 // The browser flow cannot serve an integration: there is nobody at a consent screen. A machine
 // credential is issued once by a workspace admin and authenticates with a secret, which is the

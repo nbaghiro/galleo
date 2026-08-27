@@ -319,7 +319,6 @@ export async function setThreadResolved(thread: CommentThread, resolved: boolean
     say("Thread resolved", { label: "Reopen", run: () => void setThreadResolved(thread, false) });
 }
 
-// ---- placement ------------------------------------------------------------------------------
 //
 // Where the margin markers land, in stage coordinates at scale 1. Pure on purpose: the canvas hands
 // it geometry the engine already published, so nothing here reads the DOM or a signal.

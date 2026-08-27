@@ -161,8 +161,6 @@ export class CollabClient {
         this.send({ t: "release", element });
     }
 
-    // ---- internals -------------------------------------------------------------------------------
-
     private open(): void {
         if (this.stopped || this.socket) return;
         const socket = this.opts.connect(this.opts.url);
@@ -281,7 +279,7 @@ export class CollabClient {
 const isSectionOpLike = (op: unknown): op is SectionOp =>
     !!op && typeof op === "object" && typeof (op as { kind?: unknown }).kind === "string";
 
-// ---- the singleton the editor route drives -------------------------------------------------------
+// the singleton the editor route drives
 
 let client: CollabClient | null = null;
 let baseline = 0;

@@ -443,7 +443,7 @@ export const credits = pgTable(
         // redelivered event finds its row and cannot re-grant; null on ordinary spend/refund rows
         key: text("key").unique(),
         // the units of work this charge was for, so history can say what it bought and not just
-        // which tool ran; null on grants, resets, and rows written before it existed
+        // which tool ran; null on grants and resets
         usage: jsonb("usage").$type<Usage>(),
         balanceAfter: integer("balance_after").notNull(),
         createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -452,7 +452,7 @@ export const credits = pgTable(
 );
 
 // postgres(url) is lazy, so importing this for `drizzle-kit generate` stays connection-free
-// ---- The context library: reusable, workspace-shared grounding for generation + chat ----
+// The context library: reusable, workspace-shared grounding for generation + chat
 
 // a named, reusable collection of grounding material; workspace-scoped = shared with the team
 export const contexts = pgTable(

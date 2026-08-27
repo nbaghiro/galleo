@@ -378,7 +378,6 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
 // Metered like any other model call; `previous` marks a re-read, so the model rules that out and
 // comes back with another angle.
 
-// ---- the one direct-call envelope --------------------------------------------------------------
 //
 // Every route below runs its tool through the executor rather than calling the body and reserving
 // beside it. That is what keeps one tool costing the same however it was reached: before this, a
@@ -430,7 +429,12 @@ function refused(
     if (out.reason === "credits") return c.json(creditRefusal(ws, out), 402);
     if (out.reason === "entitlement")
         return c.json(
-            { error: "That needs a higher plan.", reason: "feature" as const, upgrade: true },
+            {
+                error: "That needs a higher plan.",
+                reason: "feature" as const,
+                feature: out.feature,
+                upgrade: true,
+            },
             402,
         );
     if (out.reason === "bad-input") return c.json({ error: out.issues.join("; ") }, 400);
