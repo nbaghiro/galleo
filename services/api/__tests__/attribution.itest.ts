@@ -111,12 +111,10 @@ describe("billing summary", () => {
     it("carries the reset date, storage, and a counted artifact total", async () => {
         const owner = await seedUser({ plan: "pro" });
         await db.insert(schema.artifacts).values([
-            { workspaceId: owner.workspaceId, formatId: "deck", themeId: "studio" },
-            { workspaceId: owner.workspaceId, formatId: "deck", themeId: "studio" },
+            { workspaceId: owner.workspaceId },
+            { workspaceId: owner.workspaceId },
             {
                 workspaceId: owner.workspaceId,
-                formatId: "deck",
-                themeId: "studio",
                 trashedAt: new Date(),
             },
         ]);

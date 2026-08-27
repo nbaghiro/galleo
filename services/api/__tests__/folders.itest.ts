@@ -85,11 +85,11 @@ describe("folder routes", () => {
 
         const [inParent] = await db
             .insert(schema.artifacts)
-            .values({ workspaceId, formatId: "deck", themeId: "studio", folderId: parent!.id })
+            .values({ workspaceId, folderId: parent!.id })
             .returning({ id: schema.artifacts.id });
         const [inChild] = await db
             .insert(schema.artifacts)
-            .values({ workspaceId, formatId: "deck", themeId: "studio", folderId: child!.id })
+            .values({ workspaceId, folderId: child!.id })
             .returning({ id: schema.artifacts.id });
 
         const res = await authed(userId, `/folders/${parent!.id}`, { method: "DELETE" });

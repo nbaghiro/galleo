@@ -88,8 +88,6 @@ async function seedArtifact(
         .insert(schema.artifacts)
         .values({
             workspaceId,
-            formatId: "deck",
-            themeId: "studio",
             ...(userId ? { createdBy: userId } : {}),
             draftContent: c as typeof schema.artifacts.$inferInsert.draftContent,
         })

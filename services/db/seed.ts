@@ -18,7 +18,6 @@ import { embeddingReady } from "@services/core/ai/provider";
 import { modelFor } from "@services/core/models";
 import { templateBody } from "@services/core/templates";
 import { seedShelf } from "@services/core/voices";
-import { seedMusicShelf } from "@services/core/soundtrack";
 import { CORPUS_TITLES } from "./seed/artifacts";
 import { DEMO_ASSETS } from "./seed/assets";
 import { DEMO_CONTEXTS } from "./seed/contexts";
@@ -288,8 +287,6 @@ async function seedArtifacts(
                 .values({
                     workspaceId: wsId,
                     title: d.title,
-                    formatId: d.artifact.format,
-                    themeId: d.artifact.theme,
                     ...columns,
                     folderId,
                     createdBy,
@@ -312,8 +309,6 @@ async function seedArtifacts(
         await db.insert(schema.artifacts).values({
             workspaceId: wsId,
             title: d.title,
-            formatId: d.artifact.format,
-            themeId: d.artifact.theme,
             ...columns,
             createdBy,
             createdAt: ago(t.daysAgo + 20),
@@ -638,21 +633,6 @@ async function seed(): Promise<void> {
         if (adopted) log(`• ${adopted} narration voices adopted and shelved`);
     } catch (e) {
         warn(`voices not seeded: ${e instanceof Error ? e.message : String(e)}`);
-    }
-
-    // The house beds, on every shelf whose plan can play them. Composed once per environment: the
-    // presets are install-wide and the seed never clears the catalog, so a reseed only re-shelves.
-    try {
-        const composed = await seedMusicShelf(
-            allWorkspaces.map((w) => ({
-                id: w.id,
-                music: resolveFeatures(w.plan as PlanId, w.featureOverrides ?? undefined)
-                    .backgroundMusic,
-            })),
-        );
-        if (composed) log(`• ${composed} house beds composed and shelved`);
-    } catch (e) {
-        warn(`music not seeded: ${e instanceof Error ? e.message : String(e)}`);
     }
 
     log(`\nLog in with:  ${DEMO_EMAIL}  /  ${DEMO_PASSWORD}`);

@@ -43,11 +43,18 @@ const content = (music?: ArtifactContent["music"]): ArtifactContent => ({
 
 async function seedArtifact(
     workspaceId: string,
-    over: Partial<typeof schema.artifacts.$inferInsert> = {},
+    over: Partial<typeof schema.artifacts.$inferInsert> & { theme?: string } = {},
 ): Promise<string> {
+    // theme_id is a generated column over draft_content, so a fixture asking for a theme is asking
+    // for it in the tree
+    const { theme, ...rest } = over;
     const [a] = await db
         .insert(schema.artifacts)
-        .values({ workspaceId, formatId: "deck", themeId: "studio", ...over })
+        .values({
+            workspaceId,
+            ...rest,
+            ...(theme ? { draftContent: { format: "deck", theme, sections: [] } } : {}),
+        })
         .returning({ id: schema.artifacts.id });
     return a!.id;
 }
@@ -186,7 +193,6 @@ describe("selfDescription", () => {
     it("reads a built-in theme without asking the database about a slug", async () => {
         const { workspaceId } = await seedUser({});
         const artifactId = await seedArtifact(workspaceId, {
-            themeId: "studio",
             title: "The Private Ledger",
         });
         const got = await selfDescription(artifactId);
@@ -200,7 +206,7 @@ describe("selfDescription", () => {
         const { workspaceId } = await seedUser({});
         const dark = Object.values(THEMES).find((t) => t.dark);
         expect(dark).toBeDefined();
-        const artifactId = await seedArtifact(workspaceId, { themeId: dark!.id });
+        const artifactId = await seedArtifact(workspaceId, { theme: dark!.id });
         expect((await selfDescription(artifactId)).theme.isDark).toBe(true);
 
         await composeForArtifact(artifactId, content(), 60_000, composer().fetch);
@@ -223,7 +229,7 @@ describe("selfDescription", () => {
                 isDark: true,
             })
             .returning({ id: schema.themes.id });
-        const artifactId = await seedArtifact(workspaceId, { themeId: t!.id });
+        const artifactId = await seedArtifact(workspaceId, { theme: t!.id });
         const got = await selfDescription(artifactId);
         expect(got.theme.mood).toBe("quiet and editorial");
         expect(got.theme.isDark).toBe(true);
@@ -231,7 +237,7 @@ describe("selfDescription", () => {
 
     it("falls back to the raw id for a theme nothing knows about", async () => {
         const { workspaceId } = await seedUser({});
-        const artifactId = await seedArtifact(workspaceId, { themeId: "no-such-theme" });
+        const artifactId = await seedArtifact(workspaceId, { theme: "no-such-theme" });
         expect((await selfDescription(artifactId)).theme.tag).toBe("no-such-theme");
     });
 });

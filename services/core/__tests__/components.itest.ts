@@ -103,8 +103,6 @@ describe("the ui:// components", () => {
         const { userId, workspaceId } = await seedUser();
         await createArtifact(workspaceId, userId, {
             title: "Northwind pitch",
-            themeId: "studio",
-            formatId: "deck",
             draftContent: DECK,
         });
 
@@ -121,8 +119,6 @@ describe("the ui:// components", () => {
         const { userId, workspaceId } = await seedUser();
         const artifactId = (await createArtifact(workspaceId, userId, {
             title: "Carousel target",
-            themeId: "studio",
-            formatId: "deck",
             draftContent: DECK,
         }))!;
 

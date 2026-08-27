@@ -268,20 +268,34 @@ export async function contentColumns(
     return { columns: contentWrite(normalized), assetIds: assetIdsOf(normalized) };
 }
 
+/**
+ * A caller naming a format or a theme is naming it in the content, because that is the only place
+ * either is stored: `format_id` and `theme_id` are generated columns over `draft_content`, and a
+ * write to one is a Postgres error rather than a divergence. What the caller sends wins over what
+ * the tree already said, which is the precedence the columns used to have.
+ */
+const withShell = (content: unknown, shell: { formatId?: string; themeId?: string }): unknown =>
+    !content || typeof content !== "object"
+        ? content
+        : {
+              ...(content as Record<string, unknown>),
+              ...(shell.formatId ? { format: shell.formatId } : {}),
+              ...(shell.themeId ? { theme: shell.themeId } : {}),
+          };
+
 export async function createArtifact(
     workspaceId: string,
     userId: string,
     body: ArtifactInput,
 ): Promise<string | null> {
     return db.transaction(async (tx) => {
-        const { columns, assetIds } = await contentColumns(workspaceId, body.draftContent, tx);
+        const content = withShell(body.draftContent, body);
+        const { columns, assetIds } = await contentColumns(workspaceId, content, tx);
         const [a] = await tx
             .insert(schema.artifacts)
             .values({
                 workspaceId,
                 title: body.title ?? "Untitled",
-                formatId: body.formatId ?? "deck",
-                themeId: body.themeId ?? "studio",
                 ...columns,
                 folderId: body.folderId ?? null,
                 aiMeta: body.aiMeta ?? null,
@@ -481,13 +495,14 @@ export function applyContentOps(
         if (!row) return { status: 404 as const, error: "not found" };
         const next = applySectionOps(asContent(row.draftContent), ops);
         if (!next.ok) return { status: 409 as const, error: next.reason };
-        const { columns, assetIds } = await contentColumns(workspaceId, next.content, tx);
+        // A `shell` op already carries these into the tree; a caller naming them alongside its ops
+        // is saying the same thing, so both land in one place rather than in a second column.
+        const content = withShell(next.content, shell);
+        const { columns, assetIds } = await contentColumns(workspaceId, content, tx);
         const [saved] = await tx
             .update(schema.artifacts)
             .set({
                 ...columns,
-                ...(shell.themeId !== undefined ? { themeId: shell.themeId } : {}),
-                ...(shell.formatId !== undefined ? { formatId: shell.formatId } : {}),
                 updatedAt: new Date(),
                 seq: nextSeq,
             })
@@ -508,11 +523,23 @@ export async function updateArtifact(workspaceId: string, id: string, body: Arti
         const patch: Record<string, unknown> = {};
         let assetIds: string[] | null = null;
         if (body.title !== undefined) patch.title = body.title;
-        if (body.themeId !== undefined) patch.themeId = body.themeId;
-        if (body.formatId !== undefined) patch.formatId = body.formatId;
+        // A format or a theme is a change to the content, since that is where both live. Naming one
+        // without sending a tree means reading the stored one and moving it, rather than writing a
+        // column: there is no column to write.
+        const shellOnly =
+            body.draftContent === undefined &&
+            (body.formatId !== undefined || body.themeId !== undefined);
+        const source = shellOnly
+            ? await tx
+                  .select({ draftContent: schema.artifacts.draftContent })
+                  .from(schema.artifacts)
+                  .where(owned(id, workspaceId))
+                  .for("update")
+                  .then(([row]) => row?.draftContent)
+            : body.draftContent;
         // re-derived, never trusted from the client
-        if (body.draftContent !== undefined) {
-            const derived = await contentColumns(workspaceId, body.draftContent, tx);
+        if (source !== undefined) {
+            const derived = await contentColumns(workspaceId, withShell(source, body), tx);
             Object.assign(patch, derived.columns);
             assetIds = derived.assetIds;
             patch.seq = nextSeq; // a whole-document save is a revision too, so the room can order it

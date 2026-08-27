@@ -47,8 +47,6 @@ const seedArtifact = async (workspaceId: string, title: string, text: string): P
         .values({
             workspaceId,
             title,
-            formatId: "deck",
-            themeId: "studio",
             draftContent: {
                 format: "deck",
                 theme: "studio",

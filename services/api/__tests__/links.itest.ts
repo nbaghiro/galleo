@@ -15,8 +15,6 @@ async function insertArtifact(
         .insert(schema.artifacts)
         .values({
             workspaceId,
-            formatId: "deck",
-            themeId: "studio",
             draftContent: content as typeof schema.artifacts.$inferInsert.draftContent,
             ...over,
         })

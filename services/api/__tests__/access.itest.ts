@@ -34,8 +34,6 @@ const makeArtifact = async (workspaceId: string, createdBy: string): Promise<str
             workspaceId,
             createdBy,
             title: "Locked deck",
-            formatId: "deck",
-            themeId: "studio",
             draftContent: { format: "deck", theme: "studio", sections: [] },
         })
         .returning({ id: schema.artifacts.id });

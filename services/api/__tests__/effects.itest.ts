@@ -85,8 +85,6 @@ describe("the effect path", () => {
         const { userId, workspaceId } = await seedUser();
         const artifactId = (await createArtifact(workspaceId, userId, {
             title: "Effect target",
-            themeId: "studio",
-            formatId: "deck",
             draftContent: {
                 format: "deck",
                 theme: "studio",
@@ -114,8 +112,6 @@ describe("the effect path", () => {
         const { userId, workspaceId } = await seedUser();
         const artifactId = (await createArtifact(workspaceId, userId, {
             title: "Trash target",
-            themeId: "studio",
-            formatId: "deck",
             draftContent: {
                 format: "deck",
                 theme: "studio",
@@ -147,8 +143,6 @@ describe("the effect path", () => {
         const { userId, workspaceId } = await seedUser();
         const artifactId = (await createArtifact(workspaceId, userId, {
             title: "Component target",
-            themeId: "studio",
-            formatId: "deck",
             draftContent: {
                 format: "deck",
                 theme: "studio",

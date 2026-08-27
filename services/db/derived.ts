@@ -24,6 +24,12 @@ const stampable = (v: unknown): v is ArtifactContent => {
 // silently stale, with nothing to detect it. ESLint blocks `draftContent` in a drizzle `.values()`/
 // `.set()` outside this file (no-restricted-syntax), so the columns cannot be written apart.
 // `search_tsv` is a generated column over `search_text`, so Postgres keeps that leg in sync itself.
+//
+// `format_id` and `theme_id` are the same kind of thing and are not here, because Postgres derives
+// them itself: they are generated columns over `draft_content` (schema.ts), so there is nothing for
+// a write path to remember and nothing that can disagree. They were ordinary columns once, passed
+// by hand at each write, and the collaboration room did not pass them, so a format switch left the
+// library saying DECK on a piece that opened as a site.
 export function contentWrite(content: unknown): {
     draftContent: unknown;
     digest: ArtifactDigest;

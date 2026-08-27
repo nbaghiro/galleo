@@ -127,7 +127,7 @@ describe("AI routes — unconfigured provider", () => {
             const stranger = await seedUser();
             const [a] = await db
                 .insert(schema.artifacts)
-                .values({ workspaceId: owner.workspaceId, formatId: "deck", themeId: "studio" })
+                .values({ workspaceId: owner.workspaceId })
                 .returning({ id: schema.artifacts.id });
             const res = await authed(stranger.userId, "/ai/notes", notesFor(a!.id));
             expect(res.status).toBe(404);
@@ -140,7 +140,7 @@ describe("AI routes — unconfigured provider", () => {
             const guest = await seedUser();
             const [a] = await db
                 .insert(schema.artifacts)
-                .values({ workspaceId: owner.workspaceId, formatId: "deck", themeId: "studio" })
+                .values({ workspaceId: owner.workspaceId })
                 .returning({ id: schema.artifacts.id });
             await db.insert(schema.artifactGrants).values({
                 artifactId: a!.id,
@@ -158,7 +158,7 @@ describe("AI routes — unconfigured provider", () => {
             const guest = await seedUser();
             const [a] = await db
                 .insert(schema.artifacts)
-                .values({ workspaceId: owner.workspaceId, formatId: "deck", themeId: "studio" })
+                .values({ workspaceId: owner.workspaceId })
                 .returning({ id: schema.artifacts.id });
             await db.insert(schema.artifactGrants).values({
                 artifactId: a!.id,

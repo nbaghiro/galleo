@@ -64,8 +64,6 @@ async function seedNarrated(plan = "pro"): Promise<{
         .insert(schema.artifacts)
         .values({
             workspaceId,
-            formatId: "deck",
-            themeId: "studio",
             draftContent: CONTENT as typeof schema.artifacts.$inferInsert.draftContent,
         })
         .returning({ id: schema.artifacts.id });
@@ -165,8 +163,6 @@ describe("GET /p/:slug/narration", () => {
             .insert(schema.artifacts)
             .values({
                 workspaceId,
-                formatId: "deck",
-                themeId: "studio",
                 draftContent: both as typeof schema.artifacts.$inferInsert.draftContent,
             })
             .returning({ id: schema.artifacts.id });
@@ -282,8 +278,6 @@ describe("the narration entitlement", () => {
             .insert(schema.artifacts)
             .values({
                 workspaceId,
-                formatId: "deck",
-                themeId: "studio",
                 draftContent: CONTENT as typeof schema.artifacts.$inferInsert.draftContent,
             })
             .returning({ id: schema.artifacts.id });
@@ -308,8 +302,6 @@ describe("who pays when a collaborator narrates someone else's artifact", () => 
             .insert(schema.artifacts)
             .values({
                 workspaceId: owner.workspaceId,
-                formatId: "deck",
-                themeId: "studio",
                 draftContent: CONTENT as typeof schema.artifacts.$inferInsert.draftContent,
             })
             .returning({ id: schema.artifacts.id });

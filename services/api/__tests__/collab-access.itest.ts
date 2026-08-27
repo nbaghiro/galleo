@@ -36,8 +36,6 @@ const makeArtifact = async (workspaceId: string, createdBy: string): Promise<str
             workspaceId,
             createdBy,
             title: "Quarterly review",
-            formatId: "deck",
-            themeId: "studio",
             draftContent: {
                 format: "deck",
                 theme: "studio",

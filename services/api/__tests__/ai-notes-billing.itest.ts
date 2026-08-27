@@ -41,8 +41,6 @@ describe("POST /ai/notes bills the artifact's workspace", () => {
             .insert(schema.artifacts)
             .values({
                 workspaceId: owner.workspaceId,
-                formatId: "deck",
-                themeId: "studio",
                 draftContent: {
                     format: "deck",
                     theme: "studio",

@@ -29,8 +29,6 @@ async function seedArtifact(
         .values({
             workspaceId,
             title: "Commented",
-            formatId: "deck",
-            themeId: "studio",
             draftContent: draft,
             digest: artifactDigest(draft),
             searchText: artifactSearchText(draft),
@@ -167,8 +165,6 @@ describe("POST /artifacts/:id/comments", () => {
             .values({
                 workspaceId: owner.workspaceId,
                 title: "Legacy",
-                formatId: "deck",
-                themeId: "studio",
                 draftContent: content(["s1"]),
             })
             .returning({ id: schema.artifacts.id });

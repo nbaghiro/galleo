@@ -39,8 +39,6 @@ async function seedArtifact(
         .values({
             workspaceId,
             title,
-            formatId: "deck",
-            themeId: "studio",
             draftContent: draft,
             digest: artifactDigest(draft),
             searchText: artifactSearchText(draft),

@@ -20,20 +20,22 @@ const content = (ids: string[]): Record<string, unknown> => ({
 async function seedArtifact(
     workspaceId: string,
     title: string,
-    over: Partial<typeof schema.artifacts.$inferInsert> = {},
+    over: Partial<typeof schema.artifacts.$inferInsert> & { format?: string } = {},
 ): Promise<string> {
-    const draft = over.draftContent ?? content(["s1", "s2"]);
+    // format_id is a generated column over draft_content, so a fixture asking for a format is
+    // asking for it in the tree
+    const { format, ...rest } = over;
+    const base = (rest.draftContent ?? content(["s1", "s2"])) as Record<string, unknown>;
+    const draft = format ? { ...base, format } : base;
     const [a] = await db
         .insert(schema.artifacts)
         .values({
             workspaceId,
             title,
-            formatId: "deck",
-            themeId: "studio",
             draftContent: draft,
             digest: artifactDigest(draft),
             searchText: artifactSearchText(draft),
-            ...over,
+            ...rest,
         })
         .returning({ id: schema.artifacts.id });
     return a!.id;
@@ -112,7 +114,7 @@ describe("GET /artifacts — keyset pagination", () => {
             .returning({ id: schema.folders.id });
         await seedArtifact(workspaceId, "in folder", { folderId: folder!.id });
         await seedArtifact(workspaceId, "loose deck");
-        await seedArtifact(workspaceId, "a site", { formatId: "web" });
+        await seedArtifact(workspaceId, "a site", { format: "web" });
 
         expect((await page(userId, `folder=${folder!.id}`)).artifacts.map((a) => a.title)).toEqual([
             "in folder",
@@ -196,8 +198,6 @@ describe("GET /artifacts/:id — windowed read", () => {
             .values({
                 workspaceId,
                 title: "Legacy",
-                formatId: "deck",
-                themeId: "studio",
                 draftContent: draft,
                 // an old digest: summaries without ids or sizes
                 digest: { cover: {}, sections: [{ kind: "cover" }, { kind: "content" }] },

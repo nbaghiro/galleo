@@ -37,8 +37,6 @@ async function insertArtifact(
         .insert(schema.artifacts)
         .values({
             workspaceId,
-            formatId: "deck",
-            themeId: "studio",
             ...(draft
                 ? { digest: artifactDigest(draft), searchText: artifactSearchText(draft) }
                 : {}),
@@ -51,11 +49,7 @@ async function insertArtifact(
 describe("artifact routes", () => {
     it("POST /artifacts creates a row and returns its id", async () => {
         const { userId, workspaceId } = await seedUser();
-        const res = await authed(
-            userId,
-            "/artifacts",
-            jsonInit("POST", { title: "My deck", formatId: "deck", themeId: "studio" }),
-        );
+        const res = await authed(userId, "/artifacts", jsonInit("POST", { title: "My deck" }));
         expect(res.status).toBe(200);
         const { id } = (await res.json()) as { id: string };
         expect(id).toBeTruthy();
@@ -67,10 +61,7 @@ describe("artifact routes", () => {
     });
 
     it("POST /artifacts 401s without a session", async () => {
-        const res = await request(
-            "/artifacts",
-            jsonInit("POST", { title: "x", formatId: "deck", themeId: "studio" }),
-        );
+        const res = await request("/artifacts", jsonInit("POST", { title: "x" }));
         expect(res.status).toBe(401);
     });
 
@@ -79,8 +70,6 @@ describe("artifact routes", () => {
         await db.insert(schema.artifacts).values(
             Array.from({ length: 10 }, () => ({
                 workspaceId,
-                formatId: "deck",
-                themeId: "studio",
             })),
         );
         const res = await authed(userId, "/artifacts", jsonInit("POST", { title: "one too many" }));
@@ -96,16 +85,12 @@ describe("artifact routes", () => {
             .insert(schema.artifacts)
             .values({
                 workspaceId,
-                formatId: "deck",
-                themeId: "studio",
                 trashedAt: new Date(),
             })
             .returning();
         await db.insert(schema.artifacts).values(
             Array.from({ length: 10 }, () => ({
                 workspaceId,
-                formatId: "deck",
-                themeId: "studio",
             })),
         );
         const res = await authed(userId, `/artifacts/${trashed!.id}/restore`, jsonInit("POST", {}));
@@ -124,8 +109,6 @@ describe("artifact routes", () => {
             .insert(schema.artifacts)
             .values({
                 workspaceId,
-                formatId: "deck",
-                themeId: "studio",
                 trashedAt: new Date(),
             })
             .returning();
@@ -144,8 +127,6 @@ describe("artifact routes", () => {
         await db.insert(schema.artifacts).values(
             Array.from({ length: 9 }, () => ({
                 workspaceId,
-                formatId: "deck",
-                themeId: "studio",
             })),
         );
         await insertArtifact(workspaceId, { trashedAt: new Date() });

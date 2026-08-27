@@ -99,8 +99,6 @@ describe("the derived checklist", () => {
             .values({
                 workspaceId: u.workspaceId,
                 title: "T",
-                formatId: "deck",
-                themeId: "studio",
                 createdBy: u.userId,
             })
             .returning();
@@ -120,8 +118,6 @@ describe("the derived checklist", () => {
         await db.insert(schema.artifacts).values({
             workspaceId: u.workspaceId,
             title: "T",
-            formatId: "deck",
-            themeId: "studio",
             createdBy: u.userId,
             trashedAt: new Date(),
         });
@@ -135,8 +131,6 @@ describe("the derived checklist", () => {
             .values({
                 workspaceId: u.workspaceId,
                 title: "T",
-                formatId: "deck",
-                themeId: "studio",
                 createdBy: u.userId,
             })
             .returning();
@@ -156,8 +150,6 @@ describe("the derived checklist", () => {
         await db.insert(schema.artifacts).values({
             workspaceId: u.workspaceId,
             title: "T",
-            formatId: "deck",
-            themeId: "studio",
             createdBy: u.userId,
         });
         expect((await stateOf(u)).needed).toBe(false);

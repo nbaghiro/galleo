@@ -62,8 +62,6 @@ async function seedArtifact(workspaceId: string, c: ArtifactContent): Promise<st
         .insert(schema.artifacts)
         .values({
             workspaceId,
-            formatId: "deck",
-            themeId: "studio",
             draftContent: c as typeof schema.artifacts.$inferInsert.draftContent,
         })
         .returning({ id: schema.artifacts.id });

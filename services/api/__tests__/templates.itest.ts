@@ -5,11 +5,7 @@ describe("template popularity", () => {
     it("counts creates that carry a templateId, and ignores made-up ids", async () => {
         const { userId } = await seedUser();
         const make = (templateId: string) =>
-            authed(
-                userId,
-                "/artifacts",
-                jsonInit("POST", { title: "T", formatId: "deck", themeId: "studio", templateId }),
-            );
+            authed(userId, "/artifacts", jsonInit("POST", { title: "T", templateId }));
         expect((await make("sales-deck")).status).toBe(200);
         expect((await make("sales-deck")).status).toBe(200);
         expect((await make("landing-page")).status).toBe(200);
