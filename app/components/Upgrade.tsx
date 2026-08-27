@@ -1,8 +1,9 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, Show } from "solid-js";
-import type { BoolFeature } from "@model/billing";
+import type { FeatureKey } from "@model/billing";
 import { upgradeFor } from "@model/billing";
 import { Button } from "@ui/button";
+import { Icon } from "@ui/icons";
 import { EmptyState } from "@ui/status";
 import { billing } from "@app/stores/billing";
 import { reportPaywall, statusOf } from "@app/stores/features";
@@ -14,17 +15,40 @@ import { go } from "@app/stores/navigate";
 // wrong tier.
 
 /** The one place a wall sends you; the plan grid and both flows live there. */
-export const UPGRADE_ROUTE = "/pricing";
+export const UPGRADE_ROUTE = "/settings/plan";
 
 /** Null when nothing sells it: either the caller is already on the top plan, or it is not built. */
-const target = (feature?: BoolFeature): ReturnType<typeof upgradeFor> =>
+const target = (feature?: FeatureKey): ReturnType<typeof upgradeFor> =>
     feature ? upgradeFor(feature, billing()?.plan) : null;
 
-const comingSoon = (feature?: BoolFeature): boolean => !!feature && statusOf(feature) === "planned";
+const comingSoon = (feature?: FeatureKey): boolean => !!feature && statusOf(feature) === "planned";
+
+/**
+ * The wall as data, for a surface that cannot render our components (a `@ui` component taking an
+ * injected lock, a plain string site). Same derivation, same route, and the paywall report fires at
+ * this seam, so an injection site cannot forget it.
+ */
+export function featureWall(
+    feature: FeatureKey,
+    describe: string,
+): { hint: string; onUpgrade: () => void } {
+    const plan = target(feature);
+    return {
+        hint: comingSoon(feature)
+            ? `${describe} is coming soon.`
+            : plan
+              ? `${describe} is available on ${plan.name} and above.`
+              : describe,
+        onUpgrade: () => {
+            reportPaywall(feature, plan?.id);
+            go(UPGRADE_ROUTE);
+        },
+    };
+}
 
 export const UpgradeButton: Component<{
     /** Names the tier in the label and hides the button when nothing sells the feature. */
-    feature?: BoolFeature;
+    feature?: FeatureKey;
     label?: string;
     variant?: "primary" | "outline" | "tool" | "ghost" | "link";
     size?: "sm" | "md" | "lg";
@@ -60,8 +84,8 @@ export const UpgradeButton: Component<{
  * user can read is worth more than a control that silently is not there.
  */
 export const UpgradeNotice: Component<{
-    /** Omit for a wall that no boolean feature describes, such as a model-tier limit. */
-    feature?: BoolFeature;
+    /** Omit only for a wall no feature key describes. */
+    feature?: FeatureKey;
     title: string;
     children: JSX.Element; // what the feature does, in the caller's own words
     onBefore?: () => void;
@@ -112,5 +136,50 @@ export const UpgradeNotice: Component<{
                 <UpgradeButton feature={props.feature} onBefore={props.onBefore} variant="tool" />
             </div>
         </Show>
+    );
+};
+
+/**
+ * The one-line lock for a list row, a menu entry, or a note under a control: too small for a
+ * notice, still a wall the user can read and act on. Reports like UpgradeNotice does: on render,
+ * once the plan is known.
+ */
+export const UpgradeLock: Component<{
+    feature: FeatureKey;
+    children: JSX.Element; // the sentence naming what is locked, in the caller's words
+    onBefore?: () => void;
+    class?: string;
+}> = (props) => {
+    const plan = (): ReturnType<typeof upgradeFor> => target(props.feature);
+    let reported = false;
+    createEffect(() => {
+        if (!reported) reported = reportPaywall(props.feature, plan()?.id);
+    });
+    const where = (): string =>
+        comingSoon(props.feature)
+            ? "Coming soon."
+            : plan()
+              ? `Available on ${plan()!.name} and above.`
+              : "";
+    return (
+        <span
+            class={`inline-flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted ${props.class ?? ""}`}
+        >
+            <Icon name="lock" size={11} />
+            <span>
+                {props.children} {where()}
+            </span>
+            <Show when={!comingSoon(props.feature)}>
+                <button
+                    class="font-semibold text-accent"
+                    onClick={() => {
+                        props.onBefore?.();
+                        go(UPGRADE_ROUTE);
+                    }}
+                >
+                    Upgrade →
+                </button>
+            </Show>
+        </span>
     );
 };

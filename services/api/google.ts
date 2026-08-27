@@ -24,7 +24,12 @@ google.post("/google/slides", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!featuresFor(ws).exportFormats.includes("slides"))
         return c.json(
-            { error: "Google Slides export needs a paid plan.", reason: "feature", upgrade: true },
+            {
+                error: "Google Slides export needs a paid plan.",
+                reason: "feature",
+                feature: "exportFormats",
+                upgrade: true,
+            },
             402,
         );
     const body = await readJson(c, zSlides);

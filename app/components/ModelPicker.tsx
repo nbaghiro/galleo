@@ -144,7 +144,7 @@ export const ModelPickerModal: Component = () => {
                     {/* the list marks locked models but a mark does not say what to do about it */}
                     <Show when={(info()?.models ?? []).some((m) => m.locked)}>
                         <div class="mt-3">
-                            <UpgradeNotice title="Premium models">
+                            <UpgradeNotice feature="textModelTier" title="Premium models">
                                 Models marked “upgrade” sit above your plan’s tier, so a run falls
                                 back to the default.
                             </UpgradeNotice>

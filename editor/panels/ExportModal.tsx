@@ -1,6 +1,7 @@
 import type { Component } from "solid-js";
 import { createMemo, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import type { ExportFormat } from "@model/billing";
+import { upgradeFor } from "@model/billing";
 import type { ArtifactContent } from "@model/artifact";
 import type { MediaCredit } from "@model/media";
 import { profileFor } from "@engine/profile";
@@ -259,6 +260,11 @@ const Body: Component = () => {
     });
 
     const allowed = (d: Dest): boolean => features().exportFormats.includes(d);
+    // tier naming comes from the catalog via the host's plan, so editor walls read like app walls
+    const unlockPlan = (): string =>
+        upgradeFor("exportFormats", features().planId)?.name ?? "a higher plan";
+    const brandPlan = (): string | null =>
+        upgradeFor("removeBranding", features().planId)?.name ?? null;
     const run = async (): Promise<void> => {
         const d = dest();
         const sections = editor.artifact.sections.length;
@@ -405,13 +411,39 @@ const Body: Component = () => {
             </div>
 
             <div class="flex items-center gap-2.5 border-t border-line px-5 py-3">
-                <Show when={!features().removeBranding}>
-                    <span class="text-[12px] text-muted">
-                        Adds a small "Made with Galleo" mark.{" "}
-                        <button class="font-semibold text-accent" onClick={() => requestUpgrade()}>
-                            Upgrade to remove
-                        </button>
-                    </span>
+                {/* one line at a time: a locked destination outranks the watermark note */}
+                <Show
+                    when={allowed(dest())}
+                    fallback={
+                        <span class="text-[12px] text-muted">
+                            {DESTS.find((d) => d.id === dest())?.label} export is available on{" "}
+                            {unlockPlan()}.{" "}
+                            <button
+                                class="font-semibold text-accent"
+                                onClick={() => {
+                                    capture("paywall_hit", {
+                                        feature: "exportFormats",
+                                        upgrade_offered: true,
+                                    });
+                                    requestUpgrade();
+                                }}
+                            >
+                                Upgrade →
+                            </button>
+                        </span>
+                    }
+                >
+                    <Show when={!features().removeBranding}>
+                        <span class="text-[12px] text-muted">
+                            Adds a small "Made with Galleo" mark.{" "}
+                            <button
+                                class="font-semibold text-accent"
+                                onClick={() => requestUpgrade()}
+                            >
+                                {brandPlan() ? `Remove on ${brandPlan()!} →` : "Upgrade to remove"}
+                            </button>
+                        </span>
+                    </Show>
                 </Show>
                 <div class="flex-1" />
                 <Show when={dest() === "slides" && sentUrl()?.fp === fp() && sentUrl()}>

@@ -1,6 +1,9 @@
 import { createSignal } from "solid-js";
+import type { FeatureKey } from "@model/billing";
+import { FEATURES, upgradeFor } from "@model/billing";
 import type { PaywallReason } from "@app/api";
 import { ApiError } from "@app/api";
+import { billing } from "./billing";
 import { areaFor } from "@model/analytics";
 import { capture } from "@ui/analytics";
 
@@ -14,6 +17,7 @@ export interface AppError {
     hint?: string; // what the user can do about it
     upgrade?: boolean; // a higher plan exists, so offer the pricing route
     topUp?: boolean; // the plan may buy credit packs, the only remedy left on the top plan
+    feature?: FeatureKey; // the gate a feature 402 named, so the CTA can sell the right tier
 }
 
 const [appError, setAppError] = createSignal<AppError | null>(null);
@@ -89,14 +93,21 @@ export function describeError(e: unknown, doing: string): AppError | null {
     const raw = message(e).trim();
     if (e instanceof ApiError) {
         if (e.status === 402) {
-            const { upgrade, topUp, reason } = e.remedies;
+            const { upgrade, topUp, reason, feature } = e.remedies;
             const wall = PAYWALL[reason ?? "credits"];
+            // a feature wall that names its gate can also name the tier that lifts it
+            const tier =
+                reason === "feature" && feature ? upgradeFor(feature, billing()?.plan) : null;
             return {
                 title: wall.title,
                 detail: raw && raw !== wall.title ? raw : undefined,
-                hint: wall.hint ?? creditHint(upgrade, topUp),
+                hint:
+                    tier && feature
+                        ? `${FEATURES[feature].label} is available on ${tier.name} and above.`
+                        : (wall.hint ?? creditHint(upgrade, topUp)),
                 upgrade,
                 topUp,
+                feature,
             };
         }
         const known = STATUS[e.status];

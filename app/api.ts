@@ -7,7 +7,6 @@ import type {
     ArtifactWindow,
     Collaborator,
     ContentPatch,
-    GenMeta,
     ElementInstance,
     SearchResponse,
     Section,
@@ -322,6 +321,7 @@ export interface ErrorRemedies {
     topUp?: boolean;
     remaining?: number;
     reason?: PaywallReason;
+    feature?: FeatureKey; // which gate a feature-reason 402 hit, so the wall can name the tier
     // billing-route hints: the fix is a different route on the same page
     useChangePlan?: boolean;
     useCheckout?: boolean;
@@ -333,6 +333,7 @@ const remediesOf = (body: { error?: string } & ErrorRemedies): ErrorRemedies => 
     topUp: body.topUp,
     remaining: body.remaining,
     reason: body.reason,
+    feature: body.feature,
     useChangePlan: body.useChangePlan,
     useCheckout: body.useCheckout,
 });
@@ -492,8 +493,6 @@ export const api = {
         ),
     createArtifact: (patch: ArtifactInput) =>
         req<{ id: string }>("/artifacts", { method: "POST", body: JSON.stringify(patch) }),
-    getAiMeta: (id: string) =>
-        req<{ meta: GenMeta | null }>(`/artifacts/${id}/ai-meta`).then((r) => r.meta),
     narrationManifest: (id: string) => req<NarrationManifest>(`/artifacts/${id}/narration`),
     // records the section if it has never been spoken; null when it has nothing to say
     narrateSection: (id: string, sectionId: string, content?: ArtifactContent) =>
@@ -774,8 +773,6 @@ export const api = {
     },
     deleteMedia: (id: string) => req<{ ok: true }>(`/media/asset/${id}`, { method: "DELETE" }),
     artifactCredits: (id: string) => req<{ credits: MediaCredit[] }>(`/artifacts/${id}/credits`),
-    mediaUsage: (id: string) =>
-        req<{ usedBy: { id: string; title: string }[] }>(`/media/asset/${id}/usage`),
     adoptLink: (url: string) =>
         req<{ url: string }>("/media/link", { method: "POST", body: JSON.stringify({ url }) }),
     googleSlides: (data: string, name: string) =>

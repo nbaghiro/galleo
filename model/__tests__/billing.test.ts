@@ -22,6 +22,7 @@ import {
     rolloverCapFor,
     sellsSeats,
     resolveFeatures,
+    upgradeFor,
     visiblePlans,
     withinLimit,
 } from "@model/billing";
@@ -294,5 +295,32 @@ describe("the rollover cap", () => {
     it("handles a zero grant and never returns a negative", () => {
         expect(clipGrant(0, 0, 0, cap)).toBe(0);
         expect(clipGrant(grant, cap * 3, 0, cap)).toBe(0);
+    });
+});
+
+describe("upgradeFor across feature kinds", () => {
+    it("finds the cheapest plan that turns a boolean on", () => {
+        expect(upgradeFor("publicLinks", "free")?.id).toBe("pro");
+        expect(upgradeFor("analytics", "free")?.id).toBe("premium");
+        expect(upgradeFor("analytics", "premium")).toBeNull();
+    });
+
+    it("treats a bigger or unlimited number as an upgrade", () => {
+        expect(upgradeFor("maxSectionsPerGeneration", "free")?.id).toBe("pro");
+        expect(upgradeFor("maxArtifacts", "free")?.id).toBe("pro"); // 10 -> unlimited
+        expect(upgradeFor("maxArtifacts", "pro")).toBeNull(); // already unlimited
+        expect(upgradeFor("maxWorkspaceVoices", "pro")?.id).toBe("premium"); // 12 -> unlimited
+    });
+
+    it("ranks model tiers and export formats", () => {
+        expect(upgradeFor("textModelTier", "free")?.id).toBe("pro");
+        expect(upgradeFor("textModelTier", "pro")).toBeNull();
+        expect(upgradeFor("exportFormats", "free")?.id).toBe("pro");
+        expect(upgradeFor("exportFormats", "pro")).toBeNull();
+    });
+
+    it("never offers a plan for an unbuilt feature", () => {
+        expect(upgradeFor("sso", "free")).toBeNull();
+        expect(upgradeFor("customDomains", "free")).toBeNull(); // planned resolves to 0 everywhere
     });
 });

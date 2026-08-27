@@ -1,7 +1,13 @@
 import { createSignal } from "solid-js";
-import type { BoolFeature, ExportFormat, FeatureKey, FeatureStatus } from "@model/billing";
+import type {
+    BoolFeature,
+    ExportFormat,
+    FeatureKey,
+    FeatureStatus,
+    NumFeature,
+} from "@model/billing";
 import type { PlanId } from "@model/billing";
-import { featureStatus, PLANS } from "@model/billing";
+import { featureStatus, PLANS, resolveFeatures } from "@model/billing";
 import { capture } from "@ui/analytics";
 import { billing } from "./billing";
 import type { FeaturesState } from "@app/api";
@@ -21,6 +27,8 @@ export async function loadFeatures(): Promise<void> {
 // Read through these, never through limitsFor(plan): only the resolved set carries the workspace's
 // featureOverrides and each feature's launch status. Before /features loads, Free is the safe answer.
 export const can = (key: BoolFeature): boolean => featuresState()?.features[key] ?? false;
+export const limitOf = (key: NumFeature): number =>
+    featuresState()?.features[key] ?? resolveFeatures("free")[key];
 export const exportFormatsOf = (): ExportFormat[] =>
     featuresState()?.features.exportFormats ?? PLANS.free.features.exportFormats;
 export const statusOf = (key: FeatureKey): FeatureStatus =>

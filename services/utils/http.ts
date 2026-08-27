@@ -118,7 +118,7 @@ export function requireFeature(
 ): Response | null {
     return can(featuresFor(ws), key)
         ? null
-        : c.json({ error: message, reason: "feature" as const, upgrade: true }, 402);
+        : c.json({ error: message, reason: "feature" as const, feature: key, upgrade: true }, 402);
 }
 
 export function checkLimit(
@@ -135,6 +135,7 @@ export function checkLimit(
         {
             error: message?.(cap) ?? `Your plan is limited to ${cap} — upgrade for more.`,
             reason: "feature" as const,
+            feature: key,
             upgrade: true,
         },
         402,

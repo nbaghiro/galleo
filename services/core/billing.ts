@@ -320,9 +320,9 @@ export async function checkoutUrl(
         custom_text: {
             submit: { message: "Change or cancel your plan anytime from Billing." },
         },
-        success_url: appUrl("/pricing?status=success"),
+        success_url: appUrl("/settings/plan?status=success"),
         // the plan rides along so a backed-out checkout can be attributed to what it was for
-        cancel_url: appUrl(`/pricing?status=cancel&plan=${want.plan}`),
+        cancel_url: appUrl(`/settings/plan?status=cancel&plan=${want.plan}`),
     });
     return session.url;
 }
@@ -349,10 +349,10 @@ export async function topupUrl(
         line_items: [{ price, quantity: 1 }],
         client_reference_id: ws.id,
         metadata: { workspaceId: ws.id, pack: pack.id },
-        success_url: appUrl("/pricing?status=topup-success"),
+        success_url: appUrl("/settings/billing?status=topup-success"),
         // distinct from the plan checkout's cancel so a backed-out pack is not counted as an
         // abandoned plan checkout
-        cancel_url: appUrl("/pricing?status=topup-cancel"),
+        cancel_url: appUrl("/settings/billing?status=topup-cancel"),
     });
     return { url: session.url };
 }
@@ -360,7 +360,7 @@ export async function topupUrl(
 export async function portalUrl(customerId: string): Promise<string | null> {
     const session = await stripe().billingPortal.sessions.create({
         customer: customerId,
-        return_url: appUrl("/pricing"),
+        return_url: appUrl("/settings/billing"),
         ...(process.env.STRIPE_PORTAL_CONFIG
             ? { configuration: process.env.STRIPE_PORTAL_CONFIG }
             : {}),

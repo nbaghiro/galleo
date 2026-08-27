@@ -50,6 +50,7 @@ describe("plan guards", () => {
         expect(await body(res)).toEqual({
             error: "Themes are Pro.",
             reason: "feature",
+            feature: "customThemes",
             upgrade: true,
         });
     });
@@ -68,6 +69,7 @@ describe("plan guards", () => {
         expect(await body(await app.request("/message"))).toEqual({
             error: "Free tops out at 10.",
             reason: "feature",
+            feature: "maxArtifacts",
             upgrade: true,
         });
     });

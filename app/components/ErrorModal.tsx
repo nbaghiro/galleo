@@ -38,7 +38,11 @@ export const ErrorModal: Component = () => (
                 <div class="mt-4 flex items-center justify-end gap-2">
                     {/* both can apply on a mid-tier plan; the top plan gets only the pack */}
                     <Show when={err().upgrade}>
-                        <UpgradeButton variant="outline" onBefore={dismissError} />
+                        <UpgradeButton
+                            feature={err().feature}
+                            variant="outline"
+                            onBefore={dismissError}
+                        />
                     </Show>
                     <Show when={err().topUp}>
                         <Button
@@ -46,7 +50,7 @@ export const ErrorModal: Component = () => (
                             size="sm"
                             onClick={() => {
                                 dismissError();
-                                go("/pricing#credits");
+                                go("/settings/billing#credits");
                             }}
                         >
                             Buy credits

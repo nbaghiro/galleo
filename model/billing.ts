@@ -128,9 +128,6 @@ export const ADD_ONS: Record<AddOnId, AddOn> = {
 
 export const ADD_ON_IDS: AddOnId[] = ["seat"];
 
-export const addOnFor = (id: string | null | undefined): AddOn | null =>
-    id === "seat" ? ADD_ONS.seat : null;
-
 /**
  * Credit packs: bought once, not subscribed to. They can share the single balance because unspent
  * credits roll over (see rollCreditWindow), so nothing is ever wiped and a purchase needs no pool of
@@ -309,12 +306,6 @@ export const visiblePlans = (): Plan[] =>
 export const sellsSeats = (id: string | null | undefined): boolean =>
     planFor(id).billing.sellsSeats;
 
-/** Whether the plan may buy either add-on, which is what makes a workspace's limit adjustable. */
-export const canBuyAddOns = (id: string | null | undefined): boolean => {
-    const b = planFor(id).billing;
-    return b.sellsSeats || b.sellsCredits;
-};
-
 /** The recurring add-ons this plan may buy. */
 export const addOnsFor = (id: string | null | undefined): AddOn[] =>
     planFor(id).billing.sellsSeats ? [ADD_ONS.seat] : [];
@@ -325,9 +316,27 @@ export const addOnsFor = (id: string | null | undefined): AddOn[] =>
  * caller can say "coming soon" instead of selling a plan that would not deliver it. Callers derive
  * their copy from this, so "available on Pro" cannot drift from the catalog.
  */
-export function upgradeFor(key: BoolFeature, from: string | null | undefined): Plan | null {
+const MODEL_TIER_RANK: Record<ModelTier, number> = { basic: 0, advanced: 1, premium: 2 };
+
+export function upgradeFor(key: FeatureKey, from: string | null | undefined): Plan | null {
     const cur = planFor(from);
-    return visiblePlans().find((p) => p.order > cur.order && resolveFeatures(p.id)[key]) ?? null;
+    const have = resolveFeatures(cur.id);
+    // "improves" per kind: a bool turns on, a number grows (or goes unlimited), a tier ranks
+    // higher, an export list gains formats
+    const better = (f: Features): boolean => {
+        const a = have[key];
+        const b = f[key];
+        if (typeof a === "boolean") return !a && b === true;
+        if (typeof a === "number")
+            return (
+                typeof b === "number" &&
+                (isUnlimited(b) ? !isUnlimited(a) : !isUnlimited(a) && b > a)
+            );
+        if (key === "exportFormats")
+            return (b as ExportFormat[]).length > (a as ExportFormat[]).length;
+        return MODEL_TIER_RANK[b as ModelTier] > MODEL_TIER_RANK[a as ModelTier];
+    };
+    return visiblePlans().find((p) => p.order > cur.order && better(resolveFeatures(p.id))) ?? null;
 }
 
 /** Whether a higher plan is actually on sale, so "upgrade" is a remedy we can offer. */
