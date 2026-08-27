@@ -13,24 +13,30 @@ export const DEMO_PASSWORD = "galleo-demo-2026";
 export interface Person {
     email: string;
     name: string;
-    avatar: string; // a real headshot, gender-matched to the name
+    avatar: string; // a real headshot, so member lists and cursors look like a real workspace
 }
 
 const portrait = (g: "men" | "women", n: number): string =>
     `https://randomuser.me/api/portraits/${g}/${n}.jpg`;
 
-// Every seeded account shares the demo password, so a role can be checked from the other side
-// too. Emails are demo+<role>@: the plus tag names the role that login demonstrates (their role in
-// the flagship workspace, or the perspective they exist to show), so the right account to test a
-// role is guessable from memory.
+// Every seeded account shares the demo password, so a role can be checked from the other side too.
+// Emails are demo+<role>@ and the display names say the same thing, so a member list reads as the
+// roles it is demonstrating rather than as a cast of invented people: whoever is looking at the
+// screen can tell which account they are without cross-referencing a name against an email.
 export const PEOPLE: Person[] = [
-    { email: DEMO_EMAIL, name: "Noah Bennett", avatar: portrait("men", 32) },
-    { email: "demo+admin@galleo.app", name: "Priya Raman", avatar: portrait("women", 65) },
-    { email: "demo+member@galleo.app", name: "Marcus Oyelaran", avatar: portrait("men", 22) },
-    { email: "demo+owner@galleo.app", name: "Hanna Lindqvist", avatar: portrait("women", 44) },
-    { email: "demo+invited@galleo.app", name: "Tomás Vidal", avatar: portrait("men", 75) },
-    { email: "demo+invited-admin@galleo.app", name: "June Park", avatar: portrait("women", 17) },
+    { email: DEMO_EMAIL, name: "Demo User", avatar: portrait("women", 44) },
+    { email: "demo+admin@galleo.app", name: "Demo Admin", avatar: portrait("women", 65) },
+    { email: "demo+member@galleo.app", name: "Demo Member", avatar: portrait("men", 22) },
+    { email: "demo+invited@galleo.app", name: "Demo Invitee", avatar: portrait("men", 75) },
 ];
+
+// What the demo universe used to hold and no longer declares. The seed upserts by slug and by
+// email, so anything dropped from the two lists above would otherwise sit in the database forever,
+// still logged-in-able and still showing in the workspace switcher. Listed rather than matched by
+// pattern on purpose: a real signup at a galleo.app address must never be reapable, and the local
+// database already holds several.
+export const RETIRED_SLUGS = ["ridgeline", "harbor", "weekend", "helios-climate"];
+export const RETIRED_EMAILS = ["demo+owner@galleo.app", "demo+invited-admin@galleo.app"];
 
 // a corpus artifact or a template body; seed.ts turns it into content, since both live in core/
 export type DocRef = { corpus: string } | { template: string };
@@ -137,20 +143,16 @@ export interface WorkspaceSpec {
 export const WORKSPACES: WorkspaceSpec[] = [
     {
         slug: "demo",
-        name: "Northwind Studio",
+        name: "Premium Workspace",
         plan: "premium",
         ownerEmail: DEMO_EMAIL, // the one they own: member management is the owner-only surface that works without Stripe
-        seats: 8, // 3 the plan includes + 5 bought as the seat add-on
-        openingBalance: 1600, // part-way through the cycle
+        seats: 5, // the 3 the plan includes plus 2 bought as the seat add-on
+        openingBalance: 1450, // part-way through a 2400 cycle
         members: [
             { email: "demo+admin@galleo.app", role: "admin" },
             { email: "demo+member@galleo.app", role: "member" },
-            { email: "demo+owner@galleo.app", role: "member" },
         ],
-        invites: [
-            { email: "demo+invited@galleo.app", role: "member", sentDaysAgo: 2 },
-            { email: "demo+invited-admin@galleo.app", role: "admin", sentDaysAgo: 9 },
-        ],
+        invites: [{ email: "demo+invited@galleo.app", role: "member", sentDaysAgo: 2 }],
         planStatus: "active",
         periodEndInDays: 21,
         windowStartedDaysAgo: 12,
@@ -245,7 +247,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
         templateUses: [
             { templateId: "series-a", by: DEMO_EMAIL, uses: 3 },
             { templateId: "landing-page", by: "demo+admin@galleo.app", uses: 2 },
-            { templateId: "annual-report", by: "demo+owner@galleo.app", uses: 1 },
+            { templateId: "annual-report", by: "demo+member@galleo.app", uses: 1 },
         ],
         ledger: [
             { at: 9, kind: "topup", pack: "pack-2k" },
@@ -303,7 +305,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 39,
                 usage: { plan: 1, section: 11, image: 2 },
-                by: "demo+owner@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 7,
@@ -343,7 +345,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-theme",
                 credits: 5,
                 usage: { theme: 1 },
-                by: "demo+owner@galleo.app",
+                by: "demo+member@galleo.app",
             },
             {
                 at: 1,
@@ -372,167 +374,67 @@ export const WORKSPACES: WorkspaceSpec[] = [
         ],
     },
     {
-        slug: "ridgeline",
-        name: "Ridgeline Partners",
-        plan: "premium",
-        ownerEmail: "demo+admin@galleo.app",
-        seats: 3, // exactly the plan's included seats, all taken, so an invite takes the no-seats 402
-        members: [
-            { email: DEMO_EMAIL, role: "admin" },
-            { email: "demo+member@galleo.app", role: "member" },
-        ],
+        slug: "pro",
+        name: "Pro Workspace",
+        plan: "pro",
+        ownerEmail: DEMO_EMAIL,
+        // Pro sells one seat, so a solo library is the whole shape of it: no members, no invites,
+        // and the artifact cap lifted, which is the difference a Pro subscriber is paying for.
+        seats: 1,
+        members: [],
         planStatus: "active",
-        periodEndInDays: 9,
-        scheduledChange: { plan: "pro", interval: "month", seats: 1 },
-        // a narrower artifact cap than Premium grants, so the override path is exercised in the
-        // restricting direction too
-        featureOverrides: { maxArtifacts: 40 },
-        openingBalance: 1100, // part-way through the cycle
-        windowStartedDaysAgo: 20,
+        periodEndInDays: 27,
+        openingBalance: 415, // part-way through a 700 cycle, before the spend below
+        windowStartedDaysAgo: 9,
         folders: [
             {
                 folder: "Client work",
                 docs: [
-                    { ref: { template: "qbr" } },
+                    { ref: { template: "project-proposal" } },
                     { ref: { template: "case-study" } },
-                    { ref: { template: "business-proposal" } },
+                    { ref: { template: "sow" } },
                 ],
             },
             {
                 folder: null,
                 docs: [
-                    { ref: { template: "gtm-plan" } },
-                    { ref: { template: "project-proposal" } },
+                    { ref: { corpus: "fieldnotes" } },
+                    { ref: { template: "capabilities-deck" } },
+                    { ref: { template: "exec-summary" } },
                 ],
             },
         ],
-        trashed: [{ ref: { template: "sow" }, daysAgo: 4 }],
-        links: [
-            {
-                ref: { template: "qbr" },
-                slug: "ridgeline-qbr",
-                name: "Q3 review",
-                visibility: "public",
-                views: 21,
-                createdDaysAgo: 12,
-            },
-        ],
-        themes: [
-            {
-                from: "studio",
-                name: "Ridgeline slate",
-                accent: "#3b5bdb",
-                mood: "sharp, corporate",
-            },
-        ],
-        visits: [{ template: "qbr" }, { template: "case-study" }],
+        trashed: [{ ref: { template: "client-status" }, daysAgo: 4 }],
+        visits: [{ corpus: "fieldnotes" }],
+        // Lands near 415 of 700: room left, which is what a working Pro month looks like. Pro runs
+        // the better models, so a generation costs more per section than it does on Free.
         ledger: [
-            {
-                at: 24,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 45,
-                usage: { plan: 1, section: 13, image: 3 },
-                by: "demo+admin@galleo.app",
-            },
-            {
-                at: 18,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 44,
-                usage: { plan: 1, section: 12, image: 3 },
-                by: "demo+admin@galleo.app",
-            },
-            {
-                at: 17,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 71,
-                usage: { plan: 1, section: 19, image: 6 },
-                by: DEMO_EMAIL,
-            },
-            {
-                at: 15,
-                kind: "spend",
-                tool: "ask-assistant",
-                credits: 13,
-                usage: { reply: 1 },
-                by: "demo+member@galleo.app",
-            },
-            {
-                at: 14,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 63,
-                usage: { plan: 1, section: 18, image: 4 },
-                by: "demo+admin@galleo.app",
-            },
-            {
-                at: 12,
-                kind: "spend",
-                tool: "ask-assistant",
-                credits: 26,
-                usage: { reply: 1 },
-                by: DEMO_EMAIL,
-            },
-            {
-                at: 11,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 58,
-                usage: { plan: 1, section: 16, image: 4 },
-                by: "demo+member@galleo.app",
-            },
-            {
-                at: 10,
-                kind: "spend",
-                tool: "generate-image",
-                credits: 20,
-                usage: { image: 4 },
-                by: DEMO_EMAIL,
-            },
-            {
-                at: 9,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 76,
-                usage: { plan: 1, section: 20, image: 6 },
-                by: "demo+admin@galleo.app",
-            },
-            {
-                at: 8,
-                kind: "spend",
-                tool: "ask-assistant",
-                credits: 24,
-                usage: { reply: 1 },
-                by: "demo+admin@galleo.app",
-            },
             {
                 at: 7,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 69,
-                usage: { plan: 1, section: 19, image: 5 },
+                credits: 68,
+                usage: { plan: 1, section: 14, image: 4 },
                 by: DEMO_EMAIL,
-            },
-            {
-                at: 6,
-                kind: "spend",
-                tool: "ask-assistant",
-                credits: 14,
-                usage: { reply: 1 },
-                by: "demo+member@galleo.app",
             },
             {
                 at: 5,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 81,
-                usage: { plan: 1, section: 22, image: 6 },
-                by: "demo+admin@galleo.app",
+                credits: 54,
+                usage: { plan: 1, section: 12, image: 2 },
+                by: DEMO_EMAIL,
             },
             {
-                at: 4,
+                at: 3,
+                kind: "spend",
+                tool: "rewrite-section",
+                credits: 4,
+                usage: { section: 1 },
+                by: DEMO_EMAIL,
+            },
+            {
+                at: 2,
                 kind: "spend",
                 tool: "generate-theme",
                 credits: 4,
@@ -540,49 +442,25 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 by: DEMO_EMAIL,
             },
             {
-                at: 3,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 74,
-                usage: { plan: 1, section: 20, image: 5 },
-                by: "demo+member@galleo.app",
-            },
-            {
-                at: 2,
-                kind: "spend",
-                tool: "ask-assistant",
-                credits: 31,
-                usage: { reply: 1 },
-                by: "demo+admin@galleo.app",
-            },
-            {
                 at: 1,
                 kind: "spend",
-                tool: "generate-artifact",
-                credits: 66,
-                usage: { plan: 1, section: 18, image: 5 },
-                by: DEMO_EMAIL,
-            },
-            {
-                at: 0.4,
-                kind: "spend",
-                tool: "rewrite-section",
-                credits: 3,
-                usage: { section: 1 },
+                tool: "generate-image",
+                credits: 25,
+                usage: { image: 5 },
                 by: DEMO_EMAIL,
             },
         ],
     },
     {
-        slug: "harbor",
-        name: "Harbor & Vine",
+        slug: "free",
+        name: "Free Workspace",
         plan: "free",
-        ownerEmail: "demo+member@galleo.app",
-        // a lapsed subscription: customer.subscription.deleted writes free + canceled + seats 1 and
-        // keeps the members, so two members over one seat is the real shape of a churned workspace
+        ownerEmail: DEMO_EMAIL,
+        // Free is one seat and the demo login holds it, so an invite has nowhere to go: the seat
+        // wall is reachable from the owner's own settings rather than needing a second account.
         seats: 1,
-        members: [{ email: DEMO_EMAIL, role: "admin" }],
-        planStatus: "canceled",
+        members: [],
+        planStatus: "active",
         // the Free cap is 500 MB and only stored bytes count, so narrow it to make the wall reachable
         featureOverrides: { storageMb: 1 },
         windowStartedDaysAgo: 6,
@@ -632,7 +510,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "ask-assistant",
                 credits: 2,
                 usage: { reply: 1 },
-                by: "demo+member@galleo.app",
+                by: DEMO_EMAIL,
             },
             { at: 6, kind: "grant" },
             {
@@ -649,7 +527,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-artifact",
                 credits: 20,
                 usage: { plan: 1, section: 6, image: 1 },
-                by: "demo+member@galleo.app",
+                by: DEMO_EMAIL,
             },
             {
                 at: 3,
@@ -673,7 +551,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 tool: "generate-image",
                 credits: 20,
                 usage: { image: 4 },
-                by: "demo+member@galleo.app",
+                by: DEMO_EMAIL,
             },
             {
                 at: 1,
@@ -698,144 +576,6 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 credits: 1,
                 usage: { text: 1 },
                 by: DEMO_EMAIL,
-            },
-        ],
-    },
-    {
-        slug: "weekend",
-        name: "Weekend Ideas",
-        plan: "pro",
-        ownerEmail: DEMO_EMAIL,
-        // the Pro fixture, and the empty state: Pro is single-seat, so demo has to own it. Being a
-        // plain member of someone else's workspace is covered by helios-climate.
-        seats: 1,
-        members: [],
-        planStatus: "active",
-        periodEndInDays: 27,
-        windowStartedDaysAgo: 1,
-    },
-    {
-        slug: "helios-climate",
-        name: "Helios Climate",
-        plan: "premium",
-        ownerEmail: "demo+owner@galleo.app",
-        seats: 6,
-        members: [
-            { email: "demo+member@galleo.app", role: "admin" },
-            { email: DEMO_EMAIL, role: "member" },
-            { email: "demo+admin@galleo.app", role: "member" },
-            { email: "demo+invited@galleo.app", role: "member" },
-            { email: "demo+invited-admin@galleo.app", role: "member" },
-        ],
-        planStatus: "past_due", // a failed renewal: the dunning banner in Pricing + Settings
-        periodEndInDays: -3,
-        openingBalance: 900, // part-way through the cycle
-        windowStartedDaysAgo: 26,
-        folders: [
-            {
-                folder: "Board",
-                docs: [
-                    { ref: { corpus: "helios" } },
-                    { ref: { template: "board-deck" } },
-                    { ref: { template: "annual-report" } },
-                ],
-            },
-            {
-                folder: null,
-                docs: [
-                    { ref: { template: "research-report" } },
-                    { ref: { template: "trends-report" } },
-                    { ref: { template: "qbr" } },
-                ],
-            },
-        ],
-        trashed: [{ ref: { template: "investor-update" }, daysAgo: 8 }],
-        links: [
-            {
-                ref: { corpus: "helios" },
-                slug: "helios-investors",
-                name: "Investor update",
-                visibility: "private",
-                recipients: [
-                    { email: "partner@ridgeline.example", views: 6 },
-                    { email: "analyst@ridgeline.example", views: 3 },
-                ],
-                createdDaysAgo: 14,
-            },
-        ],
-        visits: [{ corpus: "helios" }],
-        ledger: [
-            {
-                at: 29,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 52,
-                usage: { plan: 1, section: 15, image: 3 },
-                by: "demo+owner@galleo.app",
-            },
-            {
-                at: 24,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 58,
-                usage: { plan: 1, section: 16, image: 4 },
-                by: "demo+owner@galleo.app",
-            },
-            {
-                at: 21,
-                kind: "spend",
-                tool: "ask-assistant",
-                credits: 22,
-                usage: { reply: 1 },
-                by: "demo+member@galleo.app",
-            },
-            {
-                at: 18,
-                kind: "spend",
-                tool: "generate-image",
-                credits: 25,
-                usage: { image: 5 },
-                by: "demo+invited-admin@galleo.app",
-            },
-            {
-                at: 15,
-                kind: "spend",
-                tool: "ask-assistant",
-                credits: 12,
-                usage: { reply: 1 },
-                by: "demo+invited@galleo.app",
-            },
-            {
-                at: 12,
-                kind: "spend",
-                tool: "generate-artifact",
-                credits: 47,
-                usage: { plan: 1, section: 13, image: 3 },
-                by: "demo+admin@galleo.app",
-            },
-            {
-                at: 8,
-                kind: "spend",
-                tool: "rewrite-section",
-                credits: 3,
-                usage: { section: 1 },
-                by: "demo+owner@galleo.app",
-            },
-            {
-                at: 4,
-                kind: "spend",
-                tool: "ask-assistant",
-                credits: 10,
-                usage: { reply: 1 },
-                by: DEMO_EMAIL,
-            },
-            {
-                at: 1,
-                kind: "spend",
-                tool: "rewrite-section",
-                credits: 2,
-                usage: { section: 1 },
-                by: "demo+member@galleo.app",
             },
         ],
     },

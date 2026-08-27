@@ -15,7 +15,7 @@ test("demo signs in through the form and lands in the seeded library", async ({ 
     await page.locator('input[type="password"]').fill("galleo-demo-2026");
     await page.getByRole("button", { name: "Sign in" }).click();
     // the flagship seeded workspace is the active one for demo
-    await expect(page.getByText("Northwind Studio").first()).toBeVisible();
+    await expect(page.getByText("Premium Workspace").first()).toBeVisible();
 });
 
 test.describe(() => {

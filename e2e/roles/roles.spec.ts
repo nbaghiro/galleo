@@ -24,7 +24,7 @@ test("the owner sees full member management, with plus-addressed emails intact",
     browser,
 }) => {
     const page = await personaPage(browser, "demo");
-    await enterWorkspace(page.request, "Northwind Studio");
+    await enterWorkspace(page.request, "Premium Workspace");
     await page.goto("/settings/members");
     await expect(page.getByText("demo+admin@galleo.app")).toBeVisible();
     await expect(page.getByRole("button", { name: "Invite" })).toBeVisible();
@@ -34,7 +34,7 @@ test("the owner sees full member management, with plus-addressed emails intact",
 
 test("an admin manages members but cannot transfer ownership", async ({ browser }) => {
     const page = await personaPage(browser, "demo+admin");
-    await enterWorkspace(page.request, "Northwind Studio");
+    await enterWorkspace(page.request, "Premium Workspace");
     await page.goto("/settings/members");
     await expect(page.getByRole("button", { name: "Invite" })).toBeVisible();
     await expect(page.getByTitle("Make workspace owner")).toHaveCount(0);
@@ -43,7 +43,7 @@ test("an admin manages members but cannot transfer ownership", async ({ browser 
 
 test("a member gets no invite affordance", async ({ browser }) => {
     const page = await personaPage(browser, "demo+member");
-    await enterWorkspace(page.request, "Northwind Studio");
+    await enterWorkspace(page.request, "Premium Workspace");
     await page.goto("/settings");
     await expect(page.getByRole("button", { name: "Invite" })).toHaveCount(0);
     await page.context().close();
@@ -63,16 +63,16 @@ test("the pinned invite joins the invited account to the workspace", async ({ br
         .poll(async () => {
             const res = await page.request.get("/api/workspace");
             const body = (await res.json()) as { memberships?: { name: string }[] };
-            return body.memberships?.some((m) => m.name === "Northwind Studio") ?? false;
+            return body.memberships?.some((m) => m.name === "Premium Workspace") ?? false;
         })
         .toBe(true);
     await ctx.close();
 });
 
 test("the free plan blocks invites past its seat cap", async ({ browser }) => {
-    // Marcus owns Harbor & Vine: free plan, one seat, already occupied by him
-    const page = await personaPage(browser, "demo+member");
-    await enterWorkspace(page.request, "Harbor & Vine");
+    // the demo login owns the Free workspace: one seat, already taken by them
+    const page = await personaPage(browser, "demo");
+    await enterWorkspace(page.request, "Free Workspace");
     await page.goto("/settings");
     const invite = page.getByRole("button", { name: "Invite" });
     // either the affordance is gated up front, or the attempt is refused with an upsell

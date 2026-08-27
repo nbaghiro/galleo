@@ -28,6 +28,8 @@ import {
     DEMO_PASSWORD,
     PEOPLE,
     REFERRERS,
+    RETIRED_EMAILS,
+    RETIRED_SLUGS,
     WORKSPACES,
     refKey,
 } from "./seed/workspaces";
@@ -554,8 +556,51 @@ async function seedContexts(wsId: string, userId: string, docs: SeededDocs): Pro
     return sources;
 }
 
+/**
+ * Remove what the demo universe used to hold. The seed upserts by slug and by email, so a workspace
+ * or an account dropped from the specs would otherwise linger: still in the switcher, still able to
+ * log in. Both lists are explicit rather than pattern-matched, because a real signup at a galleo.app
+ * address must never be reapable.
+ *
+ * Runs before the specs are written, so a retired slug can be reused by a new workspace in the same
+ * pass. A retired account is only deleted once nothing points at it, which is what the membership
+ * and authorship clears below are for.
+ */
+async function reapRetired(): Promise<void> {
+    const stale = await db
+        .select({ id: schema.workspaces.id, name: schema.workspaces.name })
+        .from(schema.workspaces)
+        .where(inArray(schema.workspaces.slug, RETIRED_SLUGS));
+    for (const ws of stale) {
+        await wipeWorkspace(ws.id);
+        await db.delete(schema.invites).where(eq(schema.invites.workspaceId, ws.id));
+        await db.delete(schema.members).where(eq(schema.members.workspaceId, ws.id));
+        await db.delete(schema.workspaces).where(eq(schema.workspaces.id, ws.id));
+    }
+    if (stale.length) log(`• reaped ${stale.length} retired workspaces`);
+
+    const gone = await db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(inArray(schema.users.email, RETIRED_EMAILS));
+    for (const u of gone) {
+        await db.delete(schema.members).where(eq(schema.members.userId, u.id));
+        await db.delete(schema.authTokens).where(eq(schema.authTokens.userId, u.id));
+        await db.delete(schema.oauthAccounts).where(eq(schema.oauthAccounts.userId, u.id));
+        await db.delete(schema.credits).where(eq(schema.credits.userId, u.id));
+        // an artifact they authored outlives them; the column is nullable for exactly this
+        await db
+            .update(schema.artifacts)
+            .set({ createdBy: null })
+            .where(eq(schema.artifacts.createdBy, u.id));
+        await db.delete(schema.users).where(eq(schema.users.id, u.id));
+    }
+    if (gone.length) log(`• reaped ${gone.length} retired accounts`);
+}
+
 async function seed(): Promise<void> {
     assertDatabaseUrl();
+    await reapRetired();
 
     const userIds = new Map<string, string>();
     for (const p of PEOPLE) userIds.set(p.email, await upsertUser(p));

@@ -44,7 +44,6 @@ import {
 // category the index uses. @model/templates carries the client-facing half (ids, labels, grouping);
 // this file is the other half, plus the id → body resolution the /templates route and the seed use.
 
-// site chrome
 //
 // The nav is one flat row: a nested one would reflow to a column at the share of the width it would
 // get. The brand takes the slack, which is what puts the links hard right without a justify rule.
@@ -72,8 +71,6 @@ const navCta = (label: string, href: string): ElementInstance =>
 const pic = (id: number, w = 1100, h = 900): string => `https://picsum.photos/id/${id}/${w}/${h}`;
 
 const DEMO_VIDEO = "https://www.youtube.com/watch?v=WhWc3b3KhnY";
-
-// creative
 
 export const resume: ArtifactContent = doc(
     "studio",
@@ -1371,8 +1368,6 @@ export const photoEssay: ArtifactContent = doc(
     ],
     bgImage("photoessay-paper-bg", 0.3),
 );
-
-// marketing
 
 export const productLaunch: ArtifactContent = web(
     "moss",
@@ -2995,8 +2990,6 @@ export const newsletter: ArtifactContent = doc(
     bgImage("commonground-paper-grain-bg", 0.26),
 );
 
-// pitch
-
 export const startupPitch: ArtifactContent = deck(
     "noir",
     [
@@ -4130,8 +4123,6 @@ export const gtmPlan: ArtifactContent = deck(
     ],
     bgImage(pic(185, 1700, 1100), 0.34),
 );
-
-// proposals
 
 export const projectProposal: ArtifactContent = deck(
     "studio",
@@ -5305,8 +5296,6 @@ export const sow: ArtifactContent = doc(
     ],
     bgImage("sow-bg-grid-paper", 0.3),
 );
-
-// reports
 
 export const annualReport: ArtifactContent = doc(
     "press",
@@ -6602,7 +6591,6 @@ export const trendsReport: ArtifactContent = doc(
 
 // keyed by the same ids as @model/workspace's TEMPLATE_INDEX; a missing key is a 404, so the two
 // must stay in sync (the index is the client-facing half, this is the body half)
-// everyday documents
 
 // A between-row line: name left, value right, an optional note under. What a menu is (dishes and
 // prices), and a concert program too (pieces and durations).

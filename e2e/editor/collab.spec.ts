@@ -6,7 +6,7 @@ import { colOf, makeArtifact, paintedText, sec, txt } from "@e2e/helpers";
 // only exist between them. Both personas enter the same seeded workspace so the artifact one makes
 // is one the other can open.
 
-const FLAGSHIP = "Northwind Studio";
+const FLAGSHIP = "Premium Workspace";
 
 async function enterWorkspace(request: APIRequestContext, name: string): Promise<void> {
     const body = (await (await request.get("/api/workspace")).json()) as {

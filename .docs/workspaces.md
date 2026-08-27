@@ -691,12 +691,24 @@ themes, and no public links.
 ## The seeded demo workspaces (`pnpm seed`)
 
 `services/db/seed/` holds the demo universe as data and `services/db/seed.ts` writes it, with nothing
-declared in the writer: `workspaces.ts` is the bulk of it (six people, five workspaces, their folders,
-links, themes, ledgers), beside `artifacts.ts` (what each seeded document is called), `assets.ts` (the
+declared in the writer: `workspaces.ts` is the bulk of it (four people, one workspace per plan, their
+folders, links, themes, ledgers), beside `artifacts.ts` (what each seeded document is called), `assets.ts` (the
 media the demo workspace "chose"), `contexts.ts`, and `knowledge.ts`. The split exists so the specs can
 be read without importing an entry point that would run the seed on import, and because `db/` may not
 reach into `core/`: a document is named in the data and resolved to content by `seed.ts`, which is the
 one file allowed to reach for the corpus and template bodies that live in `core/`.
+
+The three are named for the plan they demonstrate (Premium, Pro, Free) and the demo login owns all
+three, so the switcher is the plan ladder and every limit is reachable from one account: Premium runs
+5 seats (3 included plus 2 bought) with an admin, a member and a pending invite; Pro is the single-seat
+solo library with the artifact cap lifted; Free sits at its 10-artifact cap with 72 of 100 credits left
+and a storage override that puts the wall within reach.
+
+`RETIRED_SLUGS` and `RETIRED_EMAILS` beside the specs name what the demo universe used to hold, and
+`reapRetired` in `seed.ts` deletes exactly those before writing the current ones. Without it a dropped
+workspace lingers in the switcher and a dropped account can still log in, since the seed upserts and
+never removes. Both lists are explicit rather than pattern-matched: a real signup at a galleo.app
+address must never be reapable.
 
 Two properties are worth knowing before reading the fixtures. A workspace is found by slug and then
 **every column the spec owns is rewritten**, so a workspace that has been clicked around in converges

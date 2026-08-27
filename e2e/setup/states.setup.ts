@@ -4,7 +4,7 @@ import { statePath } from "@e2e/fixtures";
 
 // One API login per persona, saved as storageState so specs pick a role without a UI login.
 // Sequential logins stay under the login limiter (10 per 5 minutes per IP).
-const PERSONAS = ["demo", "demo+admin", "demo+member", "demo+owner", "demo+invited"];
+const PERSONAS = ["demo", "demo+admin", "demo+member", "demo+invited"];
 const PASSWORD = "galleo-demo-2026";
 
 setup("persona storage states", async ({ baseURL }) => {
