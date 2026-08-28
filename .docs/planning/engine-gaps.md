@@ -225,7 +225,11 @@ layout; whether this changes the placeholder and skeleton geometry (`elements/sp
 
 ## 6. A free-positioning layer
 
-Missing: `ElementLayout` (`model/geometry.ts`) is `width | height | align | radius`. No offset, no
+**Built (Aug 2026): `ElementLayout.pin` (anchor + offset + z + rotate) compiles onto `float` at
+`applyLayout`; rotation rides every backend; the editor pins, drags with nine-anchor snapping,
+layers and rotates from the inspector. See `positioning.md` and `.docs/rendering.md`.**
+
+Missing (as written before the round): `ElementLayout` (`model/geometry.ts`) is `width | height | align | radius`. No offset, no
 rotation, no z, no explicit pixel size. `RenderCommand` has no transform field at all
 (`canvas/engine/node.ts:156`). The engine's `float` primitive (`node.ts:142`) does most of the work
 already, but it is reachable only from element internals (`canvas/elements/diagram/utils.ts:686`

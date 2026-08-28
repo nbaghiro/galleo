@@ -8,7 +8,15 @@
 > a second layout system: that constraint is what keeps format translation, autofit and generation
 > intact.
 >
-> Status: proposed, not started. Verified against the tree 2026-08-27.
+> Status: executed 2026-08-28, all three phases, then hardened by a four-angle review. Deviations
+> and review fixes: docked chrome gained an explicit `EngineNode.docked` marker (the float-shape
+> sniff could not tell a topbar from a top-left pin, and the all-pinned height guard must skip
+> hoisted chrome); the editor's `hitTest` went shape-aware so a rotated element hits on its turned
+> polygon; `fragment` shifts a rotated command's pivot with its page; the ancestor clip stays
+> stage-aligned under rotation in every backend that can express it (DOM counter-turns it into
+> local space, PDF clips before the matrix, PPTX rides the crop with the shape); pinning gates on
+> `movable` like every structural op; and drop-slot geometry is built from flow children only, with
+> real array indices.
 
 Companion docs: `engine-gaps.md` (item 6, including the "cuts against a stated design bet" risk),
 `rendering.md`, `typography.md` (the round pattern this follows), `collab.md` (why nothing on the
