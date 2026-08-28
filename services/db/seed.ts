@@ -575,6 +575,10 @@ async function reapRetired(): Promise<void> {
         await wipeWorkspace(ws.id);
         await db.delete(schema.invites).where(eq(schema.invites.workspaceId, ws.id));
         await db.delete(schema.members).where(eq(schema.members.workspaceId, ws.id));
+        // wipeWorkspace spares eval_runs on purpose, because a reseed must not destroy what the eval
+        // seeder owns. A retirement is not a reseed: the row is going, and its runs reference it, so
+        // they go with it or the delete below fails on the foreign key.
+        await db.delete(schema.evalRuns).where(eq(schema.evalRuns.workspaceId, ws.id));
         await db.delete(schema.workspaces).where(eq(schema.workspaces.id, ws.id));
     }
     if (stale.length) log(`• reaped ${stale.length} retired workspaces`);
