@@ -360,7 +360,7 @@ test("the template preview modal opens its menus and follows its own links", asy
     await expect(page).toHaveURL(/\/templates$/);
     await expect(page.getByText("Watch a room clear itself.").last()).toBeVisible();
     // the demo section's video is a real player, not the painted poster
-    await expect(page.locator('[data-live="video"] iframe')).toHaveCount(1);
+    await expect(page.locator('[data-live="media"] iframe')).toHaveCount(1);
 
     await page.keyboard.press("Escape");
     await expect(modal).toHaveCount(0);
