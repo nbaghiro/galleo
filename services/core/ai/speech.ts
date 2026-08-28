@@ -79,22 +79,6 @@ export function providerExhausted(body: string): boolean {
 // and audibly flatter. Changing this invalidates every cached row, since it is in the hash.
 export const NARRATION_MODEL = "eleven_multilingual_v2";
 
-/**
- * How the voice is asked to perform. At the provider's defaults this reads as a document being read
- * out: less stability lets the delivery vary between phrases, and a shade under full speed reads as
- * considered. In the cache key, so a change here cannot mix two deliveries inside one piece.
- */
-const VOICE_SETTINGS = {
-    stability: 0.4,
-    similarity_boost: 0.75,
-    style: 0.15,
-    speed: 0.96,
-    use_speaker_boost: true,
-};
-const SETTINGS_KEY = Object.entries(VOICE_SETTINGS)
-    .map(([k, v]) => `${k}=${String(v)}`)
-    .join(",");
-
 // ~8 KB per second of audio. Enough for speech, small enough that a twelve-section deck is a few MB.
 export const OUTPUT_FORMAT = "mp3_44100_64";
 export const OUTPUT_MIME = "audio/mpeg";
@@ -102,26 +86,16 @@ export const OUTPUT_MIME = "audio/mpeg";
 // the provider's own ceiling for this model; a longer script is refused rather than silently clipped
 export const MAX_CHARS = 10_000;
 
-// enough of the previous section to set the tone; the whole of it would crowd out the text itself
-const PREVIOUS_CHARS = 400;
-
 export const speechReady = (): boolean => !!process.env.ELEVENLABS_API_KEY;
 
 /**
  * What a cached row is keyed by. Every input that changes the audio is in here, so a hit is always
  * safe to serve and an edit invalidates exactly the section it touched.
  */
-export const narrationHash = (
-    spoken: string,
-    voiceId: string,
-    modelId: string,
-    previousText = "",
-): string =>
+export const narrationHash = (spoken: string, voiceId: string, modelId: string): string =>
     createHash("sha256")
         // \0 escapes rather than the bytes themselves: a raw NUL makes the file binary to grep
-        .update(
-            `${spoken}\0${previousText}\0${voiceId}\0${modelId}\0${OUTPUT_FORMAT}\0${SETTINGS_KEY}`,
-        )
+        .update(`${spoken}\0${voiceId}\0${modelId}\0${OUTPUT_FORMAT}`)
         .digest("hex");
 
 export interface Synthesized {
@@ -171,8 +145,6 @@ export async function synthesize(
     text: string,
     voiceId: string,
     fetchFn: typeof fetch = fetch,
-    // what the voice just said, so a section is spoken as a continuation rather than from cold
-    previousText = "",
 ): Promise<Synthesized> {
     const key = process.env.ELEVENLABS_API_KEY;
     if (!key) throw new SpeechError("narration is not configured on this server", 503);
@@ -188,12 +160,11 @@ export async function synthesize(
             {
                 method: "POST",
                 headers: { "xi-api-key": key, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    text: spoken,
-                    model_id: NARRATION_MODEL,
-                    voice_settings: VOICE_SETTINGS,
-                    ...(previousText ? { previous_text: previousText.slice(-PREVIOUS_CHARS) } : {}),
-                }),
+                // No `voice_settings`: the provider's defaults, picked over a tuned set by
+                // listening to both across a section change. Loosening stability makes one take
+                // livelier and the takes differ from each other, and a piece is spoken a section at
+                // a time, so the second effect is the one you hear.
+                body: JSON.stringify({ text: spoken, model_id: NARRATION_MODEL }),
             },
         );
     } catch {

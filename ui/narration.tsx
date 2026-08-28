@@ -286,8 +286,10 @@ export function createSoundtrackPlayer(opts: {
     };
 }
 
-/** The pause on a section change: about as long as a presenter takes to glance at a new slide. */
-const SECTION_BEAT_MS = 800;
+// The pause on a section change: long enough to read as a presenter letting the room look at what
+// it moved to. Chosen by listening to 0 / 500 / 800 / 1200 against two real consecutive sections;
+// the shorter beats still read as one continuous take with a stumble in it.
+const SECTION_BEAT_MS = 1200;
 
 export interface NarrationPlayer {
     ready: Accessor<boolean>;
@@ -356,6 +358,9 @@ export function createNarrationPlayer(opts: {
     const [speaking, setSpeaking] = createSignal<string | undefined>(undefined);
 
     let beat: ReturnType<typeof setTimeout> | undefined;
+    // the section `advance` moved to itself, so the surface's navigation debounce can tell our own
+    // move from a person's and leave the beat alone
+    let advancedTo: string | undefined;
     const [made, setMade] = createSignal<Map<string, NarrationTrack>>(new Map());
     const [recording, setRecording] = createSignal(false);
     // what the manifest had, plus anything recorded since; a just-made track wins
@@ -387,6 +392,7 @@ export function createNarrationPlayer(opts: {
 
     const stop = (completed = false): void => {
         clearTimeout(beat);
+        advancedTo = undefined;
         audio?.pause();
         setPlaying(false);
         setSpeaking(undefined);
@@ -403,9 +409,11 @@ export function createNarrationPlayer(opts: {
             stop(true); // ran to the end, which is the number worth knowing
             return;
         }
+        advancedTo = next;
         opts.goToSection(next);
         clearTimeout(beat);
         beat = setTimeout(() => {
+            advancedTo = undefined;
             if (playing()) speak(next);
         }, SECTION_BEAT_MS);
     };
@@ -525,6 +533,11 @@ export function createNarrationPlayer(opts: {
      */
     const retarget = (sectionId: string): void => {
         if (!playing() || sectionId === speaking()) return;
+        // Our own advance moved the section, and the surface debounces that move back to us as if a
+        // person had navigated. Left alone it cut every beat short at the debounce interval, so the
+        // pause was never the length it was set to.
+        if (sectionId === advancedTo) return;
+        advancedTo = undefined;
         clearTimeout(beat); // someone navigated; they are not waiting out a transition
         speak(sectionId);
     };
@@ -534,7 +547,13 @@ export function createNarrationPlayer(opts: {
         el.addEventListener("ended", advance);
         el.addEventListener("timeupdate", () => setNow(el.currentTime));
         el.addEventListener("play", () => setPlaying(true));
-        el.addEventListener("pause", () => setPlaying(false));
+        // A track reaching its end fires `pause` (with `ended` already true) before it fires
+        // `ended`, so treating every pause as the run stopping ends the run one section in: the
+        // handoff in `advance` then sees a stopped player and never speaks the next one. Only a
+        // pause that is not the end of a track is someone actually stopping this.
+        el.addEventListener("pause", () => {
+            if (!el.ended) setPlaying(false);
+        });
         onCleanup(() => {
             el.removeEventListener("ended", advance);
         });

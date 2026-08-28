@@ -27,10 +27,9 @@ async function speakWith(
     voice: { id: string; externalId: string; name: string },
     spoken: string,
     fetchFn?: typeof fetch,
-    previousText = "",
 ): Promise<Spoken> {
     try {
-        return { voice, out: await synthesize(spoken, voice.externalId, fetchFn, previousText) };
+        return { voice, out: await synthesize(spoken, voice.externalId, fetchFn) };
     } catch (e) {
         const blocked = e instanceof SpeechError && e.status === 503;
         // out of quota, or on a plan that refuses this outright: another voice costs the same and
@@ -38,10 +37,7 @@ async function speakWith(
         if (!blocked || (e as SpeechError).exhausted) throw e;
         const premade = await fallBackToPremade(workspaceId);
         if (premade.externalId === voice.externalId) throw e;
-        return {
-            voice: premade,
-            out: await synthesize(spoken, premade.externalId, fetchFn, previousText),
-        };
+        return { voice: premade, out: await synthesize(spoken, premade.externalId, fetchFn) };
     }
 }
 
@@ -50,20 +46,6 @@ export const unitsFor = (chars: number): number => (chars > 0 ? Math.ceil(chars 
 
 /** The script a voice would read for a section, or "" when there is nothing to say. */
 export const spokenOf = (s: Section): string => s.notes?.spoken.trim() ?? "";
-
-/**
- * What the voice said just before this section, so the provider speaks it as a continuation. The
- * nearest earlier section with a script, not the one directly above: a cover with nothing to say
- * would otherwise reset the delivery of everything after it.
- */
-export function previousSpoken(content: ArtifactContent, sectionId: string): string {
-    const at = content.sections.findIndex((s) => s.id === sectionId);
-    for (let i = at - 1; i >= 0; i--) {
-        const said = spokenOf(content.sections[i]!);
-        if (said) return said;
-    }
-    return "";
-}
 
 /** Sections worth narrating, in document order. A section with no notes is not one of them. */
 export const narratable = (content: ArtifactContent): Section[] =>
@@ -95,14 +77,7 @@ export async function manifestFor(
     const stale: Id[] = [];
     for (const s of narratable(content)) {
         const spoken = spokenOf(s);
-        const hash = voice
-            ? narrationHash(
-                  spoken,
-                  voice.externalId,
-                  NARRATION_MODEL,
-                  previousSpoken(content, s.id),
-              )
-            : "";
+        const hash = voice ? narrationHash(spoken, voice.externalId, NARRATION_MODEL) : "";
         const row = voice ? byId.get(`${s.id}:${hash}`) : undefined;
         if (!row) {
             stale.push(s.id);
@@ -160,8 +135,7 @@ export async function trackFor(
 
     const voice = await ensureVoice(workspaceId, content.voice, fetchFn);
     if (!voice) throw new Error("No narration voice is available for this workspace.");
-    const before = previousSpoken(content, sectionId);
-    const hash = narrationHash(spoken, voice.externalId, NARRATION_MODEL, before);
+    const hash = narrationHash(spoken, voice.externalId, NARRATION_MODEL);
 
     const [cached] = await db
         .select()
@@ -185,10 +159,10 @@ export async function trackFor(
             },
         };
 
-    const spokenBy = await speakWith(workspaceId, voice, spoken, fetchFn, before);
+    const spokenBy = await speakWith(workspaceId, voice, spoken, fetchFn);
     const out = spokenBy.out;
     // the fallback may have swapped the voice, and the key must describe what is stored
-    const finalHash = narrationHash(spoken, spokenBy.voice.externalId, NARRATION_MODEL, before);
+    const finalHash = narrationHash(spoken, spokenBy.voice.externalId, NARRATION_MODEL);
     await db
         .insert(schema.narrations)
         .values({
@@ -260,16 +234,15 @@ export async function* prepare(
     for (const section of narratable(content)) {
         if (wanted && !wanted.has(section.id)) continue;
         const spoken = spokenOf(section);
-        const before = previousSpoken(content, section.id);
-        const hash = narrationHash(spoken, voice.externalId, NARRATION_MODEL, before);
+        const hash = narrationHash(spoken, voice.externalId, NARRATION_MODEL);
         if (have.has(`${section.id}:${hash}`)) {
             const row = rows.find((r) => r.sectionId === section.id && r.hash === hash)!;
             yield { sectionId: section.id, ms: row.ms, cached: true, chars: 0 };
             continue;
         }
-        const spokenBy = await speakWith(workspaceId, voice, spoken, fetchFn, before);
+        const spokenBy = await speakWith(workspaceId, voice, spoken, fetchFn);
         const out = spokenBy.out;
-        const finalHash = narrationHash(spoken, spokenBy.voice.externalId, NARRATION_MODEL, before);
+        const finalHash = narrationHash(spoken, spokenBy.voice.externalId, NARRATION_MODEL);
         await db
             .insert(schema.narrations)
             .values({

@@ -58,12 +58,6 @@ describe("narrationHash", () => {
     it("changes when the model changes, so a model swap is not served stale audio", () => {
         expect(narrationHash("hello", "v1", "m1")).not.toBe(narrationHash("hello", "v1", "m2"));
     });
-
-    it("changes with what came before, since that is spoken into the delivery", () => {
-        expect(narrationHash("hello", "v1", "m", "one")).not.toBe(
-            narrationHash("hello", "v1", "m", "two"),
-        );
-    });
 });
 
 describe("toAlignment", () => {
@@ -121,28 +115,14 @@ describe("synthesize", () => {
         expect(seen?.body).toMatchObject({ text: "hi you", model_id: NARRATION_MODEL });
     });
 
-    it("asks for a delivery rather than the provider's defaults", async () => {
-        let body: { voice_settings?: Record<string, unknown> } | undefined;
+    it("sends no voice settings, so the provider's defaults are what is spoken", async () => {
+        let body: Record<string, unknown> | undefined;
         const spy: typeof fetch = ((_url: string, init?: RequestInit) => {
             body = JSON.parse(String(init?.body));
             return Promise.resolve(new Response(JSON.stringify(ALIGNED)));
         }) as typeof fetch;
         await synthesize("hi you", "v", spy);
-        expect(body?.voice_settings).toMatchObject({ stability: 0.4, speed: 0.96 });
-    });
-
-    it("carries the tail of the previous section so a run is spoken as one continuous take", async () => {
-        let body: { previous_text?: string } | undefined;
-        const spy: typeof fetch = ((_url: string, init?: RequestInit) => {
-            body = JSON.parse(String(init?.body));
-            return Promise.resolve(new Response(JSON.stringify(ALIGNED)));
-        }) as typeof fetch;
-
-        await synthesize("hi you", "v", spy);
-        expect(body?.previous_text).toBeUndefined(); // the first section has nothing behind it
-
-        await synthesize("hi you", "v", spy, "x".repeat(900));
-        expect(body?.previous_text).toHaveLength(400);
+        expect(body).toEqual({ text: "hi you", model_id: NARRATION_MODEL });
     });
 
     it("returns decoded audio, its duration, and what it will be billed for", async () => {
