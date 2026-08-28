@@ -156,7 +156,31 @@ export function localize(c: RenderCommand): RenderCommand {
     const dy = c.box.y;
     const box = { ...c.box, x: 0, y: 0 };
     const clip = c.clip ? { ...c.clip, x: c.clip.x - dx, y: c.clip.y - dy } : undefined;
-    return { ...c, box, clip };
+    // rasters draw the box flat; the caller re-applies the spin in its own space (the PDF content
+    // stream's matrix, the PPTX shape's own rotate)
+    return { ...c, box, clip, rotate: undefined };
+}
+
+// A rigid turn about the shared center, flattened for a per-shape backend: the box moves so its
+// center rides the rotation, and the shape then spins in place by the same angle — exact for an
+// axis-aligned box, so a multi-command element stays a coherent group.
+export function respin(c: RenderCommand): { command: RenderCommand; deg?: number } {
+    const r = c.rotate;
+    if (!r) return { command: c };
+    const rad = (r.deg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const bx = c.box.x + c.box.w / 2 - r.cx;
+    const by = c.box.y + c.box.h / 2 - r.cy;
+    const ncx = r.cx + bx * cos - by * sin;
+    const ncy = r.cy + bx * sin + by * cos;
+    const box = { ...c.box, x: ncx - c.box.w / 2, y: ncy - c.box.h / 2 };
+    // the crop must follow the shape it crops, so the clip rides the same move; its axis-aligned
+    // shape can't also turn, which is part of this backend's stated per-shape approximation
+    const clip = c.clip
+        ? { ...c.clip, x: c.clip.x + (box.x - c.box.x), y: c.clip.y + (box.y - c.box.y) }
+        : undefined;
+    return { command: { ...c, box, clip, rotate: undefined }, deg: r.deg };
 }
 
 // gradients/clips have no autoshape, and pptx can't express image crops or vector paths, so those rasterize.
@@ -478,13 +502,14 @@ export async function buildPptx(
 
             for (const c of page.commands) {
                 const kind = classify(c);
-                const framed = frameCommand(c, t);
+                const { command: flat, deg } = respin(c);
+                const framed = frameCommand(flat, t);
                 if (kind === "shape") {
                     const spec = rectShapeSpec(framed);
                     if (spec)
                         slide.addShape(
                             spec.round ? pptx.ShapeType.roundRect : pptx.ShapeType.rect,
-                            spec.options,
+                            deg !== undefined ? { ...spec.options, rotate: deg } : spec.options,
                         );
                 } else if (kind === "text" && c.kind === "text" && framed.kind === "text") {
                     const all = c.lines ?? layoutRuns(cx, leafForRuns(c.text), c.box.w).lines;
@@ -494,7 +519,7 @@ export async function buildPptx(
                         for (const f of line.frags)
                             if (f.text) recordFont(usedFonts, f.font, f.code);
                     const { runs, options } = textSpec(framed.text, framed.box, lines, framed.link);
-                    slide.addText(runs, options);
+                    slide.addText(runs, deg !== undefined ? { ...options, rotate: deg } : options);
                 } else {
                     // surfaces embed as vector SVG; other rasters stay PNG
                     const data = surfaceSvgUri(framed) ?? (await rasterUrl(framed));
@@ -505,6 +530,7 @@ export async function buildPptx(
                             y: inch(framed.box.y),
                             w: inch(framed.box.w),
                             h: inch(framed.box.h),
+                            ...(deg !== undefined ? { rotate: deg } : {}),
                         });
                 }
             }

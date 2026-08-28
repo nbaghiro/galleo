@@ -1,7 +1,18 @@
 import type { RenderCommand } from "@engine/node";
 import type { ArtifactContent } from "@model/artifact";
 import type { Tokens } from "@themes";
-import { PDFDocument, rgb } from "pdf-lib";
+import {
+    PDFDocument,
+    clip,
+    closePath,
+    concatTransformationMatrix,
+    endPath,
+    lineTo,
+    moveTo,
+    popGraphicsState,
+    pushGraphicsState,
+    rgb,
+} from "pdf-lib";
 import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
 import { EXPORT_SCALE, loadImages, paint, renderSlidePage, renderToCanvas } from "./backends";
 import { measureText, layoutSection, sectionSlides } from "./commands";
@@ -154,6 +165,36 @@ async function emitCommand(
     c: RenderCommand,
     measureCx: CanvasRenderingContext2D,
 ): Promise<void> {
+    // A spin wraps the whole command in a content-stream rotation about the shared center, so every
+    // path below (vector or raster) draws flat and lands turned. PDF's y points up, so the screen's
+    // clockwise angle negates. Link annotations sit outside the stream and keep the flat box.
+    const rot = c.rotate;
+    if (rot) {
+        const a = (-rot.deg * Math.PI) / 180;
+        const cy = ctx.pageH - rot.cy;
+        ctx.page.pushOperators(pushGraphicsState());
+        // the ancestor clip is stage-aligned, the spin is not: clip in page space before the
+        // matrix, then hand the command down clip-free so nothing re-applies it in local space
+        if (c.clip) {
+            const cl = c.clip;
+            const t = ctx.pageH - cl.y;
+            ctx.page.pushOperators(
+                moveTo(cl.x, t),
+                lineTo(cl.x + cl.w, t),
+                lineTo(cl.x + cl.w, t - cl.h),
+                lineTo(cl.x, t - cl.h),
+                closePath(),
+                clip(),
+                endPath(),
+            );
+            c = { ...c, clip: undefined };
+        }
+        ctx.page.pushOperators(
+            concatTransformationMatrix(1, 0, 0, 1, rot.cx, cy),
+            concatTransformationMatrix(Math.cos(a), Math.sin(a), -Math.sin(a), Math.cos(a), 0, 0),
+            concatTransformationMatrix(1, 0, 0, 1, -rot.cx, -cy),
+        );
+    }
     // A linked text box already annotates per run fragment; anything else annotates its whole box.
     if (c.link && c.kind !== "text") addLinkAnnot(ctx, c.box, c.link);
     if (c.kind === "text") emitText(ctx, c, measureCx);
@@ -164,6 +205,7 @@ async function emitCommand(
         if (c.clip) await rasterEmbed(ctx, c);
         else c.paint(pdfDrawContext(ctx, c.box.x, c.box.y), { x: 0, y: 0, w: c.box.w, h: c.box.h });
     } else await rasterEmbed(ctx, c); // image
+    if (rot) ctx.page.pushOperators(popGraphicsState());
 }
 
 function drawPdfBrand(ctx: Ctx, pageW: number): void {

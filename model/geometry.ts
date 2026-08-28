@@ -27,6 +27,17 @@ export interface ElementLayout {
     // section chrome: lifted out of the content flow and anchored to the section's own band, so a
     // topbar hugs a hero's top edge while the content centres below it
     dock?: "top";
+    // Pinned out of the flow: anchored to the parent's box (never an absolute coordinate, so it
+    // survives reflow, format switches and autofit), offset in px at compose scale, layered by `z`
+    // (negative paints under the flow), optionally spun about its own center.
+    pin?: {
+        x: "start" | "center" | "end";
+        y: "start" | "center" | "end";
+        dx?: number;
+        dy?: number;
+        z?: number;
+        rotate?: number; // degrees clockwise; paint-only, layout stays unrotated
+    };
 }
 
 export type FormatKind = "paged" | "continuous";

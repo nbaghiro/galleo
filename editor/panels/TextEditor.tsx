@@ -26,6 +26,7 @@ import {
     stopEditing,
 } from "@editor/core/store";
 import { paintedLeafFor } from "@editor/core/leaf";
+import { flatBox, paintSpin } from "@editor/core/pin";
 import {
     registerTextField,
     registerTextReplace,
@@ -62,14 +63,29 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
     let el!: HTMLDivElement;
 
     const inst = createMemo(() => getElementAt(editor.artifact, props.address));
-    const fields = (): TextFields => (inst()?.data ?? {}) as TextFields;
-    const leaf = createMemo(() => {
+    const spec = createMemo(() => {
         const i = inst();
-        return i && getElement(i.type)?.richText ? paintedLeafFor(props.address) : null;
+        return i ? getElement(i.type) : undefined;
     });
-    const box = createMemo(
-        () => regions().find((r) => r.id === elementRegionId(props.address))?.box ?? null,
-    );
+    const fields = (): TextFields => (inst()?.data ?? {}) as TextFields;
+    // a plain inline label (a button's) edits data[key] with no marks and no mark bar
+    const plainKey = createMemo(() => (spec()?.richText ? null : (spec()?.inlineText ?? null)));
+    const plainText = (): string =>
+        String((fields() as Record<string, unknown>)[plainKey()!] ?? "");
+    const leaf = createMemo(() => {
+        const s = spec();
+        return s?.richText || s?.inlineText ? paintedLeafFor(props.address) : null;
+    });
+    const spin = createMemo(() => paintSpin(editor.artifact, props.address));
+    const box = createMemo(() => {
+        const id = elementRegionId(props.address);
+        const r =
+            (plainKey() ? regions().find((k) => k.id === `label:${id}`) : undefined) ??
+            regions().find((k) => k.id === id);
+        if (!r) return null;
+        const sp = spin();
+        return sp ? flatBox(r, sp) : r.box;
+    });
 
     const syncSel = (): void => {
         const off = getOffsets(el);
@@ -131,7 +147,8 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
 
     onMount(() => {
         const data = fields();
-        renderMarks(el, data.text ?? "", data.marks ?? []);
+        if (plainKey()) renderMarks(el, plainText(), []);
+        else renderMarks(el, data.text ?? "", data.marks ?? []);
         el.focus();
         if (pendingSel) {
             // remounted after an AI edit → reselect the rewritten span, not a fresh caret
@@ -155,8 +172,10 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
             sel?.addRange(range);
         }
 
-        registerTextField(runMark);
-        registerTextReplace(replaceRange);
+        if (!plainKey()) {
+            registerTextField(runMark);
+            registerTextReplace(replaceRange);
+        }
         document.addEventListener("selectionchange", syncSel);
         syncSel();
         onCleanup(() => {
@@ -169,6 +188,14 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const i = inst();
         if (!i) return;
         const data = fields();
+        const key = plainKey();
+        if (key) {
+            const label = readMarks(el).text.replaceAll("\n", " ");
+            setArtifactLive(
+                updateDataAt(editor.artifact, props.address, { ...data, [key]: label }),
+            );
+            return;
+        }
         const { text, marks } = readMarks(el);
         // cm marks are deliberately invisible, so the DOM never carried them: they ride the same
         // splice the text just took instead of being read back
@@ -195,10 +222,18 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const b = box();
         const l = leaf();
         if (!b || !l) return { display: "none" };
+        const sp = spin();
         return {
             left: `${b.x}px`,
             top: `${b.y}px`,
             width: `${b.w}px`,
+            // the overlay covers painted content, so it turns exactly the way the paint did
+            ...(sp
+                ? {
+                      transform: `rotate(${sp.deg}deg)`,
+                      "transform-origin": `${sp.cx - b.x}px ${sp.cy - b.y}px`,
+                  }
+                : {}),
             font: `${l.weight ?? 400} ${l.size}px ${l.fontId}`,
             "line-height": `${l.lineHeight ?? l.size * 1.35}px`,
             color: l.color ?? "#1a1a1a",

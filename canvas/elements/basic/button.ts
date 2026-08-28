@@ -82,6 +82,7 @@ export const buttonElement: ElementSpec<ButtonData> = {
         children.push({
             w: fit(),
             h: fit(),
+            ...(ctx.region ? { id: `label:${ctx.region}` } : {}),
             text: {
                 text: d.label,
                 fontId: fontStack("ui", ctx.theme),
@@ -108,6 +109,7 @@ export const buttonElement: ElementSpec<ButtonData> = {
         };
     },
     bar: ["variant"],
+    inlineText: "label",
     controls: [
         { key: "label", label: "Label", control: "text" },
         {

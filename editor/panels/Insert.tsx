@@ -27,6 +27,7 @@ import { PRESETS } from "@elements/compose";
 import { getElement } from "@elements/spec";
 import { previewSvg } from "@elements/previews";
 import { startDrag, drag } from "@editor/core/dnd";
+import { pinnable } from "@editor/core/pin";
 import {
     captureAnchor,
     commentableAt,
@@ -295,18 +296,31 @@ export const DragGhost: Component = () => {
             }
         >
             {(src) => (
-                <div
-                    data-testid="drag-ghost"
-                    class="pointer-events-none fixed z-overlay opacity-55"
-                    style={{
-                        left: `${(drag()?.x ?? 0) + 10}px`,
-                        top: `${(drag()?.y ?? 0) + 10}px`,
-                        width: `${src().w}px`,
-                        height: `${src().h}px`,
-                    }}
-                >
-                    <MoveGhost from={src().from} w={src().w} h={src().h} />
-                </div>
+                <>
+                    <div
+                        data-testid="drag-ghost"
+                        class="pointer-events-none fixed z-overlay opacity-55"
+                        style={{
+                            left: `${(drag()?.x ?? 0) + 10}px`,
+                            top: `${(drag()?.y ?? 0) + 10}px`,
+                            width: `${src().w}px`,
+                            height: `${src().h}px`,
+                        }}
+                    >
+                        <MoveGhost from={src().from} w={src().w} h={src().h} />
+                    </div>
+                    <Show when={pinnable(editor.artifact, src().from)}>
+                        <div
+                            class="pointer-events-none fixed z-overlay rounded-full border border-line bg-panel/95 px-2.5 py-1 text-[11px] font-medium text-muted shadow-md"
+                            style={{
+                                left: `${(drag()?.x ?? 0) + 14}px`,
+                                top: `${(drag()?.y ?? 0) - 26}px`,
+                            }}
+                        >
+                            Space places it freely
+                        </div>
+                    </Show>
+                </>
             )}
         </Show>
     );

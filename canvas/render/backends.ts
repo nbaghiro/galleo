@@ -485,16 +485,38 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
     el.style.height = `${c.box.h}px`;
     el.style.boxSizing = "border-box";
     if (c.opacity !== undefined) el.style.opacity = String(c.opacity);
+    // the shared center keeps a multi-command element turning as one group
+    if (c.rotate) {
+        el.style.transformOrigin = `${c.rotate.cx - c.box.x}px ${c.rotate.cy - c.box.y}px`;
+        el.style.transform = `rotate(${c.rotate.deg}deg)`;
+    }
     // box-relative clip-path insets; reused els have cssText reset first
     if (c.clip) {
         const b = c.box;
         const cl = c.clip;
-        const top = Math.max(0, cl.y - b.y);
-        const left = Math.max(0, cl.x - b.x);
-        const right = Math.max(0, b.x + b.w - (cl.x + cl.w));
-        const bottom = Math.max(0, b.y + b.h - (cl.y + cl.h));
-        if (top || right || bottom || left)
-            el.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`;
+        if (c.rotate) {
+            // CSS clips before the transform, which would spin the clip with the element; the
+            // ancestor clip is stage-aligned (the canvas backend clips before rotating), so map the
+            // stage rect into the element's pre-transform space by turning it back around the pivot
+            const rad = (-c.rotate.deg * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            const ox = c.rotate.cx - b.x;
+            const oy = c.rotate.cy - b.y;
+            const local = (px: number, py: number): string => {
+                const x = px - b.x - ox;
+                const y = py - b.y - oy;
+                return `${ox + x * cos - y * sin}px ${oy + x * sin + y * cos}px`;
+            };
+            el.style.clipPath = `polygon(${local(cl.x, cl.y)}, ${local(cl.x + cl.w, cl.y)}, ${local(cl.x + cl.w, cl.y + cl.h)}, ${local(cl.x, cl.y + cl.h)})`;
+        } else {
+            const top = Math.max(0, cl.y - b.y);
+            const left = Math.max(0, cl.x - b.x);
+            const right = Math.max(0, b.x + b.w - (cl.x + cl.w));
+            const bottom = Math.max(0, b.y + b.h - (cl.y + cl.h));
+            if (top || right || bottom || left)
+                el.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`;
+        }
     }
     if (c.kind === "rect") {
         const g = c.fill?.gradient;
@@ -701,13 +723,19 @@ function drawCommands(
 ): void {
     for (const c of commands) {
         const b = c.box;
-        const guarded = c.opacity !== undefined || c.clip !== undefined;
+        const guarded = c.opacity !== undefined || c.clip !== undefined || c.rotate !== undefined;
         if (guarded) cx.save();
         if (c.opacity !== undefined) cx.globalAlpha = c.opacity;
         if (c.clip) {
             cx.beginPath();
             cx.rect(c.clip.x, c.clip.y, c.clip.w, c.clip.h);
             cx.clip();
+        }
+        // after the clip: the ancestor clip rect is stage-aligned, the spin is not
+        if (c.rotate) {
+            cx.translate(c.rotate.cx, c.rotate.cy);
+            cx.rotate((c.rotate.deg * Math.PI) / 180);
+            cx.translate(-c.rotate.cx, -c.rotate.cy);
         }
         if (c.kind === "rect") {
             const f = c.fill;
@@ -1007,7 +1035,12 @@ export function paintSectionStack(
         const layoutW = sectionLayoutWidth(section, profile, opts.fullW);
         const x = Math.round((opts.fullW - layoutW) / 2); // bleed → layoutW == fullW → centered at 0
         // hideKey only in the edited section's cache key → an edit repaints one section, not the stack
-        const hideKey = opts.hideId?.startsWith(`el:${section.id}:`) ? opts.hideId : "";
+        // a `label:`-prefixed id hides an inline-edited label leaf; the section test sees through
+        // it, and the bare form matches a section-root element too
+        const hid = opts.hideId ?? "";
+        const bare = hid.startsWith("label:") ? hid.slice("label:".length) : hid;
+        const hideKey =
+            bare === `el:${section.id}` || bare.startsWith(`el:${section.id}:`) ? hid : "";
         const freeze =
             slide && opts.freezeFit?.id === section.id ? opts.freezeFit.scale : undefined;
         const fitKey = freeze === undefined ? "" : `${freeze}`;

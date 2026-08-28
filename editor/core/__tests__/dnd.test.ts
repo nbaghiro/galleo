@@ -644,3 +644,111 @@ describe("a container whose children paint outside its own box", () => {
         expect(collectTexts(out.content.sections[0]!.root)).toEqual(["one", "in flow", "two"]);
     });
 });
+
+describe("pinned siblings", () => {
+    // root col: [flow "a", pinned badge, flow "b"]; the badge floats top-right, out of flow order
+    const pinnedArt = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(
+                colGroup([
+                    txt("a"),
+                    {
+                        ...txt("badge"),
+                        layout: { width: "fit", pin: { x: "end", y: "start" } },
+                    },
+                    txt("b"),
+                ]),
+            ),
+        ]);
+    const pinnedRegions = (): Region[] => [
+        reg("section:s1", 0, 0, 200, 200),
+        reg("el:s1", 0, 0, 200, 200),
+        reg("el:s1:0", 0, 0, 200, 40),
+        reg("el:s1:1", 160, 0, 40, 20), // the pinned badge, overlapping "a"
+        reg("el:s1:2", 0, 60, 200, 40),
+    ];
+
+    it("gap slots skip a pinned sibling's box and keep real array indices", () => {
+        const t = targetAt(pinnedArt(), pinnedRegions(), 60, 50); // between "a" and "b"
+        expect(t).toMatchObject({ op: "insert", path: [], index: 2 }); // before "b" at its array index
+    });
+
+    it("a drop below the last flow child appends at the full child count", () => {
+        const t = targetAt(pinnedArt(), pinnedRegions(), 60, 95);
+        expect(t).toMatchObject({ op: "insert", path: [], index: 3 });
+    });
+
+    it("a container of only pinned children is one droppable append region", () => {
+        const art = artifactOf([
+            sectionOf(
+                colGroup([
+                    txt("a"),
+                    colGroup([
+                        { ...txt("badge"), layout: { width: "fit", pin: { x: "end", y: "end" } } },
+                    ]),
+                ]),
+            ),
+        ]);
+        const regions = [
+            reg("section:s1", 0, 0, 200, 200),
+            reg("el:s1", 0, 0, 200, 200),
+            reg("el:s1:0", 0, 0, 200, 40),
+            reg("el:s1:1", 0, 50, 200, 90),
+            reg("el:s1:1.0", 160, 120, 40, 20),
+        ];
+        const t = targetAt(art, regions, 60, 95);
+        expect(t).toMatchObject({ op: "insert", path: [1], index: 1 });
+    });
+});
+
+describe("unit item reorder", () => {
+    // a bullets unit with three items; items reorder inside it and nowhere else
+    const bulletsArt = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(
+                colGroup([
+                    {
+                        type: "bullets",
+                        data: { children: [txt("one"), txt("two"), txt("three")] },
+                    },
+                    txt("after the list"), // a sibling, so the root never collapses into the unit
+                ]),
+            ),
+        ]);
+    const regions = (): Region[] => [
+        reg("section:s1", 0, 0, 400, 300),
+        reg("el:s1", 0, 0, 400, 300),
+        reg("el:s1:0", 0, 0, 400, 150),
+        reg("el:s1:0.0", 20, 10, 380, 30),
+        reg("el:s1:0.1", 20, 50, 380, 30),
+        reg("el:s1:0.2", 20, 90, 380, 30),
+    ];
+    const movePayload = (i: number): DragPayload => ({
+        kind: "move",
+        from: { section: "s1", path: [0, i] },
+    });
+
+    it("an item's drag sees only its own list's gaps", () => {
+        const slots = computeDropSlots(bulletsArt(), regions(), movePayload(0));
+        expect(slots.length).toBeGreaterThan(0);
+        expect(
+            slots.every((s) => s.target.op === "insert" && s.target.path.join(".") === "0"),
+        ).toBe(true);
+    });
+
+    it("dropping between the later items reorders the list", () => {
+        const t = targetAt(bulletsArt(), regions(), 200, 75, movePayload(0));
+        expect(t).toMatchObject({ op: "insert", path: [0], index: 2 });
+        const res = applyDrop(bulletsArt(), t!, movePayload(0));
+        const list = getElementAt(res.content, { section: "s1", path: [0] });
+        expect(collectTexts(list)).toEqual(["two", "one", "three"]);
+    });
+
+    it("a foreign drag still finds no slot inside the unit", () => {
+        const slots = computeDropSlots(bulletsArt(), regions(), NEW);
+        expect(slots.some((s) => s.target.path.length > 1)).toBe(false);
+        expect(slots.some((s) => s.target.op === "insert" && s.target.path.join(".") === "0")).toBe(
+            false,
+        );
+    });
+});

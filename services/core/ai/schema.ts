@@ -8,6 +8,18 @@ const zElementLayout = z
         height: z.union([z.literal("fit"), z.literal("fill")]),
         align: z.union([z.literal("start"), z.literal("center"), z.literal("end")]),
         radius: z.number(),
+        pin: z
+            .object({
+                x: z.union([z.literal("start"), z.literal("center"), z.literal("end")]),
+                y: z.union([z.literal("start"), z.literal("center"), z.literal("end")]),
+                dx: z.number().optional(),
+                dy: z.number().optional(),
+                z: z.number().optional(),
+                rotate: z.number().optional(),
+            })
+            .describe(
+                "pins this element out of its parent container's flow, anchored to one of nine points of the parent's box (x/y: start|center|end) plus a px offset (dx/dy), layered by z (negative paints under the flow), optionally rotated (degrees clockwise). For small overlays only: a badge on a photo, a corner label, a decorative accent. Body content stays in the flow",
+            ),
         dock: z
             .literal("top")
             .describe(

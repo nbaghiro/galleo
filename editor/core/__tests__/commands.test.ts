@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import "@elements/register"; // the predicate reads element specs, so the registry has to be up
 import "@editor/core/commands"; // side-effect: register editor commands + keymap
+import { getElementAt } from "@elements/ops";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
     allCommands,
@@ -293,5 +294,59 @@ describe("commands over a multi-selection", () => {
         onCommentCreate(() => Promise.resolve(null));
         selectTwo();
         expect(resolveChord("mod+alt+m", ctx(["editor", "editor.element"], true))).toBeNull();
+    });
+});
+
+describe("pin commands", () => {
+    const el = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
+    const pinnedDoc = (): ArtifactContent => ({
+        format: "doc",
+        theme: "default",
+        sections: [
+            {
+                id: "s1",
+                root: {
+                    type: "container",
+                    data: {
+                        children: [
+                            el("body"),
+                            {
+                                ...el("badge"),
+                                layout: { width: "fit", pin: { x: "end", y: "start", dx: 10 } },
+                            },
+                        ],
+                    },
+                },
+            },
+        ],
+    });
+    const pinOf = (): Record<string, number | string> =>
+        (getElementAt(editor.artifact, { section: "s1", path: [1] })?.layout?.pin ?? {}) as Record<
+            string,
+            number | string
+        >;
+
+    it("arrow nudges move a pinned selection, shift moves it faster", async () => {
+        loadArtifactContent("pin-cmd", pinnedDoc());
+        setSelection({ kind: "element", address: { section: "s1", path: [1] } });
+        await runCommand("pin.nudgeRight");
+        expect(pinOf().dx).toBe(11);
+        await runCommand("pin.nudgeDownFast");
+        expect(pinOf().dy).toBe(10);
+    });
+
+    it("nudge declines without a pinned selection", async () => {
+        loadArtifactContent("pin-cmd2", pinnedDoc());
+        setSelection({ kind: "element", address: { section: "s1", path: [0] } });
+        await runCommand("pin.nudgeLeft");
+        const flow = getElementAt(editor.artifact, { section: "s1", path: [0] });
+        expect(flow?.layout?.pin).toBeUndefined();
+    });
+
+    it("pin.toggle unpins a pinned element", async () => {
+        loadArtifactContent("pin-cmd3", pinnedDoc());
+        setSelection({ kind: "element", address: { section: "s1", path: [1] } });
+        await runCommand("pin.toggle");
+        expect(pinOf().x).toBeUndefined();
     });
 });

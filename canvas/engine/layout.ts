@@ -1,4 +1,12 @@
-import type { Align, EngineNode, MeasureText, Rect, Region, RenderCommand } from "@engine/node";
+import type {
+    Align,
+    EngineNode,
+    MeasureText,
+    Rect,
+    Region,
+    RenderCommand,
+    Rotation,
+} from "@engine/node";
 import type { Size } from "@model/geometry";
 
 // Mutable working node: the resolved box, filled across the three passes, then flattened to commands.
@@ -469,6 +477,7 @@ function emit(
     clip?: Rect,
     link?: string,
     decor = false,
+    rot?: Rotation,
 ): void {
     const { node } = ln;
     const acc = node.opacity !== undefined ? opacity * node.opacity : opacity;
@@ -476,14 +485,22 @@ function emit(
     // A link covers everything it wraps: the commands are flat siblings, so a descendant painted
     // over the anchor would otherwise swallow the click.
     const href = node.link ?? link;
-    const dec = decor ? { decor: true as const } : {};
+    // The outermost rotated node fixes the center; descendants inherit it so the subtree turns as one.
+    const spin =
+        rot ??
+        (node.rotate ? { deg: node.rotate, cx: ln.x + ln.w / 2, cy: ln.y + ln.h / 2 } : undefined);
+    const dec = { ...(decor ? { decor: true as const } : {}), ...(spin ? { rotate: spin } : {}) };
     const box: Rect = { x: ln.x, y: ln.y, w: ln.w, h: ln.h };
-    if (node.id)
-        regions.push({ id: node.id, box, radius: node.fill?.radius ?? node.image?.radius });
+    if (node.id) {
+        const r: Region = { id: node.id, box, radius: node.fill?.radius ?? node.image?.radius };
+        regions.push(spin ? rotateRegion(r, spin) : r);
+    }
     // A surface reports its own sub-element geometry box-relative; only emit knows where the box sits.
     if (node.surface?.regions)
-        for (const r of node.surface.regions({ x: 0, y: 0, w: ln.w, h: ln.h }))
-            regions.push(offsetRegion(r, ln.x, ln.y));
+        for (const r of node.surface.regions({ x: 0, y: 0, w: ln.w, h: ln.h })) {
+            const placed = offsetRegion(r, ln.x, ln.y);
+            regions.push(spin ? rotateRegion(placed, spin) : placed);
+        }
     // This node's paint carries the ancestor clip; descendants also clip to its box.
     if (node.fill)
         commands.push({
@@ -538,12 +555,42 @@ function emit(
         .sort((a, b) => (a.node.float?.z ?? 0) - (b.node.float?.z ?? 0));
     for (const c of floats)
         if ((c.node.float?.z ?? 0) < 0)
-            emit(c, commands, regions, measure, acc, childClip, href, true);
+            emit(c, commands, regions, measure, acc, childClip, href, true, spin);
     for (const c of ln.children)
-        if (!c.node.float) emit(c, commands, regions, measure, acc, childClip, href, decor);
+        if (!c.node.float) emit(c, commands, regions, measure, acc, childClip, href, decor, spin);
     for (const c of floats)
         if ((c.node.float?.z ?? 0) >= 0)
-            emit(c, commands, regions, measure, acc, childClip, href, decor);
+            emit(c, commands, regions, measure, acc, childClip, href, decor, spin);
+}
+
+// The polygon of the region turned about the rotation center; `box` becomes the bounding box, so
+// `inRegion`'s box gate still passes and selection chrome has an axis-aligned outline to draw.
+// Exported for Present, which recovers regions from paginated commands rather than from emit.
+export function rotateRegion(r: Region, rot: Rotation): Region {
+    const rad = (rot.deg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const turn = ([px, py]: [number, number]): [number, number] => [
+        rot.cx + (px - rot.cx) * cos - (py - rot.cy) * sin,
+        rot.cy + (px - rot.cx) * sin + (py - rot.cy) * cos,
+    ];
+    const b = r.box;
+    const pts: [number, number][] = r.shape?.points ?? [
+        [b.x, b.y],
+        [b.x + b.w, b.y],
+        [b.x + b.w, b.y + b.h],
+        [b.x, b.y + b.h],
+    ];
+    const points = pts.map(turn);
+    const xs = points.map((p) => p[0]);
+    const ys = points.map((p) => p[1]);
+    const x = Math.min(...xs);
+    const y = Math.min(...ys);
+    return {
+        ...r,
+        box: { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y },
+        shape: { kind: "poly", points },
+    };
 }
 
 function offsetRegion(r: Region, dx: number, dy: number): Region {
@@ -575,8 +622,11 @@ const EPS = 0.5;
 const KEEP_LINES = 2;
 
 function shiftY(c: RenderCommand, dy: number): RenderCommand {
-    const box = { ...c.box, y: c.box.y + dy };
-    return c.clip ? { ...c, box, clip: { ...c.clip, y: c.clip.y + dy } } : { ...c, box };
+    const out = { ...c, box: { ...c.box, y: c.box.y + dy } };
+    if (c.clip) out.clip = { ...c.clip, y: c.clip.y + dy };
+    // the rotation pivot was baked in stage coordinates at emit time; it must ride the page shift
+    if (c.rotate) out.rotate = { ...c.rotate, cy: c.rotate.cy + dy };
+    return out;
 }
 
 const lineCount = (c: RenderCommand): number =>

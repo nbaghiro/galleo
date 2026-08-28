@@ -46,6 +46,23 @@ descendants to the node's box on the given axes (the engine carries the resolved
 `RenderCommand.clip`); `float?` lifts a node out of the flex flow (aligned + `dx`/`dy`-offset within the
 parent's content box, painted on top by ascending `z`); `opacity` multiplies down the subtree.
 
+Authored data reaches floats through `ElementLayout.pin` (`model/geometry.ts`): an anchor per axis
+into the parent's box (start/center/end), a px offset at compose scale, a `z` layer (negative paints
+under the flow) and an optional `rotate` in degrees. `applyLayout` (`canvas/elements/compose.ts`)
+compiles it onto `float` + `EngineNode.rotate`, the same seam `dock` uses, and `scaleTokens` carries
+the offsets through the ramp and autofit. Rotation is paint-only: the box is solved flat, then every
+command of the subtree carries a shared-center `rotate` (`Rotation` in `@engine/node`), so a
+multi-command element turns as one group; its region becomes the turned polygon inside a bounding
+box, which keeps hit-testing exact while selection chrome stays axis-aligned. DOM, canvas and PDF
+paint the turn exactly (the PDF path via a content-stream matrix); PPTX flattens it per shape by
+riding each box center along the turn (`respin`), exact for single-command elements. Docked chrome
+is marked `EngineNode.docked` rather than recognised by float shape, since a top-left pin floats the
+same way. A container whose children are all pinned keeps the empty-slot height instead of
+collapsing. The editor half lives in `editor/core/pin.ts`: anchors are solved against a private
+`layoutSection` of the same section (region boxes include padding the float math must not), a
+release re-anchors to the nearest of the nine parent anchors, and the inspector's toggle, anchor
+grid, layer and rotation controls write the same field.
+
 **Solver** (`layout.ts`) — three O(n) passes:
 
 1. **widths** (top-down) — each parent assigns its children's widths (`percent`/`fit`/`grow` all of the

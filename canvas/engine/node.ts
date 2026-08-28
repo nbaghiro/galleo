@@ -184,6 +184,12 @@ export interface EngineNode {
     // Lifted out of the flow (no effect on siblings or fit size). Painted by `z`: negative under
     // the flow (decoration), non-negative above it (overlays), ascending within each side.
     float?: { x?: Align; y?: Align; dx?: number; dy?: number; z?: number };
+    // marks section chrome for composeSection's hoist; the engine itself never reads it. A tag
+    // rather than a float-shape sniff, since a pinned element can float with the same shape.
+    docked?: boolean;
+    // paint-time spin of this subtree about its own box center, degrees clockwise; layout and
+    // wrapping stay unrotated, so the box is solved flat and painted turned
+    rotate?: number;
     opacity?: number; // 0..1, multiplied down the subtree
     // href for the whole box; inherited by the subtree so a click anywhere inside it navigates
     link?: string;
@@ -194,6 +200,14 @@ export interface EngineNode {
     children?: EngineNode[];
 }
 
+// A rotated subtree paints turned as a unit: every command in it shares the ancestor's center, so
+// the group turns together instead of each box spinning in place.
+export interface Rotation {
+    deg: number; // clockwise
+    cx: number;
+    cy: number;
+}
+
 // `clip` is the ancestor-intersected rect the backends honor; absent = no clip.
 // `decor` marks a command emitted from a negative-z float, which `float.z` already defines as
 // decoration: it paints, but it is out of the reading order, so the DOM backend hides it from a11y.
@@ -202,6 +216,7 @@ export type RenderCommand =
           kind: "rect";
           box: Rect;
           fill?: FillLeaf;
+          rotate?: Rotation;
           id?: string;
           opacity?: number;
           clip?: Rect;
@@ -215,6 +230,7 @@ export type RenderCommand =
           lines?: TextLine[];
           // a fragmented page's window into `lines`: [start, end). The command is whole otherwise.
           lineRange?: { start: number; end: number };
+          rotate?: Rotation;
           id?: string;
           opacity?: number;
           clip?: Rect;
@@ -225,6 +241,7 @@ export type RenderCommand =
           kind: "image";
           box: Rect;
           image: ImageLeaf;
+          rotate?: Rotation;
           id?: string;
           opacity?: number;
           clip?: Rect;
@@ -235,6 +252,7 @@ export type RenderCommand =
           kind: "surface";
           box: Rect;
           paint: SurfaceLeaf["paint"];
+          rotate?: Rotation;
           id?: string;
           opacity?: number;
           clip?: Rect;

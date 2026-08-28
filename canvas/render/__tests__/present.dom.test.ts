@@ -180,6 +180,22 @@ describe("what a pin carries with it", () => {
 });
 
 describe("commandRegions", () => {
+    it("recovers the turned polygon for a rotated command", () => {
+        const regions = commandRegions([
+            {
+                kind: "rect",
+                box: { x: 80, y: 90, w: 40, h: 20 },
+                id: "el:s1:1",
+                fill: {},
+                rotate: { deg: 90, cx: 100, cy: 100 },
+            },
+        ]);
+        const r = regions[0]!;
+        expect(r.shape?.kind).toBe("poly");
+        expect(r.box.w).toBeCloseTo(20); // 40×20 turned upright
+        expect(r.box.h).toBeCloseTo(40);
+    });
+
     it("recovers a box per painted id, merging the radius of a node that paints twice", () => {
         const regions = commandRegions([
             { kind: "rect", box: { x: 0, y: 0, w: 10, h: 10 }, id: "el:s1", fill: {} },

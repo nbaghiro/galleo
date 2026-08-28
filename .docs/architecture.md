@@ -190,8 +190,9 @@ core/      state + pure interaction logic, one file per concept —
            threads in, draft state, anchor capture, the onComment* handlers) · collab.ts (presence, leases,
            remote cursors) · ai.ts (section-gen · element-gen · text-assist state) · notes.ts (speaker
            notes + the narration runner) · infographic.ts (the chart/diagram data model the grid edits) ·
-           text.ts · clipboard.ts · media.ts · leaf.ts · export.ts (the fingerprinted build cache
-           behind ExportModal)
+           text.ts · clipboard.ts · media.ts · leaf.ts · pin.ts (free placement for a pinned element:
+           the drag, the nine parent anchors it commits to, and the rotation handle) · export.ts (the
+           fingerprinted build cache behind ExportModal)
 panels/    the chrome over the canvas —
            Selection.tsx (outline · resize · column dividers · section actions) · ControlBars.tsx (the
            floating format bar + mark controls) · RightPanel.tsx (the docked inspector) ·

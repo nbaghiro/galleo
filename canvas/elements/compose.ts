@@ -175,7 +175,21 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
         node.aspect = undefined;
     }
     if (layout.align) node.alignSelf = layout.align;
-    if (layout.dock === "top") node.float = { x: "start", y: "start", z: 1 };
+    if (layout.dock === "top") {
+        node.float = { x: "start", y: "start", z: 1 };
+        node.docked = true;
+    }
+    if (layout.pin) {
+        const p = layout.pin;
+        node.float = {
+            x: p.x,
+            y: p.y,
+            ...(p.dx !== undefined ? { dx: p.dx } : {}),
+            ...(p.dy !== undefined ? { dy: p.dy } : {}),
+            ...(p.z !== undefined ? { z: p.z } : {}),
+        };
+        if (p.rotate) node.rotate = p.rotate;
+    }
     if (layout.radius !== undefined) {
         if (node.image) node.image.radius = layout.radius;
         else if (node.fill) node.fill.radius = layout.radius;
@@ -191,11 +205,19 @@ function rowShares(inst: ElementInstance, kids: ElementInstance[]): number[] | n
     const row =
         STACK_TYPES.has(inst.type) && (inst.data as { direction?: string }).direction === "row";
     if (!row || kids.length === 0) return null;
-    const pct = kids.map((k) => {
+    const own = (k: ElementInstance): number | null => {
         const w = k.layout?.width;
         return w && typeof w === "object" ? w.pct / 100 : null;
+    };
+    // pinned children sit out of the flow and size against the whole row, so they neither take a
+    // column share nor dilute the even split of the children that do
+    const flow = kids.filter((k) => !k.layout?.pin);
+    const all = flow.every((k) => own(k) !== null);
+    const even = 1 / Math.max(1, flow.length);
+    return kids.map((k) => {
+        if (k.layout?.pin) return own(k) ?? 1;
+        return all ? own(k)! : even;
     });
-    return pct.every((p) => p !== null) ? (pct as number[]) : kids.map(() => 1 / kids.length);
 }
 
 export function composeElement(
@@ -226,6 +248,12 @@ export function composeElement(
                 ),
             );
             node = spec.container.arrange(inst.data, ectx, kids);
+            // all children pinned: fit height would collapse to padding, so keep the empty-slot
+            // height and the container stays visible and droppable under its own decoration.
+            // Docked kids don't count: composeSection hoists them out, and reserving for them
+            // would leave a stale empty band behind the chrome.
+            if (kids.every((k) => k.float && !k.docked) && node.h.mode === "fit")
+                node.h = fit(Math.max(90, node.h.min ?? 0));
         }
     } else {
         node = spec.layout(inst.data, ectx);
@@ -413,6 +441,16 @@ export function composedNodeFor(
 }
 
 /** The node carrying a region id, anywhere in a composed tree. */
+/** The first text leaf under `node`, for elements whose label is an anonymous child (a button). */
+export function firstTextLeaf(node: EngineNode): TextLeaf | null {
+    if (node.text) return node.text;
+    for (const c of node.children ?? []) {
+        const hit = firstTextLeaf(c);
+        if (hit) return hit;
+    }
+    return null;
+}
+
 export function nodeById(root: EngineNode, id: string): EngineNode | null {
     if (root.id === id) return root;
     for (const c of root.children ?? []) {
@@ -491,9 +529,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     };
     // A docked child (layout.dock) is section chrome: hoisted out of the content flow so it anchors
     // to the band's own box, while the rest centres in the band without it.
-    const docked = (content.children ?? []).filter(
-        (c) => c.float?.y === "start" && c.float.z === 1,
-    );
+    const docked = (content.children ?? []).filter((c) => c.docked);
     if (docked.length) {
         if (continuous) {
             content.children = (content.children ?? []).filter((c) => !docked.includes(c));

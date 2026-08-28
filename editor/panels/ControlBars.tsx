@@ -23,6 +23,7 @@ import {
 } from "@editor/core/store";
 import { deleteSelectedElements, duplicateSelectedElements } from "@editor/core/commands";
 import { drag, movable } from "@editor/core/dnd";
+import { isPinned, pinnable, togglePin } from "@editor/core/pin";
 import { union } from "./Selection";
 import { paintedLeafFor } from "@editor/core/leaf";
 import { canRegenerate, elementGenBusy, regenerateElement } from "@editor/core/ai";
@@ -292,6 +293,18 @@ export const ContextBar: Component = () => {
                             onClick={() => runCommand("edit.ungroup")}
                         >
                             <Icon name="layers" size={15} />
+                        </IconButton>
+                    </Show>
+                    <Show when={!set() && addr() && pinnable(editor.artifact, addr()!)}>
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            class={isPinned(editor.artifact, addr()!) ? "text-accent" : undefined}
+                            title={isPinned(editor.artifact, addr()!) ? "Unpin" : "Pin in place"}
+                            onClick={() => togglePin(addr()!, "bar")}
+                        >
+                            <Icon name="pin" size={15} />
                         </IconButton>
                     </Show>
                     {/* a closed container's child edits in place: it has no life of its own to duplicate or delete */}

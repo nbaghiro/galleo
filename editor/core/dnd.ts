@@ -61,6 +61,8 @@ export interface DragState {
     payload: DragPayload;
     x: number;
     y: number;
+    sx: number; // the grab point, for gestures that re-derive the travelled delta
+    sy: number;
     label: string;
     target: DropTarget | null;
 }
@@ -71,7 +73,7 @@ export const [dragSlots, setDragSlots] = createSignal<DropSlot[]>([]);
 export function startDrag(payload: DragPayload, x: number, y: number, label: string): void {
     // the flyout sits over the right of the canvas, which is where a drop target often is
     setRightTab(null);
-    setDrag({ payload, x, y, label, target: null });
+    setDrag({ payload, x, y, sx: x, sy: y, label, target: null });
 }
 
 export function endDrag(): void {
@@ -103,6 +105,22 @@ export function movable(art: ArtifactContent, addr: ElementAddress): boolean {
     // only a real layout container hands its children out; a unit owns them, so its parts move with
     // it rather than on their own
     return getElement(parent.type)?.tier === "container";
+}
+
+// A unit with an open children facet (bullets and kin) arranges its own items: they reorder
+// inside it and nowhere else. The seal against foreign drops and drag-out stays intact; this
+// names the item a grab within such a unit reorders.
+export function unitItem(art: ArtifactContent, addr: ElementAddress): ElementAddress | null {
+    for (let n = addr.path.length; n >= 1; n--) {
+        const parent = getElementAt(art, {
+            section: addr.section,
+            path: addr.path.slice(0, n - 1),
+        });
+        const spec = parent && getElement(parent.type);
+        if (spec && spec.tier === "unit" && spec.container && !spec.container.closed)
+            return { section: addr.section, path: addr.path.slice(0, n) };
+    }
+    return null;
 }
 
 // the nearest self-or-ancestor that structural ops may act on (a paste beside a diagram label
@@ -153,12 +171,21 @@ function childBoxes(
     return out.sort((a, b) => (axis === "row" ? a.box.x - b.box.x : a.box.y - b.box.y));
 }
 
-// the root row's children, else the whole root as one column
-function sectionColumns(regions: Region[], sid: string): Rect[] {
-    const cols = childBoxes(regions, sid, [], "row");
+const instKids = (inst?: ElementInstance): ElementInstance[] =>
+    (inst && getElement(inst.type)?.container?.children(inst.data)) ?? [];
+
+// pinned children sit out of the flow, so no slot geometry may derive from their boxes
+const flowOnly = (
+    boxes: { index: number; box: Rect }[],
+    kids: ElementInstance[],
+): { index: number; box: Rect }[] => boxes.filter((b) => !kids[b.index]?.layout?.pin);
+
+// the root row's flow children, else the whole root as one column
+function sectionColumns(regions: Region[], sid: string, root?: ElementInstance): Rect[] {
+    const cols = flowOnly(childBoxes(regions, sid, [], "row"), instKids(root));
     if (cols.length) return cols.map((c) => c.box);
-    const root = regions.find((r) => r.id === `el:${sid}`)?.box;
-    return root ? [root] : [];
+    const box = regions.find((r) => r.id === `el:${sid}`)?.box;
+    return box ? [box] : [];
 }
 
 const NEW_SECTION = (index: number): DropTarget => ({
@@ -242,7 +269,7 @@ function columnSlots(art: ArtifactContent, regions: Region[], payload: DragPaylo
     for (const s of art.sections) {
         const root = getElementAt(art, { section: s.id, path: [] });
         if (isContainer(root) && childCount(root) === 0) continue; // replace owns an empty root
-        const columns = sectionColumns(regions, s.id);
+        const columns = sectionColumns(regions, s.id, root);
         if (!columns.length) continue;
         const srcCol =
             payload.kind === "move" && payload.from.section === s.id
@@ -293,6 +320,7 @@ function gapSlot(
     k: number,
     kids: { index: number; box: Rect }[],
     container: Rect,
+    end: number, // the append index: the parent's full child count, pinned siblings included
 ): DropSlot {
     const main = (b: Rect): [number, number] =>
         axis === "row" ? [b.x, b.x + b.w] : [b.y, b.y + b.h];
@@ -311,8 +339,11 @@ function gapSlot(
         axis === "row"
             ? { start: container.y + LINE_INSET, len: container.h - LINE_INSET * 2 }
             : { start: container.x + LINE_INSET, len: container.w - LINE_INSET * 2 };
+    // before the flow child at position k, at that child's real array index; pinned siblings hold
+    // array positions without holding flow positions, so k itself is not the index
+    const index = k === kids.length ? end : kids[k]!.index;
     return {
-        target: { section: sid, op: "insert", path, index: k, before: false, direction: axis },
+        target: { section: sid, op: "insert", path, index, before: false, direction: axis },
         priority: 0,
         indicator:
             axis === "row"
@@ -395,14 +426,33 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
 
             const axis = groupAxis(inst);
             const boxes = childBoxes(regions, sid, path, axis);
-            const srcIndex =
-                srcPath !== null && srcPath.length === path.length + 1
-                    ? srcPath[path.length]!
-                    : null;
-            for (let k = 0; k <= boxes.length; k++) {
-                // the gaps flanking the source in its own parent are no-op moves
-                if (srcIndex !== null && (k === srcIndex || k === srcIndex + 1)) continue;
-                if (boxes.length) out.push(gapSlot(sid, path, axis, k, boxes, box));
+            const flow = flowOnly(boxes, kids);
+            if (!flow.length) {
+                // every child pinned: the reserved band is one droppable region, appending in flow
+                out.push({
+                    target: {
+                        section: sid,
+                        op: "insert",
+                        path,
+                        index: kids.length,
+                        before: false,
+                        direction: "col",
+                    },
+                    priority: 0,
+                    indicator: { kind: "region", box },
+                    hitbox: box,
+                });
+            } else {
+                const srcIndex =
+                    srcPath !== null && srcPath.length === path.length + 1
+                        ? srcPath[path.length]!
+                        : null;
+                const srcPos = srcIndex !== null ? flow.findIndex((b) => b.index === srcIndex) : -1;
+                for (let k = 0; k <= flow.length; k++) {
+                    // the gaps flanking the source in its own parent are no-op moves
+                    if (srcPos >= 0 && (k === srcPos || k === srcPos + 1)) continue;
+                    out.push(gapSlot(sid, path, axis, k, flow, box, kids.length));
+                }
             }
             for (const kb of boxes) visit([...path, kb.index]);
         };
@@ -434,20 +484,24 @@ function parentGapSlots(
     indices: number[],
 ): DropSlot[] {
     const inst = getElementAt(art, parent);
-    if (!inst || getElement(inst.type)?.tier !== "container") return [];
+    const spec = inst && getElement(inst.type);
+    // any open children facet may reorder its own items; the container tier is not the bar here
+    if (!spec?.container || spec.container.closed) return [];
     const box = regionBox(regions, parent.section, parent.path);
     if (!box) return [];
     const axis = groupAxis(inst);
-    const kids = childBoxes(regions, parent.section, parent.path, axis);
+    const children = instKids(inst);
+    const kids = flowOnly(childBoxes(regions, parent.section, parent.path, axis), children);
     if (!kids.length) return [];
     const sorted = [...indices].sort((a, b) => a - b);
-    const lo = sorted[0]!;
-    const hi = sorted[sorted.length - 1]!;
+    const pos = (i: number): number => kids.findIndex((b) => b.index === i);
+    const lo = pos(sorted[0]!);
+    const hi = pos(sorted[sorted.length - 1]!);
     const contiguous = sorted.every((v, i) => i === 0 || v === sorted[i - 1]! + 1);
     const out: DropSlot[] = [];
     for (let k = 0; k <= kids.length; k++) {
-        if (contiguous && k >= lo && k <= hi + 1) continue; // the block already sits there
-        out.push(gapSlot(parent.section, parent.path, axis, k, kids, box));
+        if (contiguous && lo >= 0 && k >= lo && k <= hi + 1) continue; // the block already sits there
+        out.push(gapSlot(parent.section, parent.path, axis, k, kids, box, children.length));
     }
     return out;
 }
@@ -460,6 +514,10 @@ export function computeDropSlots(
 ): DropSlot[] {
     if (payload.kind === "moveMany")
         return parentGapSlots(art, regions, payload.parent, payload.indices);
+    if (payload.kind === "move" && unitItem(art, payload.from)) {
+        const parent = { section: payload.from.section, path: payload.from.path.slice(0, -1) };
+        return parentGapSlots(art, regions, parent, [payload.from.path.at(-1)!]);
+    }
     const gaps = sectionGapSlots(art, regions, payload);
     if (payload.kind === "section") return gaps; // a section only lands in the stack gaps
     return [...gaps, ...columnSlots(art, regions, payload), ...elementSlots(art, regions, payload)];
@@ -474,7 +532,7 @@ export const sameTarget = (a: DropTarget, b: DropTarget): boolean =>
     a.path.length === b.path.length &&
     a.path.every((v, i) => v === b.path[i]);
 
-function indicatorDistance(ind: SlotIndicator, px: number, py: number): number {
+export function indicatorDistance(ind: SlotIndicator, px: number, py: number): number {
     if (ind.kind === "region") return 0; // its hitbox is the region itself
     if (ind.axis === "v") {
         const dy = py < ind.y ? ind.y - py : py > ind.y + ind.length ? py - ind.y - ind.length : 0;

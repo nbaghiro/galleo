@@ -9,6 +9,12 @@ const PATHS: Record<string, () => JSX.Element> = {
             <line x1="20.5" y1="20.5" x2="15.4" y2="15.4" />
         </>
     ),
+    pin: () => (
+        <>
+            <path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z" />
+            <line x1="12" y1="15" x2="12" y2="20" />
+        </>
+    ),
     inspector: () => (
         <>
             <path d="M4 8h16M4 16h16" />

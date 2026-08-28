@@ -1,4 +1,5 @@
 import type { Region, RenderCommand } from "@engine/node";
+import { rotateRegion } from "@engine/layout";
 import type { Section } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
@@ -138,7 +139,8 @@ export function commandRegions(commands: RenderCommand[]): Region[] {
         const radius =
             c.kind === "rect" ? c.fill?.radius : c.kind === "image" ? c.image.radius : undefined;
         const seen = byId.get(c.id);
-        if (!seen) byId.set(c.id, { id: c.id, box: c.box, radius });
+        const flat: Region = { id: c.id, box: c.box, radius };
+        if (!seen) byId.set(c.id, c.rotate ? rotateRegion(flat, c.rotate) : flat);
         else if (seen.radius === undefined && radius !== undefined) seen.radius = radius;
     }
     return [...byId.values()];

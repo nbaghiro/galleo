@@ -384,6 +384,9 @@ export interface Events {
     template_previewed: { template_id: string; category: string; format: Surface };
     // a text or table gained a line clamp; counts only, never the text it clamps
     text_clamped: { element_type: string; max_lines: number };
+    // an element pinned out of the flow, and its way back; via names the entry point
+    element_pinned: { element_type: string; via: "panel" | "bar" | "palette" | "drag" };
+    element_unpinned: { element_type: string; via: "panel" | "bar" | "palette" | "drag" };
     template_used: { template_id: string; category: string; format: Surface; from: string };
 
     // Editing depth: whether people author here or only generate and leave.

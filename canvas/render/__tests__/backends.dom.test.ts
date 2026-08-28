@@ -96,6 +96,78 @@ describe("paint / applyCommand", () => {
     });
 });
 
+describe("inline label hiding", () => {
+    it("hideId with a label: prefix hides the button's label text, nothing else", () => {
+        const host = document.createElement("div");
+        const sections = [sectionOf(inst("button", { label: "Reserve now" }), { id: "s1" })];
+        const opts = { fullW: 1000, hideId: "label:el:s1" };
+        paintSectionStack(host, sections, resolveProfile("deck"), tokens, opts);
+        expect(host.textContent).not.toContain("Reserve now");
+        const host2 = document.createElement("div");
+        paintSectionStack(host2, sections, resolveProfile("deck"), tokens, { fullW: 1000 });
+        expect(host2.textContent).toContain("Reserve now");
+    });
+});
+
+describe("rotation", () => {
+    it("paints the transform about the shared center", () => {
+        const host = document.createElement("div");
+        const [el] = paint(
+            [
+                {
+                    kind: "rect",
+                    box: { x: 80, y: 90, w: 40, h: 20 },
+                    fill: { color: "#000" },
+                    rotate: { deg: 30, cx: 100, cy: 100 },
+                },
+            ],
+            host,
+        );
+        expect(el!.style.transform).toBe("rotate(30deg)");
+        expect(el!.style.transformOrigin).toBe("20px 10px");
+    });
+
+    it("keeps an ancestor clip stage-aligned by counter-turning it into local space", () => {
+        const host = document.createElement("div");
+        const [el] = paint(
+            [
+                {
+                    kind: "rect",
+                    box: { x: 80, y: 90, w: 40, h: 20 },
+                    fill: { color: "#000" },
+                    clip: { x: 80, y: 90, w: 40, h: 20 },
+                    rotate: { deg: 90, cx: 100, cy: 100 },
+                },
+            ],
+            host,
+        );
+        // the stage rect mapped through the inverse turn: a polygon, not a box-relative inset
+        expect(el!.style.clipPath).toContain("polygon");
+        // 90° back-rotation of the box's own corners about (20,10): (0,0) → (10,30)
+        expect(el!.style.clipPath).toContain("10px 30px");
+    });
+
+    it("a reused element sheds a stale transform", () => {
+        const host = document.createElement("div");
+        paint(
+            [
+                {
+                    kind: "rect",
+                    box: { x: 0, y: 0, w: 10, h: 10 },
+                    fill: { color: "#000" },
+                    rotate: { deg: 45, cx: 5, cy: 5 },
+                },
+            ],
+            host,
+        );
+        const [el] = paint(
+            [{ kind: "rect", box: { x: 0, y: 0, w: 10, h: 10 }, fill: { color: "#000" } }],
+            host,
+        );
+        expect(el!.style.transform).toBe("");
+    });
+});
+
 describe("canvasDrawContext", () => {
     it("adapts measureText through the 2D context", () => {
         expect(canvasDrawContext(textMetricsCtx()).measureText("hello", { size: 12 }).width).toBe(

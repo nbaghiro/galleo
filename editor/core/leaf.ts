@@ -1,12 +1,7 @@
 import type { EngineNode, TextLeaf } from "@engine/node";
 import type { ElementAddress, Section } from "@model/artifact";
 import type { LayoutCtx } from "@elements/spec";
-import {
-    composedLeafFor,
-    composedNodeFor,
-    nodeById,
-    sectionContentTokens,
-} from "@elements/compose";
+import { composedNodeFor, firstTextLeaf, nodeById, sectionContentTokens } from "@elements/compose";
 import { childrenOf, getElementAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import { elementRegionId } from "@model/artifact";
@@ -110,9 +105,14 @@ export function paintedLeafFor(address: ElementAddress): TextLeaf | null {
     const panelled = panelNodeFor(address)?.text;
     if (panelled) return panelled;
     const section = editor.artifact.sections.find((s) => s.id === address.section);
-    const composed = section ? composedLeafFor(section, address, paintedCtx(section)) : null;
+    // an inline label is an anonymous child leaf, so its element's node descends to it
+    const leafOf = (node: EngineNode | null): TextLeaf | null =>
+        node && (node.text ?? (spec.inlineText ? firstTextLeaf(node) : null));
+    const composed = section
+        ? leafOf(composedNodeFor(section, address, paintedCtx(section)))
+        : null;
     if (composed) return composed;
     const base = editorTokens();
     const tokens = section ? sectionContentTokens(section, base) : base;
-    return spec.layout(inst.data, { ...paintedCtx(section), theme: tokens }).text ?? null;
+    return leafOf(spec.layout(inst.data, { ...paintedCtx(section), theme: tokens }));
 }

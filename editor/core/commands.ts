@@ -6,12 +6,13 @@ import {
     getElementAt,
     groupSelection,
     removeMany,
+    setElementLayout,
     sharedParent,
     ungroupAt,
 } from "@elements/ops";
 import { getElement } from "@elements/spec";
 import type { ElementAddress, ElementInstance } from "@model/artifact";
-import { parentTarget, type Target } from "@model/artifact";
+import { elementRegionId, parentTarget, type Target } from "@model/artifact";
 import {
     addSectionAfter,
     canRedo,
@@ -42,8 +43,40 @@ import {
 } from "./store";
 import { leaseHolder, say } from "./collab";
 import { movable, movableAncestor } from "./dnd";
+import { pinnable, togglePin } from "./pin";
 import { clipboardEl, copyToClipboard, hasClipboard, pasteElements } from "./clipboard";
 import { canRegenerate, regenerateElement } from "./ai";
+
+// pinning: the selected element when the inspector could offer the toggle / when it is pinned
+const pinTarget = (): ElementAddress | null => {
+    const s = selection();
+    return s?.kind === "element" && pinnable(editor.artifact, s.address) ? s.address : null;
+};
+const pinnedTarget = (): ElementAddress | null => {
+    const a = pinTarget();
+    return a && getElementAt(editor.artifact, a)?.layout?.pin ? a : null;
+};
+const NUDGES = [
+    { id: "nudgeLeft", dx: -1, dy: 0 },
+    { id: "nudgeRight", dx: 1, dy: 0 },
+    { id: "nudgeUp", dx: 0, dy: -1 },
+    { id: "nudgeDown", dx: 0, dy: 1 },
+];
+// arrows move a pinned element by composed px; a burst of taps folds into one undo step
+function nudgePin(dx: number, dy: number): void {
+    const a = pinnedTarget();
+    if (!a) return;
+    const inst = getElementAt(editor.artifact, a)!;
+    const pin = inst.layout!.pin!;
+    const r1 = (v: number): number => Math.round(v * 10) / 10;
+    commit(
+        setElementLayout(editor.artifact, a, {
+            ...inst.layout,
+            pin: { ...pin, dx: r1((pin.dx ?? 0) + dx), dy: r1((pin.dy ?? 0) + dy) },
+        }),
+        { coalesce: `pin:${elementRegionId(a)}:nudge` },
+    );
+}
 import { captureAnchor, commentableAt, commentsAvailable, startCommentDraft } from "./comments";
 import { openSectionPrompt } from "./ai";
 import { textSelection, toggleTextMark } from "./text";
@@ -277,6 +310,29 @@ registerCommands([
     },
 
     {
+        id: "pin.toggle",
+        title: "Pin in place",
+        group: "arrange",
+        icon: "pin",
+        keywords: ["pin", "unpin", "anchor", "float"],
+        when: (c) => inEditor(c) && notTyping(c) && !!pinTarget(),
+        run: () => {
+            const a = pinTarget();
+            if (a) togglePin(a, "palette");
+        },
+    },
+    ...NUDGES.flatMap(({ id, dx, dy }) =>
+        [1, 10].map((step) => ({
+            id: step === 1 ? `pin.${id}` : `pin.${id}Fast`,
+            title: `Nudge ${id}`,
+            group: "arrange" as const,
+            palette: false,
+            when: (c: KeyCtx) => inEditor(c) && notTyping(c) && !!pinnedTarget(),
+            run: () => nudgePin(dx * step, dy * step),
+        })),
+    ),
+
+    {
         id: "select.up",
         title: "Select parent",
         group: "select",
@@ -455,6 +511,14 @@ registerBindings([
     { chord: ["delete", "backspace"], command: "edit.delete", when: "editor" },
     { chord: "mod+d", command: "edit.duplicate", when: "editor" },
     { chord: "escape", command: "select.up", when: "editor" },
+    { chord: "left", command: "pin.nudgeLeft", when: "editor" },
+    { chord: "right", command: "pin.nudgeRight", when: "editor" },
+    { chord: "up", command: "pin.nudgeUp", when: "editor" },
+    { chord: "down", command: "pin.nudgeDown", when: "editor" },
+    { chord: "shift+left", command: "pin.nudgeLeftFast", when: "editor" },
+    { chord: "shift+right", command: "pin.nudgeRightFast", when: "editor" },
+    { chord: "shift+up", command: "pin.nudgeUpFast", when: "editor" },
+    { chord: "shift+down", command: "pin.nudgeDownFast", when: "editor" },
     { chord: "mod+g", command: "edit.group", when: "editor" },
     { chord: "mod+shift+g", command: "edit.ungroup", when: "editor" },
     { chord: "mod+c", command: "edit.copy", when: "editor" },

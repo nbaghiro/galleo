@@ -127,6 +127,9 @@ export interface ElementSpec<Data = unknown> {
     controls: ControlField[];
     // Studio-only editing affordances (inert for layout/present/export):
     richText?: boolean; // primary text supports inline marks → marks-aware editor + mark bar
+    // the data key of a plain-string label editable in place (no marks); the arrange publishes the
+    // leaf's geometry as a `label:` region so the overlay can sit exactly over the painted text
+    inlineText?: string;
     bar?: string[]; // control keys to surface in the on-canvas format bar
     frame?: boolean; // has a visible frame (fill/image) → corner-radius slider in the inspector
 

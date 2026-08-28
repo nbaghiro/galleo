@@ -7,9 +7,9 @@ import { pickArtifactBackground } from "./core/media";
 import type { ElementAddress, Target, Section } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show } from "solid-js";
-import { applyAffordance, getElementAt } from "@elements/ops";
+import { applyAffordance, getElementAt, setElementLayout } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import { profileFor } from "@engine/profile";
+import { profileFor, sectionBleeds } from "@engine/profile";
 import {
     contentRegionId,
     elementRegionId,
@@ -98,7 +98,14 @@ import {
 } from "./core/store";
 import { EmptyRegionAdd, ContextMenu, openContextMenu } from "./panels/Insert";
 import { DropIndicators, LiftVeil } from "./panels/DropIndicators";
-import { DragHandle, RegionDividers, ResizeHandles } from "./panels/Selection";
+import {
+    beginElementMove,
+    DragHandle,
+    PinAnchors,
+    RegionDividers,
+    ResizeHandles,
+} from "./panels/Selection";
+import { nearestPinPlacement, pinnable, pinnedAncestor, pinnedLayout } from "@editor/core/pin";
 import { ContextBar } from "./panels/ControlBars";
 import { Overlay, SectionActions } from "./panels/Selection";
 import { SectionGenPopup } from "./panels/GenPrompt";
@@ -129,9 +136,8 @@ const PHONE_PAD = 6;
  */
 const SITE_FILL = 0.9;
 
-/** Extra padding either side that leaves a bleeding format spanning `SITE_FILL` of the canvas. */
-const siteMargin = (profile: { bleedSections?: boolean }, available: number): number =>
-    profile.bleedSections ? Math.round((available * (1 - SITE_FILL)) / 2) : 0;
+/** Extra padding either side that leaves a banded stack spanning `SITE_FILL` of the canvas. */
+const bandMargin = (available: number): number => Math.round((available * (1 - SITE_FILL)) / 2);
 
 const PANEL_GAP = 8; // between a popup's trigger and its floating panel
 const PANEL_EDGE = 12; // slack the panel keeps from the stage edge
@@ -155,7 +161,7 @@ export const Canvas: Component = () => {
     const layoutViewH = (): number => (scrollEl.clientHeight || 800) / zoom();
 
     // Precomputed per draw so hover is a numeric box test, not a re-parse of every region id.
-    let liveHits: { target: Target; spec: number; box: Rect }[] = [];
+    let liveHits: { target: Target; spec: number; region: Region }[] = [];
     let affordances: { action: string; address: ElementAddress; box: Rect }[] = [];
     // sub-element marks (a chart's bars): hover-only, and shape-aware where a box would lie
     let datums: Region[] = [];
@@ -283,6 +289,17 @@ export const Canvas: Component = () => {
     let lastWindow: StackWindow | null = null;
 
     // track: regions follow the preview (resize/column); off for DnD, so the drop target holds still
+    // A site is all bands; a doc becomes banded the moment one section bleeds, and its bands then
+    // deserve the same symmetric margins instead of running flush under the right rail.
+    const showsBands = (): boolean => {
+        const profile = profileFor(editor.artifact);
+        return (
+            profile.bleedSections === true ||
+            (profile.kind === "continuous" &&
+                editor.artifact.sections.some((sec) => sectionBleeds(sec, profile)))
+        );
+    };
+
     const draw = (preview?: Section[] | null, track = false, dimId?: string | null): void => {
         if (!paintHost) return;
         const profile = profileFor(editor.artifact);
@@ -290,15 +307,21 @@ export const Canvas: Component = () => {
         const phonePad = profile.bleedSections ? 0 : PHONE_PAD;
         const clientW = scrollEl.clientWidth || 800;
         // on a phone a site keeps the whole width: there is no room to give away
-        const inset = isPhone() ? 0 : siteMargin(profile, clientW);
+        const inset = isPhone() || !showsBands() ? 0 : bandMargin(clientW);
         const padL = (isPhone() ? phonePad : leftOpen() ? panelL() : RAIL_GAP) + inset;
         const padR = (isPhone() ? phonePad : RAIL_R) + inset;
         const fullW = Math.max(isPhone() ? 280 : 360, clientW - padL - padR);
         setCanvasContentWidth(fullW); // so minimap thumbnails match this width
         setBoardGutterL(padL); // so handles know how far left of the stack stays visible
-        // hide the painted text of the edited element; the live overlay shows it
+        // hide the painted text of the edited element; the live overlay shows it. An inline label
+        // is an id-less leaf, so its element publishes it under a `label:` id and that is what hides.
         const editAddr = editing();
-        const editId = editAddr ? elementRegionId(editAddr) : null;
+        const editInst = editAddr ? getElementAt(editor.artifact, editAddr) : null;
+        const editId = editAddr
+            ? editInst && getElement(editInst.type)?.inlineText
+                ? `label:${elementRegionId(editAddr)}`
+                : elementRegionId(editAddr)
+            : null;
         // the window is layout geometry, so the scrolled band divides the zoom back out
         const viewH = layoutViewH();
         const win = stackWindow(layoutScrollTop(), viewH);
@@ -360,13 +383,13 @@ export const Canvas: Component = () => {
         if (!preview || track) {
             const panelRegions = drawPanels(regions, profile.id, editAddr);
             setRegions(panelRegions.length ? [...regions, ...panelRegions] : regions);
-            const hits: { target: Target; spec: number; box: Rect }[] = [];
+            const hits: { target: Target; spec: number; region: Region }[] = [];
             const aff: { action: string; address: ElementAddress; box: Rect }[] = [];
             const marks: Region[] = [];
             const collect = (list: Region[], boost: number): void => {
                 for (const r of list) {
                     const t = parseTarget(r.id);
-                    if (t) hits.push({ target: t, spec: specificity(t) + boost, box: r.box });
+                    if (t) hits.push({ target: t, spec: specificity(t) + boost, region: r });
                     const h = parseHitRegion(r.id);
                     if (h) aff.push({ ...h, box: r.box });
                     if (parseDatumRegion(r.id)) marks.push(r);
@@ -454,9 +477,11 @@ export const Canvas: Component = () => {
         let best: Target | null = null;
         let bestSpec = -1;
         for (const h of liveHits) {
-            const b = h.box;
-            if (px < b.x || px > b.x + b.w || py < b.y || py > b.y + b.h) continue;
-            if (h.spec > bestSpec) {
+            // shape-aware: a rotated element hits on its turned polygon, not its bounding box
+            if (!inRegion(h.region, px, py)) continue;
+            // ties fall to the later region: emit pushes regions in paint order, so among equal
+            // depths the topmost painted sibling wins (a pinned chip over its sibling photo)
+            if (h.spec >= bestSpec) {
                 bestSpec = h.spec;
                 best = h.target;
             }
@@ -482,7 +507,9 @@ export const Canvas: Component = () => {
     ): { action: string; address: ElementAddress; box: Rect } | null => {
         const a = affordances.find((x) => inBox(x.box, px, py));
         if (!a) return null;
-        return liveHits.some((h) => inBox(h.box, px, py) && within(h.box, a.box)) ? null : a;
+        return liveHits.some((h) => inRegion(h.region, px, py) && within(h.region.box, a.box))
+            ? null
+            : a;
     };
 
     // last painted wins: emit reports a parent before its children, and marks overlap (a bubble chart)
@@ -502,6 +529,8 @@ export const Canvas: Component = () => {
         const next = applyAffordance(editor.artifact, a.action, a.address);
         if (next !== editor.artifact) commit(next);
     };
+
+    const BODY_DRAG_THRESHOLD = 5; // px of travel before a press becomes a move, not a click
 
     const onPointerDown = (e: PointerEvent): void => {
         // a pointerdown reaching here while editing is an outside click; in-editor ones are stopped
@@ -545,11 +574,30 @@ export const Canvas: Component = () => {
             publishPresence();
         }
         if (drag() || editing() || liveEdit()) return; // driven by window listeners
-        // Moves start only from the DragHandle, so a body drag never becomes an accidental move.
+        // Every body is a handle: past the threshold a press on an element becomes its move (a
+        // pinned one drags freely, a flow one reorders). Below it, clicks stay clicks. On phones
+        // only an already-selected element drags, so a scroll never fights a finger.
+        if (pending?.target?.kind === "element" && e.buttons) {
+            const moved =
+                Math.abs(e.clientX - pending.x) + Math.abs(e.clientY - pending.y) >=
+                BODY_DRAG_THRESHOLD;
+            if (moved && (!isPhone() || targetsEqual(pending.target, selection()))) {
+                const { target, x, y } = pending;
+                pending = null;
+                pendingDatum = null;
+                beginElementMove(target.address, x, y);
+                return;
+            }
+        }
         const [hx, hy] = point(e);
-        setHover(hitTest(hx, hy));
+        const over = hitTest(hx, hy);
+        setHover(over);
         setDatum(datumAt(hx, hy));
-        scrollEl.style.cursor = affordanceAt(hx, hy) ? "pointer" : "";
+        scrollEl.style.cursor = affordanceAt(hx, hy)
+            ? "pointer"
+            : over?.kind === "element" && pinnedAncestor(editor.artifact, over.address)
+              ? "grab"
+              : "";
     };
 
     const onPointerLeaveCanvas = (): void => {
@@ -601,7 +649,8 @@ export const Canvas: Component = () => {
         }
         if (t?.kind === "element") {
             const el = getElementAt(editor.artifact, t.address);
-            if (el && getElement(el.type)?.richText && (!isPhone() || already))
+            const spec = el && getElement(el.type);
+            if (spec && (spec.richText || spec.inlineText) && (!isPhone() || already))
                 startEditing(t.address, caret);
         }
     };
@@ -829,12 +878,52 @@ export const Canvas: Component = () => {
                 setHover(null);
             }
         };
+        // Space converts a single-element reorder into a pin where the pointer is, and the drag
+        // continues freely; the handoff waits a frame so the committed pin's regions are painted.
+        const onKey = (e: KeyboardEvent): void => {
+            if (e.key === "Escape") {
+                endDrag();
+                return;
+            }
+            if (e.key !== " ") return;
+            const d = drag();
+            if (!d || d.payload.kind !== "move") return;
+            e.preventDefault();
+            const addr = d.payload.from;
+            if (!pinnable(editor.artifact, addr)) return;
+            const el0 = regions().find((r) => r.id === elementRegionId(addr))?.box;
+            const parentBox = regions().find(
+                (r) =>
+                    r.id ===
+                    elementRegionId({ section: addr.section, path: addr.path.slice(0, -1) }),
+            )?.box;
+            if (!el0 || !parentBox) return;
+            endDrag();
+            const z = zoom();
+            const at = {
+                ...el0,
+                x: el0.x + (clientX - d.sx) / z,
+                y: el0.y + (clientY - d.sy) / z,
+            };
+            const placed = nearestPinPlacement(parentBox, at);
+            const next = pinnedLayout(editor.artifact, addr, placed.anchors, placed.gap);
+            if (!next) return;
+            const type = getElementAt(editor.artifact, addr)?.type ?? "";
+            commit(setElementLayout(editor.artifact, addr, next));
+            capture("element_pinned", { element_type: type, via: "drag" });
+            const [cx, cy] = [clientX, clientY];
+            requestAnimationFrame(() =>
+                requestAnimationFrame(() => beginElementMove(addr, cx, cy)),
+            );
+        };
         window.addEventListener("pointermove", move);
         window.addEventListener("pointerup", up);
+        window.addEventListener("keydown", onKey);
         onCleanup(() => {
             cancelAnimationFrame(scrollRaf);
             window.removeEventListener("pointermove", move);
             window.removeEventListener("pointerup", up);
+            window.removeEventListener("keydown", onKey);
         });
     });
 
@@ -845,7 +934,7 @@ export const Canvas: Component = () => {
         // percentages resolve against this element's own width, which is the same figure `draw`
         // measures, so the painted stack and the box it sits in agree without measuring twice
         const share =
-            isPhone() || !profile.bleedSections
+            isPhone() || !showsBands()
                 ? ""
                 : ` + ${Math.round(((1 - SITE_FILL) / 2) * 1000) / 10}%`;
         const pad = (base: number): string => (share ? `calc(${base}px${share})` : `${base}px`);
@@ -917,6 +1006,7 @@ export const Canvas: Component = () => {
                         matches the geometry they edit, so the section sheet + presets stand in */}
                     <Show when={!isPhone()}>
                         <DragHandle />
+                        <PinAnchors />
                         <ResizeHandles />
                         <RegionDividers />
                         <SectionActions />

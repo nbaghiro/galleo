@@ -11,6 +11,7 @@ import type {
     TextLine,
 } from "@engine/node";
 import type { Section } from "@model/artifact";
+import { sectionRegionId } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { composeSection } from "@elements/compose";
@@ -42,8 +43,26 @@ export function ctxFor(
     };
 }
 
+// a rotated command's painted extent is its turned corners, not its flat box
+function lowest(c: RenderCommand): number {
+    const b = c.box;
+    if (!c.rotate) return b.y + b.h;
+    const rad = (c.rotate.deg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const ys = (
+        [
+            [b.x, b.y],
+            [b.x + b.w, b.y],
+            [b.x + b.w, b.y + b.h],
+            [b.x, b.y + b.h],
+        ] as const
+    ).map(([px, py]) => c.rotate!.cy + (px - c.rotate!.cx) * sin + (py - c.rotate!.cy) * cos);
+    return Math.max(...ys);
+}
+
 function bottom(commands: RenderCommand[]): number {
-    return commands.reduce((m, c) => Math.max(m, c.box.y + c.box.h), 0);
+    return commands.reduce((m, c) => Math.max(m, lowest(c)), 0);
 }
 
 export function layoutSection(
@@ -56,7 +75,17 @@ export function layoutSection(
 ): { commands: RenderCommand[]; regions: Region[]; height: number } {
     const node = composeSection(section, ctxFor(width, theme, format, plain, measure));
     const { commands, regions } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
-    return { commands, regions, height: bottom(commands) };
+    const height = bottom(commands);
+    // A pinned descendant can outrun the flow, and the flow is all a fit height counts. The stack
+    // already advances by the measured extent; the section's own ground (and its region) stretch to
+    // it too, so the overhang stays inside its band instead of hanging over the next section's.
+    const sid = sectionRegionId(section.id);
+    for (const c of commands)
+        if (c.id === sid && (c.kind === "rect" || c.kind === "image"))
+            c.box = { ...c.box, h: Math.max(c.box.h, height - c.box.y) };
+    for (const r of regions)
+        if (r.id === sid) r.box = { ...r.box, h: Math.max(r.box.h, height - r.box.y) };
+    return { commands, regions, height };
 }
 
 function ghostColorsFor(theme: Tokens): { bar: string; panel: string; line: string } {

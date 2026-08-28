@@ -39,7 +39,28 @@ import {
     stopEditing,
     zoom,
 } from "@editor/core/store";
-import { startDrag, drag, movableAncestor, moveManyPayload } from "@editor/core/dnd";
+import {
+    computeDropSlots,
+    drag,
+    indicatorDistance,
+    movableAncestor,
+    moveManyPayload,
+    startDrag,
+    unitItem,
+    type DropSlot,
+} from "@editor/core/dnd";
+import {
+    anchorPoint,
+    nearestPinPlacement,
+    parentAddress,
+    pinGestureScale,
+    pinnedAncestor,
+    pinnedLayout,
+    reflowPin,
+    togglePin,
+    type Pin,
+} from "@editor/core/pin";
+import { capture } from "@ui/analytics";
 import { openSectionPrompt } from "@editor/core/ai";
 import { pickMedia } from "@editor/core/media";
 import { SectionLayoutPopup } from "./SectionLayoutPopup";
@@ -73,6 +94,215 @@ const gripX = (box: { x: number }): number =>
 // them never drops the hover; just the pill when the clamp already put it on the box.
 const gripW = (box: { x: number }): number => Math.max(GRIP_W, box.x - gripX(box));
 
+interface PinDrag {
+    parent: Rect;
+    nearest: { x: Pin["x"]; y: Pin["y"] };
+    snapped: boolean; // an axis sits flush on the nearest anchor, worth a feedback dot
+    slot: DropSlot | null; // a flow gap close enough to take the element back
+}
+const [pinDrag, setPinDrag] = createSignal<PinDrag | null>(null);
+
+// how close the pointer must come to a gap line before it offers the way back into the flow
+const REFLOW_REACH = 16;
+
+// A pinned element's grip moves it freely within its parent instead of re-slotting: live dx/dy on
+// the preview, then one commit that re-anchors to the nearest of the nine parent anchors. Regions
+// stay unpublished during a preview, so the release position is the start box ridden rigidly.
+function beginPinMove(address: ElementAddress, sx: number, sy: number): void {
+    const inst = getElementAt(editor.artifact, address);
+    const pin = inst?.layout?.pin;
+    const el0 = regions().find((r) => r.id === elementRegionId(address))?.box;
+    const parent = regions().find((r) => r.id === elementRegionId(parentAddress(address)))?.box;
+    if (!pin || !el0 || !parent) return;
+    clearExtras();
+    const z = zoom();
+    const k = pinGestureScale(address.section) * z;
+    const start = { dx: pin.dx ?? 0, dy: pin.dy ?? 0 };
+    const last = { x: sx, y: sy };
+    // the flow gaps this element could return to, enumerated once: the preview never reflows the
+    // stack, so they hold for the whole gesture. Lines only: a region target would cover ground
+    // the free move has to cross.
+    const gaps = computeDropSlots(editor.artifact, regions(), {
+        kind: "move",
+        from: address,
+    }).filter((g) => g.indicator.kind === "line");
+    const at = (ev: PointerEvent): Rect => ({
+        ...el0,
+        x: el0.x + (ev.clientX - sx) / z,
+        y: el0.y + (ev.clientY - sy) / z,
+    });
+    const onMove = (ev: PointerEvent): void => {
+        last.x = ev.clientX;
+        last.y = ev.clientY;
+        setLiveEdit({
+            kind: "element",
+            address,
+            layoutPatch: {
+                pin: {
+                    ...pin,
+                    dx: start.dx + (ev.clientX - sx) / k,
+                    dy: start.dy + (ev.clientY - sy) / k,
+                },
+            },
+        });
+        const placed = nearestPinPlacement(parent, at(ev));
+        const sp = stagePoint(ev.clientX, ev.clientY);
+        let slot: DropSlot | null = null;
+        if (sp) {
+            let least = REFLOW_REACH;
+            for (const g of gaps) {
+                const d = indicatorDistance(g.indicator, sp[0], sp[1]);
+                if (d < least) {
+                    least = d;
+                    slot = g;
+                }
+            }
+        }
+        setPinDrag({
+            parent,
+            nearest: placed.anchors,
+            snapped: placed.gap.x === 0 || placed.gap.y === 0,
+            slot,
+        });
+    };
+    const done = (): void => {
+        window.removeEventListener("pointermove", onMove, true);
+        window.removeEventListener("pointerup", onUp, true);
+        window.removeEventListener("pointercancel", cancel, true);
+        window.removeEventListener("keydown", onKey, true);
+        setPinDrag(null);
+    };
+    // an OS edge-swipe or a second touch cancels the gesture; the preview must not outlive it
+    const cancel = (): void => {
+        done();
+        setLiveEdit(null);
+    };
+    const onKey = (ev: KeyboardEvent): void => {
+        if (ev.key === "Escape") cancel();
+        // Space converts the move: the element returns to the flow live, and the drag continues
+        // as a reorder with the drop slots, so one gesture crosses between the two worlds
+        if (ev.key === " ") {
+            ev.preventDefault();
+            cancel();
+            togglePin(address, "drag");
+            const label = getElement(getElementAt(editor.artifact, address)?.type ?? "")?.label;
+            startDrag({ kind: "move", from: address }, last.x, last.y, label || "Element");
+        }
+    };
+    const onUp = (ev: PointerEvent): void => {
+        const landing = pinDrag()?.slot;
+        done();
+        if (!liveEdit()) return; // never crossed the threshold's first move
+        setLiveEdit(null);
+        if (landing) {
+            // released on a gap line: the pin comes off and the element rejoins the flow there
+            const inst2 = getElementAt(editor.artifact, address);
+            const res = reflowPin(editor.artifact, address, landing.target);
+            if (res.content !== editor.artifact) {
+                commit(res.content);
+                capture("element_unpinned", { element_type: inst2?.type ?? "", via: "drag" });
+                if (res.address) setSelection({ kind: "element", address: res.address });
+            }
+            return;
+        }
+        const placed = nearestPinPlacement(parent, at(ev));
+        const next = pinnedLayout(editor.artifact, address, placed.anchors, placed.gap, pin);
+        if (next) commit(setElementLayout(editor.artifact, address, next));
+    };
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", cancel, true);
+    window.addEventListener("keydown", onKey, true);
+}
+
+/**
+ * One entry for every element move, from the grip or the body: a pinned self-or-ancestor moves
+ * freely; anything else reorders through the drop slots, as a selected block when the grab is
+ * part of one.
+ */
+export function beginElementMove(address: ElementAddress, sx: number, sy: number): void {
+    stopEditing(); // a drag lifts the source out of the paint; an open text overlay would strand
+    const pinned = pinnedAncestor(editor.artifact, address);
+    if (pinned) {
+        beginPinMove(pinned, sx, sy);
+        return;
+    }
+    // an item of an open unit (a bullet line) reorders within its list and nowhere else
+    const item = unitItem(editor.artifact, address);
+    if (item) {
+        clearExtras();
+        startDrag({ kind: "move", from: item }, sx, sy, "Item");
+        return;
+    }
+    const a = movableAncestor(editor.artifact, address);
+    const inst = getElementAt(editor.artifact, a);
+    const label = (inst && getElement(inst.type)?.label) || "Element";
+    const block = moveManyPayload(a, selectedAddresses());
+    if (block) {
+        startDrag(block, sx, sy, `${block.indices.length} elements`);
+        return;
+    }
+    clearExtras(); // the grab is dragging its own element, so the set is done
+    startDrag({ kind: "move", from: a }, sx, sy, label);
+}
+
+/**
+ * Free-move chrome: a single dot marks the anchor the element would snap flush to (feedback, not
+ * a target), and a gap line lights up when releasing would return the element to the flow there.
+ */
+export const PinAnchors: Component = () => (
+    <Show when={pinDrag()}>
+        {(d) => (
+            <>
+                <div
+                    class="pointer-events-none absolute z-30 rounded-full border border-line bg-panel/95 px-2.5 py-1 text-[11px] font-medium text-muted shadow-md"
+                    style={{
+                        left: `${d().parent.x + d().parent.w / 2 - 110}px`,
+                        top: `${d().parent.y - 30}px`,
+                    }}
+                >
+                    {d().slot ? "Release to return it to the flow" : "Drop on a gap line to reflow"}
+                </div>
+                <Show when={d().snapped && !d().slot}>
+                    <div
+                        class="pointer-events-none absolute z-30 rounded-full"
+                        style={{
+                            left: `${anchorPoint(d().parent, d().nearest.x, d().nearest.y)[0] - 3}px`,
+                            top: `${anchorPoint(d().parent, d().nearest.x, d().nearest.y)[1] - 3}px`,
+                            width: "6px",
+                            height: "6px",
+                            background: editorAccent(),
+                        }}
+                    />
+                </Show>
+                <Show when={d().slot}>
+                    {(g) => {
+                        const ind = (): { axis: "v" | "h"; x: number; y: number; length: number } =>
+                            g().indicator as {
+                                axis: "v" | "h";
+                                x: number;
+                                y: number;
+                                length: number;
+                            };
+                        return (
+                            <div
+                                class="pointer-events-none absolute z-raised rounded-full"
+                                style={{
+                                    left: `${ind().axis === "v" ? ind().x - 1.5 : ind().x}px`,
+                                    top: `${ind().axis === "v" ? ind().y : ind().y - 1.5}px`,
+                                    width: `${ind().axis === "v" ? 3 : ind().length}px`,
+                                    height: `${ind().axis === "v" ? ind().length : 3}px`,
+                                    background: editorAccent(),
+                                }}
+                            />
+                        );
+                    }}
+                </Show>
+            </>
+        )}
+    </Show>
+);
+
 export const DragHandle: Component = () => {
     const ctx = createMemo(() => {
         if (drag()) return null;
@@ -100,19 +330,9 @@ export const DragHandle: Component = () => {
         const sx = e.clientX;
         const sy = e.clientY;
         const begin = (): void => {
-            // a drag lifts the source out of the paint; an open text overlay would strand
-            stopEditing();
-            if (c.kind === "element") {
-                const inst = getElementAt(editor.artifact, c.address);
-                const label = (inst && getElement(inst.type)?.label) || "Element";
-                const block = moveManyPayload(c.address, selectedAddresses());
-                if (block) {
-                    startDrag(block, sx, sy, `${block.indices.length} elements`);
-                    return;
-                }
-                clearExtras(); // the grip is dragging its own element, so the set is done
-                startDrag({ kind: "move", from: c.address }, sx, sy, label);
-            } else {
+            if (c.kind === "element") beginElementMove(c.address, sx, sy);
+            else {
+                stopEditing();
                 startDrag({ kind: "section", id: c.section }, sx, sy, "Section");
             }
         };
@@ -275,6 +495,11 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
         const pathStr = parts[2] ?? "";
         if (pathStr === "") continue; // the root has no sibling boundary
         const path = pathStr.split(".").map(Number);
+        // a pinned sibling is out of the flow: it shares no row, so it offers no boundary to drag.
+        // A polygon region paints rotated: its box is only a bounding box, so every axis-aligned
+        // inference (row bands, width fractions) is meaningless inside the turned subtree.
+        if (r.shape) continue;
+        if (getElementAt(editor.artifact, { section: sid, path })?.layout?.pin) continue;
         const key = path.slice(0, -1).join(".");
         let g = groups.get(key);
         if (!g) {

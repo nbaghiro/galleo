@@ -54,6 +54,18 @@ describe("fragment — pagination", () => {
         near(b.clip!.x, 10); // unshifted axis preserved
     });
 
+    it("shifts a rotated command's pivot alongside its box", () => {
+        const cmds = [
+            rect("a", 0, 90),
+            { ...rect("b", 100, 50), rotate: { deg: 15, cx: 40, cy: 125 } },
+        ];
+        const pages = fragment(cmds, 150, 95);
+        const b = pages[1]!.find((c) => c.id === "b")!;
+        near(b.box.y, 5);
+        near(b.rotate!.cy, 30); // 125 − 95: the pivot rides the page shift
+        near(b.rotate!.cx, 40); // unshifted axis preserved
+    });
+
     it("terminates and covers a tall stack", () => {
         const cmds = Array.from({ length: 10 }, (_, i) => rect(`b${i}`, i * 50, 50));
         expect(fragment(cmds, 500, 50)).toHaveLength(10);

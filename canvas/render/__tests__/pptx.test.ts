@@ -18,6 +18,7 @@ import {
     hasText,
     inch,
     italicFromFont,
+    respin,
     localize,
     patchContentTypes,
     patchPresentationRels,
@@ -449,5 +450,50 @@ describe("patchPresentationXml", () => {
     it("does not double-add the embed attribute", () => {
         const out = patchPresentationXml(base, families);
         expect(out.match(/embedTrueTypeFonts=/g)!.length).toBe(1);
+    });
+});
+
+describe("respin", () => {
+    const cmd = (x: number, y: number, w: number, h: number, deg: number): RenderCommand => ({
+        kind: "rect",
+        box: { x, y, w, h },
+        fill: { color: "#000" },
+        rotate: { deg, cx: 100, cy: 100 },
+    });
+
+    it("passes an unrotated command through untouched", () => {
+        const c: RenderCommand = { kind: "rect", box: { x: 1, y: 2, w: 3, h: 4 } };
+        expect(respin(c)).toEqual({ command: c });
+    });
+
+    it("moves the box center along the turn and strips the rotate", () => {
+        // box centered at (140,100), turned 90° about (100,100) → center lands at (100,140)
+        const { command, deg } = respin(cmd(120, 90, 40, 20, 90));
+        expect(deg).toBe(90);
+        expect(command.rotate).toBeUndefined();
+        expect(command.box.x).toBeCloseTo(80);
+        expect(command.box.y).toBeCloseTo(130);
+        expect(command.box.w).toBe(40);
+        expect(command.box.h).toBe(20);
+    });
+
+    it("the clip rides the same move as the box it crops", () => {
+        const c: RenderCommand = {
+            kind: "image",
+            box: { x: 120, y: 90, w: 40, h: 20 },
+            image: { src: "x", fit: "cover" },
+            clip: { x: 125, y: 95, w: 30, h: 10 },
+            rotate: { deg: 90, cx: 100, cy: 100 },
+        };
+        const { command } = respin(c);
+        expect(command.clip!.x).toBeCloseTo(125 + (command.box.x - 120));
+        expect(command.clip!.y).toBeCloseTo(95 + (command.box.y - 90));
+        expect(command.clip!.w).toBe(30);
+    });
+
+    it("a command centered on the shared center only spins in place", () => {
+        const { command, deg } = respin(cmd(80, 90, 40, 20, 33));
+        expect(deg).toBe(33);
+        expect(command.box).toEqual({ x: 80, y: 90, w: 40, h: 20 });
     });
 });

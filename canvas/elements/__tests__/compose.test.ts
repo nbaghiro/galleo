@@ -533,6 +533,32 @@ describe("dock", () => {
         expect((content.children ?? []).some((c) => c.float)).toBe(false);
     });
 
+    // regression: docked chrome used to be detected by float shape, which a top-left pin matches
+    it("hoists only the docked child, never a pinned one floating the same way", () => {
+        const badge = {
+            type: "text",
+            data: { text: "New", style: "label" },
+            layout: {
+                width: "fit" as const,
+                pin: { x: "start" as const, y: "start" as const, z: 1 },
+            },
+        };
+        const section = {
+            id: "s1",
+            root: { type: "container", data: { children: [nav, badge, hero] } },
+            bleed: true,
+        };
+        const web = composeSection(section as never, webCtx);
+        // one hoisted node (the nav); the pinned badge floats inside the content instead
+        expect(web.children!.filter((c) => c.float)).toHaveLength(1);
+        const content = web.children!.find((c) => !c.float)!.children![0]!;
+        expect((content.children ?? []).filter((c) => c.float)).toHaveLength(1);
+        // and a page keeps the pin floating while it grounds the nav into the flow
+        const paged = composeSection(section as never, deckCtx);
+        const pagedContent = paged.children![0]!.children![0]!;
+        expect((pagedContent.children ?? []).filter((c) => c.float)).toHaveLength(1);
+    });
+
     it("keeps an undocked root intact", () => {
         const plain = {
             id: "s2",
