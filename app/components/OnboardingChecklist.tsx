@@ -6,7 +6,7 @@ import { Eyebrow, IconButton } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { openGenerate } from "@app/stores/generate";
 import { go } from "@app/stores/navigate";
-import { shareNewest } from "@app/stores/share";
+import { requestSharePicker } from "@app/stores/share";
 import { checklistVisible, dismissChecklist, onboarding, stepDone } from "@app/stores/onboarding";
 
 // Four steps, every one of them derived server-side from rows, so nothing here has to be ticked by a
@@ -33,7 +33,11 @@ const COPY: Record<OnboardingStep, StepCopy> = {
         // there is nothing to send until something exists, and `make` is that same row count
         ready: () => stepDone("make"),
         blocked: "Make something first",
-        go: () => void shareNewest().then((shared) => shared || go("/")),
+        // the Shared page owns the picker, so this asks for it and goes where it lives
+        go: () => {
+            requestSharePicker();
+            go("/shared");
+        },
     },
 };
 

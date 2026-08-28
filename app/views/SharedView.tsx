@@ -25,7 +25,7 @@ import { relativeTime } from "@ui/time";
 import { links, loadLinks } from "@app/stores/links";
 import { fetchHits } from "@app/stores/search";
 import { featuresState, loadFeatures } from "@app/stores/features";
-import { openShare, shareRequest } from "@app/stores/share";
+import { openShare, shareRequest, takeSharePickerRequest } from "@app/stores/share";
 import { UpgradeNotice } from "@app/components/Upgrade";
 import {
     ArrowUpRightIcon,
@@ -216,6 +216,9 @@ export const SharedView: Component = () => {
         ]);
     };
     onMount(async () => {
+        // somebody asked to share but had nothing chosen (the onboarding checklist), so open on the
+        // picker rather than on a page whose point they would have to work out
+        if (takeSharePickerRequest()) setPicker(true);
         await refresh();
         setLoading(false);
     });
