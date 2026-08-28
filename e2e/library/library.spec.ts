@@ -84,7 +84,8 @@ test("the command palette opens with ⌘K and searches", async ({ page }) => {
 // owner's. It has to come back non-empty: an empty library for someone who has access is the failure
 // this pins, and it can only be seen through the real client, cookie and all.
 test("a plain member's library renders the workspace's work", async ({ browser }) => {
-    const ctx = await browser.newContext({ storageState: statePath("demo+invited") });
+    // the member, not the invitee: an invite is still pending, so that account has no workspace yet
+    const ctx = await browser.newContext({ storageState: statePath("demo+member") });
     const page = await ctx.newPage();
     await page.goto("/");
     // one draggable preview per artifact, in either layout

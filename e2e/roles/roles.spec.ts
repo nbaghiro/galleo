@@ -69,6 +69,8 @@ test("the pinned invite joins the invited account to the workspace", async ({ br
     await ctx.close();
 });
 
+// The one test that leaves the flagship. `activeWorkspaceId` is server-side per user, so anything
+// this switches stays switched for every later spec that logs in as demo: it has to switch back.
 test("the free plan blocks invites past its seat cap", async ({ browser }) => {
     // the demo login owns the Free workspace: one seat, already taken by them
     const page = await personaPage(browser, "demo");
@@ -83,5 +85,6 @@ test("the free plan blocks invites past its seat cap", async ({ browser }) => {
     } else {
         await expect(page.getByText(/seat|upgrade|add seats/i).first()).toBeVisible();
     }
+    await enterWorkspace(page.request, "Premium Workspace");
     await page.context().close();
 });
