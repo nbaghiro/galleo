@@ -360,6 +360,30 @@ export function sectionWithElementIds(section: Section): Section {
     return root === section.root ? section : { ...section, root };
 }
 
+/**
+ * Legacy media elements folded into the one `media` element. Identity-preserving like the stamping
+ * pass, so a tree already on the merged shape comes back untouched and nothing repaints.
+ */
+export function withMediaKinds(content: ArtifactContent): ArtifactContent {
+    const fix = (el: ElementInstance): ElementInstance => {
+        const mapped = mapChildren(el, fix);
+        const kind = LEGACY_MEDIA_KINDS[mapped.type];
+        if (!kind) return mapped;
+        const data: Record<string, unknown> = { ...(mapped.data as Record<string, unknown>), kind };
+        // the old avatar was a circular photo; nothing else carried a shape
+        if (mapped.type === "avatar") data.shape = "circle";
+        return { ...mapped, type: "media", data };
+    };
+    let changed = false;
+    const sections = content.sections.map((s) => {
+        const root = fix(s.root);
+        if (root === s.root) return s;
+        changed = true;
+        return { ...s, root };
+    });
+    return changed ? { ...content, sections } : content;
+}
+
 export function contentWithElementIds(content: ArtifactContent): ArtifactContent {
     let changed = false;
     const sections = content.sections.map((s) => {
@@ -980,15 +1004,34 @@ function walkRaw(el: RawEl | undefined, visit: (el: RawEl) => void): void {
     for (const kid of nestedOf(el)) walkRaw(kid, visit);
 }
 
-// Media references: the data fields holding a url that points at an image or a clip. An `embed`
-// holds a page link and icon/graphic hold inline svg, so none of those are media.
-const MEDIA_SRC_TYPES = new Set(["image", "gif", "illustration", "sticker", "avatar", "video"]);
+// The element types that merged into `media`, and the kind each one became. A stored tree written
+// before the merge still carries them, so both the walk below and the write path read this.
+export const LEGACY_MEDIA_KINDS: Record<string, string> = {
+    image: "photo",
+    gif: "gif",
+    illustration: "illustration",
+    sticker: "sticker",
+    video: "video",
+    avatar: "photo",
+    icon: "icon",
+    graphic: "graphic",
+};
+
+// Media references: the data fields holding a url that points at an image or a clip. A `graphic`
+// and an `icon` carry inline svg, and an `embed` holds a page link, so none of those are one.
 const SRC_ONLY = ["src"] as const;
 const SRC_AND_POSTER = ["src", "poster"] as const;
 const NO_MEDIA: readonly string[] = [];
 
-const mediaKeysOf = (type: string | undefined): readonly string[] =>
-    type === "video" ? SRC_AND_POSTER : type && MEDIA_SRC_TYPES.has(type) ? SRC_ONLY : NO_MEDIA;
+// `media` carries its kind in data; the legacy types carried it in the type name
+const mediaKindOf = (el: RawEl): string | undefined =>
+    el.type === "media" ? str(el.data?.kind) : LEGACY_MEDIA_KINDS[el.type ?? ""];
+
+const mediaKeysOf = (el: RawEl): readonly string[] => {
+    const kind = mediaKindOf(el);
+    if (!kind || kind === "icon" || kind === "graphic") return NO_MEDIA;
+    return kind === "video" ? SRC_AND_POSTER : SRC_ONLY;
+};
 
 type RawBg = { image?: string } | undefined;
 
@@ -1003,7 +1046,7 @@ function mapElementMedia(el: RawEl, fn: (url: string) => string): RawEl {
     if (!data || typeof data !== "object") return el;
     const patch: Record<string, unknown> = {};
     let changed = false;
-    for (const key of mediaKeysOf(el.type)) {
+    for (const key of mediaKeysOf(el)) {
         const cur = data[key];
         if (typeof cur !== "string" || !cur) continue;
         const next = fn(cur);
@@ -1099,10 +1142,10 @@ export function mediaRefKinds(draft: unknown): Map<string, "image" | "video"> {
         if (kind === "video" || !out.has(url)) out.set(url, kind);
     };
     const noteEl = (el: RawEl): void => {
-        for (const key of mediaKeysOf(el.type)) {
+        for (const key of mediaKeysOf(el)) {
             const v = el.data?.[key];
             if (typeof v === "string" && v)
-                note(v, el.type === "video" && key === "src" ? "video" : "image");
+                note(v, mediaKindOf(el) === "video" && key === "src" ? "video" : "image");
         }
     };
     if (!draft || typeof draft !== "object") return out;
@@ -1133,7 +1176,12 @@ function coverOf(draft: unknown): Cover {
         const data = el.data;
         if (!data) return;
         if (el.type === "text") texts.push({ style: str(data.style), text: str(data.text) });
-        if (el.type === "image" && !image) image = str(data.src);
+        // a clip's picture is its poster; a vector has no url to show
+        if (!image) {
+            const kind = mediaKindOf(el);
+            if (kind && kind !== "icon" && kind !== "graphic")
+                image = str(kind === "video" ? data.poster : data.src);
+        }
     });
     const find = (...styles: string[]): string | undefined =>
         texts.find((t) => t.style && styles.includes(t.style))?.text;

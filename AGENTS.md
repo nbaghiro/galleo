@@ -275,8 +275,8 @@ is the `@canvas` layer — the engine's commands paint into refs (`@canvas/rende
 2D-canvas mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element
 has a structural ghost (`skeletonize` in `@elements/spec`). **62 palette elements** register via
 `canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 10 composite · 7 basic ·
-15 chart · 16 diagram), plus the four registered internals the palette hides (`container`, `avatar`, and
-the `chart`/`diagram` storage elements; `group` and `card` are not elements at all, they are legacy type
+15 chart · 16 diagram), plus the five registered internals the palette hides (`container`, `avatar`, and
+the `chart`/`diagram`/`media` storage elements; `group` and `card` are not elements at all, they are legacy type
 aliases onto `container`); format-as-view
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.
 

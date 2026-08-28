@@ -11,7 +11,7 @@ import {
     setSectionBackground,
     clearBackgroundImage,
 } from "@elements/ops";
-import { getElement } from "@elements/spec";
+import { getElement, resizeOf } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import {
     addSectionAfter,
@@ -173,8 +173,9 @@ export const ResizeHandles: Component = () => {
         const inst = getElementAt(editor.artifact, sel.address);
         const spec = inst ? getElement(inst.type) : undefined;
         if (!inst || !spec) return null;
-        const hCfg = spec.resize?.height;
-        const aCfg = spec.resize?.aspect;
+        const rz = resizeOf(spec, inst.data);
+        const hCfg = rz?.height;
+        const aCfg = rz?.aspect;
         if (!hCfg && !aCfg) return null;
         const box = regions().find((r) => r.id === elementRegionId(sel.address))?.box;
         if (!box) return null;

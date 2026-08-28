@@ -14,11 +14,34 @@ export function register<Data>(spec: ElementSpec<Data>): void {
 // (scripts/migrate-container.ts), but the LLM is a client we do not control: it will drift back to
 // the old names whatever the prompt says, and an unresolved type paints the pink unknown-element box
 // in a customer's deck. Two entries are far cheaper than that.
-const LEGACY_TYPES: Record<string, string> = { group: "container", card: "container" };
+// Renamed or merged element types, so a row written before the change still resolves. The media
+// merge also needs `data.kind`, which the write path fills in (`withMediaKinds`); this keeps the
+// registry lookup alive in between.
+const LEGACY_TYPES: Record<string, string> = {
+    group: "container",
+    card: "container",
+    image: "media",
+    gif: "media",
+    illustration: "media",
+    sticker: "media",
+    video: "media",
+    avatar: "media",
+    icon: "media",
+    graphic: "media",
+};
 
 export function getElement(type: string): ElementSpec | undefined {
     return registry.get(type) ?? registry.get(LEGACY_TYPES[type] ?? "");
 }
+
+/** The resize contract for this data; a spec may vary it by what it is holding. */
+export const resizeOf = (spec: ElementSpec, data: unknown): ResizeSpec | undefined =>
+    typeof spec.resize === "function" ? spec.resize(data) : spec.resize;
+
+/** Whether this data mounts a live overlay. */
+export const isLiveData = (spec: ElementSpec, data: unknown): boolean =>
+    spec.tier === "interactive" ||
+    (typeof spec.live === "function" ? spec.live(data) : spec.live === true);
 
 export function listElements(): ElementSpec[] {
     return [...registry.values()];
@@ -88,6 +111,12 @@ export interface ControlField {
 
 export type ElementTier = "primitive" | "unit" | "container" | "interactive";
 
+export interface ResizeSpec {
+    width?: boolean; // right/corner handle → ElementLayout.width { pct }; defaults on
+    height?: { key: string; min: number; max: number; step?: number }; // bottom handle → data[key]
+    aspect?: { min: number; max: number }; // bottom handle → data.aspect (width / height)
+}
+
 export interface ElementSpec<Data = unknown> {
     type: string;
     label: string;
@@ -102,14 +131,12 @@ export interface ElementSpec<Data = unknown> {
     frame?: boolean; // has a visible frame (fill/image) → corner-radius slider in the inspector
 
     // canvas resize handles: width → a universal ElementLayout %; height/aspect → an explicit data field
-    resize?: {
-        width?: boolean; // right/corner handle → ElementLayout.width { pct }; defaults on
-        height?: { key: string; min: number; max: number; step?: number }; // bottom handle → data[key]
-        aspect?: { min: number; max: number }; // bottom handle → data.aspect (width / height)
-    };
+    // A function when one element covers shapes that resize differently: media frames a picture by
+    // aspect but sizes an icon by its side.
+    resize?: ResizeSpec | ((data: Data) => ResizeSpec | undefined);
     fallback?: (data: Data) => Data; // interactive -> static for paged/export
     // playback mounts a live overlay over this element without giving up the editing its tier buys
-    live?: boolean;
+    live?: boolean | ((data: Data) => boolean);
     // compose() uses children+arrange; ops use children+withChildren; `layout` stands alone
     container?: {
         children: (data: Data) => ElementInstance[];

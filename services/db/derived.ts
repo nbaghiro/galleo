@@ -1,5 +1,10 @@
 import type { ArtifactContent, ArtifactDigest } from "@model/artifact";
-import { artifactDigest, artifactSearchText, contentWithElementIds } from "@model/artifact";
+import {
+    artifactDigest,
+    artifactSearchText,
+    contentWithElementIds,
+    withMediaKinds,
+} from "@model/artifact";
 
 // A tree reaching a write may have been authored anywhere: an old row, an AI turn, a client that
 // never stamped. Anything shaped like content is stamped here so every stored element carries the
@@ -35,7 +40,7 @@ export function contentWrite(content: unknown): {
     digest: ArtifactDigest;
     searchText: string;
 } {
-    const stamped = stampable(content) ? contentWithElementIds(content) : content;
+    const stamped = stampable(content) ? withMediaKinds(contentWithElementIds(content)) : content;
     return {
         draftContent: stamped ?? {},
         digest: artifactDigest(stamped),

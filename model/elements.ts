@@ -40,6 +40,23 @@ export type CalloutTone = (typeof CALLOUT_TONES)[number];
 export const IMAGE_FIT = ["cover", "contain"] as const;
 export type ImageFit = (typeof IMAGE_FIT)[number];
 
+// What one media element can hold. The first six are the picker's own search kinds (`MediaKind` in
+// model/media.ts); `graphic` is a pasted vector, which has nothing to search for.
+export const MEDIA_KINDS = [
+    "photo",
+    "gif",
+    "illustration",
+    "sticker",
+    "video",
+    "icon",
+    "graphic",
+] as const;
+export type MediaElementKind = (typeof MEDIA_KINDS)[number];
+
+// a photo can be framed as a portrait bubble; the old avatar element is this
+export const MEDIA_SHAPES = ["frame", "circle"] as const;
+export type MediaShape = (typeof MEDIA_SHAPES)[number];
+
 export const CARD_STYLES = ["solid", "outline", "sideline", "topline", "plain"] as const;
 export type CardStyle = (typeof CARD_STYLES)[number];
 

@@ -14,7 +14,10 @@ export const t = (text: string, style: string, align?: "start" | "center"): Elem
     type: "text",
     data: align ? { text, style, align } : { text, style },
 });
-export const avatar = (size: number): ElementInstance => ({ type: "avatar", data: { size } });
+export const avatar = (size: number): ElementInstance => ({
+    type: "media",
+    data: { kind: "photo", shape: "circle", size },
+});
 export const button = (label: string): ElementInstance => ({ type: "button", data: { label } });
 
 const composeKids = (children: ElementInstance[], ctx: LayoutCtx): EngineNode[] =>

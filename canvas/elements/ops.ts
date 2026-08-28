@@ -10,7 +10,7 @@ import type {
 } from "@model/artifact";
 import type { ElementLayout } from "@model/geometry";
 import type { Region } from "@engine/node";
-import { getElement } from "@elements/spec";
+import { isLiveData, getElement } from "@elements/spec";
 import {
     LAYOUT_PRESETS,
     addressesEqual,
@@ -706,7 +706,7 @@ export function viewerToggleAt(
         const y = point.y - (shiftFor?.(hit.address.section) ?? 0);
         if (point.x < b.x || point.x > b.x + b.w || y < b.y || y > b.y + b.h) continue;
         const inst = getElementAt(art, hit.address);
-        if (inst && isLive(inst.type)) return null;
+        if (inst && isLive(inst)) return null;
         const edit = affordanceEdit(art, hit.action, hit.address);
         return edit ? { key: elementRegionId(edit.address), patch: edit.patch } : null;
     }
@@ -735,16 +735,16 @@ export interface LiveElement {
     data: Record<string, unknown>;
 }
 
-const isLive = (type: string): boolean => {
-    const spec = getElement(type);
-    return spec?.tier === "interactive" || spec?.live === true;
+const isLive = (inst: ElementInstance): boolean => {
+    const spec = getElement(inst.type);
+    return !!spec && isLiveData(spec, inst.data);
 };
 
 /** Every element a playback surface mounts real DOM over, in paint order. */
 export function liveElements(art: ArtifactContent): LiveElement[] {
     const out: LiveElement[] = [];
     const walk = (inst: ElementInstance, addr: ElementAddress): void => {
-        if (isLive(inst.type))
+        if (isLive(inst))
             out.push({
                 id: elementRegionId(addr),
                 address: addr,
@@ -769,7 +769,7 @@ export function liveElements(art: ArtifactContent): LiveElement[] {
 export function seedViewerPatches(art: ArtifactContent): Map<string, Record<string, unknown>> {
     const out = new Map<string, Record<string, unknown>>();
     const walk = (inst: ElementInstance, addr: ElementAddress): void => {
-        if (isLive(inst.type) && asData(inst).open === true)
+        if (isLive(inst) && asData(inst).open === true)
             out.set(elementRegionId(addr), { open: false });
         childrenOf(inst)?.forEach((kid, i) =>
             walk(kid, { section: addr.section, path: [...addr.path, i] }),

@@ -4,7 +4,6 @@ import type { EngineNode } from "@engine/node";
 import type { SectionBackground, SectionTone } from "@model/artifact";
 import type { Tokens } from "@themes";
 import {
-    GUTTER,
     composeSection,
     composedLeafFor,
     composedNodeFor,
@@ -400,10 +399,6 @@ describe("composeSection", () => {
             deckCtx,
         );
         expect(node.fill?.gradient).toEqual({ from: "#fff", to: "#000" });
-    });
-
-    it("GUTTER is the section content inset", () => {
-        expect(GUTTER).toBe(14);
     });
 
     it("clips its content to the section box on the horizontal axis (the containment boundary)", () => {

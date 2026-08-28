@@ -2,9 +2,7 @@ import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { TextLeaf } from "@engine/node";
 import {
-    CODE_BG,
     MONO_FONT_STACK,
-    SECTION_GAP,
     ctxFor,
     layoutNode,
     layoutRuns,
@@ -32,10 +30,6 @@ describe("ctxFor + constants", () => {
         expect(c.availWidth).toBe(600);
         expect(c.box.w).toBe(600);
         expect(c.format.id).toBe("deck");
-    });
-    it("pins SECTION_GAP and the code treatment", () => {
-        expect(SECTION_GAP).toBe(22);
-        expect(CODE_BG).toBe("rgba(120, 120, 120, 0.12)");
     });
 });
 

@@ -43,7 +43,7 @@ describe("the composites a site is assembled from", () => {
     });
 
     it("tells the model a published video really plays, and needs a poster", () => {
-        const video = ELEMENTS.find((e) => e.type === "video")!;
+        const video = ELEMENTS.find((e) => e.type === "media")!;
         expect(video.when).toContain("player");
         expect(video.fields.map((f) => f.key)).toContain("poster");
     });

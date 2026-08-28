@@ -96,7 +96,8 @@ const Player: Component<LiveProps & { url: string }> = (props) => {
     );
 };
 
-registerLive("video", (props) => <Player {...props} url={str(props.data.src)} />);
+// media covers every kind, but only a clip plays; `liveElements` filters the rest out already
+registerLive("media", (props) => <Player {...props} url={str(props.data.src)} />);
 
 // An embed only ever becomes an iframe for a provider `embedFor` whitelists; anything else keeps
 // the painted link card, which is the whole static fallback.

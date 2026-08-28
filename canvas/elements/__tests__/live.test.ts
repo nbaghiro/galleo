@@ -2,7 +2,7 @@ import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { applyFallbacks, liveElements, seedViewerPatches, withViewerPatches } from "@elements/ops";
-import { getElement, listElements } from "@elements/spec";
+import { getElement, listElements, isLiveData } from "@elements/spec";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
 
 const YT = "https://youtu.be/dQw4w9WgXcQ";
@@ -30,12 +30,18 @@ describe("liveElements", () => {
         expect(found[0]!.data).toMatchObject({ src: YT });
     });
 
-    it("reads the spec's tier rather than a hardcoded list, and finds nested ones", () => {
-        const interactive = listElements()
-            .filter((s) => s.tier === "interactive")
+    it("reads the spec rather than a hardcoded list, and finds nested ones", () => {
+        // liveness is the spec's to declare: a tier for elements that always play, a predicate for
+        // one that only sometimes does (media plays a clip and paints everything else)
+        const live = listElements()
+            .filter((s) => s.tier === "interactive" || s.live !== undefined)
             .map((s) => s.type)
             .sort();
-        expect(interactive).toEqual(["embed", "video"]);
+        expect(live).toContain("embed");
+        expect(live).toContain("video");
+        const media = getElement("media")!;
+        expect(isLiveData(media, { kind: "video", src: YT })).toBe(true);
+        expect(isLiveData(media, { kind: "photo", src: "a.png" })).toBe(false);
         const nested = liveElements(
             art({
                 type: "container",

@@ -139,7 +139,7 @@ export interface MeterParams {
     textRuns?: number;
     variations?: number;
     speechUnits?: number; // thousands of characters synthesized; only narration means anything by it
-    musicMinutes?: number; // minutes of music composed
+    musicMinutes?: number;
 }
 
 interface ToolMeta {

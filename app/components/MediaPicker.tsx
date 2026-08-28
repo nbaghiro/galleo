@@ -20,7 +20,7 @@ import type {
     MediaProvider,
     MediaSearchResponse,
 } from "@model/media";
-import { KIND_PROVIDERS, MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
+import { isEmbedVideoUrl, KIND_PROVIDERS, MEDIA_ASPECTS, MEDIA_GEN_STYLES } from "@model/media";
 import { editorTokens } from "@editor/core/store";
 import {
     api,
@@ -48,7 +48,7 @@ import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { TextArea, TextField } from "@ui/inputs";
 import { createSentinel } from "@ui/scroll";
 
-type Source = "library" | "upload" | MediaProvider | "generate" | "icons";
+type Source = "library" | "upload" | "link" | MediaProvider | "generate" | "icons";
 
 // flat catalog prices, shown before a tap spends them; video is heavy enough to ask first
 const IMAGE_COST = estimateCost("generate-image");
@@ -80,6 +80,9 @@ const DEFAULT_QUERY: Record<MediaKind, string> = {
     icon: "",
     video: "nature",
 };
+
+// what the chips offer; icons have their own rail and arrive as a glyph rather than a url
+const PICK_KINDS: MediaKind[] = ["photo", "video", "illustration", "gif", "sticker", "icon"];
 
 const STARTER_ICONS = [
     "lucide:home",
@@ -162,6 +165,18 @@ const RailIcon = {
             <path d="M5 20h14" />
         </svg>
     ),
+    link: () => (
+        <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+        >
+            <path d="M10 13.5a4 4 0 006 .5l2-2a4 4 0 10-5.7-5.7l-1 1" />
+            <path d="M14 10.5a4 4 0 00-6-.5l-2 2a4 4 0 105.7 5.7l1-1" />
+        </svg>
+    ),
     photo: () => (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
             <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -230,6 +245,7 @@ export const MediaPicker: Component = () => {
     const [kind, setKind] = createSignal<MediaKind>("photo");
     // a generated take chosen as the base for image-conditioned refinement
     const [refItem, setRefItem] = createSignal<MediaItem | null>(null);
+    const [linkUrl, setLinkUrl] = createSignal("");
     // icon mode: separate list from the url-based media grid
     const [iconItems, setIconItems] = createSignal<IconItem[]>([]);
 
@@ -447,6 +463,24 @@ export const MediaPicker: Component = () => {
         if (g === gen) setLoading(false);
     }
 
+    // The kind is where you start, not where you are stuck: swapping it here is what lets an image
+    // element come back from this modal holding a clip. The element is one type underneath, so the
+    // pick is a data patch and the frame it sits in survives.
+    const selectKind = (k: MediaKind): void => {
+        if (k === kind()) return;
+        setKind(k);
+        setError("");
+        resetSearch();
+        setItems([]);
+        setHasMore(false);
+        const s = source();
+        if (k === "icon") return selectSource("icons");
+        if (s === "icons") return selectSource("library");
+        if (isStock(s) && !KIND_PROVIDERS[k].includes(s))
+            return selectSource(KIND_PROVIDERS[k][0] ?? "library");
+        selectSource(s);
+    };
+
     const selectSource = (s: Source): void => {
         setSource(s);
         setError("");
@@ -459,6 +493,7 @@ export const MediaPicker: Component = () => {
             libraryBefore = null;
             loadLibrary(true);
         } else if (s === "icons") runIconSearch();
+        else if (s === "link") setLinkUrl("");
         else if (isStock(s)) runSearch();
     };
 
@@ -595,13 +630,32 @@ export const MediaPicker: Component = () => {
         }
     }
 
+    // A pasted address: a file we can hold, or a platform page we cannot. A YouTube or Vimeo link
+    // has no file to adopt, so it stays a link and the element plays it as an embed.
+    async function submitLink(): Promise<void> {
+        const url = linkUrl().trim();
+        if (!url) return;
+        setError("");
+        if (isEmbedVideoUrl(url)) {
+            pickMedia(url, undefined, "video");
+            return;
+        }
+        setLoading(true);
+        try {
+            pickMedia((await api.adoptLink(url)).url, undefined, kind());
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Could not add that link");
+        }
+        setLoading(false);
+    }
+
     async function pick(it: MediaItem): Promise<void> {
         try {
             await api.useMedia(it);
         } catch {
             // best-effort; never block the pick
         }
-        pickMedia(it.url, it);
+        pickMedia(it.url, it, kind());
     }
 
     onMount(() => {
@@ -864,6 +918,21 @@ export const MediaPicker: Component = () => {
                     >
                         {KIND_TITLE[kind()]}
                     </h2>
+                    <Show when={!mediaRequest()?.onPickIcon}>
+                        <div class="flex min-w-0 flex-wrap items-center gap-1">
+                            <For each={PICK_KINDS}>
+                                {(k) => (
+                                    <Chip
+                                        variant="soft"
+                                        selected={kind() === k}
+                                        onClick={() => selectKind(k)}
+                                    >
+                                        {KIND_NOUN[k]}
+                                    </Chip>
+                                )}
+                            </For>
+                        </div>
+                    </Show>
                     <Show when={error()}>
                         <span class="truncate text-[12px] text-red-500">{error()}</span>
                     </Show>
@@ -891,6 +960,7 @@ export const MediaPicker: Component = () => {
                             {railGroup("Yours")}
                             {railBtn("library", "Library", RailIcon.library)}
                             {railBtn("upload", "Upload", RailIcon.upload)}
+                            {railBtn("link", "Link", RailIcon.link)}
                             {railGroup("Stock")}
                             <For each={stockSources()}>
                                 {(p) =>
@@ -1097,6 +1167,38 @@ export const MediaPicker: Component = () => {
                         <div ref={armScroll} class="min-h-0 flex-1 overflow-y-auto p-4">
                             <Switch fallback={grid()}>
                                 <Match when={source() === "icons"}>{iconGrid()}</Match>
+                                <Match when={source() === "link"}>
+                                    <div class="mx-auto grid h-full max-w-120 place-items-center">
+                                        <div class="w-full">
+                                            <Eyebrow as="div" size={9} tracking="wide" class="mb-2">
+                                                Add by address
+                                            </Eyebrow>
+                                            <TextField
+                                                placeholder="https://youtube.com/watch?v=… or a direct file url"
+                                                value={linkUrl()}
+                                                onChange={setLinkUrl}
+                                                onKeyDown={(e) =>
+                                                    e.key === "Enter" && void submitLink()
+                                                }
+                                            />
+                                            <p class="mt-2 text-[12px] leading-relaxed text-muted">
+                                                A YouTube or Vimeo page becomes a player. Anything
+                                                else is fetched and kept in your library.
+                                            </p>
+                                            <div class="mt-3 flex justify-end">
+                                                <Button
+                                                    variant="primary"
+                                                    size="sm"
+                                                    loading={loading()}
+                                                    disabled={!linkUrl().trim()}
+                                                    onClick={() => void submitLink()}
+                                                >
+                                                    Add
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Match>
                                 <Match when={source() === "upload"}>
                                     <button
                                         class="grid h-full w-full place-items-center rounded-xl border-2 border-dashed border-line text-center text-muted hover:border-accent hover:text-ink"

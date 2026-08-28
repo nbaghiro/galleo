@@ -63,7 +63,7 @@ if (unregistered.length) {
 }
 
 // Palette-hidden: `avatar` and the two storage elements the chart/diagram variants live behind.
-const HIDDEN = new Set(["avatar", "chart", "diagram"]);
+const HIDDEN = new Set(["avatar", "chart", "diagram", "media"]);
 const AGENTS = "AGENTS.md";
 
 const palette = listElements().filter((s) => !HIDDEN.has(s.type));

@@ -692,7 +692,7 @@ const Minimap: Component = () => {
 // hidden from the palette: the layout container is scaffolding the layout actions create, not
 // something you add by hand, plus internals with no standalone meaning and the two storage elements
 // content is written as (`chart`/`diagram` with a `data.type`) — their variants are the tiles
-const HIDDEN = new Set(["container", "avatar", "chart", "diagram"]);
+const HIDDEN = new Set(["container", "avatar", "chart", "diagram", "media"]);
 const CAT_ORDER = ["text", "media", "table", "composite", "chart", "diagram", "basic"];
 const CAT_LABEL: Record<string, string> = {
     text: "Text",

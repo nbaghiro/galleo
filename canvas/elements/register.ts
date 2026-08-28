@@ -4,13 +4,8 @@ import "@elements/text/bullets";
 import "@elements/text/quote";
 import "@elements/text/code";
 
-import "@elements/media/image";
-import "@elements/media/video";
-import "@elements/media/gif";
-import "@elements/media/illustration";
-import "@elements/media/sticker";
 import "@elements/media/vector";
-import "@elements/media/avatar";
+import "@elements/media/element";
 
 import "@elements/table/table";
 import "@elements/table/stat";

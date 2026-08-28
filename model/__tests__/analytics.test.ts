@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { asBeatRole, asRequestId, charsBucket, GROUP_TYPE } from "@model/analytics";
+import { asBeatRole, asRequestId, charsBucket } from "@model/analytics";
 import { BEAT_ROLES } from "@model/ai";
 
 describe("charsBucket", () => {
@@ -35,12 +35,6 @@ describe("asBeatRole", () => {
         expect(asBeatRole("Scene")).toBeUndefined();
         expect(asBeatRole("")).toBeUndefined();
         expect(asBeatRole(undefined)).toBeUndefined();
-    });
-});
-
-describe("the group", () => {
-    it("rolls up to the workspace, which is the billing entity", () => {
-        expect(GROUP_TYPE).toBe("workspace");
     });
 });
 

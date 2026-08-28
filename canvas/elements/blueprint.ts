@@ -39,7 +39,7 @@ const t = (text: string, style: string): ElementInstance => ({
 export function placeholderBlock(kind: string): ElementInstance {
     switch (kind) {
         case "image":
-            return { type: "image", data: { src: "", aspect: 1.4 } };
+            return { type: "media", data: { kind: "photo", src: "", aspect: 1.4 } };
         case "stat":
             return {
                 type: "stat",

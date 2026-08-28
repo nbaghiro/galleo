@@ -51,8 +51,14 @@ const photo = (seedOrSrc: string, w: number, h: number): string =>
     seedOrSrc.startsWith("http") ? seedOrSrc : `https://picsum.photos/seed/${seedOrSrc}/${w}/${h}`;
 
 export const img = (seedOrSrc: string, aspect: number, radius = 14): ElementInstance => ({
-    type: "image",
-    data: { src: photo(seedOrSrc, 1100, 900), aspect, radius, fit: "cover" },
+    type: "media",
+    data: {
+        kind: "photo",
+        src: photo(seedOrSrc, 1100, 900),
+        aspect,
+        radius,
+        fit: "cover",
+    },
 });
 
 export const stat = (value: string, label: string): ElementInstance => ({
@@ -209,8 +215,9 @@ export const bgTone = (tone: SectionTone): SectionBackground => ({ kind: "tone",
 // The poster is what every static surface paints (thumbnail, PDF, the editor canvas); without one a
 // YouTube src falls back to the provider's own frame, which is rarely the shot the page wants.
 export const video = (src: string, posterSeedOrSrc?: string): ElementInstance => ({
-    type: "video",
+    type: "media",
     data: {
+        kind: "video",
         src,
         controls: true,
         ...(posterSeedOrSrc ? { poster: photo(posterSeedOrSrc, 1280, 720) } : {}),
@@ -253,8 +260,13 @@ export const card = (...children: ElementInstance[]): ElementInstance =>
 // faq walks question/answer pairs), so these builders are how an author gets the order right.
 
 const avatar = (size: number, src?: string): ElementInstance => ({
-    type: "avatar",
-    data: { size, ...(src ? { src } : {}) },
+    type: "media",
+    data: {
+        kind: "photo",
+        shape: "circle",
+        size,
+        ...(src ? { src } : {}),
+    },
 });
 
 /** One priced tier: eyebrow, price, the line under it, what's included, and the action. */

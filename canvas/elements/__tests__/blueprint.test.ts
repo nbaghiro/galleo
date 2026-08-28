@@ -4,7 +4,7 @@ import { childrenRaw } from "@model/artifact";
 
 describe("placeholderBlock", () => {
     it("maps a block kind to its stand-in element", () => {
-        expect(placeholderBlock("image").type).toBe("image");
+        expect(placeholderBlock("image").type).toBe("media");
         expect(placeholderBlock("stat").type).toBe("stat");
         expect(placeholderBlock("chart").type).toBe("chart");
         expect(placeholderBlock("table").type).toBe("table");
@@ -36,6 +36,6 @@ describe("placeholderSection", () => {
             placeholderSection({ id: "s", layout: "two-col", image: true }).root,
         )!;
         expect(cols).toHaveLength(2);
-        expect(cols[cols.length - 1]!.type).toBe("image");
+        expect(cols[cols.length - 1]!.type).toBe("media");
     });
 });

@@ -71,12 +71,12 @@ export const MediaField: Component<{
     placeholder?: string;
     compact?: boolean;
     kind?: string;
-    onChange: (v: string, item?: MediaItem, dims?: Dims) => void;
+    onChange: (v: string, item?: MediaItem, dims?: Dims, kind?: MediaKind) => void;
 }> = (props) => {
     const [pasting, setPasting] = createSignal(false);
     const open = (): void =>
         pickMedia(
-            (url, item) => props.onChange(url, item, dimsOf(item)),
+            (url, item, kind) => props.onChange(url, item, dimsOf(item), kind),
             props.kind as MediaKind | undefined,
         );
 
@@ -354,8 +354,11 @@ export const Field: Component<{
                     placeholder={f().placeholder}
                     compact={props.compact}
                     kind={f().mediaKind}
-                    onChange={(v, item, dims) => {
+                    onChange={(v, item, dims, kind) => {
                         props.onChange(v);
+                        // the kind the picker came back with: an image element handed a clip becomes
+                        // one, keeping its id, its width and its frame
+                        if (kind) props.onWrite?.("kind", kind === "photo" ? "photo" : kind);
                         // a picked item carries a still frame; a pasted URL clears any stale one
                         const pk = f().posterKey;
                         if (pk)

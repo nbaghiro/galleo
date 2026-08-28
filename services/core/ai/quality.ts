@@ -5,7 +5,7 @@ import { ELEMENTS, NESTED_TYPES } from "@services/core/ai/prompts/catalog";
 const PLACEHOLDER_RE =
     /lorem ipsum|placeholder text|to-?do|tbd|your (?:text|content) here|\bx{3,}\b/i;
 const HEADING_STYLES = new Set(["h1", "h2", "h3", "subtitle"]);
-const FOCAL_TYPES = new Set(["image", "stat", "chart", "diagram", "table"]);
+const FOCAL_TYPES = new Set(["media", "image", "stat", "chart", "diagram", "table"]);
 
 export interface Content {
     texts: string[];
@@ -86,7 +86,16 @@ const FLOW_TYPES = new Set(["container", "group", "card"]);
 
 // Types that ARE their required field: without it the element paints an empty box wherever it sits,
 // so these are held to it even inside a composite that may leave a slot blank on purpose.
-const CARRIERS = new Set(["image", "chart", "diagram", "table", "code", "button", "badge"]);
+const CARRIERS = new Set([
+    "media",
+    "image",
+    "chart",
+    "diagram",
+    "table",
+    "code",
+    "button",
+    "badge",
+]);
 
 function walkTree(
     el: ElementInstance,

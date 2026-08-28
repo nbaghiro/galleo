@@ -4,7 +4,7 @@ import { commit, editor, requestMediaPicker } from "./store";
 
 // pass onRemove when a value is already set, so the picker offers a "Remove" action
 export function pickMedia(
-    onPick: (url: string, item?: MediaItem) => void,
+    onPick: (url: string, item?: MediaItem, kind?: MediaKind) => void,
     kind?: MediaKind,
     onRemove?: () => void,
 ): void {

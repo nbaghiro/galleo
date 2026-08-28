@@ -199,8 +199,8 @@ describe("what hand-built work is held to, versus a model reply", () => {
 
 describe("elements with nothing in them", () => {
     it("flags a carrier that arrived without the field it exists to show", () => {
-        const s = section(group([text("A headline", "h2"), { type: "image", data: {} }]));
-        expect(one(structureIssues(s), /`image`/)).toContain("no `src`");
+        const s = section(group([text("A headline", "h2"), { type: "media", data: {} }]));
+        expect(one(structureIssues(s), /`media`/)).toContain("no `src`");
     });
 
     it("counts repeats of the same fault rather than listing each one", () => {
@@ -230,9 +230,9 @@ describe("elements with nothing in them", () => {
     it("still flags a carrier inside a composite, which renders as an empty box wherever it sits", () => {
         const s = section({
             type: "profile",
-            data: { children: [{ type: "image", data: {} }, text("Dana", "h3")] },
+            data: { children: [{ type: "media", data: {} }, text("Dana", "h3")] },
         });
-        expect(one(structureIssues(s), /`image`/)).toContain("no `src`");
+        expect(one(structureIssues(s), /`media`/)).toContain("no `src`");
     });
 });
 

@@ -232,6 +232,7 @@ export default tseslint.config(
             ".gen/**",
             ".docs/**",
             ".claude/**",
+            ".local/**",
         ],
     },
     {

@@ -968,7 +968,7 @@ export function requestShare(): void {
 
 // opens the shared media picker; no host → no-op
 export interface MediaPickerRequest {
-    onPick: (url: string, item?: MediaItem) => void; // item present when picked from the browser (carries the poster/thumb)
+    onPick: (url: string, item?: MediaItem, kind?: MediaKind) => void; // item present when picked from the browser (carries the poster/thumb)
     onPickIcon?: (icon: IconPick) => void; // icon delivers a themed-glyph descriptor, not a url
     onRemove?: () => void; // present when a value is already set → picker offers a "Remove" action
     query?: string;

@@ -198,11 +198,18 @@ export const ELEMENTS: readonly ElementSchema[] = [
     },
 
     {
-        type: "image",
+        type: "media",
         label: "Image",
         category: "media",
-        when: "a photo or illustration; the workhorse visual",
+        when: "any picture or clip: a photo, an illustration, or an embeddable video. `kind` picks which, and the frame is the same either way, so one can become the other later without being replaced. A published doc or site gives a video a real player, so reach for one whenever a demo or a founder's thirty seconds says the thing faster than prose; every static surface (the editor canvas, a thumbnail, an export) paints its poster instead",
         fields: [
+            {
+                key: "kind",
+                type: "enum",
+                values: ["photo", "video"],
+                default: "photo",
+                desc: "photo for a picture, video for an embeddable clip. Everything else about the frame is the same, so a picture can become a clip later without being replaced",
+            },
             {
                 key: "src",
                 type: "string",
@@ -228,45 +235,17 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 desc: "corner radius in px; omit to inherit the theme",
             },
             {
+                key: "poster",
+                type: "string",
+                desc: "video only: a still frame url, or a short phrase to source one. Without it a YouTube src falls back to the provider's own frame and a file src paints a dark plate",
+            },
+            {
                 key: "alt",
                 type: "string",
                 desc: "one plain sentence describing what the picture shows, for screen readers and search. Write it whenever the picture carries meaning; leave it out for pure decoration",
             },
         ],
     },
-    {
-        type: "video",
-        label: "Video",
-        category: "media",
-        when: "an embeddable video (YouTube/Vimeo/mp4). In a published doc or site it is a real player the reader presses, so reach for it whenever a demo, a walkthrough, or a founder's thirty seconds says the thing faster than prose; every static surface (the editor canvas, a thumbnail, an export) paints the poster instead",
-        fields: [
-            {
-                key: "src",
-                type: "string",
-                desc: "the video URL (YouTube, Vimeo, or mp4). Only a real one you know; there is no way to source a clip from a description",
-            },
-            {
-                key: "poster",
-                type: "string",
-                desc: "the still frame every static surface paints: a short plain-language phrase for the shot you want, written the same way as an image `src`. A YouTube link falls back to the provider's own thumbnail, and anything else paints a bare dark box, so set one",
-            },
-            {
-                key: "aspect",
-                type: "number",
-                default: 1.78,
-                desc: "width ÷ height of the player frame; 1.78 is 16:9",
-            },
-            {
-                key: "controls",
-                type: "boolean",
-                default: true,
-                desc: "show the player's own transport controls",
-            },
-            { key: "autoplay", type: "boolean", desc: "start playing muted on view" },
-            { key: "loop", type: "boolean", desc: "loop playback" },
-        ],
-    },
-
     {
         type: "stat",
         label: "Stat",

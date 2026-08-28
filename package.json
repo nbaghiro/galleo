@@ -52,7 +52,8 @@
         "fonts:vendor": "tsx scripts/fonts-vendor.ts",
         "check:fonts": "tsx scripts/check-fonts.ts",
         "mcp": "tsx scripts/mcp.ts",
-        "posthog:dashboards": "tsx scripts/posthog-dashboards.ts"
+        "posthog:dashboards": "tsx scripts/posthog-dashboards.ts",
+        "media:elements": "tsx scripts/migrate-media-elements.ts"
     },
     "dependencies": {
         "@ai-sdk/anthropic": "^4.0.30",

@@ -12,7 +12,7 @@ import type {
 } from "@model/elements";
 import type { Tokens } from "@themes";
 import { register } from "@elements/spec";
-import { fit, fixed, grow } from "@model/geometry";
+import { fixed, grow } from "@model/geometry";
 import { hexA } from "@themes";
 
 // Iconify glyph: parseSvg lifts `body` into a Vector at paint time.
@@ -810,13 +810,13 @@ export const ICON_LIBRARY: Record<string, IconGlyph> = {
     },
 } satisfies Record<DiagramIcon, IconGlyph>;
 
-const DEFAULT_GLYPH: IconGlyph = {
+export const DEFAULT_GLYPH: IconGlyph = {
     id: "lucide:sparkles",
     vb: "0 0 24 24",
     body: `<g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><circle cx="4" cy="20" r="2"/></g>`,
 };
 
-const DEFAULT_GRAPHIC = parseSvg(
+export const DEFAULT_GRAPHIC = parseSvg(
     `<svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" stroke-width="3"/><path d="M16 24l6 6 12-12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 );
 
@@ -849,36 +849,6 @@ function vectorSpec<D>(cfg: VectorSpecCfg<D>): ElementSpec<D> {
     };
 }
 
-interface IconData {
-    glyph: IconGlyph;
-    color?: string; // theme role (accent/ink/soft/muted) or hex
-    size?: number;
-}
-function iconPaint(color: string | undefined): Paint {
-    if (!color) return { role: "accent" };
-    if (color.startsWith("#")) return { color };
-    return { role: color as ThemeRole };
-}
-register(
-    vectorSpec<IconData>({
-        type: "icon",
-        label: "Icon",
-        category: "media",
-        create: () => ({ glyph: DEFAULT_GLYPH, color: "accent", size: 72 }),
-        node: (d) => ({ w: fixed(d.size ?? 72), h: fixed(d.size ?? 72) }),
-        render: (g, box, d, theme) =>
-            drawVector(g, box, parseSvg(d.glyph.body, d.glyph.vb), theme, {
-                tint: iconPaint(d.color),
-            }),
-        resize: { width: false, height: { key: "size", min: 24, max: 240, step: 4 } },
-        bar: ["glyph", "color"],
-        controls: [
-            { key: "glyph", label: "Icon", control: "icon" },
-            { key: "color", label: "Color", control: "iconColor" },
-        ],
-    }),
-);
-
 interface ShapeData {
     kind: ShapeKind;
     fill?: string; // solids: fill; line/arrow: line color; unset → accent
@@ -891,7 +861,7 @@ const SHAPE_KINDS: { label: string; value: string }[] = [
     { label: "Rectangle", value: "rectangle" },
     { label: "Ellipse", value: "ellipse" },
     { label: "Triangle", value: "triangle" },
-    { label: "Star", value: "star" },
+    { label: "Diamond", value: "diamond" },
     { label: "Line", value: "line" },
     { label: "Arrow", value: "arrow" },
 ];
@@ -949,28 +919,6 @@ register(
                 unit: "px",
                 group: "Outline",
             },
-        ],
-    }),
-);
-
-interface GraphicData {
-    doc: Vector;
-    adoptTheme?: boolean;
-}
-register(
-    vectorSpec<GraphicData>({
-        type: "graphic",
-        label: "Graphic",
-        category: "media",
-        create: () => ({ doc: DEFAULT_GRAPHIC, adoptTheme: true }),
-        node: (d) => ({ w: grow(), h: fit(), aspect: (d.doc.vb[2] || 1) / (d.doc.vb[3] || 1) }),
-        render: (g, box, d, theme) =>
-            drawVector(g, box, d.doc ?? DEFAULT_GRAPHIC, theme, { adoptTheme: d.adoptTheme }),
-        resize: { aspect: { min: 0.3, max: 3 } },
-        bar: ["doc"],
-        controls: [
-            { key: "doc", label: "SVG", control: "vector" },
-            { key: "adoptTheme", label: "Match theme colors", control: "toggle", group: "Color" },
         ],
     }),
 );
