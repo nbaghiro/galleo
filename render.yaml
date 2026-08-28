@@ -37,6 +37,8 @@ services:
             sync: false
           - key: PIXABAY_API_KEY
             sync: false
+          - key: GIPHY_API_KEY # developers.giphy.com; pick the API key, not the SDK key
+            sync: false
           - key: RESEND_API_KEY # share-invite email; the From address is a constant in services/core/mail.ts
             sync: false
           - key: STRIPE_SECRET_KEY # billing; leave unset to keep everyone on Free

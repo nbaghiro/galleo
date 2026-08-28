@@ -10,11 +10,13 @@ describe("stockReady", () => {
         vi.stubEnv("UNSPLASH_ACCESS_KEY", undefined);
         vi.stubEnv("PEXELS_API_KEY", undefined);
         vi.stubEnv("PIXABAY_API_KEY", undefined);
+        vi.stubEnv("GIPHY_API_KEY", undefined);
         expect(stockReady()).toEqual({
             openverse: true,
             unsplash: false,
             pexels: false,
             pixabay: false,
+            giphy: false,
         });
     });
 
@@ -22,11 +24,13 @@ describe("stockReady", () => {
         vi.stubEnv("UNSPLASH_ACCESS_KEY", "u-key");
         vi.stubEnv("PEXELS_API_KEY", undefined);
         vi.stubEnv("PIXABAY_API_KEY", "p-key");
+        vi.stubEnv("GIPHY_API_KEY", "g-key");
         expect(stockReady()).toEqual({
             openverse: true,
             unsplash: true,
             pexels: false,
             pixabay: true,
+            giphy: true,
         });
     });
 

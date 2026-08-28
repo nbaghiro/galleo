@@ -53,7 +53,7 @@ type Source = "library" | "upload" | "link" | MediaProvider | "generate" | "icon
 // flat catalog prices, shown before a tap spends them; video is heavy enough to ask first
 const IMAGE_COST = estimateCost("generate-image");
 const VIDEO_COST = estimateCost("generate-video");
-const STOCK: MediaProvider[] = ["openverse", "unsplash", "pexels", "pixabay"];
+const STOCK: MediaProvider[] = ["openverse", "unsplash", "pexels", "pixabay", "giphy"];
 
 const KIND_TITLE: Record<MediaKind, string> = {
     photo: "Add an image",
@@ -79,6 +79,16 @@ const DEFAULT_QUERY: Record<MediaKind, string> = {
     sticker: "emoji",
     icon: "",
     video: "nature",
+};
+
+// the address a person would actually be pasting, per kind
+const LINK_EXAMPLE: Record<MediaKind, string> = {
+    photo: "photo.jpg",
+    gif: "loop.gif",
+    illustration: "drawing.svg",
+    sticker: "sticker.png",
+    icon: "icon.svg",
+    video: "clip.mp4",
 };
 
 // what the chips offer; icons have their own rail and arrive as a glyph rather than a url
@@ -204,7 +214,7 @@ const RailIcon = {
 export const MediaPicker: Component = () => {
     const [source, setSource] = createSignal<Source>("library");
     const [providers, setProviders] = createSignal<MediaProvidersState>({
-        stock: { openverse: true, unsplash: false, pexels: false, pixabay: false },
+        stock: { openverse: true, unsplash: false, pexels: false, pixabay: false, giphy: false },
         generate: false,
         generateVideo: false,
     });
@@ -717,6 +727,12 @@ export const MediaPicker: Component = () => {
                         src={it.thumbUrl}
                         alt={it.alt ?? ""}
                         loading="lazy"
+                        // a provider's thumbnail can be down while its full image is fine
+                        // (Openverse's proxy answers 424), so fall back rather than show a hole
+                        onError={(e) => {
+                            const img = e.currentTarget;
+                            if (img.src !== it.url) img.src = it.url;
+                        }}
                         class="block w-full bg-canvas object-cover"
                         style={
                             it.width > 0 && it.height > 0
@@ -1174,7 +1190,11 @@ export const MediaPicker: Component = () => {
                                                 Add by address
                                             </Eyebrow>
                                             <TextField
-                                                placeholder="https://youtube.com/watch?v=… or a direct file url"
+                                                placeholder={
+                                                    kind() === "video"
+                                                        ? "https://youtube.com/watch?v=… or a direct file url"
+                                                        : `https://example.com/${LINK_EXAMPLE[kind()]}`
+                                                }
                                                 value={linkUrl()}
                                                 onChange={setLinkUrl}
                                                 onKeyDown={(e) =>
@@ -1182,8 +1202,14 @@ export const MediaPicker: Component = () => {
                                                 }
                                             />
                                             <p class="mt-2 text-[12px] leading-relaxed text-muted">
-                                                A YouTube or Vimeo page becomes a player. Anything
-                                                else is fetched and kept in your library.
+                                                <Show
+                                                    when={kind() === "video"}
+                                                    fallback="Fetched once and kept in your library. A YouTube or Vimeo link adds a video instead."
+                                                >
+                                                    A YouTube or Vimeo page becomes a player.
+                                                    Anything else is fetched and kept in your
+                                                    library.
+                                                </Show>
                                             </p>
                                             <div class="mt-3 flex justify-end">
                                                 <Button

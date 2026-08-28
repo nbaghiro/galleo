@@ -26,6 +26,7 @@ const KEYS = {
     unsplash: () => process.env.UNSPLASH_ACCESS_KEY,
     pexels: () => process.env.PEXELS_API_KEY,
     pixabay: () => process.env.PIXABAY_API_KEY,
+    giphy: () => process.env.GIPHY_API_KEY,
 };
 
 export function stockReady(): Record<MediaProvider, boolean> {
@@ -34,6 +35,7 @@ export function stockReady(): Record<MediaProvider, boolean> {
         unsplash: !!KEYS.unsplash(),
         pexels: !!KEYS.pexels(),
         pixabay: !!KEYS.pixabay(),
+        giphy: !!KEYS.giphy(),
     };
 }
 
@@ -283,6 +285,62 @@ async function searchPixabayVideos(q: string, page: number): Promise<StockResult
     return { items, hasMore: page * PER_PAGE < json.totalHits };
 }
 
+interface GiphyImage {
+    url: string;
+    width: string;
+    height: string;
+}
+interface GiphyGif {
+    id: string;
+    title: string;
+    url: string;
+    username: string;
+    images: { original: GiphyImage; fixed_width?: GiphyImage; downsized?: GiphyImage };
+}
+
+// Giphy pages by offset rather than page number, and serves stickers from a sibling endpoint: the
+// same objects, cut out on transparency.
+async function searchGiphy(q: string, page: number, kind: MediaKind): Promise<StockResult> {
+    const path = kind === "sticker" ? "stickers" : "gifs";
+    const u = new URL(`https://api.giphy.com/v1/${path}/search`);
+    u.searchParams.set("api_key", KEYS.giphy()!);
+    u.searchParams.set("q", q);
+    u.searchParams.set("limit", String(PER_PAGE));
+    u.searchParams.set("offset", String((page - 1) * PER_PAGE));
+    u.searchParams.set("rating", "pg-13");
+    u.searchParams.set("bundle", "messaging_non_clips");
+    const res = await fetch(u);
+    if (!res.ok) throw new Error(`giphy ${res.status}`);
+    const json = (await res.json()) as {
+        data: GiphyGif[];
+        pagination?: { total_count?: number; count?: number; offset?: number };
+    };
+    const items: MediaItem[] = json.data.flatMap((g) => {
+        const full = g.images.original;
+        if (!full?.url) return [];
+        return [
+            {
+                id: g.id,
+                source: "stock" as const,
+                url: full.url,
+                thumbUrl: g.images.fixed_width?.url ?? g.images.downsized?.url ?? full.url,
+                width: Number(full.width) || 0,
+                height: Number(full.height) || 0,
+                alt: g.title || undefined,
+                // Giphy's terms ask for the mark and a link back to the gif's page
+                attribution: {
+                    provider: "GIPHY",
+                    author: g.username || undefined,
+                    sourceUrl: g.url,
+                },
+            },
+        ];
+    });
+    const p = json.pagination;
+    const seen = (p?.offset ?? 0) + (p?.count ?? items.length);
+    return { items, hasMore: seen < (p?.total_count ?? 0) };
+}
+
 const OPENVERSE_PAGE_SIZE = 20; // anonymous requests are capped here (page_size=30 → 401)
 
 function openverseKind(u: URL, kind: MediaKind): void {
@@ -357,6 +415,7 @@ export async function searchStock(
             kind,
         );
     const o = orient(provider, orientation);
+    if (provider === "giphy") return searchGiphy(q, page, kind);
     if (provider === "unsplash") return searchUnsplash(q, page, o);
     if (provider === "pexels") return searchPexels(q, page, o);
     return searchPixabay(q, page, o, kind);
