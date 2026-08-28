@@ -19,12 +19,18 @@ export interface Person {
 const portrait = (g: "men" | "women", n: number): string =>
     `https://randomuser.me/api/portraits/${g}/${n}.jpg`;
 
+// The main demo login gets a real photograph rather than a randomuser one: it is the face on the
+// screen in every screenshot and every walkthrough, so it is worth being the better picture. Cropped
+// to the face by the CDN and asked for at 2x, since the sidebar renders it small on a retina panel.
+const DEMO_AVATAR =
+    "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=256&h=256&fit=crop&crop=face";
+
 // Every seeded account shares the demo password, so a role can be checked from the other side too.
 // Emails are demo+<role>@ and the display names say the same thing, so a member list reads as the
 // roles it is demonstrating rather than as a cast of invented people: whoever is looking at the
 // screen can tell which account they are without cross-referencing a name against an email.
 export const PEOPLE: Person[] = [
-    { email: DEMO_EMAIL, name: "Demo User", avatar: portrait("women", 44) },
+    { email: DEMO_EMAIL, name: "Demo User", avatar: DEMO_AVATAR },
     { email: "demo+admin@galleo.app", name: "Demo Admin", avatar: portrait("women", 65) },
     { email: "demo+member@galleo.app", name: "Demo Member", avatar: portrait("men", 22) },
     { email: "demo+invited@galleo.app", name: "Demo Invitee", avatar: portrait("men", 75) },
