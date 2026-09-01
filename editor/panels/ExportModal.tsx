@@ -347,10 +347,12 @@ const Body: Component = () => {
                 </For>
             </div>
 
-            <div class="min-h-0 flex-1 overflow-hidden bg-ink/90">
+            {/* Viewer chrome, not themed content: a document preview reads against a neutral dark
+                surround in either theme. `bg-ink` would invert on a dark theme and paint this white. */}
+            <div class="min-h-0 flex-1 overflow-hidden bg-black/80">
                 <Switch>
                     <Match when={!previewRequested()}>
-                        <div class="flex h-full flex-col items-center justify-center gap-3 text-canvas/80">
+                        <div class="flex h-full flex-col items-center justify-center gap-3 text-white/80">
                             <DestMark dest={destMeta()} size="lg" />
                             <span class="text-[13px]">{destMeta().label} preview</span>
                             <Button variant="primary" size="md" onClick={requestPreview}>
@@ -359,13 +361,13 @@ const Body: Component = () => {
                         </div>
                     </Match>
                     <Match when={preview.loading}>
-                        <div class="flex h-full flex-col items-center justify-center gap-3 text-canvas/80">
+                        <div class="flex h-full flex-col items-center justify-center gap-3 text-white/80">
                             <Spinner size={20} tone="accent" />
                             <span class="text-[13px]">Rendering {destMeta().label}…</span>
                         </div>
                     </Match>
                     <Match when={preview.error}>
-                        <div class="flex h-full flex-col items-center justify-center gap-3 text-canvas/80">
+                        <div class="flex h-full flex-col items-center justify-center gap-3 text-white/80">
                             <span class="text-[13px]">Preview failed to render.</span>
                             <Button variant="outline" size="sm" onClick={() => void refetch()}>
                                 Try again
