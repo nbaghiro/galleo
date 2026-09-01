@@ -5,7 +5,12 @@ import type { Beat } from "@model/ai";
 import { resolveProfile } from "@engine/profile";
 import { resolveTheme, mix } from "@themes";
 import { backdropCss, paint } from "@canvas/render/backends";
-import { measureText, layoutSection, layoutSectionSkeleton } from "@canvas/render/commands";
+import {
+    measureText,
+    layoutSection,
+    layoutSectionSkeleton,
+    layoutOutline,
+} from "@canvas/render/commands";
 import { placeholderSection } from "@canvas/elements/blueprint";
 import { Icon } from "@ui/icons";
 import { Button, Chip, IconButton, Spinner } from "@ui/button";
@@ -18,6 +23,7 @@ import {
     gen,
     pauseBuild,
     runLocked,
+    fixSection,
     regenerateSection,
     sectionCost,
     selectBeat,
@@ -38,13 +44,16 @@ import { OutlineChrome, OutlineEditor, type OutlineEdit } from "./OutlineCard";
 const slotOf = (id: string): SectionSlot | undefined => gen.slots.find((s) => s.id === id);
 
 // planning while an arc is already on screen: a replacement, not a first build
-const replanning = (): boolean => gen.planning && gen.beats.length > 0;
+// a live stream paints its own progress; the dim-and-spin veil is only for the gap before it
+const replanning = (): boolean => gen.planning && gen.beats.length > 0 && !gen.planStreamed;
 
 export const Board: Component = () => {
     let board!: HTMLDivElement;
-    const visible = createMemo(() =>
-        gen.beats.filter((b) => slotOf(b.id)?.status !== "skipped").map((b) => b.id),
-    );
+    const visible = createMemo(() => {
+        const ids = gen.beats.filter((b) => slotOf(b.id)?.status !== "skipped").map((b) => b.id);
+        // a streaming plan reaches the board one section at a time; null shows every one
+        return gen.revealed === null ? ids : ids.slice(0, gen.revealed);
+    });
     const [avail, setAvail] = createSignal(1000);
     onMount(() => {
         // the console rail animates its width, so coalesce: a raw observer repaints every frame
@@ -92,6 +101,24 @@ export const Board: Component = () => {
         );
     });
     onCleanup(() => clearTimeout(scrollTimer));
+    // The plan lands section by section, so the board follows the newest card down (`centerOn`
+    // clamps at the top, which keeps it still until the outline outgrows the viewport) and settles
+    // back at the opening once every section is up, so the reader starts the plan from its first.
+    createEffect(() => {
+        const shown = gen.revealed;
+        if (shown === null || shown < 1) return;
+        const id = gen.beats[Math.min(shown, gen.beats.length) - 1]?.id;
+        if (id) requestAnimationFrame(() => centerOn(id));
+    });
+    createEffect(
+        (was: boolean) => {
+            const settled = gen.revealed === null && !gen.planning;
+            if (!was && settled && gen.stage === "outline")
+                board?.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" });
+            return settled;
+        },
+        gen.revealed === null && !gen.planning,
+    );
     // continuous formats merge seamlessly like the engine; only paged decks float apart
     const gap = (): string =>
         resolveProfile(previewFormat()).kind === "continuous" ? "0px" : "22px";
@@ -102,15 +129,7 @@ export const Board: Component = () => {
         <div class="relative h-full">
             {/* non-scrolling layer: on a scroll container Chromium resolves `cover` against the
                 scrollable content box, so a short stack tiles the image */}
-            <div
-                class="absolute inset-0"
-                style={{
-                    background: backdrop(),
-                    "background-size": "cover",
-                    "background-position": "center",
-                    "background-repeat": "no-repeat",
-                }}
-            />
+            <div class="absolute inset-0" style={{ background: backdrop() }} />
             <div
                 ref={board}
                 class="absolute inset-0 flex flex-col items-center px-3 py-4 transition-opacity md:px-7 md:py-6"
@@ -123,7 +142,7 @@ export const Board: Component = () => {
                 style={{ gap: gap() }}
             >
                 <Show
-                    when={gen.beats.length}
+                    when={visible().length}
                     fallback={
                         <div class="grid h-full w-full place-items-center">
                             {/* a gate waiting on the user must not look like work in progress */}
@@ -211,12 +230,16 @@ const Frame: Component<{
     // everything this row shows is derived from the store by id, so a sibling landing touches nothing
     const beat = (): Beat | undefined => gen.beats.find((b) => b.id === props.id);
     const slot = (): SectionSlot | undefined => slotOf(props.id);
-    const section = (): Section | null => {
+    // the take of record, and what is on screen: while a section's photographs are sourced the
+    // studio paints the written words with empty frames, which is a preview, not a take
+    const landedTake = (): Section | null => {
         const s = slot();
         return s ? slotSection(s) : null;
     };
+    const section = (): Section | null => slot()?.preview ?? landedTake();
     const status = (): SlotStatus => slot()?.status ?? "queued";
     const working = (): boolean => slot()?.working ?? false;
+    const issues = (): string[] => slot()?.issues ?? [];
     const versions = (): number => slot()?.versions.length ?? 0;
     const activeVersion = (): number => slot()?.active ?? 0;
     // The beat wins on shape, the slot on build state. A slot is a snapshot taken when the build
@@ -233,10 +256,14 @@ const Frame: Component<{
     // an unwritten beat stays an outline card at every stage
     const planned = (): boolean => !doneReady() && !active();
     const reviewable = (): boolean =>
-        doneReady() && !working() && (gen.stage === "building" || gen.stage === "done");
+        !!landedTake() && !working() && (gen.stage === "building" || gen.stage === "done");
     const selected = (): boolean => editable() && gen.selectedBeat === props.id;
 
     // repaint only when the picture changes: unguarded, every store write replayed the reveal
+    // a section settling onto the board, in reading order, with a little overshoot so a fast plan
+    // reads as confident rather than mechanical
+    const FILL_STEP_MS = 45;
+    const FILL_EASING = "cubic-bezier(.2,1.2,.3,1)";
     let painted: {
         el: HTMLDivElement;
         sec: Section | null;
@@ -244,6 +271,8 @@ const Frame: Component<{
         w: number;
         theme: string;
         fmt: string;
+        previewed: boolean; // the paint on screen is the words-only preview of this same section
+        copy: boolean; // the frame's own words are on it, rather than an empty slot
     } | null = null;
     createEffect(() => {
         const el = box();
@@ -255,8 +284,12 @@ const Frame: Component<{
         const fmt = previewFormat();
         // A planned beat paints as a real section carrying the outline's own words, so the engine
         // owns its type scale and splits and the card never re-decides them.
+        // the typewriter decides how much of the beat this frame shows: whole, a slice, or the
+        // ghost skeleton that doubles as the loading state for blocks still to come
+        // A card being written keeps the outline's own words on screen, dimmed, instead of dropping
+        // to a skeleton: the reader watches the plan become the section it asked for.
         const outline =
-            !sec && planned() && b
+            !sec && b
                 ? outlineSection({
                       id: props.id,
                       layout: layout(),
@@ -284,7 +317,13 @@ const Frame: Component<{
         )
             return;
         const landed = !!sec && painted?.sec !== sec;
-        painted = { el, sec, ghost, w, theme, fmt };
+        // its words are already on screen: the photographs arriving should fade in, not replay the
+        // whole card's reveal
+        const onlyImages = landed && !!painted?.previewed && painted.el === el;
+        // the frame just gained its words: the moment the plan becomes readable
+        // the section arriving on the board, or a card that just gained the plan's words
+        const arriving = !!outline && (painted === null || painted.copy === false);
+        painted = { el, sec, ghost, w, theme, fmt, previewed: !!slot()?.preview, copy: !!outline };
 
         const tk = resolveTheme(theme).tokens;
         const profile = resolveProfile(fmt);
@@ -294,7 +333,7 @@ const Frame: Component<{
         const rendered = sec
             ? layoutSection(sec, w, measureText, tk, profile)
             : outline
-              ? layoutSection(outline.section, w, measureText, tk, profile)
+              ? layoutOutline(outline.section, outline.copyId, w, measureText, tk, profile)
               : null;
         const out =
             rendered ??
@@ -310,10 +349,31 @@ const Frame: Component<{
                 tk,
                 profile,
             );
-        paint(out.commands, el);
+        const nodes = paint(out.commands, el);
+        // every frame keeps one height from the first paint through the last edit of the plan, so a
+        // beat filling in never moves the beats under it
         setDim({ w, h: out.height });
+        // the words settle into the frame that was already holding their place
+        if (arriving && !reduced()) {
+            let n = 0;
+            out.commands.forEach((c, i) => {
+                if (c.kind !== "text") return;
+                nodes[i]?.animate(
+                    [
+                        { opacity: 0, transform: "translateY(4px) scale(.985)" },
+                        { opacity: 1, transform: "none" },
+                    ],
+                    {
+                        duration: 380,
+                        delay: n++ * FILL_STEP_MS,
+                        easing: FILL_EASING,
+                        fill: "both",
+                    },
+                );
+            });
+        }
         setHits(
-            outline && rendered
+            outline && rendered && planned()
                 ? rendered.regions.flatMap((r) => {
                       const field = outline.fields[r.id];
                       return field ? [{ field, box: r.box }] : [];
@@ -321,25 +381,30 @@ const Frame: Component<{
                 : [],
         );
         if (!landed || reduced()) return;
-        el.animate([{ opacity: 0 }, { opacity: 1 }], {
-            duration: 420,
-            easing: "cubic-bezier(.2,.7,.2,1)",
-            fill: "both",
-        });
-        el.animate([{ clipPath: "inset(0 0 100% 0)" }, { clipPath: "inset(0 0 0 0)" }], {
-            duration: 560,
-            easing: "cubic-bezier(.2,.7,.2,1)",
-            fill: "both",
-        });
-        el.querySelectorAll("img").forEach((img) =>
-            img.animate(
+        if (!onlyImages) {
+            el.animate([{ opacity: 0 }, { opacity: 1 }], {
+                duration: 420,
+                easing: "cubic-bezier(.2,.7,.2,1)",
+                fill: "both",
+            });
+            el.animate([{ clipPath: "inset(0 0 100% 0)" }, { clipPath: "inset(0 0 0 0)" }], {
+                duration: 560,
+                easing: "cubic-bezier(.2,.7,.2,1)",
+                fill: "both",
+            });
+        }
+        // photographs paint as background-image nodes, so the de-blur follows the image commands
+        // rather than the DOM's few real <img> tags
+        out.commands.forEach((c, i) => {
+            if (c.kind !== "image") return;
+            nodes[i]?.animate(
                 [
                     { filter: "blur(14px)", opacity: 0.4 },
                     { filter: "blur(0)", opacity: 1 },
                 ],
                 { duration: REVEAL_MS, fill: "both" },
-            ),
-        );
+            );
+        });
     });
 
     const sendNote = (): void => {
@@ -397,8 +462,12 @@ const Frame: Component<{
             >
                 <div
                     ref={setBox}
-                    class="relative"
-                    classList={{ "cursor-text": editable() && planned() }}
+                    class="relative transition-opacity duration-500"
+                    classList={{
+                        "cursor-text": editable() && planned(),
+                        // the plan's words, waiting to be written into the real thing
+                        "opacity-40": active() && !section(),
+                    }}
                     style={{ width: `${dim().w}px`, height: `${dim().h}px` }}
                     onClick={(e) => {
                         if (!editable() || !planned()) return;
@@ -428,6 +497,16 @@ const Frame: Component<{
                     <StatusDot tone="fail" />
                     Didn’t come back
                 </div>
+            </Show>
+            <Show when={issues().length > 0 && !active() && status() === "done"}>
+                <button
+                    class="absolute bottom-3 left-4 z-[2] flex cursor-pointer items-center gap-2 rounded-md border border-line bg-panel/85 px-2 py-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-ink backdrop-blur-sm hover:border-accent"
+                    title={`${issues().join("\n")}\nClick to rework it with these notes.`}
+                    onClick={() => void fixSection(props.id)}
+                >
+                    <StatusDot tone="fail" ring />
+                    Needs a look
+                </button>
             </Show>
             <Show when={reviewable()}>
                 <div

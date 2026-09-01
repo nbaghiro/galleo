@@ -11,8 +11,10 @@ export type TurnKind = "generate" | "edit" | "section" | "chat" | "plan" | "buil
  */
 export interface ModelSpan {
     modelId: string;
-    input: number; // tokens
+    input: number; // tokens, cached ones included
     output: number;
+    /** The share of `input` the provider served from its prompt cache, priced at the cached rate. */
+    cached?: number;
     step: string; // "brief" | "outline" | "plan-section" | "section:<beatId>" | "" when unlabelled
     ms: number;
     system?: string;
@@ -383,6 +385,7 @@ export interface Beat {
     layout?: string; // a named layout preset; shapes the pre-content skeleton
     image?: boolean; // carries a prominent image (drives sourcing + ghost)
     blocks?: string[]; // the block kind leading each column, in order
+    design?: string; // the id of the template design this section uses, when one was offered
     brief?: string; // one line telling the section writer what this section must say
     takeaway?: string;
     points?: string[]; // the 2–4 concrete moves/claims the section makes, in order
@@ -401,7 +404,15 @@ export type TurnEvent =
           backdrop?: string;
           brief?: BriefRead;
       }
+    // the outline as it streams: only the beats that have fully formed so far, replaced wholesale
+    // each time, so the studio paints the plan while the rest of it is still generating
+    | { type: "plan.partial"; beats: Beat[]; title?: string }
     | { type: "section.status"; id: string; status: SectionStatus }
+    // how long a landed section's image resolution took; analytics-only, arrives after its patch
+    | { type: "section.timing"; id: string; imagesMs: number }
+    // a build's live preview: the written section with empty frames where its photographs will
+    // land, shown while they are sourced; never stored, the following patch is the section of record
+    | { type: "section.partial"; id: string; section: Section }
     | { type: "patch"; ops: Patch } // apply to the canvas as it streams
     | { type: "reply"; text: string } // chat/research answer
     // one headline per move in the agent's reasoning loop; no label = it just started thinking

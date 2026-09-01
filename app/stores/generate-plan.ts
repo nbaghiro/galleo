@@ -1,7 +1,7 @@
 import type { Beat } from "@model/ai";
 import { LAYOUT_PRESETS } from "@model/artifact";
-import type { UnitRates } from "@model/credits";
-import { COST_UNITS } from "@model/credits";
+import type { UnitPrices } from "@model/credits";
+import { creditsForUsd, DEFAULT_UNIT_PRICES, usdOfUsage } from "@model/credits";
 import { estimateCost } from "@model/tools";
 
 export const LAYOUT_IDS: string[] = Object.keys(LAYOUT_PRESETS);
@@ -100,14 +100,23 @@ export function coverageMap(mustInclude: string[], beats: Beat[]): Map<string, s
     return map;
 }
 
-export const briefCost = (rates?: UnitRates): number => estimateCost("draft-brief", {}, rates);
-export const planCost = (rates?: UnitRates): number => estimateCost("plan-outline", {}, rates);
-export const sectionCost = (rates?: UnitRates): number => estimateCost("add-section", {}, rates);
+export const briefCost = (prices?: UnitPrices): number => estimateCost("draft-brief", {}, prices);
+export const planCost = (prices?: UnitPrices): number => estimateCost("plan-outline", {}, prices);
+export const sectionCost = (prices?: UnitPrices): number => estimateCost("add-section", {}, prices);
 
-// AI images are priced per image-leading beat, and images run on their own model, so they don't scale
-export function buildCost(beats: Beat[], imageSource?: "stock" | "ai", rates?: UnitRates): number {
+/**
+ * What writing the remaining beats costs. Priced over the whole build and rounded once, not summed
+ * from per-section estimates: a section costs well under a credit, so rounding each one first would
+ * quote several times the real charge.
+ */
+export function buildCost(
+    beats: Beat[],
+    imageSource?: "stock" | "ai",
+    prices: UnitPrices = DEFAULT_UNIT_PRICES,
+): number {
     const images = imageSource === "ai" ? beats.filter((b) => b.image).length : 0;
-    return beats.length * sectionCost(rates) + images * COST_UNITS.image;
+    if (!beats.length && !images) return 0;
+    return creditsForUsd(usdOfUsage({ section: beats.length, image: images }, prices));
 }
 
 // a choice question ("A or B?") must yield null, not invent a requirement the user never stated

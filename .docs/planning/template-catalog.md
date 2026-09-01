@@ -262,3 +262,9 @@ Honestly: the categorization changes shelf labels and neighbors, not the wood.
   will never read as intended there; identity has to keep coming from structure and photography.
 - The Go-to-Market Plan's positioning band renders as a patchwork of color blocks over its
   background image in the strip render; worth a look at the body regardless of any of this.
+
+## Refresh note (2026-08-29)
+
+27 templates gained positioning/typography moves (pinned badges and cards, polaroids, baseline
+rows, table clamps) per `template-refresh.md`; 63 stay untouched by design. The category design
+above is unchanged.

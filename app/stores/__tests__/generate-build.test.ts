@@ -21,7 +21,8 @@ vi.mock("@app/stores/library", () => ({
 vi.mock("@ui/analytics", () => ({ capture: vi.fn(), setRequestId: vi.fn() }));
 vi.mock("@app/stores/theme", () => ({ appTheme: () => "aurora" }));
 
-const { buildSectionNow, gen, startSession, startBuild } = await import("@app/stores/generate");
+const { buildSectionNow, gen, nextReveal, startSession, startBuild } =
+    await import("@app/stores/generate");
 
 const PLAN: TurnEvent[] = [
     { type: "turn.start", kind: "plan" },
@@ -162,5 +163,21 @@ describe("a beat that never lands", () => {
 
         expect(gen.content.sections).toHaveLength(3);
         expect(gen.slots.every((s) => s.status !== "failed")).toBe(true);
+    });
+});
+
+describe("nextReveal", () => {
+    it("puts one section on the board at a time while the plan is still arriving", () => {
+        expect(nextReveal(0, 4, true)).toEqual({ at: 1, wait: 190 });
+        expect(nextReveal(3, 4, true)).toEqual({ at: 4, wait: 190 });
+    });
+
+    it("waits on the planner rather than showing sections it has not planned", () => {
+        expect(nextReveal(2, 2, true)).toEqual({ at: 2, wait: 190 });
+    });
+
+    it("catches up once the plan has landed, then ends", () => {
+        expect(nextReveal(1, 5, false)).toEqual({ at: 2, wait: 90 });
+        expect(nextReveal(5, 5, false)).toBeNull();
     });
 });

@@ -5,7 +5,7 @@ import type { MeterParams, ToolId, ToolScope, ToolSurface } from "@model/tools";
 import { scopeFor, TOOLS } from "@model/tools";
 import type { WorkspaceRole } from "@model/workspace";
 import type { WorkspaceCreditFields } from "@services/core/ledger";
-import { ratesFor, reserve } from "@services/core/spend";
+import { pricesFor, reserve } from "@services/core/spend";
 import type { ModelOverrides } from "@services/core/models";
 import type { Meter } from "./meter";
 import { getTool, makeContext } from "./tools";
@@ -116,7 +116,7 @@ export async function runTool<R = unknown>(
 
     const held = await reserve(principal.ws, principal.userId, call.id, {
         size: opts.size,
-        rates: ratesFor(principal.ws, opts.models ?? {}),
+        prices: pricesFor(principal.ws, opts.models ?? {}),
         trace: opts.trace,
         role: principal.role,
         // the surface the call came in on, so a run from an MCP client is not reported as a chat one

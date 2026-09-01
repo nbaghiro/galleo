@@ -320,7 +320,7 @@ export const Studio: Component = () => {
                                         when={!gen.planning}
                                         fallback={
                                             <>
-                                                <Spinner size={11} /> Replanning…
+                                                <Spinner size={11} /> Planning…
                                             </>
                                         }
                                     >

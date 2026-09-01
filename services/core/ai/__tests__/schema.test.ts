@@ -292,6 +292,14 @@ describe("zBeat", () => {
         });
         expect(ok.success).toBe(true);
     });
+
+    // a bare z.string() takes "", which let a model return an outline of empty beats, satisfy the
+    // schema, and paint a blank board
+    it.each(["id", "label", "role"])("rejects an empty `%s`", (field) => {
+        const beat: Record<string, string> = { id: "s1", label: "Intro", role: "scene" };
+        beat[field] = "";
+        expect(zBeat.safeParse(beat).success).toBe(false);
+    });
 });
 
 describe("zBriefDraft", () => {
@@ -327,6 +335,17 @@ describe("zBriefDraft", () => {
             expect(
                 zBriefDraft.safeParse({ goal: "g", audience: "a", tone: "t", mustInclude }).success,
             ).toBe(true);
+    });
+    // normalizeBrief turns a blank into undefined, so an all-blank read would have passed as a brief
+    it.each(["goal", "audience", "tone"])("rejects an empty `%s`", (field) => {
+        const read: Record<string, unknown> = {
+            goal: "g",
+            audience: "a",
+            tone: "t",
+            mustInclude: ["x", "y"],
+        };
+        read[field] = "";
+        expect(zBriefDraft.safeParse(read).success).toBe(false);
     });
 });
 

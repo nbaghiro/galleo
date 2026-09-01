@@ -65,24 +65,35 @@ function toQuery(phrase: string, max: number): string {
         .join(" ");
 }
 
+// A miss on the preferred provider must not cost a full serial round trip per fallback: every
+// provider is started on a stagger, and the answers are then taken in preference order, so the
+// happy path is unchanged while a fallback is usually already in flight by the time it is needed.
+const PROVIDER_STAGGER_MS = 350;
+const after = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 async function findStock(phrase: string, orientation: string): Promise<MediaItem | null> {
     const ready = stockReady();
     const queries = [toQuery(phrase, 6), toQuery(phrase, 3)].filter(
         (q, i, a) => !!q && a.indexOf(q) === i,
     );
     if (!queries.length) return null;
-    for (const provider of PROVIDER_ORDER) {
-        if (!ready[provider]) continue;
-        // both phrasings at once: they are ranked, not exclusive, so racing them halves the wait
-        // while `find` still prefers the longer query when both come back with something
-        const hits = await Promise.all(
-            queries.map((q) =>
-                searchStock(provider, q, 1, orientation, "photo")
-                    .then((r) => r.items[0] ?? null)
-                    .catch(() => null),
-            ),
-        );
-        const hit = hits.find(Boolean);
+    const live = PROVIDER_ORDER.filter((prov) => ready[prov]);
+    const attempts = live.map((provider, k) =>
+        after(k * PROVIDER_STAGGER_MS).then(async () => {
+            // both phrasings at once: they are ranked, not exclusive, so racing them halves the
+            // wait while the longer query is still preferred when both come back with something
+            const hits = await Promise.all(
+                queries.map((q) =>
+                    searchStock(provider, q, 1, orientation, "photo")
+                        .then((r) => r.items[0] ?? null)
+                        .catch(() => null),
+                ),
+            );
+            return hits.find(Boolean) ?? null;
+        }),
+    );
+    for (const attempt of attempts) {
+        const hit = await attempt;
         if (hit) return hit;
     }
     return null;
@@ -124,6 +135,9 @@ export interface ImageOptions {
     // Adopts a sourced picture into the workspace library and hands back its canonical url. Without
     // it the raw provider url is returned and the write path adopts it later, losing attribution.
     adopt?: (item: MediaItem) => Promise<string>;
+    // Per-run memo of resolved phrases: a motif a piece repeats resolves once. Callers that want
+    // it pass one Map per run; absent means every phrase pays its own lookup.
+    cache?: Map<string, string>;
 }
 
 export async function resolveImage(
@@ -134,15 +148,23 @@ export async function resolveImage(
 ): Promise<string> {
     if (phrase.startsWith("http")) return phrase;
     const want: Slot = typeof slot === "string" ? { orientation: slot } : slot;
+    const memo = `${want.orientation};${want.face ? "f" : ""};${phrase}`;
+    const kept = opts.cache?.get(memo);
+    if (kept) return kept;
     if (opts.source === "ai" && opts.generate) {
         const asked = want.face ? `${FACE_PROMPT} ${phrase}` : phrase;
         const made = await opts.generate(asked, want.orientation, ref).catch(() => null);
         if (made) return made;
     }
     const stock = await findStock(want.face ? `${phrase} ${FACE_TERMS}` : phrase, want.orientation);
-    if (stock) return opts.adopt ? await opts.adopt(stock).catch(() => stock.url) : stock.url;
-    warn(`[ai:image] no image for "${clip(phrase, 60)}" — using placeholder`);
-    return picsum(phrase);
+    const url = stock
+        ? opts.adopt
+            ? await opts.adopt(stock).catch(() => stock.url)
+            : stock.url
+        : (warn(`[ai:image] no image for "${clip(phrase, 60)}" — using placeholder`),
+          picsum(phrase));
+    opts.cache?.set(memo, url);
+    return url;
 }
 
 // The model writes a phrase where a url belongs, so every media field in the tree is resolved at

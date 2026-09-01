@@ -52,6 +52,10 @@ const LAYOUT_HINTS: Record<string, { widths: string; when: string }> = {
         widths: "three equal thirds",
         when: "three features, steps, stats, or cards side by side",
     },
+    "four-up": {
+        widths: "four equal quarters",
+        when: "four short parallel items, an icon row or a step strip; too narrow for paragraphs",
+    },
 };
 
 export const LAYOUTS: readonly LayoutPreset[] = Object.keys(LAYOUT_PRESETS).map((id) => {
@@ -275,6 +279,11 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "boolean",
                 default: true,
                 desc: "render the first row as a bold header",
+            },
+            {
+                key: "clamp",
+                type: "number",
+                desc: "clamp every cell to this many lines (usually 1) so rows stay uniform; right for price lists, schedules, and menus where a wrapping cell would break the grid",
             },
         ],
     },
@@ -531,8 +540,8 @@ export const ELEMENTS: readonly ElementSchema[] = [
             {
                 key: "align",
                 type: "enum",
-                values: TEXT_ALIGN,
-                desc: "cross-axis alignment of children",
+                values: [...TEXT_ALIGN, "baseline"],
+                desc: 'cross-axis alignment of children; "baseline" (rows only) sits mixed type sizes on one shared text baseline, the way a big number and its caption read as one line',
             },
             {
                 key: "justify",
@@ -647,6 +656,7 @@ export function layoutCatalog(): string {
         '- `width`: `{ pct }` for a share of the row, `"fill"` to take whatever is left, `"fit"` to shrink to its content. Give EVERY column in a row a share or give none of them: one missing share drops the whole row back to equal columns.',
         '- `height: "fill"`: stretch this child to the full height of its row, which is how side-by-side cards and panels are kept level when their copy runs to different lengths. The row takes its height from the columns that do NOT fill, so leave it off the tallest one: a row where every column fills has no height to share and collapses to nothing.',
         "- `align`: `start` / `center` / `end`, this one child's cross-axis position, overriding whatever the container sets for the rest.",
+        '- `pin`: `{ "x": "start"|"center"|"end", "y": "start"|"center"|"end", "dx"?, "dy"?, "z"? }` lifts this child out of the flow and anchors it to a point of its parent\'s box, offset in px. For one small overlay that carries something true: a date badge on a cover photo, a corner price flash, a sold-out chip. At most one pinned element in the whole piece, width `"fit"`, insets of 16 to 32 px, and never body content; a piece that needs none is the common case.',
         "",
         "A row stacks itself into a column on narrow screens, so never write a second mobile variant of a section. For more cells than one row should hold, nest: a `col` container of row containers, which is also how an uneven grid is built (a 2-up above a 3-up).",
     ].join("\n");

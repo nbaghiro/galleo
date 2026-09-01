@@ -1,6 +1,7 @@
-import type { Section } from "@model/artifact";
+import type { ArtifactContent, Section } from "@model/artifact";
+import type { ToolContext } from "@services/core/ai/tools";
 import { sectionForms } from "@model/artifact";
-import { generateObject, generateText } from "ai";
+import { generateObject, generateText, streamObject } from "ai";
 import { implement } from "@services/core/ai/tools";
 import { withStep } from "@services/core/ai/meter";
 import { modelCall } from "@services/core/ai/provider";
@@ -10,8 +11,9 @@ import { outlineParts } from "@services/core/ai/prompts/generate";
 import type { PromptParts } from "@services/core/ai/prompts/system";
 import { checkSection } from "@services/core/ai/quality";
 import { template } from "@services/core/templates";
-import { zOutline, zSection, zSectionPlan } from "@services/core/ai/schema";
+import { zBeat, zOutline, zSection, zSectionPlan } from "@services/core/ai/schema";
 import type { Outline, SectionPlan } from "@services/core/ai/schema";
+import type { Beat, TurnEvent } from "@model/ai";
 import type { BriefDraft, GenerateInput, Surface } from "@model/ai";
 import { zBriefDraft, type BriefDraftGen } from "@services/core/ai/schema";
 import { briefParts, type BriefRead } from "@services/core/ai/prompts/brief";
@@ -19,28 +21,127 @@ import type { ModelTier } from "@model/billing";
 import type { ModelOverrides } from "@services/core/models";
 import { extractJson } from "@services/core/ai/schema";
 
-// A schema miss is a sampling accident, not a broken model, and the SDK's own retries do not cover
-// it: they only fire on transport errors. Losing the plan ends the whole run, so it gets one more go.
-async function withSchemaRetry<T>(call: () => Promise<T>): Promise<T> {
-    try {
-        return await call();
-    } catch (e) {
-        const abort = e instanceof DOMException && e.name === "AbortError";
-        if (abort || !/did not match schema|No object generated/i.test(String(e))) throw e;
-        warn("[ai:outline] schema miss, retrying once");
-        return await call();
+/** The beats of a partial outline that have fully formed, in order; growth stops at the first
+ *  incomplete one, and every emission replaces the last, so a still-growing beat is never frozen. */
+export function completeBeats(partial: unknown): Beat[] {
+    const beats = (partial as { beats?: unknown[] })?.beats;
+    if (!Array.isArray(beats)) return [];
+    const out: Beat[] = [];
+    for (const b of beats) {
+        const parsed = zBeat.safeParse(b);
+        if (!parsed.success) break;
+        out.push(parsed.data as Beat);
     }
+    return out;
+}
+
+const has = (s: string | undefined): boolean => !!s?.trim();
+const saysSomething = (b: Beat): boolean =>
+    has(b.takeaway) || (b.points ?? []).some(has) || has(b.brief);
+
+/**
+ * Whether an outline is worth painting, which the schema cannot say on its own: `takeaway`, `points`
+ * and `brief` are each optional (a spare cover or close is normal), so only the whole outline shows
+ * whether the model planned anything. A majority carrying none of them is a blank board, not a
+ * terse one. Returns the reason, or null when the outline is usable.
+ */
+export function outlineProblem(outline: Outline): string | null {
+    const beats = outline.beats;
+    if (!beats.length) return "no sections came back";
+    const thin = beats.filter((b) => !saysSomething(b)).length;
+    return thin * 2 > beats.length
+        ? `${thin} of ${beats.length} sections came back with nothing to say`
+        : null;
+}
+
+const clipReason = (e: unknown): string =>
+    (e instanceof Error ? e.message : String(e)).replace(/\s+/g, " ").trim().slice(0, 160);
+
+// Streamed outline: partial beats reach the studio as they form, and the full-completion wait a
+// generateObject would impose disappears from the reader's clock. One schema retry, same as before.
+async function* streamOutline(
+    op: PromptParts,
+    model: string,
+    signal?: AbortSignal,
+): AsyncGenerator<TurnEvent, Outline> {
+    for (let attempt = 0; ; attempt++) {
+        const res = await withStep("outline", async () =>
+            streamObject({
+                // warm so section count + arc vary brief-to-brief; section writing stays cooler
+                ...modelCall(model, 0.9),
+                schema: zOutline,
+                system: op.system,
+                prompt: op.prompt,
+                abortSignal: signal,
+            }),
+        );
+        // `object` and `partialObjectStream` reject independently, so a stream that throws leaves
+        // `object` rejecting with nobody awaiting it, and an unhandled rejection takes the whole
+        // server process down. Claimed before iterating, keeping the reason so the catch below
+        // still names the real cause rather than "it stopped".
+        const settled: Promise<{ ok: Outline } | { err: unknown }> = res.object.then(
+            (ok) => ({ ok: ok as Outline }),
+            (err: unknown) => ({ err }),
+        );
+        let sent = 0;
+        let titleSent = false;
+        try {
+            for await (const part of res.partialObjectStream) {
+                const beats = completeBeats(part);
+                const title = typeof part.title === "string" ? part.title : undefined;
+                if (beats.length > sent || (title !== undefined && !titleSent)) {
+                    sent = beats.length;
+                    titleSent = titleSent || title !== undefined;
+                    yield { type: "plan.partial", beats, ...(title ? { title } : {}) };
+                }
+            }
+            const done = await settled;
+            if ("err" in done) throw done.err;
+            const outline = done.ok;
+            // the stream closing is not the same as the model having planned anything
+            const problem = outlineProblem(outline);
+            if (problem) throw new Error(problem);
+            return outline;
+        } catch (e) {
+            // The signal is the authority on whether to retry, not the error's name: a timeout
+            // rejects with a TimeoutError rather than an AbortError, so name-sniffing retried on a
+            // signal that was already dead, and the second call's failure had nobody left to catch it.
+            if (signal?.aborted) throw e;
+            // the cause carries into the message rather than the log alone: after two tries the
+            // reader has to choose what to do next, and a different model is usually the answer
+            if (attempt >= 1)
+                throw new Error(
+                    `The outline could not be planned: ${clipReason(e)}. Try again, or pick a different model for this step.`,
+                );
+            warn(`[ai:outline] ${clipReason(e)}, retrying once`);
+        }
+    }
+}
+
+/**
+ * The starter a run follows: one of ours, or a deck of the reader's own, which is how an uploaded
+ * PowerPoint template lends its shapes. Only the form travels either way, never a word of copy.
+ */
+async function shapeSource(
+    id: string | undefined,
+    ctx: ToolContext,
+): Promise<{ name: string; content: ArtifactContent } | null> {
+    if (!id) return null;
+    const builtIn = template(id);
+    if (builtIn) return { name: builtIn.name, content: builtIn.content };
+    const own = await ctx.workspace?.read(id).catch(() => null);
+    return own ? { name: own.ref.title, content: own.content } : null;
 }
 
 export const planOutlineTool = implement(
     "plan-outline",
-    async function* (input: GenerateInput, ctx): AsyncGenerator<never, Outline> {
+    async function* (input: GenerateInput, ctx): AsyncGenerator<TurnEvent, Outline> {
         // ground the arc in the attached contexts; retrieval failure degrades to no pack
         const packQuery = [input.prompt, ...(input.mustInclude ?? [])].join(". ");
         const pack = (await ctx.pack?.(packQuery).catch(() => null)) ?? undefined;
         // the starter whose shapes this run borrows, if the reader picked one; an id we do not
         // recognise resolves to nothing and the run plans as it would have anyway
-        const shape = input.shapeTemplateId ? template(input.shapeTemplateId) : null;
+        const shape = await shapeSource(input.shapeTemplateId, ctx);
         const forms = shape ? sectionForms(shape.content) : undefined;
         const op = outlineParts(input, {
             maxSections: ctx.maxSections,
@@ -49,30 +150,21 @@ export const planOutlineTool = implement(
             shapeName: shape?.name,
         });
         const model = modelFor("outline", ctx.tier, ctx.models);
-        const outline = await withStep("outline", () =>
-            withSchemaRetry(() =>
-                generateObject({
-                    // warm so section count + arc vary brief-to-brief; section writing stays cooler
-                    ...modelCall(model, 0.9),
-                    schema: zOutline,
-                    system: op.system,
-                    prompt: op.prompt,
-                    abortSignal: ctx.signal,
-                }).then((r) => r.object as Outline),
-            ),
-        );
+        const outline = yield* streamOutline(op, model, ctx.signal);
         // the prompt asks for the cap; the slice guarantees it
         if (ctx.maxSections) outline.beats = outline.beats.slice(0, ctx.maxSections);
-        // and the same rule for the shape: `zBeat.layout` and `blocks` are free strings, so asking
-        // is not enough. Only the three shape fields are taken; the story stays the planner's, and
-        // a beat past the starter's last one keeps the layout the planner chose for it.
-        if (forms?.length)
-            outline.beats = outline.beats.map((b, i) => {
-                const form = forms[i];
+        // and the same rule for the designs: `zBeat.design` is a free string, so asking is not
+        // enough. A beat takes the design it named and one that named none is left alone; only the
+        // three shape fields travel, so the story and its length stay the planner's.
+        if (forms?.length) {
+            const byId = new Map(forms.map((f) => [f.id, f]));
+            outline.beats = outline.beats.map((b) => {
+                const form = b.design ? byId.get(b.design) : undefined;
                 return form
                     ? { ...b, layout: form.layout, blocks: form.blocks, image: form.image }
                     : b;
             });
+        }
         return outline;
     },
 );

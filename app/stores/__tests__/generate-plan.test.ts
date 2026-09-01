@@ -65,9 +65,15 @@ describe("coverageMap", () => {
 });
 
 describe("buildCost", () => {
-    it("prices sections flat and AI images per image-leading beat", () => {
-        expect(buildCost(beats, "stock")).toBe(6);
-        expect(buildCost(beats, "ai")).toBe(11);
+    // priced over the whole build and rounded once: a section costs well under a credit, so
+    // rounding each one first would quote several times the real charge
+    it("prices the sections, and adds AI images per image-leading beat", () => {
+        expect(buildCost(beats, "stock")).toBe(22);
+        expect(buildCost(beats, "ai")).toBe(50);
+    });
+
+    it("costs nothing when there is nothing left to build", () => {
+        expect(buildCost([], "stock")).toBe(0);
     });
 });
 

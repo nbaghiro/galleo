@@ -1,4 +1,8 @@
 import { childrenOf } from "@elements/ops";
+import { CONTRAST_FLOOR, SPARSE_BELOW, diagnoseSection } from "@canvas/render/diagnose";
+import { measureText } from "@canvas/render/commands";
+import { FIT_FLOOR, profileFor } from "@engine/profile";
+import { resolveTheme } from "@themes";
 import type { ArtifactContent, Section, GenMeta, ElementInstance } from "@model/artifact";
 import type {
     Beat,
@@ -30,7 +34,7 @@ import {
     currentRunSteps,
     nameRun,
     noteStep,
-    unitRates,
+    unitPrices,
 } from "./model-usage";
 import { persistArtifact, updateArtifactContent } from "./library";
 import {
@@ -68,6 +72,9 @@ export interface SectionSlot {
     versions: Section[]; // every take kept
     active: number; // index into versions
     working: boolean; // a regeneration in flight for this slot
+    issues: string[]; // measured layout problems on the active take; empty = clean
+    imagesMs?: number; // how long this section's image resolution took, server-measured
+    preview?: Section; // the build's live partial paint; cleared the moment a real take lands
 }
 
 export interface Narration {
@@ -96,6 +103,9 @@ interface SessionState {
     activeSection: string | null;
     paused: boolean; // the loop is parked between sections
     steer: string; // applies to every section written from here on
+    planStreamed: boolean; // this plan's partials have arrived; tells a live stream from a stale board
+    // how many planned sections are on the board; null is the resting state and shows every one
+    revealed: number | null;
     content: ArtifactContent;
     draftId: string | null;
     spent: number; // credits actually committed this session
@@ -145,6 +155,8 @@ const initial = (): SessionState => ({
     activeSection: null,
     paused: false,
     steer: "",
+    planStreamed: false,
+    revealed: null,
     content: { format: "deck", theme: "studio", sections: [] },
     draftId: null,
     spent: 0,
@@ -157,7 +169,14 @@ export const [gen, setGen] = createStore<SessionState>(initial());
 // What the funnel needs that the session state does not otherwise keep: when the run started, and
 // the shape it took. Credits here are the client's own committed estimate, which is what the user
 // was shown; the authoritative charge rides ai_action_completed from the server.
-const run = { startedAt: 0, planStartedAt: 0, steers: 0, paused: false, outlineEdited: false };
+const run = {
+    startedAt: 0,
+    planStartedAt: 0,
+    firstBeatAt: 0,
+    steers: 0,
+    paused: false,
+    outlineEdited: false,
+};
 
 const resetRun = (): void => {
     run.startedAt = Date.now();
@@ -191,12 +210,12 @@ export const remainingBuildCost = (): number => {
         const slot = gen.slots.find((s) => s.id === b.id);
         return !slot || slot.versions.length === 0;
     });
-    return buildCost(unbuilt, gen.brief.imageSource, unitRates());
+    return buildCost(unbuilt, gen.brief.imageSource, unitPrices());
 };
 // the preview must quote what the run will actually cost, so it prices the picked models
-export const briefCost = (): number => rawBriefCost(unitRates());
-export const planCost = (): number => rawPlanCost(unitRates());
-export const sectionCost = (): number => rawSectionCost(unitRates());
+export const briefCost = (): number => rawBriefCost(unitPrices());
+export const planCost = (): number => rawPlanCost(unitPrices());
+export const sectionCost = (): number => rawSectionCost(unitPrices());
 
 const controllers = new Set<AbortController>();
 let narrId = 0;
@@ -231,6 +250,7 @@ export function openGenerate(prompt?: string, from = "library"): void {
         capture("onboarding_studio_opened", { from: asStudioEntry(from) });
 }
 export function closeGenerate(): void {
+    stopReveal();
     // The most important event in this funnel: one that records only successes cannot show where
     // we lose people. Read before the teardown, which resets the stage.
     if (gen.stage !== "idle" && gen.stage !== "done")
@@ -251,6 +271,7 @@ export function cancelSession(): void {
     buildRunning = false;
 }
 export function resetSession(): void {
+    stopReveal();
     cancelSession();
     unbindTarget?.(); // the agent goes back to the editor / library
     unbindTarget = null;
@@ -306,10 +327,66 @@ function applyOps(ev: Extract<TurnEvent, { type: "patch" }>): void {
                 produce((slot) => {
                     slot.versions.push(section);
                     slot.active = slot.versions.length - 1;
+                    slot.preview = undefined;
                 }),
             );
+            queueMicrotask(() => auditSection(section));
         }
     }
+}
+
+/**
+ * The look-at-what-you-made half the server cannot do: the browser holds the engine, so a landed
+ * section is measured the way the reader will see it. Triage bar only: offline eval keeps the
+ * strict one, and here a section is flagged when it is visibly broken, not merely imperfect.
+ */
+function auditSection(section: Section): void {
+    const i = slotIndex(section.id);
+    if (i < 0 || gen.slots[i]!.versions[gen.slots[i]!.active]?.id !== section.id) return;
+    try {
+        auditNow(section, i);
+    } catch {
+        // no measurement, no flag: a diagnostics failure must never break a generation
+    }
+}
+
+function auditNow(section: Section, i: number): void {
+    const profile = profileFor(gen.content);
+    const width =
+        typeof profile.width === "number" ? profile.width : (profile.maxContentWidth ?? 1180);
+    const theme = resolveTheme(gen.content.theme ?? gen.brief.theme).tokens;
+    const fit = diagnoseSection(section, width, measureText, theme, profile);
+    const issues: string[] = [];
+    if (fit.overflow > 0 && fit.fitScale <= FIT_FLOOR + 0.001)
+        issues.push(
+            `spills ${Math.round(fit.overflow)}px past the slide even at the smallest type; fewer words or fewer blocks`,
+        );
+    if (fit.minContrast !== null && fit.minContrast < CONTRAST_FLOOR)
+        issues.push(
+            `text contrast ${fit.minContrast.toFixed(1)}:1, under the ${CONTRAST_FLOOR}:1 floor; a darker scrim or a lighter tone`,
+        );
+    if (fit.fill !== null && fit.fill < SPARSE_BELOW)
+        issues.push(
+            `fills only ${Math.round(fit.fill * 100)}% of the slide; the idea needs more substance or a fuller layout`,
+        );
+    setGen("slots", i, "issues", issues);
+    if (issues.length)
+        capture("generation_section_flagged", {
+            format: gen.brief.surface,
+            overflow: fit.overflow > 0 && fit.fitScale <= FIT_FLOOR + 0.001,
+            contrast: fit.minContrast !== null && fit.minContrast < CONTRAST_FLOOR,
+            sparse: fit.fill !== null && fit.fill < SPARSE_BELOW,
+        });
+}
+
+/** One click on the flag: the measured problems become the rework note, verbatim. */
+export function fixSection(id: string): Promise<boolean> {
+    const slot = gen.slots.find((sl) => sl.id === id);
+    if (!slot?.issues.length) return Promise.resolve(false);
+    return regenerateSection(
+        id,
+        `Measured on the painted section: ${slot.issues.join("; ")}. Rewrite this section to fix that while keeping its idea and voice.`,
+    );
 }
 
 const beatFor = (section: Section): Beat => ({
@@ -329,6 +406,7 @@ const landedSlot = (section: Section): SectionSlot => ({
     versions: [section],
     active: 0,
     working: false,
+    issues: [],
 });
 
 // content is the source of truth, but the rail and canvas are driven by beats + slots, so they move with it
@@ -468,6 +546,61 @@ function absorbRead(read: BriefRead): void {
     setGen("brief", brief);
 }
 
+// ---- the outline's pace -----------------------------------------------------------------------
+
+// The plan streams in the model's chunks, which is not a rhythm anyone wants to watch. The board
+// takes one section at a time instead, and never runs past what has actually been planned: how many
+// sections a piece needs is the planner's call, so the board only ever shows what it has.
+
+const REVEAL_STEP_MS = 190; // one section at a time while the plan is still coming
+const REVEAL_DRAIN_MS = 90; // once it has landed, the rest catch up rather than being waited on
+
+/**
+ * The next section to put on the board and how long to hold before the one after it. `null` ends
+ * the reveal, the state where every planned beat is shown. Pure, so the pacing is testable.
+ */
+export function nextReveal(
+    at: number,
+    planned: number,
+    streaming: boolean,
+): { at: number; wait: number } | null {
+    if (at >= planned) return streaming ? { at, wait: REVEAL_STEP_MS } : null;
+    return { at: at + 1, wait: streaming ? REVEAL_STEP_MS : REVEAL_DRAIN_MS };
+}
+
+const prefersStill = (): boolean =>
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+
+let revealTimer: number | undefined;
+
+function stopReveal(): void {
+    window.clearTimeout(revealTimer);
+    revealTimer = undefined;
+    if (gen.revealed !== null) setGen("revealed", null);
+}
+
+function tickReveal(): void {
+    revealTimer = undefined;
+    const at = gen.revealed;
+    if (at === null) return;
+    if (gen.stage !== "planning" && gen.stage !== "outline") {
+        stopReveal();
+        return;
+    }
+    const step = nextReveal(at, gen.beats.length, gen.planning);
+    if (!step) {
+        stopReveal();
+        return;
+    }
+    if (step.at !== at) setGen("revealed", step.at);
+    revealTimer = window.setTimeout(tickReveal, step.wait);
+}
+
+function startReveal(): void {
+    if (revealTimer !== undefined || prefersStill()) return;
+    revealTimer = window.setTimeout(tickReveal, 0);
+}
+
 function handleEvent(ev: TurnEvent): void {
     switch (ev.type) {
         case "phase":
@@ -484,6 +617,28 @@ function handleEvent(ev: TurnEvent): void {
             });
             if (ev.brief) absorbRead(ev.brief);
             break;
+        // the outline streams: paint the board as beats form, so the wait reads as progress. The
+        // final "plan" event replaces everything, and the finish handler settles the stage flags.
+        case "plan.partial":
+            if (!run.firstBeatAt && ev.beats.length) run.firstBeatAt = Date.now();
+            setGen({
+                beats: ev.beats,
+                planStreamed: true,
+                ...(ev.title ? { title: ev.title } : {}),
+            });
+            if (gen.stage === "planning") setGen("stage", "outline");
+            startReveal();
+            break;
+        case "section.timing": {
+            const i = slotIndex(ev.id);
+            if (i >= 0) setGen("slots", i, "imagesMs", ev.imagesMs);
+            break;
+        }
+        case "section.partial": {
+            const i = slotIndex(ev.id);
+            if (i >= 0) setGen("slots", i, "preview", ev.section);
+            break;
+        }
         case "section.status": {
             const i = slotIndex(ev.id);
             if (i >= 0) setGen("slots", i, "status", ev.status);
@@ -639,18 +794,30 @@ export async function redraftBrief(): Promise<void> {
 }
 
 export async function startPlan(): Promise<void> {
-    setGen({ stage: "planning", planning: true, clarify: null });
+    stopReveal();
+    setGen({
+        stage: "planning",
+        planning: true,
+        clarify: null,
+        planStreamed: false,
+        revealed: 0,
+        beats: [],
+    });
     noteStep("outline");
     run.planStartedAt = Date.now();
+    run.firstBeatAt = 0;
     try {
         await runTurnStream({ kind: "plan", input: { ...gen.brief } }, planCost());
-        if (gen.stage !== "planning") return; // canceled
+        // the stream's own partials flip the stage to "outline" early, so only a stage neither of
+        // them produces (a close, a reset) reads as cancellation
+        if (gen.stage !== "planning" && gen.stage !== "outline") return; // canceled
         setGen({ planning: false, stage: "outline" });
         capture("generation_planned", {
             format: gen.brief.surface,
             length: gen.brief.length ?? "Standard",
             beat_count: gen.beats.length,
             ms: Date.now() - run.planStartedAt,
+            ...(run.firstBeatAt ? { first_beat_ms: run.firstBeatAt - run.planStartedAt } : {}),
             credits_charged: planCost(),
             ...(gen.brief.shapeTemplateId ? { shape_template_id: gen.brief.shapeTemplateId } : {}),
         });
@@ -695,6 +862,7 @@ const slotFromBeat = (b: Beat): SectionSlot => ({
     versions: [],
     active: 0,
     working: false,
+    issues: [],
 });
 
 const outlineForTurn = (): PlanOutline => ({
@@ -733,6 +901,7 @@ function ensureSlots(): void {
 
 export function startBuild(): void {
     if (!gen.beats.length) return;
+    stopReveal(); // every planned section is on the board once one is being written
     capture("generation_build_started", { mode: "all", beat_count: gen.beats.length });
     setGen({
         stage: "building",
@@ -805,6 +974,7 @@ async function buildOne(index: number): Promise<boolean> {
         capture("generation_section_built", {
             index,
             ms: Date.now() - startedAt,
+            ...(slot.imagesMs !== undefined ? { images_ms: slot.imagesMs } : {}),
             credits_charged: sectionCost(),
             element_count: section ? countElements(section.root) : 0,
             ...(asBeatRole(beat.role) ? { beat_role: asBeatRole(beat.role) } : {}),
@@ -818,8 +988,10 @@ function requeueInFlight(): void {
     setGen(
         "slots",
         (s) => s.versions.length === 0 && ["active", "writing", "image"].includes(s.status),
-        "status",
-        "queued",
+        produce((s: SectionSlot) => {
+            s.status = "queued";
+            s.preview = undefined; // a half-painted preview must not outlive its run
+        }),
     );
 }
 

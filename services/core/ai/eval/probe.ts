@@ -7,7 +7,7 @@ import { modelCall, providerReady } from "@services/core/ai/provider";
 import { runPlan } from "@services/core/ai/run";
 import { runChat } from "@services/core/ai/chat";
 import { expandBrief } from "@services/core/ai/tools/plan";
-import type { GenerateInput } from "@model/ai";
+import type { Beat, BriefDraft, GenerateInput } from "@model/ai";
 
 // Does each registered model actually answer, with the key this environment holds? `check:models`
 // proves an id is one the SDK declares; only a real call proves the key works, the account has
@@ -18,6 +18,7 @@ import type { GenerateInput } from "@model/ai";
 //   pnpm ai:probe --model=openai:gpt-5.5 one model
 //   pnpm ai:probe --json                 also check structured output, which the pipeline leans on
 //   pnpm ai:probe --turn                 run the REAL flows: brief → outline plan → a full chat turn
+//   pnpm ai:probe --turn --sections=12   plan at the size the studio really asks for (default 3)
 
 const args = process.argv.slice(2);
 const flag = (name: string): string | undefined =>
@@ -32,6 +33,9 @@ const onlyProvider = flag("provider");
 const onlyModel = flag("model");
 const checkJson = has("json");
 const checkTurn = has("turn");
+// the outline the studio really asks for is a dozen beats, not three; a small one is cheap but is
+// also an easier ask, so the size is a knob when comparing models on a realistic outline
+const sections = Number(flag("sections")) || 3;
 
 const TIMEOUT_MS = 60_000;
 // a reasoning model spends its budget thinking before it writes anything, so a tight cap comes back
@@ -46,6 +50,31 @@ interface Result {
     ok: boolean;
     ms: number;
     note: string;
+}
+
+const filled = (s: string | undefined): boolean => !!s?.trim();
+
+/**
+ * Whether an outline is usable, not merely present. Counting beats passed a model that returned
+ * three empty ones and painted a blank board, so every field the studio renders is checked and the
+ * failure names which were missing and on how many beats: this is read while comparing models.
+ * A label or role missing anywhere fails, since both are structural. Substance (takeaway, points or
+ * brief) is allowed to be absent on a spare cover or close, so it fails at half.
+ */
+function outlineGaps(beats: Beat[]): string | null {
+    if (!beats.length) return "no beats came back";
+    const noLabel = beats.filter((b) => !filled(b.label)).length;
+    const noRole = beats.filter((b) => !filled(b.role)).length;
+    const noSay = beats.filter(
+        (b) => !filled(b.takeaway) && !filled(b.brief) && !(b.points ?? []).some(filled),
+    ).length;
+    const gaps = [
+        noLabel && `${noLabel} missing label`,
+        noRole && `${noRole} missing role`,
+        noSay && `${noSay} missing takeaway, points and brief`,
+    ].filter((g): g is string => !!g);
+    const fatal = noLabel > 0 || noRole > 0 || noSay * 2 >= beats.length;
+    return gaps.length && fatal ? `${beats.length} beats, ${gaps.join(", ")}` : null;
 }
 
 // The product's own flows, not a synthetic call: the brief expansion, the studio's plan turn, and a
@@ -66,12 +95,15 @@ async function realFlows(id: string, signal: AbortSignal): Promise<string | null
         Object.entries(step)
             .map(([k, ms]) => `${k} ${(ms / 1000).toFixed(1)}s`)
             .join("  ");
-    let brief;
+    let brief: BriefDraft | undefined;
     try {
         brief = await timed("brief", () =>
             expandBrief(PROMPT, "deck", { models: { brief: id }, signal }),
         );
-        if (!brief.goal && !brief.audience && !brief.tone) return "brief: came back empty";
+        // each field on its own: a read with only a goal is not a brief, and "came back empty"
+        // hid that by passing whenever any one of the three landed
+        const blank = (["goal", "audience", "tone"] as const).filter((k) => !brief?.[k]?.trim());
+        if (blank.length) return `brief: no ${blank.join(", no ")}`;
     } catch (e) {
         return `brief: ${reason(e)}`;
     }
@@ -85,22 +117,23 @@ async function realFlows(id: string, signal: AbortSignal): Promise<string | null
             audience: brief.audience,
             tone: brief.tone,
         };
-        let beats = 0;
+        let beats: Beat[] = [];
         let planError: string | null = null;
         await timed("outline", async () => {
             for await (const ev of runPlan(input, {
                 models: { outline: id },
-                maxSections: 3,
+                maxSections: sections,
                 signal,
                 // the real turn sources a backdrop; stock is the product default and needs no key
                 image: { source: "stock" },
             })) {
                 if (ev.type === "error") planError = clip(ev.message, 110);
-                if (ev.type === "plan") beats = ev.beats.length;
+                if (ev.type === "plan") beats = ev.beats;
             }
         });
         if (planError) return `outline: ${planError}`;
-        if (!beats) return "outline: no beats came back";
+        const gaps = outlineGaps(beats);
+        if (gaps) return `outline: ${gaps}`;
     } catch (e) {
         return `outline: ${reason(e)}`;
     }

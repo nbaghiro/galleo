@@ -23,7 +23,7 @@ import { sectionExemplars, siteExemplar } from "./exemplars";
 import type { PromptParts } from "./system";
 
 const OUTLINE_JOB = `## Your job
-Plan the artifact: your reading of the brief, a title, a backdrop, and an ordered list of beats (sections). Start by stating what you take the piece to be, its \`goal\` (what it has to achieve), \`audience\` (who it's for), and \`tone\` (how it should sound), inferred from the prompt and any source material; these are shown to the user and every section is written against them, so make them specific rather than generic. The backdrop is the artifact's full-bleed background image, describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim). Never a generic abstract texture. Give the piece a real narrative arc that fits the topic, the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: a short url-safe id (\`s1\`, \`s2\`, … is fine, and on a website a word naming what the section holds, since that id is what a nav link points at), a short working label, its narrative role, the layout you intend (\`layout\`, a named preset: full · split-6040 · split-4060 · two-col · three-up), and, crucially, design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text, the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image. Then WRITE THE STORY, not a table of contents, for every beat give all three of: \`brief\` (one line naming the section's job), \`takeaway\` (a full sentence stating the one thing the reader leaves with), and \`points\` (the 2–4 concrete moves it makes, in order, the actual claims, numbers, comparisons, or steps. Never topic labels like "benefits" or "overview"). Decide the real substance here: what each section actually argues, and with what. A section written from "Traction" is generic; one written from "1,900 studios joined in five months, four in five still active at week eight, and the curve steepened after the referral launch" is not. Make consecutive beats build on each other rather than restating the same idea. Give the opening (scene) and closing (close) sections a full-bleed background image, set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
+Plan the artifact: your reading of the brief, a title, a backdrop, and an ordered list of beats (sections). Before anything else, commit to one concrete world and stay in it: a named subject (a company, a person, a place, an occasion), where it is, and two or three real, odd numbers that belong to it (a price, a date, a count). Weave that commitment into the \`backdrop\` and the beats' briefs, because every section is written against them and sections that invent their own facts drift apart. Then state what you take the piece to be, its \`goal\` (what it has to achieve), \`audience\` (who it's for), and \`tone\` (how it should sound), inferred from the prompt and any source material; these are shown to the user and every section is written against them, so make them specific rather than generic. The backdrop is the artifact's full-bleed background image, describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim). Never a generic abstract texture. The outline is a skeleton other calls flesh out, so keep every field tight: phrases and single sentences, never paragraphs; the section writer gets the whole outline and expands it. Give the piece a real narrative arc that fits the topic, the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: a short url-safe id (\`s1\`, \`s2\`, … is fine, and on a website a word naming what the section holds, since that id is what a nav link points at), a short working label, its narrative role, the layout you intend (\`layout\`, a named preset: full · split-6040 · split-4060 · two-col · three-up), and, crucially, design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text, the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image. Then WRITE THE STORY, not a table of contents, for every beat give all three of: \`brief\` (one line naming the section's job), \`takeaway\` (a full sentence stating the one thing the reader leaves with), and \`points\` (the 2–4 concrete moves it makes, in order, the actual claims, numbers, comparisons, or steps. Never topic labels like "benefits" or "overview"). Decide the real substance here: what each section actually argues, and with what. A section written from "Traction" is generic; one written from "1,900 studios joined in five months, four in five still active at week eight, and the curve steepened after the referral launch" is not. Make consecutive beats build on each other rather than restating the same idea. Give the opening (scene) and closing (close) sections a full-bleed background image, set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
 
 // one clip for both readers of the source, so the planner and the writers see the same window
 const SOURCE_CLIP = 6000;
@@ -89,26 +89,33 @@ export function outlineParts(input: GenerateInput, opts: OutlineOpts = {}): Prom
     };
 }
 
+/** A design id back as words, so the planner reads "1_Timeline Chart" as a timeline. */
+const readable = (id: string): string =>
+    id
+        .replace(/[-_]+/g, " ")
+        .replace(/\b\d+\b/g, "")
+        .replace(/\s+/g, " ")
+        .trim() || id;
+
 /**
- * The shapes a picked starter lends this run: the same number of sections in the same order, each
- * one laid out the way that starter's was. Only the form travels, never a word of its copy, which
- * is what separates this from `sourceMaterial` above.
+ * The designs a picked starter lends this run. A real template is a labelled library ("Quote",
+ * "Timeline", "VS Slide") rather than a running order, so the planner picks one design per beat and
+ * the piece's length stays its own. Only the form travels, never a word of the library's copy.
  *
- * The last line is the honest cost of the promise. A stat-heavy starter applied to a brief with no
- * numbers in it would otherwise be answered with invented ones, since the voice rules ask for
- * figures that are specific rather than vague.
+ * The last line is the honest cost of the promise: a stat-heavy design applied to a brief with no
+ * numbers would otherwise be answered with invented ones, since the voice rules ask for figures.
  */
 function shapeToFollow(forms: readonly SectionForm[] | undefined, name?: string): string {
     if (!forms?.length) return "";
-    const lines = forms
+    const catalog = forms
         .map(
-            (f, i) =>
-                ` ${i + 1}. ${f.layout} · ${f.blocks.join(" | ")}${f.image ? " · full-bleed image" : ""}`,
+            (f) =>
+                ` - \`${f.id}\` (${readable(f.id)}) · ${f.layout} · ${f.blocks.join(" | ")}${f.image ? " · full-bleed image" : ""}`,
         )
         .join("\n");
     return heading(
-        "The shape to follow",
-        `The reader picked ${name ? `“${name}”` : "a starter"} as the shape for this piece. Follow it beat for beat: plan the same number of sections in the same order, and give beat N the layout and column blocks listed below. Write your own story into that shape, never its subject and never its facts.\n${lines}\nWhere a beat's blocks ask for a number, a chart or a table and the brief gives you nothing real to put there, lead that column with text instead rather than inventing data.`,
+        "The designs to use",
+        `The reader picked ${name ? `“${name}”` : "a starter"} as the design library for this piece. These are the designs it offers, as a set to choose from rather than an order to follow:\n${catalog}\nSet each beat's \`design\` to the id of the one that suits what the beat has to do: a pulled quote takes the quote design, a set of parallel points takes a column design, figures take a table or chart design, an opening takes the cover or a section divider. Reuse a design wherever the piece repeats that kind of moment, skip the ones this piece has no use for, and leave \`design\` off a beat only when nothing in the library fits. Plan the number of beats the story needs, which has nothing to do with how many designs are listed here. Write your own story into these designs, never the library's subject and never its facts.\nWhere a design asks for a number, a chart or a table and the brief gives you nothing real to put there, lead that column with text instead rather than inventing data.`,
     );
 }
 

@@ -79,14 +79,21 @@ export const zSection = z.object({
         .catch(undefined),
 });
 
+// `.min(1)` on the three fields the board and the writer cannot do without: a bare `z.string()`
+// accepts "", so a model could return an outline of empty beats, satisfy every check, and paint a
+// blank board. minLength travels into the provider's own schema, so the model is told, not caught.
 export const zBeat = z.object({
     id: z
         .string()
+        .min(1)
         .describe(
             "the section id this beat becomes: short, unique, and url-safe (lowercase letters, digits and dashes, no spaces or colons). `s1`, `s2`, … is fine; on a website name it after what it holds (`hero`, `features`, `pricing`, `faq`), since that id is what a nav link points at",
         ),
-    label: z.string().describe("a 2–5 word working title for the section"),
-    role: z.string().describe("narrative role: scene | tension | turn | proof | momentum | close"),
+    label: z.string().min(1).describe("a 2–5 word working title for the section"),
+    role: z
+        .string()
+        .min(1)
+        .describe("narrative role: scene | tension | turn | proof | momentum | close"),
     layout: z
         .string()
         .optional()
@@ -103,18 +110,24 @@ export const zBeat = z.object({
     brief: z
         .string()
         .optional()
-        .describe("one line telling the section writer what this section must say"),
+        .describe("what this section must say, one to two short sentences at most"),
     takeaway: z
         .string()
         .optional()
         .describe(
-            "the single thing the reader should leave this section with, as a full sentence — the point the section exists to land",
+            "the single thing the reader should leave this section with: one clause, not a paragraph — the point the section exists to land",
         ),
     points: z
         .array(z.string())
         .optional()
         .describe(
-            "the 2–4 concrete moves this section makes, in the order it makes them — the actual claims, numbers, comparisons, or steps, not topic labels",
+            "at most three concrete moves this section makes, each a short phrase, in order — the actual claims, numbers, comparisons, or steps, not topic labels",
+        ),
+    design: z
+        .string()
+        .optional()
+        .describe(
+            "when a design library was offered, the id of the design this section uses; omit when none of them fits",
         ),
     covers: z
         .array(z.string())
@@ -125,13 +138,15 @@ export const zBeat = z.object({
 });
 
 export const zOutline = z.object({
-    title: z.string().describe("the artifact title"),
+    title: z.string().min(1).describe("the artifact title"),
     goal: z
         .string()
         .nullish()
-        .describe("what this piece has to achieve, in a few words — the job it does for its maker"),
-    audience: z.string().nullish().describe("who it is aimed at, in a few words"),
-    tone: z.string().nullish().describe("how it should sound, in a word or two"),
+        .describe(
+            "what this piece has to achieve, under eight words — the job it does for its maker",
+        ),
+    audience: z.string().nullish().describe("who it is aimed at, under eight words"),
+    tone: z.string().nullish().describe("how it should sound, one or two words"),
     mustInclude: z
         .array(z.string())
         .nullish()
@@ -177,9 +192,11 @@ export const zTheme = z.object({
 });
 
 export const zBriefDraft = z.object({
-    goal: z.string().describe("what the piece must achieve, one short line"),
-    audience: z.string().describe("who it's for, one short line"),
-    tone: z.string().describe("the register to write in, 2–4 words"),
+    // non-empty for the same reason zBeat's are: normalizeBrief drops a blank to undefined, so an
+    // all-blank read would otherwise pass as a brief with nothing in it
+    goal: z.string().min(1).describe("what the piece must achieve, one short line"),
+    audience: z.string().min(1).describe("who it's for, one short line"),
+    tone: z.string().min(1).describe("the register to write in, 2–4 words"),
     // no min/max: the count is guidance, not correctness, and normalizeBrief trims the list
     mustInclude: z
         .array(z.string())

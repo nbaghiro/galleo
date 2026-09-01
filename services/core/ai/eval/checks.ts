@@ -112,28 +112,24 @@ export const CHECKS: Check[] = [
         },
     },
     {
-        // The promise the borrowed shape makes, measured where it can actually be broken. The plan
-        // is snapped onto the starter, so a mismatch here is the section writer having laid its
-        // columns out differently from the beat it was handed.
+        // A shape lends a catalog, not a running order, so the question is whether a section is one
+        // of the designs on offer rather than whether section i is design i.
         id: "keeps-the-borrowed-shape",
         dimension: "layout",
-        describe: "a run that borrowed a shape renders it, section for section",
+        describe: "a run that borrowed a shape builds every section from one of its designs",
         artifact: (c, ctx) => {
             if (!ctx.shapeTemplateId) return null;
             const body = templateBody(ctx.shapeTemplateId);
             if (!body) return null;
-            const want = sectionForms(body);
-            const got = sectionForms(c);
-            const shared = Math.min(want.length, got.length);
-            const off = Array.from({ length: shared }, (_, i) => i).filter(
-                (i) =>
-                    want[i]!.layout !== got[i]!.layout ||
-                    want[i]!.blocks.join() !== got[i]!.blocks.join(),
+            const offered = new Set(
+                sectionForms(body).map((f) => `${f.layout}|${f.blocks.join()}`),
             );
+            const got = sectionForms(c);
+            const off = got.filter((f) => !offered.has(`${f.layout}|${f.blocks.join()}`));
             return off.length
-                ? `${off.length} of ${shared} sections drifted from the borrowed shape (${off
+                ? `${off.length} of ${got.length} sections match no design in the library (${off
                       .slice(0, 4)
-                      .map((i) => `${i + 1}: wanted ${want[i]!.layout}, got ${got[i]!.layout}`)
+                      .map((f) => `${f.id}: ${f.layout} · ${f.blocks.join(" | ")}`)
                       .join("; ")})`
                 : null;
         },

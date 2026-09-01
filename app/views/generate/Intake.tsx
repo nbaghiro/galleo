@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, For, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import { Button, Chip, IconButton } from "@ui/button";
+import { Button, Chip, Eyebrow, IconButton } from "@ui/button";
 import { TextArea } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { Dropdown } from "@ui/select";
@@ -11,8 +11,8 @@ import { Credits } from "@app/components/Credits";
 import { artifactSearchText } from "@model/artifact";
 import { api } from "@app/api";
 import { closeGenerate, planCost, startSession, type Surface } from "@app/stores/generate";
-import { unitRates } from "@app/stores/model-usage";
-import { estimateCost, lengthForSections, sectionsForLength } from "@model/tools";
+import { unitPrices } from "@app/stores/model-usage";
+import { estimateCost, sectionsForLength } from "@model/tools";
 import { limitOf } from "@app/stores/features";
 import { UpgradeLock } from "@app/components/Upgrade";
 import { createBlank, formatLabel } from "@app/stores/library";
@@ -31,6 +31,7 @@ import {
 } from "@app/components/context-attach";
 import { ContextsPane } from "./ContextsPane";
 import { TemplateRow } from "./TemplateRow";
+import { DesignPane, type PickedShape } from "./DesignPane";
 import { VoiceInput } from "@app/components/VoiceInput";
 import {
     mergeAttachments,
@@ -43,20 +44,12 @@ import {
 import { asFormat, charsBucket } from "@model/analytics";
 import { capture } from "@ui/analytics";
 
-/** What a picked shape is here: enough for the chip, the length move, the event and the launch. */
-interface PickedShape {
-    id: string;
-    name: string;
-    category: string;
-    format: string;
-    sections: number;
-}
-
 // module-level so the studio shell can size the dialog: the prompt is compact, but "Browse all"
 // and the contexts pane swap in full-height surfaces that want the wide modal
 const [browsing, setBrowsing] = createSignal(false);
 const [managing, setManaging] = createSignal(false);
-export const intakeExpanded = (): boolean => browsing() || managing();
+const [choosing, setChoosing] = createSignal(false);
+export const intakeExpanded = (): boolean => browsing() || managing() || choosing();
 
 export const Intake: Component = () => {
     let field!: HTMLTextAreaElement;
@@ -70,18 +63,10 @@ export const Intake: Component = () => {
     const [ctxIds, setCtxIds] = createSignal<string[]>([]);
     const [shape, setShape] = createSignal<PickedShape | null>(null);
 
-    /**
-     * A starter picked as a shape rather than as a starting point: the outline plans the same run of
-     * layouts and writes this brief's own story into them.
-     *
-     * The length moves with it, and visibly. The shape says how many sections there are and the
-     * length chip says the same thing in words, so leaving them to disagree would put two numbers
-     * in one prompt and let the planner choose. The reader can still change it afterwards; the
-     * shape is then followed as far as it reaches.
-     */
+    // A shape lends its designs and its theme, not its running order, so the length stays the
+    // reader's choice and the piece writes its own story into whichever designs suit each beat.
     const pickShape = (s: PickedShape): void => {
         setShape(s);
-        setLength(lengthForSections(s.sections));
         capture("generation_shape_picked", {
             template_id: s.id,
             category: s.category,
@@ -191,7 +176,7 @@ export const Intake: Component = () => {
                 ...(clampedTo() > 0 ? { sections: clampedTo() } : {}),
                 imageSource: imageSource() === "ai" ? "ai" : "stock",
             },
-            unitRates(),
+            unitPrices(),
         );
 
     const touch = isCoarsePointer;
@@ -201,6 +186,7 @@ export const Intake: Component = () => {
     onMount(() => {
         setBrowsing(false);
         setManaging(false);
+        setChoosing(false);
     });
 
     // the quiet third exit: an empty artifact in that format, straight into the editor
@@ -223,7 +209,7 @@ export const Intake: Component = () => {
         void startSession({
             prompt: prompt().trim() || PLACEHOLDER,
             surface: fmt(),
-            theme: appTheme(),
+            theme: shape()?.themeId ?? appTheme(),
             length: length(),
             imageSource: imageSource() === "ai" ? "ai" : "stock",
             source: mergeAttachments(items()),
@@ -254,224 +240,274 @@ export const Intake: Component = () => {
             }
         >
             <Show
-                when={!managing()}
+                when={!choosing()}
                 fallback={
                     <div class="h-dvh min-h-0 md:h-[85vh]">
-                        <ContextsPane onBack={() => setManaging(false)} />
+                        <DesignPane
+                            onBack={() => setChoosing(false)}
+                            picked={shape()?.id}
+                            onPick={(s) => {
+                                setChoosing(false);
+                                pickShape(s);
+                            }}
+                        />
                     </div>
                 }
             >
-                {/* the dialog hugs this content; past the viewport cap, this is what scrolls */}
-                <div
-                    class="flex h-full max-h-full overflow-y-auto px-4 py-6 md:px-6 md:py-8"
-                    onDragOver={(e) => {
-                        e.preventDefault();
-                        setDropping(true);
-                    }}
-                    onDragLeave={() => setDropping(false)}
-                    onDrop={(e) => {
-                        e.preventDefault();
-                        setDropping(false);
-                        void addFiles(e.dataTransfer?.files ?? null);
-                    }}
+                <Show
+                    when={!managing()}
+                    fallback={
+                        <div class="h-dvh min-h-0 md:h-[85vh]">
+                            <ContextsPane onBack={() => setManaging(false)} />
+                        </div>
+                    }
                 >
-                    {/* min-w-0: a grid item can't shrink below min-content without it, and the
+                    {/* the dialog hugs this content; past the viewport cap, this is what scrolls */}
+                    <div
+                        class="flex h-full max-h-full overflow-y-auto px-4 py-6 md:px-6 md:py-8"
+                        onDragOver={(e) => {
+                            e.preventDefault();
+                            setDropping(true);
+                        }}
+                        onDragLeave={() => setDropping(false)}
+                        onDrop={(e) => {
+                            e.preventDefault();
+                            setDropping(false);
+                            void addFiles(e.dataTransfer?.files ?? null);
+                        }}
+                    >
+                        {/* min-w-0: a grid item can't shrink below min-content without it, and the
                     template strip's min-content would otherwise pin the column past small screens */}
-                    {/* auto margins center when there's spare height (fullscreen phone, tall
+                        {/* auto margins center when there's spare height (fullscreen phone, tall
                     desktop) and collapse to top-aligned scrolling when content overflows */}
-                    <div class="m-auto w-full min-w-0 max-w-150">
-                        <h1
-                            class="text-center font-serif text-[25px] leading-tight md:text-[30px]"
-                            style={{ "font-family": "var(--font-display)" }}
-                        >
-                            What are we making?
-                        </h1>
-                        <p class="mt-1.5 text-center text-[13px] leading-relaxed text-muted">
-                            Describe it in a sentence, or just enough for a template to catch it.
-                        </p>
+                        <div class="m-auto w-full min-w-0 max-w-150">
+                            <h1
+                                class="text-center font-serif text-[25px] leading-tight md:text-[30px]"
+                                style={{ "font-family": "var(--font-display)" }}
+                            >
+                                What are we making?
+                            </h1>
+                            <p class="mt-1.5 text-center text-[13px] leading-relaxed text-muted">
+                                Describe it in a sentence, or just enough for a template to catch
+                                it.
+                            </p>
 
-                        {/* relative: the VoiceInput transcript overlay anchors here, spanning the composer */}
-                        <div
-                            class="relative mt-6 rounded-2xl border bg-panel shadow-xl transition-colors"
-                            classList={{
-                                "border-accent ring-2 ring-accent/25": dropping(),
-                                "border-line": !dropping(),
-                            }}
-                        >
-                            <TextArea
-                                ref={field}
-                                rounded="xl"
-                                rows={4}
-                                class="border-0 bg-transparent text-[15px] leading-relaxed placeholder:text-muted"
-                                placeholder={PLACEHOLDER}
-                                value={prompt()}
-                                onChange={setPrompt}
-                                onKeyDown={(e: KeyboardEvent) => {
-                                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) launch();
+                            {/* relative: the VoiceInput transcript overlay anchors here, spanning the composer */}
+                            <div
+                                class="relative mt-6 rounded-2xl border bg-panel shadow-xl transition-colors"
+                                classList={{
+                                    "border-accent ring-2 ring-accent/25": dropping(),
+                                    "border-line": !dropping(),
                                 }}
-                            />
+                            >
+                                <TextArea
+                                    ref={field}
+                                    rounded="xl"
+                                    rows={4}
+                                    class="border-0 bg-transparent text-[15px] leading-relaxed placeholder:text-muted"
+                                    placeholder={PLACEHOLDER}
+                                    value={prompt()}
+                                    onChange={setPrompt}
+                                    onKeyDown={(e: KeyboardEvent) => {
+                                        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) launch();
+                                    }}
+                                />
 
-                            <Show when={items().length || ctxIds().length || shape()}>
-                                <div class="flex flex-wrap gap-1.5 px-3 pb-2">
-                                    <Show when={shape()}>
-                                        {(t) => (
-                                            <Chip
-                                                variant="outline"
-                                                size="sm"
-                                                rounded="md"
-                                                class="max-w-full"
-                                                title="The shape this run follows, section for section"
-                                                onRemove={() => setShape(null)}
-                                            >
-                                                <Icon name="columns" size={11} />
-                                                <span class="truncate">
-                                                    {t().name} · {t().sections} sections
-                                                </span>
-                                            </Chip>
-                                        )}
-                                    </Show>
-                                    <ContextChips
-                                        ids={ctxIds()}
-                                        title="Attached context, which sections write from"
-                                        onRemove={(id) =>
-                                            setCtxIds((cur) => cur.filter((c) => c !== id))
-                                        }
-                                    />
-                                    <AttachmentChips items={items()} onRemove={remove} />
-                                </div>
-                            </Show>
+                                {/* The two things a run takes do different jobs and are labelled apart:
+                                a design decides how it looks and there is exactly one, while
+                                context decides what it says and there can be any number. */}
+                                <Show when={shape()}>
+                                    {(t) => (
+                                        <div class="px-3 pb-2">
+                                            <Eyebrow as="div" weight="normal" tracking="widest">
+                                                Designed like
+                                            </Eyebrow>
+                                            <div class="mt-1 flex flex-wrap gap-1.5">
+                                                <Chip
+                                                    variant="outline"
+                                                    size="sm"
+                                                    rounded="md"
+                                                    selected
+                                                    class="max-w-full"
+                                                    title="Its designs and its theme. None of its words."
+                                                    onClick={() => setChoosing(true)}
+                                                    onRemove={() => setShape(null)}
+                                                >
+                                                    <Icon name="columns" size={11} />
+                                                    <span class="truncate">
+                                                        {t().name} · {t().sections} designs
+                                                    </span>
+                                                </Chip>
+                                            </div>
+                                        </div>
+                                    )}
+                                </Show>
+                                <Show when={items().length || ctxIds().length}>
+                                    <div class="px-3 pb-2">
+                                        <Eyebrow as="div" weight="normal" tracking="widest">
+                                            Grounded in
+                                        </Eyebrow>
+                                        <div class="mt-1 flex flex-wrap gap-1.5">
+                                            <ContextChips
+                                                ids={ctxIds()}
+                                                title="Attached context, which sections write from"
+                                                onRemove={(id) =>
+                                                    setCtxIds((cur) => cur.filter((c) => c !== id))
+                                                }
+                                            />
+                                            <AttachmentChips items={items()} onRemove={remove} />
+                                        </div>
+                                    </div>
+                                </Show>
 
-                            <attach.Panels class="px-3 pb-2" templateNote="used as a shape" />
+                                <attach.Panels class="px-3 pb-2" templateNote="used as a shape" />
 
-                            <div class="flex flex-wrap items-center gap-x-1 gap-y-1.5 border-t border-line px-2 py-1.5">
-                                <div class="flex flex-none items-center gap-x-1">
-                                    <AttachMenu
-                                        size={touch() ? "touch" : "lg"}
-                                        sources={attach}
-                                        collections={{
-                                            selected: ctxIds(),
-                                            onChange: setCtxIds,
-                                            onManage: () => setManaging(true),
-                                        }}
-                                    />
-                                    <span class="mx-1 hidden h-4 w-px flex-none bg-line md:block" />
-                                </div>
+                                <div class="flex flex-wrap items-center gap-x-1 gap-y-1.5 border-t border-line px-2 py-1.5">
+                                    <div class="flex flex-none items-center gap-x-1">
+                                        <AttachMenu
+                                            size={touch() ? "touch" : "lg"}
+                                            sources={attach}
+                                            collections={{
+                                                selected: ctxIds(),
+                                                onChange: setCtxIds,
+                                                onManage: () => setManaging(true),
+                                            }}
+                                        />
+                                        <span class="mx-1 hidden h-4 w-px flex-none bg-line md:block" />
+                                    </div>
 
-                                {/* the three settings are one control: they wrap as a unit rather
+                                    {/* the three settings are one control: they wrap as a unit rather
                             than splitting a row; + always leads, on every size */}
-                                <div class="flex min-w-0 flex-none flex-wrap items-center gap-x-1 gap-y-1">
-                                    <Dropdown
-                                        compact
-                                        value={fmt()}
-                                        options={SURFACES}
-                                        onChange={(v) => setFmt(v as Surface)}
-                                    />
-                                    <Dropdown
-                                        compact
-                                        value={length()}
-                                        options={LENGTHS}
-                                        onChange={setLength}
-                                    />
-                                    <Dropdown
-                                        compact
-                                        value={imageSource()}
-                                        options={IMAGE_SOURCES}
-                                        onChange={setImageSource}
-                                    />
-                                </div>
+                                    <div class="flex min-w-0 flex-none flex-wrap items-center gap-x-1 gap-y-1">
+                                        <Dropdown
+                                            compact
+                                            value={fmt()}
+                                            options={SURFACES}
+                                            onChange={(v) => setFmt(v as Surface)}
+                                        />
+                                        <Dropdown
+                                            compact
+                                            value={length()}
+                                            options={LENGTHS}
+                                            onChange={setLength}
+                                        />
+                                        <Dropdown
+                                            compact
+                                            value={imageSource()}
+                                            options={IMAGE_SOURCES}
+                                            onChange={setImageSource}
+                                        />
+                                    </div>
 
-                                <div class="ml-auto flex flex-none items-center gap-x-1">
-                                    {/* no onAutoSend: dictation drafts the brief for review, never launches */}
-                                    <VoiceInput
-                                        field={() => field}
-                                        value={prompt}
-                                        setValue={setPrompt}
-                                    />
-                                    <Button
-                                        variant="primary"
-                                        rounded="xl"
-                                        size="sm"
-                                        class="whitespace-nowrap"
-                                        disabled={!ready()}
-                                        onClick={launch}
-                                    >
-                                        Plan the outline → · <Credits n={planCost()} />
-                                    </Button>
+                                    <div class="ml-auto flex flex-none items-center gap-x-1">
+                                        {/* no onAutoSend: dictation drafts the brief for review, never launches */}
+                                        <VoiceInput
+                                            field={() => field}
+                                            value={prompt}
+                                            setValue={setPrompt}
+                                        />
+                                        <Button
+                                            variant="primary"
+                                            rounded="xl"
+                                            size="sm"
+                                            class="whitespace-nowrap"
+                                            disabled={!ready()}
+                                            onClick={launch}
+                                        >
+                                            Plan the outline → · <Credits n={planCost()} />
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <p class="mt-2 text-[11.5px] leading-snug text-muted">
-                            Planning and writing everything at this size is about{" "}
-                            <Credits n={fullRunCost()} />. You approve the outline before anything
-                            is written.
-                        </p>
-
-                        <Show when={clampedTo() > 0}>
                             <p class="mt-2 text-[11.5px] leading-snug text-muted">
-                                <UpgradeLock feature="maxSectionsPerGeneration">
-                                    Your plan writes up to {clampedTo()} sections per generation, so
-                                    this size is trimmed to fit.
-                                </UpgradeLock>
+                                Planning and writing everything at this size is about{" "}
+                                <Credits n={fullRunCost()} />. You approve the outline before
+                                anything is written.
                             </p>
-                        </Show>
 
-                        <Show when={fileError()}>
-                            <p class="mt-2 text-[11.5px] leading-snug text-accent">{fileError()}</p>
-                        </Show>
-                        <Show when={overLimit() > 0}>
-                            <p class="mt-2 text-[11.5px] leading-snug text-muted">
-                                That's more material than one plan reads. The first{" "}
-                                {SOURCE_LIMIT.toLocaleString()} characters are used, and{" "}
-                                {overLimit().toLocaleString()} are dropped.
-                            </p>
-                        </Show>
+                            <Show when={clampedTo() > 0}>
+                                <p class="mt-2 text-[11.5px] leading-snug text-muted">
+                                    <UpgradeLock feature="maxSectionsPerGeneration">
+                                        Your plan writes up to {clampedTo()} sections per
+                                        generation, so this size is trimmed to fit.
+                                    </UpgradeLock>
+                                </p>
+                            </Show>
 
-                        <TemplateRow
-                            onBrowseAll={() => setBrowsing(true)}
-                            onShape={(t) =>
-                                pickShape({
-                                    id: t.id,
-                                    name: t.name,
-                                    category: t.category,
-                                    format: t.content.format,
-                                    sections: t.content.sections.length,
-                                })
-                            }
-                        />
+                            <Show when={fileError()}>
+                                <p class="mt-2 text-[11.5px] leading-snug text-accent">
+                                    {fileError()}
+                                </p>
+                            </Show>
+                            <Show when={overLimit() > 0}>
+                                <p class="mt-2 text-[11.5px] leading-snug text-muted">
+                                    That's more material than one plan reads. The first{" "}
+                                    {SOURCE_LIMIT.toLocaleString()} characters are used, and{" "}
+                                    {overLimit().toLocaleString()} are dropped.
+                                </p>
+                            </Show>
 
-                        {/* blank is present, never competing: one line of text, same action as the old modal */}
-                        <p class="mt-5 text-center text-[12px] text-muted">
-                            or start blank:{" "}
-                            <For each={SURFACES}>
-                                {(f, i) => (
-                                    <>
-                                        <Show when={i() > 0}> · </Show>
-                                        <button
-                                            class="font-semibold text-soft underline decoration-line underline-offset-3 transition-colors hover:text-ink"
-                                            classList={{ "px-1 py-2": touch() }}
-                                            disabled={blanking()}
-                                            title={`A blank ${formatLabel(f.value).toLowerCase()}`}
-                                            onClick={() => void startBlank(f.value)}
-                                        >
-                                            {formatLabel(f.value)}
-                                        </button>
-                                    </>
-                                )}
-                            </For>
-                            {" · "}
                             <button
-                                class="font-semibold text-soft underline decoration-line underline-offset-3 transition-colors hover:text-ink"
-                                classList={{ "px-1 py-2": touch() }}
-                                title="Import PowerPoint, PDF, or Google Slides"
-                                onClick={openImportModal}
+                                class="mt-4 flex w-full items-center gap-2.5 rounded-xl border border-line px-3 py-2.5 text-left transition-colors hover:border-accent"
+                                onClick={() => setChoosing(true)}
                             >
-                                Import a file
+                                <Icon name="columns" size={14} />
+                                <span class="min-w-0 flex-1 truncate text-[12.5px]">
+                                    {shape() ? `Following ${shape()!.name}` : "Follow a design"}
+                                </span>
+                                <span class="hidden flex-none font-mono text-[10px] text-muted sm:block">
+                                    a PowerPoint · yours · templates
+                                </span>
+                                <Icon name="chevronRight" size={13} />
                             </button>
-                        </p>
-                        <ImportModal />
+
+                            <TemplateRow
+                                onBrowseAll={() => setBrowsing(true)}
+                                onShape={(t) =>
+                                    pickShape({
+                                        id: t.id,
+                                        name: t.name,
+                                        category: t.category,
+                                        format: t.content.format,
+                                        sections: t.content.sections.length,
+                                    })
+                                }
+                            />
+
+                            {/* blank is present, never competing: one line of text, same action as the old modal */}
+                            <p class="mt-5 text-center text-[12px] text-muted">
+                                or start blank:{" "}
+                                <For each={SURFACES}>
+                                    {(f, i) => (
+                                        <>
+                                            <Show when={i() > 0}> · </Show>
+                                            <button
+                                                class="font-semibold text-soft underline decoration-line underline-offset-3 transition-colors hover:text-ink"
+                                                classList={{ "px-1 py-2": touch() }}
+                                                disabled={blanking()}
+                                                title={`A blank ${formatLabel(f.value).toLowerCase()}`}
+                                                onClick={() => void startBlank(f.value)}
+                                            >
+                                                {formatLabel(f.value)}
+                                            </button>
+                                        </>
+                                    )}
+                                </For>
+                                {" · "}
+                                <button
+                                    class="font-semibold text-soft underline decoration-line underline-offset-3 transition-colors hover:text-ink"
+                                    classList={{ "px-1 py-2": touch() }}
+                                    title="Import PowerPoint, PDF, or Google Slides"
+                                    onClick={openImportModal}
+                                >
+                                    Import a file
+                                </button>
+                            </p>
+                            <ImportModal />
+                        </div>
                     </div>
-                </div>
+                </Show>
             </Show>
         </Show>
     );

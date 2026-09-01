@@ -10,6 +10,7 @@ import type {
     Surface,
 } from "@model/ai";
 import type { ArtifactContent, Section, ElementInstance } from "@model/artifact";
+import { mapMediaRefs } from "@model/artifact";
 import type { ModelTier } from "@model/billing";
 import { modelNote, type AiTask, type ModelOverrides } from "@services/core/models";
 import { insertSectionParts, sectionParts, sectionPlanParts, surfaceOf } from "./prompts/generate";
@@ -67,6 +68,7 @@ const toPlanBeat = (b: Beat): PlanBeat => ({
     layout: b.layout,
     image: b.image,
     blocks: b.blocks,
+    design: b.design,
     brief: b.brief,
     takeaway: b.takeaway,
     points: b.points,
@@ -85,7 +87,7 @@ export async function* runTurn(req: TurnRequest, opts: RunOpts = {}): AsyncGener
             yield* generateArtifactTool.run(
                 req.input,
                 makeContext({
-                    image: opts.image ?? {},
+                    image: { ...(opts.image ?? {}), cache: new Map<string, string>() },
                     workspace: opts.workspace,
                     signal: opts.signal,
                     tier: opts.tier,
@@ -126,7 +128,8 @@ function briefRead(outline: Outline): BriefRead {
 
 const ctxOf = (opts: RunOpts): ToolContext =>
     makeContext({
-        image: opts.image ?? {},
+        // one phrase memo per run: a motif the piece repeats resolves once
+        image: { ...(opts.image ?? {}), cache: opts.image?.cache ?? new Map<string, string>() },
         workspace: opts.workspace,
         signal: opts.signal,
         tier: opts.tier,
@@ -135,22 +138,52 @@ const ctxOf = (opts: RunOpts): ToolContext =>
         pack: opts.pack,
     });
 
+// A 1x1 transparent pixel: keeps `paintsBand` true, so a band's geometry is identical before and
+// after, while the real photograph is still being sourced.
+const CLEAR_PIXEL = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
+
+/**
+ * The section as it can be painted the moment its words exist: real copy, real layout, empty frames
+ * where the photographs will land. The studio shows this while they are sourced, so a reader
+ * watches a section fill in rather than a skeleton sit there.
+ */
+function withoutImages(section: Section): Section {
+    const blanked = mapMediaRefs(section, (url) => (url.startsWith("http") ? url : "")) as Section;
+    const bg = section.background;
+    return bg?.kind === "image" && bg.image && !bg.image.startsWith("http")
+        ? { ...blanked, background: { ...bg, image: CLEAR_PIXEL } }
+        : blanked;
+}
+
 // what a section write asks the context library for: the beat's whole substance, not its label
 const beatQuery = (beat: Beat): string =>
     [beat.label, beat.brief, beat.takeaway, ...(beat.points ?? [])].filter(Boolean).join(". ");
 
-async function planOutline(input: GenerateInput, ctx: ToolContext): Promise<Outline> {
-    return drain(ctx.use(planOutlineTool, input));
+async function* planOutline(
+    input: GenerateInput,
+    ctx: ToolContext,
+): AsyncGenerator<TurnEvent, Outline> {
+    const gen = ctx.use(planOutlineTool, input);
+    let step = await gen.next();
+    while (!step.done) {
+        const ev = step.value;
+        // partials carry the schema's beats; the wire carries the trimmed shape, same as the plan
+        yield ev.type === "plan.partial" ? { ...ev, beats: ev.beats.map(toPlanBeat) } : ev;
+        step = await gen.next();
+    }
+    return step.value;
 }
 
-async function writeSectionFrom(
+// forwards the tool's live preview events; the pipelined write-all path drains them instead,
+// since its write runs as a background promise while the previous beat's images flush
+async function* writeSectionFrom(
     parts: PromptParts,
     id: string,
     label: string,
     surface: Surface,
     ctx: ToolContext,
-): Promise<Section> {
-    return drain(ctx.use(writeSectionTool, { parts, id, label, surface }));
+): AsyncGenerator<TurnEvent, Section> {
+    return yield* ctx.use(writeSectionTool, { parts, id, label, surface });
 }
 
 export async function* runGenerate(
@@ -165,7 +198,7 @@ export async function* runGenerate(
 
     yield { type: "phase", name: "outline" };
     yield { type: "narration", text: "Planning the story arc" };
-    const outline = await planOutline(input, ctx);
+    const outline = yield* planOutline(input, ctx);
     const beats = outline.beats;
     const planBeats = beats.map(toPlanBeat);
     yield {
@@ -178,44 +211,32 @@ export async function* runGenerate(
 
     yield { type: "phase", name: "build" };
     const n = beats.length;
-    // each section is written with the ones before it already on the page
+    // Each section is written with the ones before it already on the page (the coherence rule),
+    // but only their TEXT: image resolution rides a one-slot pipeline, so beat i+1's model call
+    // runs while beat i's stock lookups and adoption settle, and patches still land in order.
     const written: ArtifactContent = { format: input.surface, theme: input.theme, sections: [] };
-    for (let i = 0; i < n; i++) {
-        const beat = beats[i]!;
-        yield { type: "section.status", id: beat.id, status: "active" };
-        yield { type: "narration", text: `Writing “${beat.label}”`, mono: ` · ${beat.role}` };
-        yield { type: "section.status", id: beat.id, status: "writing" };
+    interface PendingImages {
+        beat: Beat;
+        i: number;
+        at: number; // index in `written` to replace once resolved
+        resolved: Promise<{ section: Section; ms: number }>;
+        backdrop: Promise<string> | null; // section 0 carries the artifact backdrop along
+    }
+    let pending: PendingImages | null = null;
 
-        let section = await writeSection(input, beat, outline, ctx, written);
-        // force a full-bleed bg on cover + closing so those anchor moments never render flat
-        if ((i === 0 || i === n - 1) && section.background?.kind !== "image") {
-            section = {
-                ...section,
-                background: { kind: "image", image: input.prompt, scrim: 0.5 },
-                // a site marks its bands, so the page still reads as one column as a document
-                ...(input.surface === "web" ? { bleed: true } : {}),
-            };
-        }
-        if (beat.image) {
-            yield { type: "section.status", id: beat.id, status: "image" };
-            yield { type: "narration", text: `Sourcing an image for “${beat.label}”` };
-        }
-        section = await resolveImages(section, opts.image ?? {});
-
-        written.sections.push(section);
+    async function* flushPending(): AsyncGenerator<TurnEvent> {
+        if (!pending) return;
+        const { beat, i, at, resolved, backdrop } = pending;
+        pending = null;
+        const { section, ms } = await resolved;
+        written.sections[at] = section;
         yield { type: "patch", ops: [{ op: "addSection", section }] };
-        // artifact-level backdrop (editor paints it behind every section; library cover reads it); heavy scrim
-        if (i === 0) {
-            const backdrop = await resolveImage(
-                outline.backdrop || `${outline.title}, moody cinematic wide shot, soft focus`,
-                "landscape",
-                opts.image ?? {},
-            );
+        yield { type: "section.timing", id: beat.id, imagesMs: ms };
+        if (backdrop) {
+            const url = await backdrop;
             yield {
                 type: "patch",
-                ops: [
-                    { op: "setMeta", background: { kind: "image", image: backdrop, scrim: 0.6 } },
-                ],
+                ops: [{ op: "setMeta", background: { kind: "image", image: url, scrim: 0.6 } }],
             };
         }
         yield { type: "section.status", id: beat.id, status: "done" };
@@ -225,6 +246,55 @@ export async function* runGenerate(
             mono: ` ✓ ${i + 1}/${n}`,
         };
     }
+
+    for (let i = 0; i < n; i++) {
+        const beat = beats[i]!;
+        yield { type: "section.status", id: beat.id, status: "active" };
+        yield { type: "narration", text: `Writing “${beat.label}”`, mono: ` · ${beat.role}` };
+        yield { type: "section.status", id: beat.id, status: "writing" };
+
+        // start this beat's write, then flush the previous beat's images while it runs
+        const writing = writeSection(input, beat, outline, ctx, written);
+        yield* flushPending();
+        let section = await writing;
+        // force a full-bleed bg on cover + closing so those anchor moments never render flat
+        if ((i === 0 || i === n - 1) && section.background?.kind !== "image") {
+            section = {
+                ...section,
+                background: { kind: "image", image: input.prompt, scrim: 0.5 },
+                // a site marks its bands, so the page still reads as one column as a document
+                ...(input.surface === "web" ? { bleed: true } : {}),
+            };
+        }
+        // the words exist: show them at once, with frames where the photographs will be
+        yield { type: "section.partial", id: beat.id, section: withoutImages(section) };
+        if (beat.image) {
+            yield { type: "section.status", id: beat.id, status: "image" };
+            yield { type: "narration", text: `Sourcing an image for “${beat.label}”` };
+        }
+        // the next write reads text only, so the unresolved section is already valid context
+        written.sections.push(section);
+        const started = Date.now();
+        pending = {
+            beat,
+            i,
+            at: written.sections.length - 1,
+            resolved: resolveImages(section, ctx.image).then((resolvedSection) => ({
+                section: resolvedSection,
+                ms: Date.now() - started,
+            })),
+            backdrop:
+                i === 0
+                    ? resolveImage(
+                          outline.backdrop ||
+                              `${outline.title}, moody cinematic wide shot, soft focus`,
+                          "landscape",
+                          ctx.image,
+                      )
+                    : null,
+        };
+    }
+    yield* flushPending();
 
     yield { type: "phase", name: "compose" };
     yield { type: "phase", name: "done" };
@@ -244,7 +314,7 @@ export async function* runPlan(
 
     yield { type: "phase", name: "outline" };
     yield { type: "narration", text: "Planning the story arc" };
-    const outline = await planOutline(input, ctx);
+    const outline = yield* planOutline(input, ctx);
     yield {
         type: "narration",
         text: `Planned “${clip(outline.title, 48)}”`,
@@ -262,7 +332,7 @@ export async function* runPlan(
     const backdrop = await resolveImage(
         outline.backdrop || `${outline.title}, moody cinematic wide shot, soft focus`,
         "landscape",
-        opts.image ?? {},
+        ctx.image,
     );
     yield {
         type: "patch",
@@ -296,7 +366,7 @@ export async function* runBuild(input: BuildInput, opts: RunOpts = {}): AsyncGen
     yield { type: "section.status", id: beat.id, status: "writing" };
 
     const pack = (await ctx.pack?.(beatQuery(beat)).catch(() => null)) ?? undefined;
-    let section = await writeSectionFrom(
+    let section = yield* writeSectionFrom(
         sectionParts(input.brief, beat, outline, {
             steer: input.steer,
             note: input.note,
@@ -315,11 +385,12 @@ export async function* runBuild(input: BuildInput, opts: RunOpts = {}): AsyncGen
             background: { kind: "image", image: input.brief.prompt, scrim: 0.5 },
         };
     }
+    yield { type: "section.partial", id: beat.id, section: withoutImages(section) };
     if (beat.image || section.background?.kind === "image") {
         yield { type: "section.status", id: beat.id, status: "image" };
         yield { type: "narration", text: `Sourcing an image for “${beat.label}”` };
     }
-    section = await resolveImages(section, opts.image ?? {});
+    section = await resolveImages(section, ctx.image);
 
     yield { type: "phase", name: "compose" };
     yield {
@@ -361,18 +432,19 @@ async function* runSection(input: SectionInput, opts: RunOpts = {}): AsyncGenera
     yield { type: "section.status", id, status: "active" };
     yield { type: "narration", text: `Writing “${beat.label}”`, mono: ` · ${beat.role}` };
     yield { type: "section.status", id, status: "writing" };
-    let section = await writeSectionFrom(
+    let section = yield* writeSectionFrom(
         insertSectionParts(input, beat),
         id,
         beat.label,
         surface,
         ctx,
     );
+    yield { type: "section.partial", id, section: withoutImages(section) };
     if (beat.image || section.background?.kind === "image") {
         yield { type: "section.status", id, status: "image" };
         yield { type: "narration", text: `Sourcing an image for “${beat.label}”` };
     }
-    section = await resolveImages(section, opts.image ?? {});
+    section = await resolveImages(section, ctx.image);
 
     yield { type: "phase", name: "compose" };
     yield { type: "patch", ops: [{ op: "addSection", afterId: input.afterId, section }] };
@@ -391,12 +463,14 @@ async function writeSection(
     written: ArtifactContent,
 ): Promise<Section> {
     const pack = (await ctx.pack?.(beatQuery(beat)).catch(() => null)) ?? undefined;
-    return writeSectionFrom(
-        sectionParts(input, beat, outline, { content: written, pack }),
-        beat.id,
-        beat.label,
-        input.surface,
-        ctx,
+    return drain(
+        writeSectionFrom(
+            sectionParts(input, beat, outline, { content: written, pack }),
+            beat.id,
+            beat.label,
+            input.surface,
+            ctx,
+        ),
     );
 }
 

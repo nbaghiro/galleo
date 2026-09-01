@@ -1,6 +1,7 @@
 import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
 import type { Surface } from "@model/ai";
 import {
+    badge,
     bgColor,
     button,
     col,
@@ -9,9 +10,11 @@ import {
     fill,
     fitW,
     menu,
+    pin,
     row,
     section,
     t,
+    table,
 } from "@model/authoring";
 import { galleo } from "@services/core/ai/corpus/galleo";
 import { helios } from "@services/core/ai/corpus/helios";
@@ -46,6 +49,24 @@ function shapeOf(s: Section): string {
     return `${d.direction ?? "col"}:${d.children.length}`;
 }
 
+// The reserved moves the gold corpus predates, hand-authored like the site anatomy below: a
+// pinned corner badge, a baseline number line, a clamped table, in one compact section. The
+// framing line carries the restraint, since an exemplar teaches by imitation.
+const MOVES: Section = section(
+    "season",
+    col(
+        t("THE SEASON, COUNTED", "label"),
+        row(
+            { align: "baseline" },
+            t("214", "h1"),
+            t("orders a week", "h2"),
+            t("by the last market of October", "body"),
+        ),
+        table("Stall,Saturdays,Sold out by\nBallard,26,10:40\nFremont,22,11:15", true, 1),
+        pin(badge("FINAL MARKET · OCT 26"), "end", "start", { dx: -16, dy: 16 }),
+    ),
+);
+
 export function sectionExemplars(surface: Surface): string {
     const art = GOLD[surface] ?? GOLD.deck;
     const ranked = art.sections
@@ -63,9 +84,10 @@ export function sectionExemplars(surface: Surface): string {
                 `Example ${i + 1} · layout ${shapeOf(s)}:\n${JSON.stringify(cleanSection(s))}`,
         )
         .join("\n\n");
+    const moves = `Example ${picks.length + 1} · the reserved moves (a pinned corner badge, a baseline number line, a clamped table). Use each at most once in a whole piece, and only where it carries something true; most pieces need none of them:\n${JSON.stringify(cleanSection(MOVES))}`;
     return heading(
         `Gold-standard ${surface} sections. Match this richness and density`,
-        `These are real sections from hand-crafted, published artifacts. Notice how each fills its frame with a clear headline plus purposeful, varied elements (stats, cards, groups, bullets, images). Never a lone line of text on an empty frame:\n\n${body}`,
+        `These are real sections from hand-crafted, published artifacts. Notice how each fills its frame with a clear headline plus purposeful, varied elements (stats, cards, groups, bullets, images). Never a lone line of text on an empty frame:\n\n${body}\n\n${moves}`,
     );
 }
 

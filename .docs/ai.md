@@ -20,7 +20,10 @@ model/                         the PURE contract (edge-safe; imports nothing abo
                surfaces, pricing) — plus estimateCost / costRange / typicalCost / PRICED_TOOLS
 
 services/core/ai/                   the runtime (depends only on model; may NOT import canvas)
-  models.ts    the model registry — `provider:model` ids + DEFAULT_MODELS per task
+  models.ts    the model registry — `provider:model` ids + DEFAULT_MODELS per task. A new entry is
+               not finished until `pnpm ai:probe --model=<id> --json` answers and `probedOn` is set:
+               a declared id can still refuse the options we send it (see `thinkingBudget`), and
+               only a real call says so. `check:models` fails once a probe date ages out.
   provider.ts  resolveModel(id) → a Vercel AI SDK LanguageModel; aiReady()/providerReady(); thinklessOpts
   schema.ts    the Zod output schemas — zOutline · zSectionPlan · zSection · zElement · zTheme · …
   run.ts       the turn runtime — runTurn dispatch + runGenerate/runSection/reviseElement + image sourcing
@@ -173,8 +176,14 @@ category · usage · meter · live              PRICING (present only on user-fa
 ```
 
 `usage` is the typical units of work (`{ section: 12, image: 3, … }`); `meter(m)` is the size-scaling
-function for metered tools; both price through `costOf` in `@model/credits`. Tools with no `usage` are free
-(reads like `show-sections`, all the workspace management tools, internal primitives). The pricing helpers —
+function for metered tools; both price through `usdOfUsage` in `@model/credits`. A tool that costs the caller
+nothing says so with `free: true` (reads like `show-sections`, the workspace management tools, and internal
+primitives whose parent run already holds). Saying it is not decoration: an unpriced tool takes the free
+branch in `reserve()`, which returns a settle that never calls `owed()`, so a body that reaches a provider
+would burn tokens nobody is billed for. That is how `suggest-sections` shipped calling `generateObject` on
+every use and charging nothing. `pnpm check:tools` now fails when a tool with a registered body declares
+neither a price nor `free: true`, so free is a decision somebody made rather than a field left off. The
+pricing helpers —
 `estimateCost(id, meter)`, `typicalCost(id)`, `isMetered(id)`, `costRange(id)`, and `PRICED_TOOLS` (the "what
 your credits buy" list = tools that are both `usage`-priced **and** `live`) — all live here and key off
 `ToolId`. The credit gate (§11) and the `/pricing` page read straight off this; retune a unit once and the
@@ -221,7 +230,7 @@ former ai-prompts credit column (now derived from the code above):
 
 Metered but **not yet `live`** (priced in the catalog, no route surfaced): `revise-artifact`
 (whole-artifact edit, 12–40), `translate-artifact` (5–40, fan-out), `suggest-title`, `write-summary` /
-`write-alt-text` / `write-speaker-notes`. All workspace reads + management tools are **free** (no `usage`).
+`write-alt-text` / `write-speaker-notes`. All workspace reads + management tools are **free** (declared `free: true`).
 
 ## 6. The tools registry (`services/core/ai/tools/`)
 

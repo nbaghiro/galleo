@@ -324,20 +324,28 @@ describe("the shape a picked starter lends the outline", () => {
     ];
 
     it("is absent when nothing was picked, so an ordinary run reads as it always did", () => {
-        expect(outlineParts(input).prompt).not.toContain("The shape to follow");
+        expect(outlineParts(input).prompt).not.toContain("The designs to use");
     });
 
-    it("names the starter and lists every beat's layout and blocks in order", () => {
+    it("names the library and lists every design with the id a beat names it by", () => {
         const out = outlineParts(input, { forms, shapeName: "Startup Pitch Deck" }).prompt;
-        expect(out).toContain("The shape to follow");
+        expect(out).toContain("The designs to use");
         expect(out).toContain("Startup Pitch Deck");
-        expect(out).toContain("1. full · text · full-bleed image");
-        expect(out).toContain("2. three-up · stat | stat | stat");
+        expect(out).toContain("`a` (a) · full · text · full-bleed image");
+        expect(out).toContain("`b` (b) · three-up · stat | stat | stat");
+        expect(out).toContain("`design`");
+    });
+
+    it("reads a design's id back as words, so a file's own naming means something", () => {
+        const named: SectionForm[] = [
+            { id: "1-timeline-chart", layout: "full", blocks: ["diagram"], image: false },
+        ];
+        expect(outlineParts(input, { forms: named }).prompt).toContain("(timeline chart)");
     });
 
     it("says the shape travels without its subject, since that is the whole difference from source material", () => {
         const out = outlineParts(input, { forms }).prompt;
-        expect(out).toContain("never its subject and never its facts");
+        expect(out).toContain("never the library's subject and never its facts");
         expect(out).not.toContain("build the piece FROM this");
     });
 
