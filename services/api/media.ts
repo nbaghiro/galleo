@@ -5,8 +5,13 @@ import { featuresFor } from "@model/billing";
 import { z } from "zod";
 import { assetUrl } from "@model/media";
 import { BAD_BODY, creditRefusal, readJson } from "@services/utils/http";
-import { reserve } from "@services/core/spend";
+import { pricesFor, reserve } from "@services/core/spend";
 import {
+    adoptUrls,
+    adoptable,
+    assetForBytes,
+    deleteAsset,
+    embedPoster,
     generateVideo,
     getIcon,
     imageGenReady,
@@ -14,19 +19,15 @@ import {
     readAsset,
     refImage,
     searchIcons,
-    adoptUrls,
-    adoptable,
-    assetForBytes,
-    deleteAsset,
     searchStock,
     stockReady,
     storageFull,
     storeGenerated,
     storeUpload,
     streamImages,
+    type GenRef,
     useItem,
     videoGenReady,
-    type GenRef,
 } from "@services/core/media";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 
@@ -121,8 +122,11 @@ media.post("/media/generate", requireWorkspace, async (c) => {
 
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
     const want = Math.max(1, Math.min(4, n ?? 1));
+    // prices, not the defaults: the picture runs on the tier's image model, so a workspace on a
+    // dearer one has to be quoted and billed at that model's price rather than the base model's
     const held = await reserve(ws, c.get("user").id, "generate-image", {
         size: { variations: want },
+        prices: pricesFor(ws, {}),
         role: c.get("role"),
         surface: "direct",
     });
@@ -171,6 +175,7 @@ media.post("/media/generate-video", requireWorkspace, async (c) => {
 
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
     const held = await reserve(ws, c.get("user").id, "generate-video", {
+        prices: pricesFor(ws, {}),
         role: c.get("role"),
         surface: "direct",
     });
@@ -253,7 +258,12 @@ media.post("/media/link", requireWorkspace, async (c) => {
     if (!url) return c.json({ error: "url required" }, 400);
     // a url we cannot adopt (a platform video page, or something already ours) passes through
     const id = adoptable(url) ? (await adoptUrls(c.get("ws").id, [url])).get(url) : undefined;
-    return c.json({ url: id ? assetUrl(id) : url });
+    if (id) return c.json({ url: assetUrl(id) });
+    // a platform video keeps its link, but its still is adopted: every surface that paints rather
+    // than plays needs one, and only Vimeo makes us ask for it
+    const poster = await embedPoster(url);
+    const posterId = poster ? (await adoptUrls(c.get("ws").id, [poster])).get(poster) : undefined;
+    return c.json({ url, ...(posterId ? { poster: assetUrl(posterId) } : {}) });
 });
 
 // Refusing to delete something a deck still shows beats leaving a hole in it, so the artifacts
@@ -282,8 +292,38 @@ media.get("/media/asset/:id", async (c) => {
     if (!a.data) {
         return a.origin ? c.redirect(a.origin, 302) : c.text("not found", 404);
     }
-    return c.body(Buffer.from(a.data, "base64"), 200, {
-        "content-type": a.mime ?? "image/png",
-        "cache-control": "public, max-age=31536000, immutable",
+    const bytes = Buffer.from(a.data, "base64");
+    const type = a.mime ?? "image/png";
+    const cache = "public, max-age=31536000, immutable";
+    // Seeking is a range request, and a player that cannot make one has to refetch from byte zero to
+    // scrub. Advertising the support is half of it: Safari will not start some media without it.
+    const range = parseRange(c.req.header("range"), bytes.length);
+    if (range === "unsatisfiable")
+        return c.body(null, 416, { "content-range": `bytes */${bytes.length}` });
+    if (range)
+        return c.body(bytes.subarray(range.start, range.end + 1), 206, {
+            "content-type": type,
+            "cache-control": cache,
+            "accept-ranges": "bytes",
+            "content-range": `bytes ${range.start}-${range.end}/${bytes.length}`,
+        });
+    return c.body(bytes, 200, {
+        "content-type": type,
+        "cache-control": cache,
+        "accept-ranges": "bytes",
     });
 });
+
+// Only the single-range form, which is what a media element asks for; a multipart range is legal
+// but no player sends one, and answering the whole body is a valid response to anything else.
+function parseRange(
+    header: string | undefined,
+    size: number,
+): { start: number; end: number } | "unsatisfiable" | null {
+    const m = header ? /^bytes=(\d*)-(\d*)$/.exec(header.trim()) : null;
+    if (!m || (!m[1] && !m[2])) return null;
+    const [start, end] = m[1]
+        ? [Number(m[1]), m[2] ? Math.min(Number(m[2]), size - 1) : size - 1]
+        : [Math.max(0, size - Number(m[2])), size - 1]; // a suffix range: the last N bytes
+    return start > end || start >= size ? "unsatisfiable" : { start, end };
+}

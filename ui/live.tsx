@@ -77,6 +77,8 @@ const Player: Component<LiveProps & { url: string }> = (props) => {
                             loop={e().opts.loop}
                             muted={e().opts.muted}
                             playsinline
+                            // a clip nobody has pressed play on costs its metadata, not its bytes
+                            preload={e().opts.autoplay ? "auto" : "metadata"}
                             class="h-full w-full bg-black object-cover"
                             style={{ "pointer-events": live(props) }}
                         />
