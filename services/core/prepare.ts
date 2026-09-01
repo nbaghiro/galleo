@@ -13,7 +13,7 @@ import { musicReady } from "@services/core/ai/music";
 import { DEFAULT_MS } from "@services/core/ai/music";
 import { pruneOrphans, spokenOf, trackFor, unitsFor } from "@services/core/narration";
 import { composeForArtifact } from "@services/core/soundtrack";
-import { ratesFor, reserve } from "@services/core/spend";
+import { pricesFor, reserve } from "@services/core/spend";
 import { warn } from "@services/utils/env";
 
 /**
@@ -117,7 +117,7 @@ async function composeBed(
 ): Promise<void> {
     const held = await reserve(ws, spender, "compose-soundtrack", {
         size: { musicMinutes: 1 },
-        rates: ratesFor(ws, {}),
+        prices: pricesFor(ws, {}),
         surface: "direct",
     });
     if (!held.ok) return;
@@ -219,7 +219,7 @@ async function recordSections(
 
         const held = await reserve(ws, spender, "narrate-artifact", {
             size: { speechUnits: Math.max(1, unitsFor(chars)) },
-            rates: ratesFor(ws, {}),
+            prices: pricesFor(ws, {}),
             surface: "direct",
         });
         if (!held.ok) return; // the wall is for the whole piece, not this section

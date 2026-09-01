@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkspaceVoice } from "@model/speech";
+import { typicalCost } from "@model/tools";
 import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 import { adopt, shelve } from "@services/core/voices";
 
@@ -108,7 +109,8 @@ describe("POST /voices/audition", () => {
      * unit itself; the regression this guards is the settle finding nothing owed and refunding the
      * hold, which made every real audition free.
      */
-    it("keeps the flat one-credit charge after a successful synthesis", async () => {
+    it("keeps the flat charge after a successful synthesis", async () => {
+        const cost = typicalCost("audition-voice");
         const { userId, voices } = await shelved();
         const realFetch = globalThis.fetch;
         globalThis.fetch = ((url: string) => {
@@ -130,11 +132,11 @@ describe("POST /voices/audition", () => {
             expect(res.status).toBe(200);
             const after = ((await (await authed(userId, "/billing")).json()) as BillingBody).credits
                 .balance;
-            expect(before - after).toBe(1);
+            expect(before - after).toBe(cost);
             const ledger = (await (await authed(userId, "/billing/ledger")).json()) as {
                 entries: { reason: string; delta: number }[];
             };
-            expect(ledger.entries[0]).toMatchObject({ reason: "audition-voice", delta: -1 });
+            expect(ledger.entries[0]).toMatchObject({ reason: "audition-voice", delta: -cost });
         } finally {
             globalThis.fetch = realFetch;
         }
