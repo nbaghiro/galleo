@@ -107,6 +107,56 @@ describe("POST /extract", () => {
         expect(res.status).toBe(400);
     });
 
+    // Reading a file used to reach the vision model with no reserve and no meter, so a scanned
+    // document was both unbilled and unrecorded. Only that branch spends: a text layer is parsed
+    // locally and has to stay free, including for a workspace with nothing left.
+    it("parses a text layer for free, even with an empty balance", async () => {
+        const { userId, workspaceId } = await seedUser();
+        await db
+            .update(schema.workspaces)
+            .set({ aiCreditsBalance: 0 })
+            .where(eq(schema.workspaces.id, workspaceId));
+        const data = await pdfBase64([
+            "A perfectly readable line that the parser lifts without any model at all.",
+            "Fleet availability held at 98.6 percent across the quarter.",
+        ]);
+        const res = await authed(
+            userId,
+            "/extract",
+            jsonInit("POST", { name: "free.pdf", mime: "application/pdf", data }),
+        );
+        expect(res.status).toBe(200);
+        expect(((await res.json()) as { via: string }).via).toBe("text");
+        const rows = await db
+            .select()
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        expect(rows.filter((r) => r.reason === "read-file")).toHaveLength(0);
+    });
+
+    it("holds credits for a vision read, and refuses when there are none", async () => {
+        const { userId, workspaceId } = await seedUser();
+        await db
+            .update(schema.workspaces)
+            .set({ aiCreditsBalance: 0 })
+            .where(eq(schema.workspaces.id, workspaceId));
+        const saved = process.env.GOOGLE_API_KEY;
+        process.env.GOOGLE_API_KEY = "test-key";
+        try {
+            const res = await authed(
+                userId,
+                "/extract",
+                jsonInit("POST", { name: "scan.png", mime: "image/png", data: "eA==" }),
+            );
+            // refused before the model is ever called, so nothing is spent on a run we cannot bill
+            expect(res.status).toBe(402);
+            expect((await res.json()) as { reason?: string }).toMatchObject({ reason: "credits" });
+        } finally {
+            if (saved === undefined) delete process.env.GOOGLE_API_KEY;
+            else process.env.GOOGLE_API_KEY = saved;
+        }
+    });
+
     // last in the file on purpose: the limiter bucket persists for this worker
     it("rate-limits repeated extraction", async () => {
         const { userId } = await seedUser();

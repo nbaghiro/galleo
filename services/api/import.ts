@@ -15,7 +15,13 @@ const importLimiter = rateLimit({ name: "import", limit: 10, windowMs: 60_000 })
 // base64 of the 40 MB deck cap, plus JSON envelope headroom
 const importBody = bodyLimit({ maxSize: 64 * 1024 * 1024 });
 
-const zImportFile = z.object({ name: z.string().optional(), data: z.string() });
+const zImportFile = z.object({
+    name: z.string().optional(),
+    data: z.string(),
+    // "designs" reads the file as a template: its layouts become a library of designs to plan
+    // against, rather than its slides becoming content
+    as: z.enum(["content", "designs"]).optional(),
+});
 const zImportSlides = z.object({ url: z.string() });
 
 const STORAGE_FULL = { error: "storage limit reached", reason: "storage", upgrade: true } as const;
@@ -32,10 +38,15 @@ importer.post("/import/pptx", requireWorkspace, importLimiter, importBody, async
     const body = await readJson(c, zImportFile);
     if (!body?.data) return c.json(BAD_BODY, 400);
     try {
-        const out = await importPptx(c.get("ws"), {
-            data: new Uint8Array(Buffer.from(body.data, "base64")),
-            ...(body.name ? { name: body.name } : {}),
-        });
+        const out = await importPptx(
+            c.get("ws"),
+            {
+                data: new Uint8Array(Buffer.from(body.data, "base64")),
+                ...(body.name ? { name: body.name } : {}),
+            },
+            undefined,
+            body.as ?? "content",
+        );
         return c.json(out);
     } catch (e) {
         return fail(c, e);

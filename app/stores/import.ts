@@ -79,6 +79,19 @@ function fileBase64(file: File): Promise<string> {
     });
 }
 
+// Designs read only the theme, the masters and the layouts, never the photographs on the example
+// slides, which are most of the file: dropping them here is 41 MB of upload against 0.3 MB.
+async function designParts(file: File): Promise<string> {
+    const { default: JSZip } = await import("jszip");
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    const kept = new JSZip();
+    for (const [path, entry] of Object.entries(zip.files)) {
+        if (entry.dir || /^ppt\/(media|embeddings)\//.test(path)) continue;
+        kept.file(path, await entry.async("uint8array"));
+    }
+    return kept.generateAsync({ type: "base64", compression: "DEFLATE" });
+}
+
 async function renderPdfPages(
     file: File,
     onProgress?: (p: ImportProgress) => void,
@@ -155,13 +168,19 @@ function failed(format: ImportKind, e: unknown): never {
     throw e;
 }
 
-/** Imports a picked file; resolves to the new artifact's id. */
+/**
+ * Imports a picked file; resolves to the new artifact's id. `as: "designs"` reads a PowerPoint as a
+ * template: its layouts become a library of designs to plan against, not content.
+ */
 export async function importFile(
     file: File,
     onProgress?: (p: ImportProgress) => void,
+    as: "content" | "designs" = "content",
 ): Promise<string> {
     const kind = importKindOf(file);
     if (!kind) throw new Error("That file isn't importable. Pick a .pdf or .pptx.");
+    if (as === "designs" && kind !== "pptx")
+        throw new Error("Only a PowerPoint file carries designs. Pick a .pptx.");
     const startedAt = Date.now();
     try {
         if (kind === "pdf") {
@@ -174,9 +193,12 @@ export async function importFile(
             return id;
         }
         onProgress?.({ stage: "reading" });
-        const data = await fileBase64(file);
+        const data = as === "designs" ? await designParts(file) : await fileBase64(file);
         onProgress?.({ stage: "building" });
-        const { content, title } = await api.importPptx({ name: file.name, data });
+        const { content, title } = await api.importPptx({ name: file.name, data, as });
+        // `content.theme` names a theme the import just created; lazily, since the theme store
+        // reaches the router and not every caller of this module has one
+        if (as === "designs") await (await import("./theme")).refreshCustomThemes();
         const id = await persist(content, title);
         done("pptx", content, startedAt);
         return id;

@@ -2,13 +2,17 @@ import type { ArtifactContent, ElementInstance, Section, SectionBackground } fro
 import type { Mark } from "@model/text";
 import type { TextStyle } from "@model/elements";
 import { colGroup, emptyRegion, rowGroup } from "@model/artifact";
-import { hexToRgb, luminance, THEME_LIST } from "@themes";
+import type { ThemeInput } from "@themes";
+import { createTheme, listThemes } from "@services/core/themes";
+import { designCatalog, designsToContent } from "@services/core/designs";
+import { contrastRatio, hexToRgb, luminance, mix, THEME_LIST } from "@themes";
 import {
     parasText,
     parsePptx,
     type Box,
     type ColorScheme,
     type PptxDeck,
+    type PptxLayout,
     type PptxPara,
     type PptxShape,
     type PptxSlide,
@@ -372,6 +376,73 @@ const dist = (a: string, b: string): number => {
 
 const isHex = (s: string | undefined): s is string => !!s && /^#[0-9a-fA-F]{6}$/.test(s);
 
+/**
+ * A deck's named family matched to the closest face we vendor. Passing the file's own font through
+ * would be a licensing question answered by accident, and a guard already limits us to the vendored
+ * set. The classes are coarse on purpose: the eye reads weight and width before it reads a foundry.
+ */
+type FaceClass = "serif" | "geometric" | "condensed" | "mono" | "grotesque";
+
+const FACE_CLASSES: [RegExp, FaceClass][] = [
+    [/mono|consol|courier|menlo|code/i, "mono"],
+    [/narrow|condensed|impact|compressed/i, "condensed"],
+    [
+        /times|georgia|garamond|cambria|constantia|palatino|book|didot|baskerville|caslon|minion|merriweather|charter|serif/i,
+        "serif",
+    ],
+    [
+        /futura|century gothic|avenir|poppins|montserrat|gill sans|questrial|circular|nunito/i,
+        "geometric",
+    ],
+];
+
+const FACES: Record<FaceClass, { display: string; body: string }> = {
+    serif: { display: "Newsreader", body: "Lora" },
+    geometric: { display: "Sora", body: "Jost" },
+    condensed: { display: "Oswald", body: "Barlow" },
+    mono: { display: "Space Grotesk", body: "IBM Plex Mono" },
+    grotesque: { display: "Archivo", body: "Hanken Grotesk" },
+};
+
+export function vendoredFace(name: string | undefined, role: "display" | "body"): string {
+    const cls = (name && FACE_CLASSES.find(([re]) => re.test(name))?.[1]) || "grotesque";
+    return FACES[cls][role];
+}
+
+/**
+ * The deck's own look as a Galleo theme. `nearestThemeId` below answers "which of ours is closest",
+ * right for a one-off import of someone's slides and wrong for a template whose brand must survive.
+ * OOXML carries a palette and a type pairing and nothing else: radius, border, shadow and scrim
+ * take the library's defaults rather than an invented reading.
+ */
+export function themeFromDeck(deck: Pick<PptxDeck, "scheme" | "fonts" | "title">): ThemeInput {
+    const bg = isHex(deck.scheme.lt1) ? deck.scheme.lt1 : "#ffffff";
+    const ink = isHex(deck.scheme.dk1) ? deck.scheme.dk1 : "#111111";
+    const accent = isHex(deck.scheme.accent1) ? deck.scheme.accent1 : ink;
+    const dark = luminance(bg) < 0.5;
+    return {
+        name: deck.title?.trim() || "Imported deck",
+        mood: null,
+        isDark: dark,
+        tokens: {
+            bg,
+            surface: mix(bg, ink, 0.04),
+            ink,
+            soft: mix(ink, bg, 0.25),
+            muted: mix(ink, bg, 0.45),
+            accent,
+            onAccent:
+                contrastRatio(accent, "#ffffff") >= contrastRatio(accent, ink) ? "#ffffff" : ink,
+            line: mix(ink, bg, 0.85),
+            radius: 12,
+            fontDisplay: vendoredFace(deck.fonts.major, "display"),
+            fontBody: vendoredFace(deck.fonts.minor, "body"),
+            fontMono: "IBM Plex Mono",
+            headingWeight: 700,
+        },
+    };
+}
+
 export function nearestThemeId(scheme: ColorScheme): string {
     const bg = scheme.lt1;
     const ink = scheme.dk1;
@@ -428,15 +499,66 @@ function sectionOf(slide: PptxSlide, index: number, ctx: SlideMapCtx, deckDark: 
     };
 }
 
-export function deckToContent(deck: PptxDeck, mediaUrl: SlideMapCtx["mediaUrl"]): ArtifactContent {
+export function deckToContent(
+    deck: PptxDeck,
+    mediaUrl: SlideMapCtx["mediaUrl"],
+    themeId?: string,
+): ArtifactContent {
     const scale = ARTIFACT_W / Math.max(1, deck.w);
     const pageH = Math.round(deck.h * scale);
     const ctx: SlideMapCtx = { slideW: deck.w, slideH: deck.h, scale, mediaUrl };
     const deckDark = isHex(deck.scheme.lt1) ? luminance(deck.scheme.lt1) < 0.5 : false;
     return {
         format: "deck",
-        theme: nearestThemeId(deck.scheme),
+        theme: themeId ?? nearestThemeId(deck.scheme),
         sections: deck.slides.map((s, i) => sectionOf(s, i, ctx, deckDark)),
+        ...(pageH !== 720 ? { page: { width: ARTIFACT_W, height: pageH } } : {}),
+    };
+}
+
+// A layout has slots and no words, so each is named the way PowerPoint names its own. The labels
+// are never generated into anything; they carry the shape `sectionForms` reads back off this.
+const SLOT_LABEL: Record<string, { text: string; style: TextStyle }> = {
+    title: { text: "Title", style: "h1" },
+    ctrTitle: { text: "Title", style: "h1" },
+    subTitle: { text: "Subtitle", style: "subtitle" },
+    body: { text: "Body text", style: "body" },
+};
+
+const slotElement = (slot: PptxLayout["slots"][number]): ElementInstance =>
+    slot.role === "media"
+        ? {
+              type: "media",
+              data: { kind: "photo", src: "", aspect: slot.box.w / Math.max(1, slot.box.h) },
+          }
+        : {
+              type: "text",
+              data: {
+                  text: SLOT_LABEL[slot.role]?.text ?? "Body text",
+                  style: SLOT_LABEL[slot.role]?.style ?? "body",
+              },
+          };
+
+/**
+ * A template file's layouts as sections. A .potx keeps its whole look in the master and ships no
+ * slides, so without this an upload that is *only* a template imports as nothing.
+ */
+export function layoutsToContent(deck: PptxDeck, themeId?: string): ArtifactContent {
+    const scale = ARTIFACT_W / Math.max(1, deck.w);
+    const pageH = Math.round(deck.h * scale);
+    const usable = deck.layouts.filter((l) => l.slots.length > 0);
+    return {
+        format: "deck",
+        theme: themeId ?? nearestThemeId(deck.scheme),
+        sections: usable.map((layout, i) => ({
+            id: `s${i + 1}`,
+            root: assembleRoot(
+                layout.slots.map((slot) => ({
+                    box: scaleBox(slot.box, scale),
+                    el: slotElement(slot),
+                })),
+            ),
+        })),
         ...(pageH !== 720 ? { page: { width: ARTIFACT_W, height: pageH } } : {}),
     };
 }
@@ -444,6 +566,12 @@ export function deckToContent(deck: PptxDeck, mediaUrl: SlideMapCtx["mediaUrl"])
 export interface Imported {
     content: ArtifactContent;
     title: string;
+    // what the template lent and what it could not, so a substituted font is told rather than found
+    adopted?: {
+        designs: { id: string; name: string; kind: string }[];
+        fonts: { asked?: string; using: string }[];
+        note: string;
+    };
 }
 
 const uniqueMedia = (deck: PptxDeck): Map<string, { mime: string; data: string }> => {
@@ -455,10 +583,23 @@ const uniqueMedia = (deck: PptxDeck): Map<string, { mime: string; data: string }
     return out;
 };
 
+/** The workspace theme for this deck, reusing an identical one rather than adding a duplicate. */
+async function adoptDeckTheme(workspaceId: string, deck: PptxDeck): Promise<string | undefined> {
+    const want = themeFromDeck(deck);
+    const key = JSON.stringify(want.tokens);
+    const existing = (await listThemes(workspaceId)).find(
+        (t) => t.name === want.name && JSON.stringify(t.tokens) === key,
+    );
+    return existing ? existing.id : (await createTheme(workspaceId, want))?.id;
+}
+
 export async function importPptx(
     ws: WorkspaceStorage,
     input: { data: Uint8Array; name?: string },
     store: MediaStore = dbStore(ws.id),
+    // "designs" reads the file as a template: its layouts become a library of designs a run can be
+    // planned against, rather than its slides becoming someone else's content.
+    as: "content" | "designs" = "content",
 ): Promise<Imported> {
     if (input.data.byteLength > MAX_PPTX_BYTES)
         throw new ImportError(
@@ -471,8 +612,15 @@ export async function importPptx(
             400,
         );
     });
-    if (deck.slides.length === 0)
-        throw new ImportError("That presentation has no slides to import.", 400);
+    const wantDesigns = as === "designs";
+    const fromLayouts = wantDesigns || deck.slides.length === 0;
+    if (fromLayouts && deck.layouts.every((l) => l.slots.length === 0))
+        throw new ImportError(
+            wantDesigns
+                ? "That file has no slide layouts, so there are no designs to take from it."
+                : "That presentation has no slides or layouts to import.",
+            400,
+        );
 
     const media = uniqueMedia(deck);
     const incoming = [...media.values()].reduce((n, m) => n + (m.data.length * 3) / 4, 0);
@@ -482,11 +630,36 @@ export async function importPptx(
     const urls = new Map<string, string>();
     for (const [path, m] of media) urls.set(path, await store({ data: m.data, mime: m.mime }));
 
-    const content = deckToContent(deck, (path) => urls.get(path));
+    // the deck keeps its own palette rather than snapping to the nearest built-in, which stays the
+    // fallback: failing to save a theme is not worth losing the import over
+    const themeId = await adoptDeckTheme(ws.id, deck).catch(() => undefined);
+    const content = wantDesigns
+        ? designsToContent(deck, themeId ?? nearestThemeId(deck.scheme))
+        : fromLayouts
+          ? layoutsToContent(deck, themeId)
+          : deckToContent(deck, (path) => urls.get(path), themeId);
     const fileTitle = input.name?.replace(/\.[^.]+$/, "").trim();
-    const title =
-        deck.title ?? slideTitleText(deck.slides[0]!) ?? fileTitle ?? "Imported presentation";
-    return { content, title };
+    const adopted = wantDesigns
+        ? {
+              designs: designCatalog(deck).map((d) => ({ id: d.id, name: d.name, kind: d.kind })),
+              fonts: [
+                  {
+                      ...(deck.fonts.major ? { asked: deck.fonts.major } : {}),
+                      using: vendoredFace(deck.fonts.major, "display"),
+                  },
+                  {
+                      ...(deck.fonts.minor ? { asked: deck.fonts.minor } : {}),
+                      using: vendoredFace(deck.fonts.minor, "body"),
+                  },
+              ],
+              note: "Colours and type pairing carried over. Each design is rebuilt from Galleo's own elements, so it renders and edits everywhere; a fixed logo, exact type sizes and drawn effects do not travel.",
+          }
+        : undefined;
+
+    const title = wantDesigns
+        ? `${fileTitle ?? deck.title ?? "Template"} designs`
+        : (deck.title ?? slideTitleText(deck.slides[0]!) ?? fileTitle ?? "Imported presentation");
+    return { content, title, ...(adopted ? { adopted } : {}) };
 }
 
 // A public Google Slides deck serves its own PowerPoint conversion from a fixed export path, so a

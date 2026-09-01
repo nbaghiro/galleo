@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ElementInstance } from "@model/artifact";
 import { isArtifactContent } from "@services/core/artifacts";
-import { resolveTheme, THEME_LIST } from "@themes";
+import { childrenRaw, sectionForms } from "@model/artifact";
+import { BODY_FONTS, DISPLAY_FONTS, MONO_FONTS, resolveTheme, THEME_LIST } from "@themes";
 import type { PptxDeck, PptxPara, PptxShape } from "@services/utils/pptx";
 import {
     assembleRoot,
@@ -15,6 +16,9 @@ import {
     slidesFileId,
     styleForSize,
     textBlocksOf,
+    themeFromDeck,
+    vendoredFace,
+    layoutsToContent,
 } from "@services/core/import";
 
 const box = (
@@ -195,6 +199,8 @@ describe("deckToContent", () => {
         w: size.w ?? 1280,
         h: size.h ?? 720,
         scheme: { lt1: "#ffffff", dk1: "#111111", accent1: "#3355ff" },
+        fonts: {},
+        layouts: [],
         slides,
     });
 
@@ -378,5 +384,117 @@ describe("google slides links", () => {
             fetcher,
         );
         expect([...data]).toEqual([80, 75, 3, 4]);
+    });
+});
+
+describe("themeFromDeck", () => {
+    const deck = (
+        scheme: Record<string, string>,
+        fonts: { major?: string; minor?: string } = {},
+        title?: string,
+    ): Pick<PptxDeck, "scheme" | "fonts" | "title"> => ({
+        scheme,
+        fonts,
+        ...(title ? { title } : {}),
+    });
+
+    it("adopts the deck's own palette rather than the nearest built-in", () => {
+        const t = themeFromDeck(deck({ lt1: "#fdf6e3", dk1: "#1c2b2d", accent1: "#b7410e" }));
+        expect(t.tokens.bg).toBe("#fdf6e3");
+        expect(t.tokens.ink).toBe("#1c2b2d");
+        expect(t.tokens.accent).toBe("#b7410e");
+        expect(t.isDark).toBe(false);
+        // the derived steps sit between ink and bg, which is what keeps a palette readable
+        expect(t.tokens.soft).not.toBe(t.tokens.ink);
+        expect(t.tokens.muted).not.toBe(t.tokens.soft);
+    });
+
+    it("reads a dark master as a dark theme", () => {
+        const t = themeFromDeck(deck({ lt1: "#12151a", dk1: "#f2f4f8", accent1: "#7cc4ff" }));
+        expect(t.isDark).toBe(true);
+        expect(t.tokens.bg).toBe("#12151a");
+    });
+
+    it("picks the label colour on the accent for contrast, never by assumption", () => {
+        const onLight = themeFromDeck(deck({ lt1: "#ffffff", dk1: "#111111", accent1: "#ffe066" }));
+        const onDark = themeFromDeck(deck({ lt1: "#ffffff", dk1: "#111111", accent1: "#123499" }));
+        expect(onLight.tokens.onAccent).toBe("#111111");
+        expect(onDark.tokens.onAccent).toBe("#ffffff");
+    });
+
+    it("falls back to a readable pair when the scheme is missing or malformed", () => {
+        const t = themeFromDeck(deck({ lt1: "not-a-colour" }));
+        expect(t.tokens.bg).toBe("#ffffff");
+        expect(t.tokens.ink).toBe("#111111");
+        expect(t.name).toBe("Imported deck");
+    });
+
+    it("names the theme after the deck", () => {
+        expect(themeFromDeck(deck({}, {}, "Northwind 2026")).name).toBe("Northwind 2026");
+    });
+});
+
+describe("vendoredFace", () => {
+    it("maps an unservable family to the closest face we can actually serve", () => {
+        expect(vendoredFace("Georgia", "body")).toBe("Lora");
+        expect(vendoredFace("Times New Roman", "display")).toBe("Newsreader");
+        expect(vendoredFace("Century Gothic", "body")).toBe("Jost");
+        expect(vendoredFace("Arial Narrow", "display")).toBe("Oswald");
+        expect(vendoredFace("Consolas", "body")).toBe("IBM Plex Mono");
+    });
+
+    it("an unknown or absent family falls to the neutral grotesque", () => {
+        expect(vendoredFace("Wingdings 3", "body")).toBe("Hanken Grotesk");
+        expect(vendoredFace(undefined, "display")).toBe("Archivo");
+    });
+
+    it("every face it can return is one the theme library actually vendors", () => {
+        const served = new Set([...DISPLAY_FONTS, ...BODY_FONTS, ...MONO_FONTS]);
+        for (const name of ["Georgia", "Futura", "Impact", "Consolas", "Calibri", undefined])
+            for (const role of ["display", "body"] as const)
+                expect(served.has(vendoredFace(name, role))).toBe(true);
+    });
+});
+
+describe("layoutsToContent", () => {
+    // a .potx: a master's layouts, no slides at all
+    const template = (): PptxDeck => ({
+        w: 1280,
+        h: 720,
+        scheme: { lt1: "#ffffff", dk1: "#111111" },
+        fonts: {},
+        slides: [],
+        layouts: [
+            {
+                name: "Title Slide",
+                slots: [{ role: "ctrTitle", box: { x: 100, y: 260, w: 1080, h: 120 } }],
+            },
+            {
+                name: "Two Content",
+                slots: [
+                    { role: "title", box: { x: 60, y: 40, w: 1160, h: 100 } },
+                    { role: "body", box: { x: 60, y: 180, w: 540, h: 440 } },
+                    { role: "media", box: { x: 680, y: 180, w: 540, h: 440 } },
+                ],
+            },
+            { name: "Blank", slots: [] },
+        ],
+    });
+
+    it("gives every layout with slots a section, and skips the empty ones", () => {
+        const content = layoutsToContent(template());
+        expect(content.sections).toHaveLength(2);
+        expect(isArtifactContent(content)).toBe(true);
+    });
+
+    it("keeps a layout's arrangement: a title over its side-by-side slots", () => {
+        const content = layoutsToContent(template());
+        const forms = sectionForms(content);
+        expect(forms[0]!.blocks).toEqual(["text"]);
+        // the title bands into its own row, the two content slots share the one below it
+        const rows = childrenRaw(content.sections[1]!.root) ?? [];
+        expect(rows).toHaveLength(2);
+        const columns = childrenRaw(rows[1]!) ?? [];
+        expect(columns.map((c) => c.type)).toEqual(["text", "media"]);
     });
 });

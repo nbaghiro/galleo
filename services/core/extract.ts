@@ -46,8 +46,9 @@ const READ_PROMPT =
     "series and approximate values; for diagrams, the structure and relationships; for photos, " +
     "what is depicted — as plain factual notes. No preamble.";
 
-// the same call shape for an image and a scanned PDF; Gemini reads both natively
-const geminiRead: ImageReader = async (file) => {
+// the same call shape for an image and a scanned PDF; Gemini reads both natively. Exported so the
+// route can wrap it in a credit hold: only this branch spends, so only this branch is metered.
+export const geminiRead: ImageReader = async (file) => {
     const { model, providerOptions } = modelCall(defaultModelFor("extract"));
     const { text } = await generateText({
         model,

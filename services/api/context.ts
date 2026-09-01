@@ -2,10 +2,11 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 import { z } from "zod";
-import { rateLimit, readJson } from "@services/utils/http";
+import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
 import { fetchWebpage } from "@services/utils/webpage";
 import { embeddingReady } from "@services/core/ai/provider";
-import { ExtractError, extractUpload } from "@services/core/extract";
+import { pricesFor, reserve } from "@services/core/spend";
+import { ExtractError, extractUpload, geminiRead, type ImageReader } from "@services/core/extract";
 import {
     addArtifactItem,
     addLinkItem,
@@ -23,7 +24,9 @@ import {
 } from "@services/core/context";
 
 // The context library: workspace-scoped CRUD + per-kind ingestion. Ingestion is unpriced to the
-// user (a context is an investment we want made); the embedding spend is ours and marginal.
+// user (a context is an investment we want made); the embedding spend is ours and marginal. Reading
+// a file is the exception: a vision pass over a scanned document is a model call like any other, and
+// is held and billed as one.
 
 export const context = new Hono<WorkspaceEnv>();
 
@@ -78,16 +81,34 @@ const extractLimiter = rateLimit({ name: "extract", limit: 20, windowMs: 60_000 
 const extractBody = bodyLimit({ maxSize: 32 * 1024 * 1024 });
 
 context.post("/extract", requireWorkspace, extractLimiter, extractBody, async (c) => {
+    const ws = c.get("ws");
     const body = await readJson(c, zExtract);
     if (!body?.name || !body.data) return c.json({ error: "a file is required" }, 400);
-    try {
-        const out = await extractUpload({
-            name: body.name,
-            mime: body.mime ?? "",
-            data: body.data,
+    // The hold sits around the model read rather than the route: a text layer, a docx or a
+    // spreadsheet is parsed locally and must stay free, and only extractUpload knows which branch a
+    // file takes. Wrapping the reader also puts a meter in scope, without which the vision call's
+    // tokens were not merely unbilled but unrecorded.
+    let refused: { remaining: number; capped?: number } | null = null;
+    const metered: ImageReader = async (file) => {
+        const held = await reserve(ws, c.get("user").id, "read-file", {
+            prices: pricesFor(ws, {}),
+            role: c.get("role"),
+            surface: "direct",
         });
+        if (!held.ok) {
+            refused = held;
+            throw new ExtractError("reading this file needs credits", 400);
+        }
+        return await held.settle(() => geminiRead(file));
+    };
+    try {
+        const out = await extractUpload(
+            { name: body.name, mime: body.mime ?? "", data: body.data },
+            metered,
+        );
         return c.json(out);
     } catch (e) {
+        if (refused) return c.json(creditRefusal(ws, refused), 402);
         if (e instanceof ExtractError) return c.json({ error: e.message }, e.status);
         throw e;
     }
