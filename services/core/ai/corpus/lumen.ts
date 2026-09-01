@@ -39,9 +39,17 @@ export const lumen: ArtifactContent = web(
                     group(button("Start focusing free"), button("Watch the 2-min tour")),
                     t("No card required · Free forever plan · Set up in 60 seconds", "caption"),
                 ),
-                img("lumen-hero-app-dashboard", 1.2),
+                img(
+                    "https://images.pexels.com/photos/6237991/pexels-photo-6237991.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.2,
+                ),
             ),
-            { background: bgImage("lumen-hero-quiet-desk-dawn", 0.58) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/31020856/pexels-photo-31020856.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.58,
+                ),
+            },
         ),
         section(
             "trusted-label",
@@ -50,16 +58,37 @@ export const lumen: ArtifactContent = web(
         section(
             "trusted-logos",
             row(
-                group(img("lumen-logo-northwind-labs", 1.6), t("Northwind Labs", "caption")),
-                group(img("lumen-logo-meridian-studio", 1.6), t("Meridian Studio", "caption")),
-                group(img("lumen-logo-aperture-ai", 1.6), t("Aperture AI", "caption")),
+                group(
+                    img(
+                        "https://images.pexels.com/photos/15779815/pexels-photo-15779815.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1.6,
+                    ),
+                    t("Northwind Labs", "caption"),
+                ),
+                group(
+                    img(
+                        "https://images.pexels.com/photos/10526896/pexels-photo-10526896.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1.6,
+                    ),
+                    t("Meridian Studio", "caption"),
+                ),
+                group(
+                    img(
+                        "https://images.pexels.com/photos/30880049/pexels-photo-30880049.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1.6,
+                    ),
+                    t("Aperture AI", "caption"),
+                ),
             ),
         ),
         section(
             "problem",
             split(
                 40,
-                img("lumen-cluttered-notifications-desk", 0.95),
+                img(
+                    "https://images.pexels.com/photos/6991866/pexels-photo-6991866.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.95,
+                ),
                 group(
                     t("THE PROBLEM", "label"),
                     t("Your attention is under constant attack.", "h2"),
@@ -98,7 +127,10 @@ export const lumen: ArtifactContent = web(
                     ),
                     button("See how it works"),
                 ),
-                img("lumen-app-focus-session-screen", 1.15),
+                img(
+                    "https://images.pexels.com/photos/30480338/pexels-photo-30480338.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.15,
+                ),
             ),
         ),
         section(
@@ -116,7 +148,10 @@ export const lumen: ArtifactContent = web(
             "features",
             row(
                 card(
-                    img("lumen-feature-blocking-shield", 1),
+                    img(
+                        "https://images.pexels.com/photos/14685268/pexels-photo-14685268.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Distraction blocking", "h3"),
                     t(
                         "Block sites, apps, and notifications the moment a session starts — at the system level, across every device. Allowlists keep the few tools you truly need within reach.",
@@ -124,7 +159,10 @@ export const lumen: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img("lumen-feature-session-timer", 1),
+                    img(
+                        "https://images.pexels.com/photos/13151698/pexels-photo-13151698.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Focus sessions", "h3"),
                     t(
                         "Run focused sprints with a calm timer and ambient soundscapes. Pause-proof tracking logs every minute of deep work, so your streak reflects reality.",
@@ -132,7 +170,10 @@ export const lumen: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img("lumen-feature-analytics-chart", 1),
+                    img(
+                        "https://images.pexels.com/photos/7845368/pexels-photo-7845368.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Focus analytics", "h3"),
                     t(
                         "See your deep-work hours, peak times, and longest streaks. Weekly reviews show exactly where your attention went — and where it leaked.",
@@ -159,14 +200,20 @@ export const lumen: ArtifactContent = web(
                         "Emergency bypass for the rare interruption that's actually real",
                     ),
                 ),
-                img("lumen-blocklist-settings-ui", 1.05),
+                img(
+                    "https://images.pexels.com/photos/1484538/pexels-photo-1484538.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.05,
+                ),
             ),
         ),
         section(
             "analytics",
             split(
                 40,
-                img("lumen-terminal-cli-focus", 1.05),
+                img(
+                    "https://images.pexels.com/photos/32836042/pexels-photo-32836042.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.05,
+                ),
                 group(
                     t("BUILT FOR BUILDERS", "label"),
                     t("Automate focus from your terminal.", "h2"),
@@ -224,7 +271,10 @@ export const lumen: ArtifactContent = web(
                     "I went from two good hours a week to two good hours a day. Lumen is the only productivity app I've never quietly turned off after the first week.",
                     "— Dana Reyes · Staff Engineer, Meridian Studio",
                 ),
-                img("lumen-happy-user-focused-laptop", 0.9),
+                img(
+                    "https://images.pexels.com/photos/27658223/pexels-photo-27658223.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.9,
+                ),
             ),
         ),
         section(
@@ -251,7 +301,10 @@ export const lumen: ArtifactContent = web(
             "integrations",
             split(
                 40,
-                img("lumen-integrations-app-icons-grid", 1),
+                img(
+                    "https://images.pexels.com/photos/7794427/pexels-photo-7794427.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1,
+                ),
                 group(
                     t("WORKS WITH YOUR STACK", "label"),
                     t("Plays nicely with everything.", "h2"),
@@ -327,7 +380,12 @@ export const lumen: ArtifactContent = web(
                 t("Join 200,000+ people who do their best work with Lumen.", "subtitle"),
                 button("Start focusing free"),
             ),
-            { background: bgImage("lumen-cta-calm-workspace-window", 0.52) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/36595323/pexels-photo-36595323.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.52,
+                ),
+            },
         ),
         section(
             "footer",
@@ -356,5 +414,8 @@ export const lumen: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage("lumen-bg-soft-mineral", 0.38),
+    bgImage(
+        "https://images.pexels.com/photos/25342319/pexels-photo-25342319.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+        0.38,
+    ),
 );

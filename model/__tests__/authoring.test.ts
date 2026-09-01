@@ -29,9 +29,8 @@ describe("img", () => {
             "https://cdn.example.com/a.jpg",
         );
     });
-    it("builds a picsum URL from a seed, defaulting radius 14 + fit cover", () => {
-        const e = img("mountain", 1.5);
-        expect(imgData(e).src).toBe("https://picsum.photos/seed/mountain/1100/900");
+    it("defaults to radius 14 and fit cover", () => {
+        const e = img("https://cdn.example.com/b.jpg", 1.5);
         expect(imgData(e).radius).toBe(14);
         expect(imgData(e).fit).toBe("cover");
     });
@@ -51,8 +50,8 @@ describe("bgImage", () => {
         expect(bg.scrim).toBe(0.5);
         expect(bg.kind).toBe("image");
     });
-    it("builds a picsum URL from a seed", () => {
-        expect(bgImage("hero").image).toBe("https://picsum.photos/seed/hero/1700/1100");
+    it("keeps the scrim when one is given", () => {
+        expect(bgImage("https://cdn.example.com/bg.jpg", 0.2).scrim).toBe(0.2);
     });
 });
 

@@ -33,7 +33,12 @@ export function themeDemo(tk: Tokens): Section[] {
                 ),
                 button("Start a project"),
             ),
-            { background: bgImage("meridian-theme-hero", tk.scrim ?? 0.45) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/4123778/pexels-photo-4123778.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    tk.scrim ?? 0.45,
+                ),
+            },
         ),
 
         // ink · soft · muted · display/body fonts · heading weight
@@ -82,7 +87,10 @@ export function themeDemo(tk: Tokens): Section[] {
                         "Front-end implementation",
                     ),
                 ),
-                img("meridian-theme-work", 0.82),
+                img(
+                    "https://images.pexels.com/photos/8545622/pexels-photo-8545622.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
             ),
         ),
 

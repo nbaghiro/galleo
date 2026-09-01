@@ -31,7 +31,10 @@ export const richDoc: ArtifactContent = doc("press", [
         "cover",
         group(t("A Rich Document", "h1"), t("Every element type, one artifact", "lead")),
         {
-            background: bgImage("richdoc-cover", 0.55),
+            background: bgImage(
+                "https://images.pexels.com/photos/28380286/pexels-photo-28380286.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                0.55,
+            ),
         },
     ),
     section(
@@ -67,7 +70,10 @@ export const richDoc: ArtifactContent = doc("press", [
                     "body",
                 ),
             ),
-            img("richdoc-split", 1.4),
+            img(
+                "https://images.pexels.com/photos/35320973/pexels-photo-35320973.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                1.4,
+            ),
         ),
     ),
     section(
@@ -108,7 +114,10 @@ export const richDoc: ArtifactContent = doc("press", [
         "media",
         group(
             t("Media", "h2"),
-            img("richdoc-media", 1.78),
+            img(
+                "https://images.pexels.com/photos/30547365/pexels-photo-30547365.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                1.78,
+            ),
             video("https://example.invalid/clip.mp4"),
         ),
     ),
@@ -124,7 +133,10 @@ export const richDoc: ArtifactContent = doc("press", [
             button("Start building"),
         ),
         {
-            background: bgImage("richdoc-cta", 0.4),
+            background: bgImage(
+                "https://images.pexels.com/photos/12411299/pexels-photo-12411299.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                0.4,
+            ),
         },
     ),
 ]);

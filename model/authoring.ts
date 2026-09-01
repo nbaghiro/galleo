@@ -46,15 +46,11 @@ export const linked = (
     return { type: "text", data: { text, style, marks } };
 };
 
-// seedOrSrc: a full http URL, or a seed for a deterministic placeholder
-const photo = (seedOrSrc: string, w: number, h: number): string =>
-    seedOrSrc.startsWith("http") ? seedOrSrc : `https://picsum.photos/seed/${seedOrSrc}/${w}/${h}`;
-
-export const img = (seedOrSrc: string, aspect: number, radius = 14): ElementInstance => ({
+export const img = (src: string, aspect: number, radius = 14): ElementInstance => ({
     type: "media",
     data: {
         kind: "photo",
-        src: photo(seedOrSrc, 1100, 900),
+        src,
         aspect,
         radius,
         fit: "cover",
@@ -198,11 +194,9 @@ export const section = (
     },
 ): Section => ({ id, root, ...opts });
 
-export const bgImage = (seedOrSrc: string, scrim = 0.5): SectionBackground => ({
+export const bgImage = (image: string, scrim = 0.5): SectionBackground => ({
     kind: "image",
-    image: seedOrSrc.startsWith("http")
-        ? seedOrSrc
-        : `https://picsum.photos/seed/${seedOrSrc}/1700/1100`,
+    image,
     scrim,
 });
 
@@ -214,13 +208,13 @@ export const bgTone = (tone: SectionTone): SectionBackground => ({ kind: "tone",
 
 // The poster is what every static surface paints (thumbnail, PDF, the editor canvas); without one a
 // YouTube src falls back to the provider's own frame, which is rarely the shot the page wants.
-export const video = (src: string, posterSeedOrSrc?: string): ElementInstance => ({
+export const video = (src: string, poster?: string): ElementInstance => ({
     type: "media",
     data: {
         kind: "video",
         src,
         controls: true,
-        ...(posterSeedOrSrc ? { poster: photo(posterSeedOrSrc, 1280, 720) } : {}),
+        ...(poster ? { poster } : {}),
     },
 });
 

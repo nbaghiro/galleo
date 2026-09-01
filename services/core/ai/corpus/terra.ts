@@ -36,7 +36,12 @@ export const terra: ArtifactContent = web(
                 ),
                 button("Shop the collection"),
             ),
-            { background: bgImage("terra-hero-still-life", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/7303773/pexels-photo-7303773.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
 
         section(
@@ -86,7 +91,10 @@ export const terra: ArtifactContent = web(
             "s4",
             split(
                 40,
-                img("terra-flax-field-golden", 1.05),
+                img(
+                    "https://images.pexels.com/photos/13034014/pexels-photo-13034014.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.05,
+                ),
                 group(
                     t("WHY WE EXIST", "label"),
                     t("Borrowed from the earth, returned with care.", "h2"),
@@ -114,17 +122,26 @@ export const terra: ArtifactContent = web(
             "s6",
             row(
                 card(
-                    img("terra-flax-tumbler", 1),
+                    img(
+                        "https://images.pexels.com/photos/9218627/pexels-photo-9218627.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("The Daily Tumbler", "h3"),
                     t("Pressed flax husk · keeps coffee hot for 3 hours · $28", "caption"),
                 ),
                 card(
-                    img("terra-cane-bowl-set", 1),
+                    img(
+                        "https://images.pexels.com/photos/27897030/pexels-photo-27897030.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Everyday Bowl Set", "h3"),
                     t("Sugarcane cane-resin · set of four · $36", "caption"),
                 ),
                 card(
-                    img("terra-beech-dish-brush", 1),
+                    img(
+                        "https://images.pexels.com/photos/9737806/pexels-photo-9737806.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Hearth Dish Brush", "h3"),
                     t("Coppiced beech + agave bristle · replaceable head · $14", "caption"),
                 ),
@@ -135,17 +152,26 @@ export const terra: ArtifactContent = web(
             "s7",
             row(
                 card(
-                    img("terra-mycelium-planter", 1),
+                    img(
+                        "https://images.pexels.com/photos/36689261/pexels-photo-36689261.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Field Planter", "h3"),
                     t("Grown from mushroom mycelium · plant it, pot and all · $22", "caption"),
                 ),
                 card(
-                    img("terra-beech-bath-tray", 1),
+                    img(
+                        "https://images.pexels.com/photos/4426559/pexels-photo-4426559.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("The Bath Tray", "h3"),
                     t("Oiled coppiced beechwood · for soap, stone & sponge · $32", "caption"),
                 ),
                 card(
-                    img("terra-flax-linen-napkins", 1),
+                    img(
+                        "https://images.pexels.com/photos/29051685/pexels-photo-29051685.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Table Linens", "h3"),
                     t("Belgian flax linen · set of four napkins · $40", "caption"),
                 ),
@@ -167,7 +193,10 @@ export const terra: ArtifactContent = web(
                     t("$48", "h3"),
                     button("Shop the Loam Caddy"),
                 ),
-                img("terra-loam-caddy-counter", 0.92),
+                img(
+                    "https://images.pexels.com/photos/14824327/pexels-photo-14824327.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.92,
+                ),
             ),
         ),
 
@@ -175,7 +204,10 @@ export const terra: ArtifactContent = web(
             "s9",
             split(
                 40,
-                img("terra-workshop-hands-pressing", 1.05),
+                img(
+                    "https://images.pexels.com/photos/19208265/pexels-photo-19208265.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.05,
+                ),
                 group(
                     t("MATERIALS & CRAFT", "label"),
                     t("One material. Nothing hidden.", "h2"),
@@ -220,7 +252,12 @@ export const terra: ArtifactContent = web(
                     "subtitle",
                 ),
             ),
-            { background: bgImage("terra-workshop-interior-warm", 0.5) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/13304895/pexels-photo-13304895.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.5,
+                ),
+            },
         ),
 
         section(
@@ -301,7 +338,10 @@ export const terra: ArtifactContent = web(
                     ),
                     t("— Ada & Joon, founders", "caption"),
                 ),
-                img("terra-founders-portrait-studio", 0.82),
+                img(
+                    "https://images.pexels.com/photos/3913982/pexels-photo-3913982.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
             ),
         ),
 
@@ -316,7 +356,12 @@ export const terra: ArtifactContent = web(
                 ),
                 button("Get 10% off your first order"),
             ),
-            { background: bgImage("terra-flax-field-dusk", 0.5) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/29850707/pexels-photo-29850707.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.5,
+                ),
+            },
         ),
 
         section(
@@ -349,5 +394,8 @@ export const terra: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage("terra-paper-grain-bg", 0.28),
+    bgImage(
+        "https://images.pexels.com/photos/8823077/pexels-photo-8823077.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+        0.28,
+    ),
 );

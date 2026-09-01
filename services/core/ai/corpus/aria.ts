@@ -35,7 +35,12 @@ export const aria: ArtifactContent = deck(
                 ),
                 badge("OUT SEPTEMBER 4 · 2026"),
             ),
-            { background: bgImage("aria-velvet-static-night-cover", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/1475032/pexels-photo-1475032.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
         section(
             "s2",
@@ -52,7 +57,10 @@ export const aria: ArtifactContent = deck(
             "s3",
             split(
                 40,
-                img("aria-portrait-fog-window", 0.78),
+                img(
+                    "https://images.pexels.com/photos/10017689/pexels-photo-10017689.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.78,
+                ),
                 group(
                     t("The artist", "label"),
                     t("ARIA", "h2"),
@@ -91,7 +99,10 @@ export const aria: ArtifactContent = deck(
                         ),
                     ),
                 ),
-                img("aria-tape-machine-studio", 0.82),
+                img(
+                    "https://images.pexels.com/photos/8197364/pexels-photo-8197364.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
             ),
         ),
         section(
@@ -100,13 +111,21 @@ export const aria: ArtifactContent = deck(
                 "I wanted it to sound like the second after a room goes silent — when the static clears and you finally hear the thing you've been trying not to.",
                 "— ARIA, on Velvet Static",
             ),
-            { background: bgImage("aria-empty-room-blue-light", 0.6) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/35735323/pexels-photo-35735323.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.6,
+                ),
+            },
         ),
         section(
             "s6",
             split(
                 40,
-                img("aria-neon-diner-portrait", 0.78),
+                img(
+                    "https://images.pexels.com/photos/2907077/pexels-photo-2907077.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.78,
+                ),
                 group(
                     t("The visual world", "label"),
                     t("Blue light, wet asphalt, and the glow of a screen left on.", "h2"),
@@ -126,14 +145,26 @@ export const aria: ArtifactContent = deck(
             "s7",
             row(
                 group(
-                    img("aria-mood-allnight-diner", 0.8),
+                    img(
+                        "https://images.pexels.com/photos/9727539/pexels-photo-9727539.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        0.8,
+                    ),
                     t("01 — The all-night diner", "caption"),
                 ),
                 group(
-                    img("aria-mood-bluehour-pool", 0.8),
+                    img(
+                        "https://images.pexels.com/photos/37108959/pexels-photo-37108959.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        0.8,
+                    ),
                     t("02 — Blue hour, empty pool", "caption"),
                 ),
-                group(img("aria-mood-wet-highway", 0.8), t("03 — The drive home", "caption")),
+                group(
+                    img(
+                        "https://images.pexels.com/photos/1545728/pexels-photo-1545728.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        0.8,
+                    ),
+                    t("03 — The drive home", "caption"),
+                ),
             ),
         ),
         section(
@@ -157,23 +188,37 @@ export const aria: ArtifactContent = deck(
                 ),
                 video("https://www.youtube.com/watch?v=dQw4w9WgXcQ"),
             ),
-            { background: bgImage("aria-city-night-driving", 0.6) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/9949086/pexels-photo-9949086.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.6,
+                ),
+            },
         ),
         section(
             "s10",
             row(
                 group(
-                    img("aria-single-cobalt-hours-art", 1),
+                    img(
+                        "https://images.pexels.com/photos/9174687/pexels-photo-9174687.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("'Cobalt Hours'", "h3"),
                     t("Lead single · out now", "caption"),
                 ),
                 group(
-                    img("aria-single-ghost-radio-art", 1),
+                    img(
+                        "https://images.pexels.com/photos/5161816/pexels-photo-5161816.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("'Ghost Radio'", "h3"),
                     t("Second single · out now", "caption"),
                 ),
                 group(
-                    img("aria-single-lighthouse-art", 1),
+                    img(
+                        "https://images.pexels.com/photos/32846085/pexels-photo-32846085.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("'Lighthouse'", "h3"),
                     t("Third single · out now", "caption"),
                 ),
@@ -252,7 +297,10 @@ export const aria: ArtifactContent = deck(
             "s17",
             split(
                 40,
-                img("aria-vinyl-cobalt-gatefold", 0.9),
+                img(
+                    "https://images.pexels.com/photos/28906632/pexels-photo-28906632.png?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.9,
+                ),
                 group(
                     t("Physical", "label"),
                     t("Velvet Static on wax.", "h2"),
@@ -293,8 +341,16 @@ export const aria: ArtifactContent = deck(
                     button("press@ariamusic.com"),
                 ),
             ),
-            { background: bgImage("aria-stage-silhouette-blue", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/4257594/pexels-photo-4257594.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
     ],
-    bgImage("aria-cover-grain", 0.4),
+    bgImage(
+        "https://images.pexels.com/photos/16851158/pexels-photo-16851158.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+        0.4,
+    ),
 );

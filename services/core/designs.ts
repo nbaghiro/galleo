@@ -215,7 +215,10 @@ export function designSection(d: TemplateDesign): Section {
                 split(
                     55,
                     col(t(LABEL.title, "h2"), lead, bullets(LABEL.point, LABEL.point, LABEL.point)),
-                    img("a photograph", 4 / 3),
+                    img(
+                        "https://images.pexels.com/photos/154738/pexels-photo-154738.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        4 / 3,
+                    ),
                 ),
             );
         default:

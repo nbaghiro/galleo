@@ -28,7 +28,12 @@ export const fieldnotes: ArtifactContent = doc(
                 ),
                 t("Words & sketches by Mara Okafor · 6–20 September 2026", "caption"),
             ),
-            { background: bgImage("faroe-cover-seacliffs", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/27890481/pexels-photo-27890481.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
         section(
             "s2",
@@ -51,7 +56,10 @@ export const fieldnotes: ArtifactContent = doc(
         section(
             "s3",
             group(
-                img("faroe-fjord-ferry-dawn", 1.6),
+                img(
+                    "https://images.pexels.com/photos/34334639/pexels-photo-34334639.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.6,
+                ),
                 t(
                     "First light off the bow — the islands rising out of the Atlantic like something the sea hadn't quite finished deciding on.",
                     "caption",
@@ -74,14 +82,20 @@ export const fieldnotes: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img("faroe-torshavn-harbour-boats", 0.82),
+                img(
+                    "https://images.pexels.com/photos/8826934/pexels-photo-8826934.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
             ),
         ),
         section(
             "s5",
             split(
                 40,
-                img("faroe-tinganes-turf-roofs", 1.05),
+                img(
+                    "https://images.pexels.com/photos/37237930/pexels-photo-37237930.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.05,
+                ),
                 group(
                     t("Still Day 1", "label"),
                     t("Tinganes after dark", "h2"),
@@ -107,7 +121,10 @@ export const fieldnotes: ArtifactContent = doc(
             "s7",
             split(
                 40,
-                img("faroe-gasadalur-village-cliff", 1.05),
+                img(
+                    "https://images.pexels.com/photos/37430191/pexels-photo-37430191.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.05,
+                ),
                 group(
                     t("Day 3", "label"),
                     t("Gásadalur", "h2"),
@@ -125,7 +142,10 @@ export const fieldnotes: ArtifactContent = doc(
         section(
             "s8",
             group(
-                img("faroe-mulafossur-waterfall-sea", 1.6),
+                img(
+                    "https://images.pexels.com/photos/2581916/pexels-photo-2581916.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.6,
+                ),
                 t(
                     "Múlafossur — a waterfall that pours straight off the cliff into the open sea, with the village and the green mountain stacked behind it like a stage set built by someone showing off.",
                     "caption",
@@ -148,28 +168,40 @@ export const fieldnotes: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img("faroe-saksun-turf-church-lagoon", 0.82),
+                img(
+                    "https://images.pexels.com/photos/10431293/pexels-photo-10431293.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
             ),
         ),
         section(
             "s10",
             row(
                 group(
-                    img("faroe-gallery-black-sand", 0.8),
+                    img(
+                        "https://images.pexels.com/photos/32155001/pexels-photo-32155001.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        0.8,
+                    ),
                     t(
                         "Black sand at low tide, ribbed by the water like the roof of a mouth.",
                         "caption",
                     ),
                 ),
                 group(
-                    img("faroe-gallery-stone-church", 0.8),
+                    img(
+                        "https://images.pexels.com/photos/12175308/pexels-photo-12175308.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        0.8,
+                    ),
                     t(
                         "A church the size of a shed, holding its ground against the whole sky.",
                         "caption",
                     ),
                 ),
                 group(
-                    img("faroe-gallery-wool-drying", 0.8),
+                    img(
+                        "https://images.pexels.com/photos/37264931/pexels-photo-37264931.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        0.8,
+                    ),
                     t(
                         "Wool on a line; lanolin and woodsmoke carried on the wind off the water.",
                         "caption",
@@ -193,7 +225,10 @@ export const fieldnotes: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img("faroe-mykines-puffins-cliff", 0.82),
+                img(
+                    "https://images.pexels.com/photos/32137863/pexels-photo-32137863.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
             ),
         ),
         section(
@@ -218,7 +253,10 @@ export const fieldnotes: ArtifactContent = doc(
             "s13",
             split(
                 40,
-                img("faroe-kallur-lighthouse-ridge", 1.08),
+                img(
+                    "https://images.pexels.com/photos/38771694/pexels-photo-38771694.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.08,
+                ),
                 group(
                     t("Day 11", "label"),
                     t("Kallur Lighthouse, Kalsoy", "h2"),
@@ -249,7 +287,10 @@ export const fieldnotes: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img("faroe-tjornuvik-sea-stacks", 0.82),
+                img(
+                    "https://images.pexels.com/photos/12932677/pexels-photo-12932677.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
             ),
         ),
         section(
@@ -258,7 +299,12 @@ export const fieldnotes: ArtifactContent = doc(
                 "I stopped trying to photograph the fog and started drawing it instead. The fog, it turns out, holds still for no one — and neither, in the end, does the light.",
                 "— notebook, day fourteen",
             ),
-            { background: bgImage("faroe-fog-ridge-quote", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/13587181/pexels-photo-13587181.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
         section(
             "s16",
@@ -272,7 +318,10 @@ export const fieldnotes: ArtifactContent = doc(
             "s17",
             split(
                 40,
-                img("faroe-tunnel-road-coast", 1.05),
+                img(
+                    "https://images.pexels.com/photos/3886669/pexels-photo-3886669.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.05,
+                ),
                 group(
                     t("Practical notes", "label"),
                     t("Getting around", "h2"),
@@ -321,8 +370,16 @@ export const fieldnotes: ArtifactContent = doc(
                 ),
                 t("— Mara, on deck, somewhere past Suðuroy", "caption"),
             ),
-            { background: bgImage("faroe-closing-ferry-wake", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/19815200/pexels-photo-19815200.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
     ],
-    bgImage("fieldnotes-bg", 0.3),
+    bgImage(
+        "https://images.pexels.com/photos/5202027/pexels-photo-5202027.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+        0.3,
+    ),
 );

@@ -34,7 +34,12 @@ export const galleo: ArtifactContent = deck(
                 ),
                 badge("SEED ROUND · 2026"),
             ),
-            { background: bgImage("galleo-cover-studio", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/8143699/pexels-photo-8143699.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
 
         section(
@@ -49,7 +54,10 @@ export const galleo: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img("galleo-problem-desk", 0.82),
+                img(
+                    "https://images.pexels.com/photos/8386572/pexels-photo-8386572.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
             ),
         ),
 
@@ -80,7 +88,10 @@ export const galleo: ArtifactContent = deck(
             "s5",
             split(
                 40,
-                img("galleo-editor-canvas", 1.05),
+                img(
+                    "https://images.pexels.com/photos/18486387/pexels-photo-18486387.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.05,
+                ),
                 group(
                     t("02 — The product", "label"),
                     t("One canonical artifact. Every format is just a view.", "h2"),
@@ -101,7 +112,10 @@ export const galleo: ArtifactContent = deck(
             "s6",
             row(
                 card(
-                    img("galleo-format-deck", 1.4),
+                    img(
+                        "https://images.pexels.com/photos/383568/pexels-photo-383568.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1.4,
+                    ),
                     t("Deck", "h3"),
                     t(
                         "Present full-screen. Sections paginate into clean, on-brand slides.",
@@ -109,12 +123,18 @@ export const galleo: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img("galleo-format-doc", 1.4),
+                    img(
+                        "https://images.pexels.com/photos/7879388/pexels-photo-7879388.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1.4,
+                    ),
                     t("Document", "h3"),
                     t("The same blocks reflow into a readable, shareable document.", "caption"),
                 ),
                 card(
-                    img("galleo-format-site", 1.4),
+                    img(
+                        "https://images.pexels.com/photos/6621010/pexels-photo-6621010.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1.4,
+                    ),
                     t("Website", "h3"),
                     t("Publish a responsive, hosted page in a single click.", "caption"),
                 ),
@@ -138,7 +158,10 @@ export const galleo: ArtifactContent = deck(
                         180,
                     ),
                 ),
-                img("galleo-howitworks-refine", 0.9),
+                img(
+                    "https://images.pexels.com/photos/13712542/pexels-photo-13712542.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.9,
+                ),
             ),
         ),
 
@@ -153,7 +176,12 @@ export const galleo: ArtifactContent = deck(
                 ),
                 button("See the editor in motion"),
             ),
-            { background: bgImage("galleo-taste-studio", 0.6) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/9946415/pexels-photo-9946415.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.6,
+                ),
+            },
         ),
 
         section(
@@ -241,7 +269,10 @@ export const galleo: ArtifactContent = deck(
             "s14",
             split(
                 40,
-                img("galleo-compete-grid", 0.82),
+                img(
+                    "https://images.pexels.com/photos/2480072/pexels-photo-2480072.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
                 group(
                     t("09 — Why we win", "label"),
                     t("Generators race to the draft. We own the finish.", "h2"),
@@ -279,17 +310,26 @@ export const galleo: ArtifactContent = deck(
             "s16",
             row(
                 group(
-                    img("galleo-team-mara", 1),
+                    img(
+                        "https://images.pexels.com/photos/39168895/pexels-photo-39168895.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Mara Okafor", "h3"),
                     t("CEO · early Figma, led template systems", "caption"),
                 ),
                 group(
-                    img("galleo-team-theo", 1),
+                    img(
+                        "https://images.pexels.com/photos/37651918/pexels-photo-37651918.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Theo Klein", "h3"),
                     t("CTO · ex-Linear, built the sync engine", "caption"),
                 ),
                 group(
-                    img("galleo-team-su", 1),
+                    img(
+                        "https://images.pexels.com/photos/36990741/pexels-photo-36990741.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                        1,
+                    ),
                     t("Su Lin", "h3"),
                     t("Head of Design · ex-Stripe brand", "caption"),
                 ),
@@ -344,8 +384,16 @@ export const galleo: ArtifactContent = deck(
                 ),
                 button("Let’s build it together"),
             ),
-            { background: bgImage("galleo-vision-horizon", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/14894816/pexels-photo-14894816.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
     ],
-    bgImage("galleo-bg", 0.34),
+    bgImage(
+        "https://images.pexels.com/photos/7239279/pexels-photo-7239279.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+        0.34,
+    ),
 );

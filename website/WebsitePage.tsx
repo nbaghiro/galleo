@@ -51,21 +51,21 @@ const sourceBlocks = [
 
 const viewCards = [
     {
-        seed: "galleodeck",
+        src: "https://images.pexels.com/photos/9275222/pexels-photo-9275222.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=520",
         alt: "Deck view",
         name: "Deck",
         tag: "16:9",
         desc: "Big type, one idea per slide. Present live, or export to PPTX.",
     },
     {
-        seed: "galleodoc",
+        src: "https://images.pexels.com/photos/4271615/pexels-photo-4271615.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=520",
         alt: "Document view",
         name: "Doc",
         tag: "A4",
         desc: "Flowing columns and footnotes. A leave-behind that reads like print.",
     },
     {
-        seed: "galleosite",
+        src: "https://images.pexels.com/photos/6010424/pexels-photo-6010424.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=520",
         alt: "Website view",
         name: "Site",
         tag: "RESPONSIVE",
@@ -575,9 +575,9 @@ export const WebsitePage: Component = () => (
                                     }}
                                 >
                                     <img
-                                        src={`https://picsum.photos/seed/${v.seed}/800/520?grayscale`}
+                                        src={v.src}
                                         alt={v.alt}
-                                        class="w-full aspect-[4/3] object-cover"
+                                        class="w-full aspect-[4/3] object-cover grayscale"
                                     />
                                 </div>
                                 <div class="flex items-center justify-between mt-3 px-1">
@@ -777,9 +777,9 @@ export const WebsitePage: Component = () => (
                 </blockquote>
                 <div class="mt-8 flex items-center gap-4 relative">
                     <img
-                        src="https://picsum.photos/seed/galleoavatar/120/120?grayscale"
+                        src="https://images.pexels.com/photos/27086922/pexels-photo-27086922.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=120&h=120"
                         alt=""
-                        class="w-12 h-12 rounded-full object-cover"
+                        class="w-12 h-12 rounded-full object-cover grayscale"
                         style={{ border: "calc(var(--border-width) * 2) solid var(--color-ink)" }}
                     />
                     <div>

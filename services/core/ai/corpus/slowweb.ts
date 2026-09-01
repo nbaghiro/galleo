@@ -28,7 +28,12 @@ export const slowweb: ArtifactContent = doc("press", [
             ),
             t("by Mara Okafor · 14 min read", "caption"),
         ),
-        { background: bgImage("slowweb-quiet-morning", 0.55) },
+        {
+            background: bgImage(
+                "https://images.pexels.com/photos/32960953/pexels-photo-32960953.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                0.55,
+            ),
+        },
     ),
 
     section(
@@ -78,7 +83,11 @@ export const slowweb: ArtifactContent = doc("press", [
                 ),
             ),
             group(
-                img("slowweb-newsstand-lagos", 0.78, 6),
+                img(
+                    "https://images.pexels.com/photos/27813879/pexels-photo-27813879.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.78,
+                    6,
+                ),
                 t(
                     "A newsstand in Lagos. A front page is an act of editing — a hundred small choices about what deserves your morning.",
                     "caption",
@@ -127,7 +136,11 @@ export const slowweb: ArtifactContent = doc("press", [
         split(
             40,
             group(
-                img("slowweb-letterpress-shop", 1.05, 6),
+                img(
+                    "https://images.pexels.com/photos/6620998/pexels-photo-6620998.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.05,
+                    6,
+                ),
                 t(
                     "A letterpress shop in Yaba. Some friction is just the feeling of a thing being made by hand.",
                     "caption",
@@ -185,7 +198,12 @@ export const slowweb: ArtifactContent = doc("press", [
             "We built machines to hold our attention, and then wondered why we had so little of it left to give to anything else.",
             "",
         ),
-        { background: bgImage("slowweb-dusk-window", 0.6) },
+        {
+            background: bgImage(
+                "https://images.pexels.com/photos/10344211/pexels-photo-10344211.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                0.6,
+            ),
+        },
     ),
 
     section(
@@ -251,7 +269,12 @@ export const slowweb: ArtifactContent = doc("press", [
             "Start a site nobody asked for. Subscribe to a letter that arrives once a month. Read one thing all the way to its end. The fast web will still be there when you get back, exactly as loud as you left it. The slow web only ever asks for the part of your attention you actually decide to give.",
             "subtitle",
         ),
-        { background: bgImage("slowweb-open-window-light", 0.55) },
+        {
+            background: bgImage(
+                "https://images.pexels.com/photos/6619046/pexels-photo-6619046.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                0.55,
+            ),
+        },
     ),
 
     section(
