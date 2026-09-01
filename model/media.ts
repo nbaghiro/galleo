@@ -76,13 +76,24 @@ export function assetIdFromUrl(url: string | undefined): string | null {
 // editor's player, the poster derivation, and the server-side adopter cannot drift apart.
 const YOUTUBE_ID =
     /(?:youtube(?:-nocookie)?\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/;
-const VIMEO_ID = /vimeo\.com\/(?:video\/)?(\d+)/;
+// An unlisted video is `vimeo.com/<id>/<hash>`, and its player needs the hash back as `h=`, so the
+// matcher keeps both halves rather than only the id.
+const VIMEO_ID = /vimeo\.com\/(?:video\/)?(\d+)(?:\/([\w-]+))?/;
 
 export const youtubeId = (url: string | undefined): string | null =>
     (url && YOUTUBE_ID.exec(url)?.[1]) || null;
 
-export const vimeoId = (url: string | undefined): string | null =>
-    (url && VIMEO_ID.exec(url)?.[1]) || null;
+export interface VimeoRef {
+    id: string;
+    hash?: string; // unlisted videos only
+}
+
+export function vimeoRef(url: string | undefined): VimeoRef | null {
+    const m = url ? VIMEO_ID.exec(url) : null;
+    return m?.[1] ? { id: m[1], ...(m[2] ? { hash: m[2] } : {}) } : null;
+}
+
+export const vimeoId = (url: string | undefined): string | null => vimeoRef(url)?.id ?? null;
 
 export const isEmbedVideoUrl = (url: string): boolean => !!youtubeId(url) || !!vimeoId(url);
 
@@ -138,9 +149,10 @@ export function embedFor(
             opts: o,
         };
     }
-    const vm = vimeoId(u);
+    const vm = vimeoRef(u);
     if (vm) {
         const p = new URLSearchParams();
+        if (vm.hash) p.set("h", vm.hash); // an unlisted video will not play without it
         if (!o.controls) p.set("controls", "0");
         if (o.autoplay) p.set("autoplay", "1");
         if (o.muted) p.set("muted", "1");
@@ -148,7 +160,7 @@ export function embedFor(
         const qs = p.toString();
         return {
             kind: "iframe",
-            src: `https://player.vimeo.com/video/${vm}${qs ? `?${qs}` : ""}`,
+            src: `https://player.vimeo.com/video/${vm.id}${qs ? `?${qs}` : ""}`,
             opts: o,
         };
     }
