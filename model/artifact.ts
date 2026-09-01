@@ -147,6 +147,7 @@ export const LAYOUT_PRESETS: Record<string, number[]> = {
     "split-4060": [0.4, 0.6],
     "two-col": [0.5, 0.5],
     "three-up": [1 / 3, 1 / 3, 1 / 3],
+    "four-up": [0.25, 0.25, 0.25, 0.25],
 };
 
 /**
@@ -172,6 +173,16 @@ const BLOCK_FOR: Record<string, string> = {
     text: "text",
     bullets: "bullets",
     image: "image",
+    // every media variant normalizes to `media` on the way into storage, so a stored image column
+    // carries that type rather than `image`
+    media: "image",
+    video: "image",
+    gif: "image",
+    illustration: "image",
+    sticker: "image",
+    icon: "image",
+    graphic: "image",
+    avatar: "image",
     stat: "stat",
     chart: "chart",
     diagram: "diagram",
@@ -186,6 +197,9 @@ const BLOCK_FOR: Record<string, string> = {
     cta: "text",
     container: "text",
 };
+
+// what a column is *about*, as opposed to the prose that introduces it
+const VISUAL_BLOCKS = new Set(["image", "chart", "diagram", "table", "quote", "stat", "cards"]);
 
 const isRow = (el: ElementInstance): boolean =>
     (el.data as { direction?: string }).direction === "row" && (childrenRaw(el)?.length ?? 0) > 0;
@@ -221,18 +235,37 @@ function presetFor(kids: ElementInstance[]): string {
 function blockOf(el: ElementInstance): string {
     const kids = childrenRaw(el);
     if (isRow(el) && (kids?.length ?? 0) > 1) return "cards";
-    if (el.type === "container" && kids?.length) return blockOf(kids[0]!);
+    // only a visual outranks the leading heading, since a paragraph over bullets is still text
+    if (el.type === "container" && kids?.length) {
+        const blocks = kids.map(blockOf);
+        return blocks.find((b) => VISUAL_BLOCKS.has(b)) ?? blocks[0]!;
+    }
     return BLOCK_FOR[el.type] ?? "text";
+}
+
+// The row a section is really built on. A slide is a heading above its content, so reading columns
+// off the root alone reported nearly every section as one full-width block.
+function columnsOf(root: ElementInstance): ElementInstance[] {
+    const own = isRow(root) ? (childrenRaw(root) ?? []) : [];
+    if (own.length > 1) return own;
+    const named = (n: number): boolean =>
+        Object.values(LAYOUT_PRESETS).some((preset) => preset.length === n);
+    for (const kid of childrenRaw(root) ?? []) {
+        // a docked row is section chrome (a site's topbar), not the columns it is built on
+        if (kid.layout?.dock) continue;
+        const inner = isRow(kid) ? (childrenRaw(kid) ?? []) : [];
+        if (inner.length > 1 && named(inner.length)) return inner;
+    }
+    return [root];
 }
 
 /** One artifact's shapes, in order, ready to be lent to another piece's outline. */
 export function sectionForms(content: ArtifactContent): SectionForm[] {
     return content.sections.map((s) => {
-        const kids = isRow(s.root) ? (childrenRaw(s.root) ?? []) : [];
-        const columns = kids.length ? kids : [s.root];
+        const columns = columnsOf(s.root);
         return {
             id: s.id,
-            layout: kids.length ? presetFor(kids) : "full",
+            layout: columns.length > 1 ? presetFor(columns) : "full",
             blocks: columns.map(blockOf),
             image: s.background?.kind === "image",
         };

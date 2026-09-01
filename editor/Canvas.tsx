@@ -940,8 +940,6 @@ export const Canvas: Component = () => {
         const pad = (base: number): string => (share ? `calc(${base}px${share})` : `${base}px`);
         return {
             background: backdropCss(editor.artifact.background, tk),
-            "background-size": "cover",
-            "background-position": "center",
             "padding-left": pad(isPhone() ? phonePad : leftOpen() ? panelL() : RAIL_GAP),
             "padding-right": pad(isPhone() ? phonePad : RAIL_R),
             "--sb": tk.line,

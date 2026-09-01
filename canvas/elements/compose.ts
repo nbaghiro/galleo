@@ -383,7 +383,7 @@ const inkIsLight = (t: Tokens): boolean => HEX6.test(t.ink) && luminance(t.ink) 
 // than a colour, so every theme gets a band of the same perceived strength and none of them can
 // land on a ground its own ink cannot read. Calibrated against the bands the templates hand-picked
 // before tones existed: press sits at 0.118 of its range, orchard at 0.084.
-const TINT_MIX = 0.09;
+const TINT_MIX = 0.14;
 
 // An unreadable stored value reads as the quietest tone rather than failing the section
 const toneOf = (bg: SectionBackground): SectionTone =>
@@ -398,10 +398,12 @@ export function toneGround(tone: SectionTone, t: Tokens): string {
 
 // A tint keeps the page's own ink, but moving the ground toward that ink is contrast every tier
 // BELOW ink loses, and `muted` runs near the AA-large floor in most themes: left alone it drops
-// through. The tiers travel at twice the ground's rate because they do not start at the same
-// distance from the ink; at 2x every shipped theme reads a caption on a tint band at least as well
-// as the same caption on its page, which is the guarantee that makes a tone safe to pick blind.
-const TINT_TIER_MIX = TINT_MIX * 2;
+// through. The tiers travel faster than the ground because they do not start at the same distance
+// from the ink; at 3x every shipped theme reads a caption on a tint band at least as well as the
+// same caption on its page, which is the guarantee that makes a tone safe to pick blind. Paired
+// with TINT_MIX and has to move with it: 2x could not carry 0.14 (moss and vellum dropped their
+// captions below the page), and 0.18 put three of harbor's bands at 2.8:1 in a real render.
+const TINT_TIER_MIX = TINT_MIX * 3;
 function onTint(t: Tokens): Tokens {
     const toward = (c: string): string => mix(c, t.ink, TINT_TIER_MIX);
     return { ...t, soft: toward(t.soft), muted: toward(t.muted), line: toward(t.line) };
@@ -440,7 +442,6 @@ export function composedNodeFor(
     return nodeById(composeSection(section, ctx), elementRegionId(address));
 }
 
-/** The node carrying a region id, anywhere in a composed tree. */
 /** The first text leaf under `node`, for elements whose label is an anonymous child (a button). */
 export function firstTextLeaf(node: EngineNode): TextLeaf | null {
     if (node.text) return node.text;
@@ -451,6 +452,7 @@ export function firstTextLeaf(node: EngineNode): TextLeaf | null {
     return null;
 }
 
+/** The node carrying a region id, anywhere in a composed tree. */
 export function nodeById(root: EngineNode, id: string): EngineNode | null {
     if (root.id === id) return root;
     for (const c of root.children ?? []) {
