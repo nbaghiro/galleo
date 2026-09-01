@@ -434,8 +434,8 @@ export async function markEmailVerified(userId: string): Promise<void> {
         .where(eq(schema.users.id, userId))
         .returning({ createdAt: schema.users.createdAt });
     identify(userId, { email_verified: true });
-    // Whether gating the signup grant on verification costs minutes or days, which is what decides
-    // if that gate is acceptable at all.
+    // Confirming is a hard gate, so this is how long a new account is locked out of the product:
+    // hours here are signups stalled before the first session, not a mail-delivery statistic.
     if (row)
         capture({ userId }, "email_verified", {
             hours_since_signup: Math.round((Date.now() - row.createdAt.getTime()) / 3_600_000),

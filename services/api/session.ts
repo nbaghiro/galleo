@@ -29,7 +29,6 @@ import {
     toUser,
 } from "@services/core/accounts";
 import { domainAcceptsMail } from "@services/core/mail";
-import { releaseSignupGrant } from "@services/core/onboarding";
 import { requireSession, type AuthedEnv } from "./middleware";
 
 export const session = new Hono<AuthedEnv>();
@@ -154,10 +153,7 @@ session.post("/auth/reset", resetLimiter, async (c) => {
     // Consuming a link we mailed proves control of the address, which is the same thing the
     // confirmation code proves. Marking it here keeps the gate coherent: otherwise someone who reset
     // their password would land on the confirm step with nothing left to prove.
-    if (!user.emailVerified) {
-        await markEmailVerified(userId);
-        await releaseSignupGrant(userId).catch(() => false);
-    }
+    if (!user.emailVerified) await markEmailVerified(userId);
     setSessionCookie(c, userId);
     return c.json({ user: { ...user, emailVerified: true } });
 });
@@ -175,8 +171,6 @@ session.post("/auth/confirm", confirmLimiter, requireSession, async (c) => {
     if (codeErr) return c.json({ error: codeErr }, 400);
     if (!(await confirmEmailWithCode(u.id, code)))
         return c.json({ error: "That code is wrong or has expired. Send a new one." }, 400);
-    // the grant is the reason confirming is worth doing; grantOnce means a replayed code cannot re-pay
-    await releaseSignupGrant(u.id).catch(() => false);
     const fresh = await currentUser(getCookie(c, SESSION_COOKIE));
     return c.json({ user: fresh ?? { ...u, emailVerified: true } });
 });

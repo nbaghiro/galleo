@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { ArtifactAccess } from "@model/artifact";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
+import { typicalCost } from "@model/tools";
 import { reserve } from "@services/core/spend";
 import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 
@@ -454,8 +455,8 @@ describe("the per-member credit cap", () => {
     const setWs = (id: string, fields: Partial<typeof schema.workspaces.$inferInsert>) =>
         db.update(schema.workspaces).set(fields).where(eq(schema.workspaces.id, id));
 
-    // generate-theme is a flat 4 credits, so the arithmetic below is exact
-    const COST = 4;
+    // one theme unit on the default model, so the arithmetic below is exact
+    const COST = typicalCost("generate-theme");
 
     beforeEach(async () => {
         await setWs(cast.workspaceId, {

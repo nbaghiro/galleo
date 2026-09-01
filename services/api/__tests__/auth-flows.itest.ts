@@ -52,15 +52,20 @@ const userRow = async (id: string) => {
     return u!;
 };
 
+const wsRow = async (id: string) => {
+    const [w] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, id));
+    return w!;
+};
+
 // seedUser lands verified, which is right for every other suite; the confirm route is the one place
 // that needs an account still waiting.
-const unverified = async (): Promise<{ userId: string }> => {
-    const { userId } = await seedUser();
+const unverified = async (): Promise<{ userId: string; workspaceId: string }> => {
+    const { userId, workspaceId } = await seedUser();
     await db
         .update(schema.users)
         .set({ emailVerifiedAt: null, createdAt: new Date() })
         .where(eq(schema.users.id, userId));
-    return { userId };
+    return { userId, workspaceId };
 };
 
 describe("POST /auth/signup", () => {
@@ -324,6 +329,22 @@ describe("POST /auth/confirm", () => {
         expect((await authed(userId, "/artifacts")).status).toBe(403);
         await confirm(userId, await createVerifyCode(userId));
         expect((await authed(userId, "/artifacts")).status).toBe(200);
+    });
+
+    // Confirming used to release a one-time credit grant. It buys access now and nothing else, so an
+    // account holds the same balance either side of it and the ledger stays empty.
+    it("pays no credits for confirming", async () => {
+        const { userId, workspaceId } = await unverified();
+        const before = await wsRow(workspaceId);
+        await confirm(userId, await createVerifyCode(userId));
+        const after = await wsRow(workspaceId);
+        expect(after.aiCreditsBalance).toBe(before.aiCreditsBalance);
+        expect(after.aiCreditsBalance).toBe(monthlyGrantFor({ plan: "free", seats: 1 }));
+        const ledger = await db
+            .select({ id: schema.credits.id })
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        expect(ledger).toHaveLength(0);
     });
 
     it("400s a wrong code, an expired one, and one minted for another account", async () => {
