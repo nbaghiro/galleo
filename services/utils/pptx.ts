@@ -206,7 +206,24 @@ export interface PptxDeck {
     h: number;
     title?: string;
     scheme: ColorScheme;
+    fonts: FontScheme;
     slides: PptxSlide[];
+    layouts: PptxLayout[];
+}
+
+/**
+ * A master's layout, as a template file carries it: named slots and nothing in them. A .potx keeps
+ * its whole look here and has no slides at all, so this is where its shapes have to be read from.
+ */
+export interface PptxLayout {
+    name?: string;
+    slots: { role: PhRole | "media"; box: Box }[];
+}
+
+/** The theme's own type pairing: major sets headings, minor sets body. */
+export interface FontScheme {
+    major?: string;
+    minor?: string;
 }
 
 interface Transform {
@@ -305,6 +322,17 @@ const PH_ROLES: Record<string, PhRole> = {
     dt: "meta",
 };
 
+// what a layout slot becomes: the roles above, plus the picture-ish types a slide never inherits
+const SLOT_ROLES: Record<string, PhRole | "media"> = {
+    ...PH_ROLES,
+    pic: "media",
+    media: "media",
+    clipArt: "media",
+    obj: "body",
+    tbl: "body",
+    chart: "body",
+};
+
 interface Placeholder {
     type?: string;
     idx?: string;
@@ -330,6 +358,22 @@ function phBoxMap(spTree: XmlNode | undefined, into: Map<string, Box>): void {
         ])
             if (!into.has(key)) into.set(key, box);
     }
+}
+
+// A layout carries its own geometry (it is what slides inherit from), so the master is only a
+// fallback for a slot the layout leaves unplaced.
+function parseLayout(layout: XmlNode, masterBoxes: Map<string, Box>): PptxLayout {
+    const name = kid(layout, "cSld")?.attrs.name?.trim();
+    const slots: PptxLayout["slots"] = [];
+    for (const sp of kids(findAll(layout, "spTree")[0] ?? layout, "sp")) {
+        const ph = placeholderOf(sp);
+        if (!ph) continue;
+        const role = SLOT_ROLES[ph.type ?? "body"] ?? "body";
+        if (role === "meta") continue; // page furniture, not a slot content goes in
+        const box = parseXfrm(descend(sp, "spPr", "xfrm")) ?? inheritedBox(ph, masterBoxes);
+        if (box) slots.push({ role, box });
+    }
+    return { ...(name ? { name } : {}), slots };
 }
 
 function inheritedBox(ph: Placeholder, inherited: Map<string, Box>): Box | null {
@@ -540,6 +584,21 @@ async function partRels(zip: JSZip, partPath: string): Promise<Map<string, Rel>>
 const relOfType = (rels: Map<string, Rel>, suffix: string): Rel | undefined =>
     [...rels.values()].find((r) => r.type.endsWith(suffix));
 
+// A "+mj-lt" face is a reference back into the scheme being read, so it names no family; an empty
+// typeface means the same thing.
+function faceOf(theme: XmlNode, which: string): string | undefined {
+    const font = findAll(theme, which)[0];
+    const face = font ? kid(font, "latin")?.attrs.typeface?.trim() : undefined;
+    return face && !face.startsWith("+") ? face : undefined;
+}
+
+function parseFonts(theme: XmlNode | null): FontScheme {
+    if (!theme) return {};
+    const major = faceOf(theme, "majorFont");
+    const minor = faceOf(theme, "minorFont");
+    return { ...(major ? { major } : {}), ...(minor ? { minor } : {}) };
+}
+
 function parseScheme(theme: XmlNode | null): ColorScheme {
     const out: ColorScheme = {};
     if (!theme) return out;
@@ -595,7 +654,28 @@ export async function parsePptx(bytes: Uint8Array): Promise<PptxDeck> {
     const h = emuToPx(Number(sldSz?.attrs.cy ?? 6858000));
 
     const themeRel = relOfType(presRels, "/theme");
-    const scheme = parseScheme(themeRel ? await partXml(zip, themeRel.target) : null);
+    const themeXml = themeRel ? await partXml(zip, themeRel.target) : null;
+    const scheme = parseScheme(themeXml);
+    const fonts = parseFonts(themeXml);
+
+    // Every master's layouts, in the order the file lists them. A deck with slides never needs
+    // these; a template file has nothing else to offer.
+    const layouts: PptxLayout[] = [];
+    for (const masterId of findAll(presentation, "sldMasterId")) {
+        const masterRelId = rAttr(masterId, "id");
+        const masterRel = masterRelId ? presRels.get(masterRelId) : undefined;
+        if (!masterRel) continue;
+        const master = await partXml(zip, masterRel.target);
+        const masterRels = await partRels(zip, masterRel.target);
+        const masterBoxes = new Map<string, Box>();
+        if (master) phBoxMap(findAll(master, "spTree")[0], masterBoxes);
+        for (const layoutId of master ? findAll(master, "sldLayoutId") : []) {
+            const relId = rAttr(layoutId, "id");
+            const rel = relId ? masterRels.get(relId) : undefined;
+            const layoutXml = rel ? await partXml(zip, rel.target) : null;
+            if (layoutXml) layouts.push(parseLayout(layoutXml, masterBoxes));
+        }
+    }
 
     const core = await partXml(zip, "docProps/core.xml");
     const title = core ? kid(core, "title")?.text.trim() || undefined : undefined;
@@ -632,5 +712,5 @@ export async function parsePptx(bytes: Uint8Array): Promise<PptxDeck> {
         slides.push({ shapes, ...(bg ? { bg } : {}), ...(notes ? { notes } : {}) });
     }
 
-    return { w, h, ...(title ? { title } : {}), scheme, slides };
+    return { w, h, ...(title ? { title } : {}), scheme, fonts, slides, layouts };
 }
