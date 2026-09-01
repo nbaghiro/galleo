@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
 import type { ElementInstance } from "@model/artifact";
 import { childrenRaw } from "@model/artifact";
-import { bgImage, bgTone, img, split, stat, t } from "@model/authoring";
+import {
+    bgImage,
+    bgTone,
+    clampLines,
+    img,
+    pin,
+    polaroid,
+    split,
+    stat,
+    t,
+    table,
+} from "@model/authoring";
 
 const imgData = (e: ElementInstance): { src?: string; radius?: number; fit?: string } =>
     e.data as { src?: string; radius?: number; fit?: string };
@@ -61,5 +72,30 @@ describe("representative leaf builders", () => {
         const s = stat("92%", "uptime");
         expect(s.type).toBe("stat");
         expect(childrenRaw(s)?.map(textOf)).toEqual(["92%", "uptime"]);
+    });
+});
+
+describe("pinning helpers", () => {
+    it("pin lifts an element with fit width and merges anchors over existing layout", () => {
+        const el = pin(t("Badge", "label"), "end", "start", { dx: -16, dy: 16, rotate: -4 });
+        expect(el.layout).toEqual({
+            width: "fit",
+            pin: { x: "end", y: "start", dx: -16, dy: 16, rotate: -4 },
+        });
+        const kept = pin({ ...t("x", "body"), layout: { width: { pct: 30 } } }, "end", "center");
+        expect(kept.layout?.width).toEqual({ pct: 30 });
+    });
+
+    it("polaroid is a solid card holding the photo and its caption", () => {
+        const p = polaroid("https://x/y.jpg", 1.2, "an hour before");
+        const d = p.data as { surface?: string; children?: { type: string }[] };
+        expect(d.surface).toBe("solid");
+        expect(d.children?.map((c) => c.type)).toEqual(["media", "text"]);
+    });
+
+    it("clampLines writes maxLines; table threads clamp only when given", () => {
+        expect((clampLines(t("x", "body"), 3).data as { maxLines?: number }).maxLines).toBe(3);
+        expect((table("a,b\n1,2", true, 1).data as { clamp?: number }).clamp).toBe(1);
+        expect("clamp" in (table("a,b\n1,2").data as Record<string, unknown>)).toBe(false);
     });
 });

@@ -86,7 +86,7 @@ export const checks = (...items: string[]): ElementInstance => ({
 // two are told apart without a second entry point.
 interface ContainerOpts {
     gap?: number;
-    align?: "start" | "center" | "end";
+    align?: "start" | "center" | "end" | "baseline";
     justify?: "between" | "around" | "evenly";
     surface?: "solid" | "outline" | "sideline" | "topline" | "plain";
     bg?: string;
@@ -231,9 +231,9 @@ export const code = (codeText: string): ElementInstance => ({
     data: { code: codeText },
 });
 
-export const table = (data: string, header = true): ElementInstance => ({
+export const table = (data: string, header = true, clamp?: number): ElementInstance => ({
     type: "table",
-    data: { data, header },
+    data: clamp ? { data, header, clamp } : { data, header },
 });
 
 export const diagram = (type: string, items: string, height = 220): ElementInstance => ({
@@ -254,6 +254,24 @@ export const callout = (tone: string, ...children: ElementInstance[]): ElementIn
 /** A column with a surface. The older spelling of `col({ surface: … })`. */
 export const card = (...children: ElementInstance[]): ElementInstance =>
     container("col", [{ surface: "solid" }, ...children]);
+
+/** Lift out of the flow, anchored to the parent's box; offsets in px at compose scale. */
+export const pin = (
+    el: ElementInstance,
+    x: "start" | "center" | "end",
+    y: "start" | "center" | "end",
+    opts?: { dx?: number; dy?: number; z?: number; rotate?: number },
+): ElementInstance => ({ ...el, layout: { width: "fit", ...el.layout, pin: { x, y, ...opts } } });
+
+/** A photo and its caption on one small card, ready to pin and turn. */
+export const polaroid = (src: string, aspect: number, caption: string): ElementInstance =>
+    col({ surface: "solid" }, img(src, aspect, 8), t(caption, "caption"));
+
+/** Clamp a text element to n painted lines. */
+export const clampLines = (el: ElementInstance, lines: number): ElementInstance => ({
+    ...el,
+    data: { ...(el.data as Record<string, unknown>), maxLines: lines },
+});
 
 //
 // Each composite element reads its children by position (testimonial indexes four fixed slots,
