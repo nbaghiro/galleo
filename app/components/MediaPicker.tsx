@@ -646,13 +646,23 @@ export const MediaPicker: Component = () => {
         const url = linkUrl().trim();
         if (!url) return;
         setError("");
-        if (isEmbedVideoUrl(url)) {
-            pickMedia(url, undefined, "video");
-            return;
-        }
         setLoading(true);
         try {
-            pickMedia((await api.adoptLink(url)).url, undefined, kind());
+            const res = await api.adoptLink(url);
+            const embed = isEmbedVideoUrl(url);
+            // the poster rides back as the item's still, which is the field the media control
+            // already writes into the element's `poster`
+            const item = res.poster
+                ? {
+                      id: url,
+                      source: "link" as const,
+                      url: res.url,
+                      thumbUrl: res.poster,
+                      width: 0,
+                      height: 0,
+                  }
+                : undefined;
+            pickMedia(res.url, item, embed ? "video" : kind());
         } catch (e) {
             setError(e instanceof Error ? e.message : "Could not add that link");
         }
@@ -746,9 +756,22 @@ export const MediaPicker: Component = () => {
                     src={it.url}
                     muted
                     loop
-                    autoplay
                     playsinline
-                    class="pointer-events-none block w-full bg-black"
+                    // A grid of autoplaying clips downloads every one of them in full. Metadata is
+                    // enough to paint the first frame; hovering is what says you want to watch it.
+                    preload="metadata"
+                    poster={it.thumbUrl !== it.url ? it.thumbUrl : undefined}
+                    onMouseEnter={(e) => void e.currentTarget.play().catch(() => {})}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.pause();
+                        e.currentTarget.currentTime = 0;
+                    }}
+                    style={
+                        it.width > 0 && it.height > 0
+                            ? { "aspect-ratio": `${it.width} / ${it.height}` }
+                            : undefined
+                    }
+                    class="block w-full bg-black"
                 />
             </Show>
             <Show when={kind() === "video" && it.source !== "generated"}>
