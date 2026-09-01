@@ -157,6 +157,13 @@ export async function loadCustomThemes(): Promise<void> {
     }
 }
 
+// the server can create a theme mid-session (an imported template adopts one), and until it is
+// registered `resolveTheme` answers with the default
+export async function refreshCustomThemes(): Promise<void> {
+    loaded = false;
+    await loadCustomThemes();
+}
+
 export interface ThemeDraft {
     name: string;
     tokens: Tokens;
