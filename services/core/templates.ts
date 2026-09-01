@@ -22,9 +22,12 @@ import {
     fill,
     fitW,
     group,
-    linked,
     img,
+    linked,
     menu,
+    middle,
+    pin,
+    polaroid,
     pricing,
     profile,
     quote,
@@ -37,6 +40,7 @@ import {
     tabs,
     testimonial,
     video,
+    w,
     web,
 } from "@model/authoring";
 
@@ -68,7 +72,792 @@ const navCta = (label: string, href: string): ElementInstance =>
 // A hand-picked photo from the Lorem Picsum catalog, addressed by its stable id, so a template's
 // imagery is chosen rather than hashed: the seed form hands back an arbitrary photo, and an
 // arbitrary photo is how a furniture studio ends up illustrated by a jellyfish.
-const pic = (id: number, w = 1100, h = 900): string => `https://picsum.photos/id/${id}/${w}/${h}`;
+// One entry per call site, chosen for the copy around it. Pexels rather than Unsplash: its licence
+// lets us hold the bytes when template imagery moves to our own storage, and it asks for no credit.
+const PHOTOS: Record<number, string> = {
+    // Resume / CV
+    1: "https://images.pexels.com/photos/15626630/pexels-photo-15626630.jpeg",
+    2: "https://images.pexels.com/photos/28532744/pexels-photo-28532744.jpeg",
+    3: "https://images.pexels.com/photos/27668992/pexels-photo-27668992.jpeg",
+    4: "https://images.pexels.com/photos/20303270/pexels-photo-20303270.jpeg",
+    // Portfolio
+    5: "https://images.pexels.com/photos/8407574/pexels-photo-8407574.jpeg",
+    6: "https://images.pexels.com/photos/6568664/pexels-photo-6568664.jpeg",
+    7: "https://images.pexels.com/photos/28614771/pexels-photo-28614771.jpeg",
+    8: "https://images.pexels.com/photos/28247932/pexels-photo-28247932.jpeg",
+    9: "https://images.pexels.com/photos/36595323/pexels-photo-36595323.jpeg",
+    10: "https://images.pexels.com/photos/11406429/pexels-photo-11406429.jpeg",
+    11: "https://images.pexels.com/photos/15301096/pexels-photo-15301096.jpeg",
+    12: "https://images.pexels.com/photos/7045354/pexels-photo-7045354.jpeg",
+    13: "https://images.pexels.com/photos/31771243/pexels-photo-31771243.jpeg",
+    14: "https://images.pexels.com/photos/7608683/pexels-photo-7608683.jpeg",
+    15: "https://images.pexels.com/photos/9616927/pexels-photo-9616927.jpeg",
+    16: "https://images.pexels.com/photos/17491757/pexels-photo-17491757.jpeg",
+    // Personal Site
+    17: "https://images.pexels.com/photos/35983705/pexels-photo-35983705.jpeg",
+    18: "https://images.pexels.com/photos/4271613/pexels-photo-4271613.jpeg",
+    19: "https://images.pexels.com/photos/763135/pexels-photo-763135.jpeg",
+    20: "https://images.pexels.com/photos/38978902/pexels-photo-38978902.jpeg",
+    21: "https://images.pexels.com/photos/5095576/pexels-photo-5095576.jpeg",
+    // Cover Letter
+    22: "https://images.pexels.com/photos/7424583/pexels-photo-7424583.jpeg",
+    23: "https://images.pexels.com/photos/28056608/pexels-photo-28056608.jpeg",
+    24: "https://images.pexels.com/photos/1046403/pexels-photo-1046403.jpeg",
+    25: "https://images.pexels.com/photos/15222306/pexels-photo-15222306.jpeg",
+    // Event Invite
+    26: "https://images.pexels.com/photos/38928225/pexels-photo-38928225.jpeg",
+    27: "https://images.pexels.com/photos/28494742/pexels-photo-28494742.jpeg",
+    28: "https://images.pexels.com/photos/13059659/pexels-photo-13059659.jpeg",
+    29: "https://images.pexels.com/photos/32468906/pexels-photo-32468906.png",
+    30: "https://images.pexels.com/photos/19986458/pexels-photo-19986458.jpeg",
+    31: "https://images.pexels.com/photos/38814152/pexels-photo-38814152.jpeg",
+    32: "https://images.pexels.com/photos/10598388/pexels-photo-10598388.jpeg",
+    33: "https://images.pexels.com/photos/7405768/pexels-photo-7405768.jpeg",
+    34: "https://images.pexels.com/photos/4993964/pexels-photo-4993964.jpeg",
+    35: "https://images.pexels.com/photos/10360901/pexels-photo-10360901.jpeg",
+    36: "https://images.pexels.com/photos/39072312/pexels-photo-39072312.jpeg",
+    37: "https://images.pexels.com/photos/33557773/pexels-photo-33557773.jpeg",
+    // Photo Essay
+    38: "https://images.pexels.com/photos/31254345/pexels-photo-31254345.jpeg",
+    39: "https://images.pexels.com/photos/3544024/pexels-photo-3544024.jpeg",
+    40: "https://images.pexels.com/photos/28665520/pexels-photo-28665520.jpeg",
+    41: "https://images.pexels.com/photos/8193091/pexels-photo-8193091.jpeg",
+    42: "https://images.pexels.com/photos/5800341/pexels-photo-5800341.jpeg",
+    43: "https://images.pexels.com/photos/5854264/pexels-photo-5854264.jpeg",
+    44: "https://images.pexels.com/photos/34942811/pexels-photo-34942811.jpeg",
+    45: "https://images.pexels.com/photos/4000528/pexels-photo-4000528.jpeg",
+    46: "https://images.pexels.com/photos/9877700/pexels-photo-9877700.jpeg",
+    47: "https://images.pexels.com/photos/37020525/pexels-photo-37020525.jpeg",
+    48: "https://images.pexels.com/photos/13937492/pexels-photo-13937492.jpeg",
+    49: "https://images.pexels.com/photos/7147393/pexels-photo-7147393.jpeg",
+    50: "https://images.pexels.com/photos/11534866/pexels-photo-11534866.jpeg",
+    // Product Launch
+    51: "https://images.pexels.com/photos/6738989/pexels-photo-6738989.jpeg",
+    52: "https://images.pexels.com/photos/38883107/pexels-photo-38883107.jpeg",
+    53: "https://images.pexels.com/photos/8668767/pexels-photo-8668767.jpeg",
+    54: "https://images.pexels.com/photos/15485973/pexels-photo-15485973.jpeg",
+    55: "https://images.pexels.com/photos/9123787/pexels-photo-9123787.jpeg",
+    56: "https://images.pexels.com/photos/8093107/pexels-photo-8093107.jpeg",
+    57: "https://images.pexels.com/photos/5217124/pexels-photo-5217124.jpeg",
+    58: "https://images.pexels.com/photos/26535233/pexels-photo-26535233.jpeg",
+    59: "https://images.pexels.com/photos/6036671/pexels-photo-6036671.jpeg",
+    60: "https://images.pexels.com/photos/1410227/pexels-photo-1410227.jpeg",
+    61: "https://images.pexels.com/photos/11705368/pexels-photo-11705368.jpeg",
+    62: "https://images.pexels.com/photos/8945688/pexels-photo-8945688.jpeg",
+    // Landing Page
+    63: "https://images.pexels.com/photos/1702975/pexels-photo-1702975.jpeg",
+    64: "https://images.pexels.com/photos/37245159/pexels-photo-37245159.jpeg",
+    65: "https://images.pexels.com/photos/10655907/pexels-photo-10655907.jpeg",
+    66: "https://images.pexels.com/photos/16856001/pexels-photo-16856001.jpeg",
+    67: "https://images.pexels.com/photos/29181531/pexels-photo-29181531.jpeg",
+    68: "https://images.pexels.com/photos/4072418/pexels-photo-4072418.jpeg",
+    69: "https://images.pexels.com/photos/1699588/pexels-photo-1699588.jpeg",
+    70: "https://images.pexels.com/photos/7478219/pexels-photo-7478219.jpeg",
+    // Event Page
+    71: "https://images.pexels.com/photos/12092991/pexels-photo-12092991.jpeg",
+    72: "https://images.pexels.com/photos/35755223/pexels-photo-35755223.jpeg",
+    73: "https://images.pexels.com/photos/8063875/pexels-photo-8063875.jpeg",
+    74: "https://images.pexels.com/photos/3938693/pexels-photo-3938693.jpeg",
+    75: "https://images.pexels.com/photos/15988007/pexels-photo-15988007.jpeg",
+    76: "https://images.pexels.com/photos/31746947/pexels-photo-31746947.jpeg",
+    77: "https://images.pexels.com/photos/1530989/pexels-photo-1530989.jpeg",
+    78: "https://images.pexels.com/photos/11666837/pexels-photo-11666837.jpeg",
+    79: "https://images.pexels.com/photos/19748924/pexels-photo-19748924.jpeg",
+    80: "https://images.pexels.com/photos/13091850/pexels-photo-13091850.jpeg",
+    // Waitlist Page
+    81: "https://images.pexels.com/photos/10050598/pexels-photo-10050598.jpeg",
+    82: "https://images.pexels.com/photos/18672116/pexels-photo-18672116.jpeg",
+    83: "https://images.pexels.com/photos/38798400/pexels-photo-38798400.jpeg",
+    84: "https://images.pexels.com/photos/19116577/pexels-photo-19116577.jpeg",
+    85: "https://images.pexels.com/photos/39126643/pexels-photo-39126643.jpeg",
+    86: "https://images.pexels.com/photos/55692/pexels-photo-55692.jpeg",
+    87: "https://images.pexels.com/photos/36598108/pexels-photo-36598108.jpeg",
+    88: "https://images.pexels.com/photos/31718952/pexels-photo-31718952.jpeg",
+    89: "https://images.pexels.com/photos/34819928/pexels-photo-34819928.jpeg",
+    90: "https://images.pexels.com/photos/30923401/pexels-photo-30923401.jpeg",
+    // Agency Site
+    91: "https://images.pexels.com/photos/33659313/pexels-photo-33659313.jpeg",
+    92: "https://images.pexels.com/photos/37869150/pexels-photo-37869150.jpeg",
+    93: "https://images.pexels.com/photos/7227392/pexels-photo-7227392.jpeg",
+    94: "https://images.pexels.com/photos/12602048/pexels-photo-12602048.jpeg",
+    95: "https://images.pexels.com/photos/9017623/pexels-photo-9017623.jpeg",
+    96: "https://images.pexels.com/photos/8369439/pexels-photo-8369439.jpeg",
+    97: "https://images.pexels.com/photos/4553681/pexels-photo-4553681.jpeg",
+    98: "https://images.pexels.com/photos/29939683/pexels-photo-29939683.jpeg",
+    99: "https://images.pexels.com/photos/18805935/pexels-photo-18805935.jpeg",
+    100: "https://images.pexels.com/photos/4348298/pexels-photo-4348298.jpeg",
+    101: "https://images.pexels.com/photos/17393436/pexels-photo-17393436.jpeg",
+    102: "https://images.pexels.com/photos/10019044/pexels-photo-10019044.jpeg",
+    // Newsletter
+    103: "https://images.pexels.com/photos/9587604/pexels-photo-9587604.jpeg",
+    104: "https://images.pexels.com/photos/23924354/pexels-photo-23924354.jpeg",
+    105: "https://images.pexels.com/photos/30817748/pexels-photo-30817748.jpeg",
+    106: "https://images.pexels.com/photos/35254120/pexels-photo-35254120.jpeg",
+    107: "https://images.pexels.com/photos/783164/pexels-photo-783164.jpeg",
+    // Startup Pitch Deck
+    108: "https://images.pexels.com/photos/8092571/pexels-photo-8092571.jpeg",
+    109: "https://images.pexels.com/photos/2696064/pexels-photo-2696064.jpeg",
+    110: "https://images.pexels.com/photos/30027297/pexels-photo-30027297.jpeg",
+    111: "https://images.pexels.com/photos/12519455/pexels-photo-12519455.jpeg",
+    112: "https://images.pexels.com/photos/8093921/pexels-photo-8093921.jpeg",
+    113: "https://images.pexels.com/photos/32911921/pexels-photo-32911921.png",
+    114: "https://images.pexels.com/photos/10432857/pexels-photo-10432857.jpeg",
+    115: "https://images.pexels.com/photos/8528901/pexels-photo-8528901.jpeg",
+    116: "https://images.pexels.com/photos/4253300/pexels-photo-4253300.jpeg",
+    117: "https://images.pexels.com/photos/15671410/pexels-photo-15671410.jpeg",
+    118: "https://images.pexels.com/photos/7058546/pexels-photo-7058546.jpeg",
+    119: "https://images.pexels.com/photos/14295998/pexels-photo-14295998.jpeg",
+    // Sales Deck
+    120: "https://images.pexels.com/photos/2800121/pexels-photo-2800121.jpeg",
+    121: "https://images.pexels.com/photos/635054/pexels-photo-635054.jpeg",
+    122: "https://images.pexels.com/photos/7564861/pexels-photo-7564861.jpeg",
+    123: "https://images.pexels.com/photos/8858566/pexels-photo-8858566.jpeg",
+    124: "https://images.pexels.com/photos/38305357/pexels-photo-38305357.jpeg",
+    125: "https://images.pexels.com/photos/7541988/pexels-photo-7541988.jpeg",
+    126: "https://images.pexels.com/photos/9229421/pexels-photo-9229421.jpeg",
+    127: "https://images.pexels.com/photos/2348359/pexels-photo-2348359.jpeg",
+    // Series A Deck
+    128: "https://images.pexels.com/photos/7196847/pexels-photo-7196847.jpeg",
+    129: "https://images.pexels.com/photos/7859953/pexels-photo-7859953.jpeg",
+    130: "https://images.pexels.com/photos/5366572/pexels-photo-5366572.jpeg",
+    131: "https://images.pexels.com/photos/34610696/pexels-photo-34610696.jpeg",
+    132: "https://images.pexels.com/photos/39253418/pexels-photo-39253418.jpeg",
+    133: "https://images.pexels.com/photos/5303020/pexels-photo-5303020.jpeg",
+    134: "https://images.pexels.com/photos/1802766/pexels-photo-1802766.jpeg",
+    135: "https://images.pexels.com/photos/38257882/pexels-photo-38257882.jpeg",
+    136: "https://images.pexels.com/photos/5549602/pexels-photo-5549602.jpeg",
+    137: "https://images.pexels.com/photos/31785152/pexels-photo-31785152.jpeg",
+    // Product Demo Deck
+    138: "https://images.pexels.com/photos/37919436/pexels-photo-37919436.jpeg",
+    139: "https://images.pexels.com/photos/7616813/pexels-photo-7616813.jpeg",
+    140: "https://images.pexels.com/photos/8386572/pexels-photo-8386572.jpeg",
+    141: "https://images.pexels.com/photos/34432772/pexels-photo-34432772.jpeg",
+    142: "https://images.pexels.com/photos/17060529/pexels-photo-17060529.jpeg",
+    143: "https://images.pexels.com/photos/10718795/pexels-photo-10718795.jpeg",
+    144: "https://images.pexels.com/photos/7706489/pexels-photo-7706489.jpeg",
+    145: "https://images.pexels.com/photos/31020856/pexels-photo-31020856.jpeg",
+    146: "https://images.pexels.com/photos/32901646/pexels-photo-32901646.jpeg",
+    147: "https://images.pexels.com/photos/30923399/pexels-photo-30923399.jpeg",
+    // Company Overview
+    148: "https://images.pexels.com/photos/4705928/pexels-photo-4705928.jpeg",
+    149: "https://images.pexels.com/photos/313773/pexels-photo-313773.jpeg",
+    150: "https://images.pexels.com/photos/37772317/pexels-photo-37772317.jpeg",
+    151: "https://images.pexels.com/photos/7193706/pexels-photo-7193706.jpeg",
+    152: "https://images.pexels.com/photos/4172382/pexels-photo-4172382.jpeg",
+    153: "https://images.pexels.com/photos/14680170/pexels-photo-14680170.jpeg",
+    154: "https://images.pexels.com/photos/5974251/pexels-photo-5974251.jpeg",
+    155: "https://images.pexels.com/photos/34361571/pexels-photo-34361571.jpeg",
+    156: "https://images.pexels.com/photos/7484789/pexels-photo-7484789.jpeg",
+    157: "https://images.pexels.com/photos/6790108/pexels-photo-6790108.jpeg",
+    158: "https://images.pexels.com/photos/5973906/pexels-photo-5973906.jpeg",
+    159: "https://images.pexels.com/photos/4450106/pexels-photo-4450106.jpeg",
+    160: "https://images.pexels.com/photos/5711774/pexels-photo-5711774.jpeg",
+    161: "https://images.pexels.com/photos/1406367/pexels-photo-1406367.jpeg",
+    162: "https://images.pexels.com/photos/18152525/pexels-photo-18152525.jpeg",
+    // Go-to-Market Plan
+    163: "https://images.pexels.com/photos/38414197/pexels-photo-38414197.jpeg",
+    164: "https://images.pexels.com/photos/7289707/pexels-photo-7289707.jpeg",
+    165: "https://images.pexels.com/photos/8386651/pexels-photo-8386651.jpeg",
+    166: "https://images.pexels.com/photos/4483860/pexels-photo-4483860.jpeg",
+    167: "https://images.pexels.com/photos/7018662/pexels-photo-7018662.jpeg",
+    168: "https://images.pexels.com/photos/34718922/pexels-photo-34718922.jpeg",
+    169: "https://images.pexels.com/photos/8921700/pexels-photo-8921700.jpeg",
+    170: "https://images.pexels.com/photos/6169177/pexels-photo-6169177.jpeg",
+    171: "https://images.pexels.com/photos/5638732/pexels-photo-5638732.jpeg",
+    172: "https://images.pexels.com/photos/14690527/pexels-photo-14690527.jpeg",
+    173: "https://images.pexels.com/photos/4618598/pexels-photo-4618598.jpeg",
+    // Project Proposal
+    174: "https://images.pexels.com/photos/34258683/pexels-photo-34258683.jpeg",
+    175: "https://images.pexels.com/photos/28458009/pexels-photo-28458009.jpeg",
+    176: "https://images.pexels.com/photos/672997/pexels-photo-672997.jpeg",
+    177: "https://images.pexels.com/photos/4787613/pexels-photo-4787613.jpeg",
+    178: "https://images.pexels.com/photos/8091464/pexels-photo-8091464.jpeg",
+    179: "https://images.pexels.com/photos/35181261/pexels-photo-35181261.jpeg",
+    180: "https://images.pexels.com/photos/31723396/pexels-photo-31723396.jpeg",
+    181: "https://images.pexels.com/photos/15757545/pexels-photo-15757545.jpeg",
+    182: "https://images.pexels.com/photos/4820811/pexels-photo-4820811.jpeg",
+    183: "https://images.pexels.com/photos/978319/pexels-photo-978319.jpeg",
+    // Investor Update
+    184: "https://images.pexels.com/photos/3674371/pexels-photo-3674371.jpeg",
+    185: "https://images.pexels.com/photos/133576/pexels-photo-133576.jpeg",
+    186: "https://images.pexels.com/photos/957918/ramsauer-ache-ramsau-water-river-957918.jpeg",
+    187: "https://images.pexels.com/photos/13057864/pexels-photo-13057864.jpeg",
+    // Business Proposal
+    188: "https://images.pexels.com/photos/8783541/pexels-photo-8783541.jpeg",
+    189: "https://images.pexels.com/photos/31336007/pexels-photo-31336007.jpeg",
+    190: "https://images.pexels.com/photos/9799731/pexels-photo-9799731.jpeg",
+    191: "https://images.pexels.com/photos/6729427/pexels-photo-6729427.jpeg",
+    192: "https://images.pexels.com/photos/32845660/pexels-photo-32845660.jpeg",
+    193: "https://images.pexels.com/photos/7648247/pexels-photo-7648247.jpeg",
+    194: "https://images.pexels.com/photos/8960946/pexels-photo-8960946.jpeg",
+    195: "https://images.pexels.com/photos/9875418/pexels-photo-9875418.jpeg",
+    196: "https://images.pexels.com/photos/39120404/pexels-photo-39120404.jpeg",
+    // Board Deck
+    197: "https://images.pexels.com/photos/17912771/pexels-photo-17912771.jpeg",
+    198: "https://images.pexels.com/photos/33207979/pexels-photo-33207979.jpeg",
+    199: "https://images.pexels.com/photos/27906817/pexels-photo-27906817.jpeg",
+    200: "https://images.pexels.com/photos/1480597/pexels-photo-1480597.jpeg",
+    // Sponsorship Proposal
+    201: "https://images.pexels.com/photos/28774410/pexels-photo-28774410.jpeg",
+    202: "https://images.pexels.com/photos/12657546/pexels-photo-12657546.jpeg",
+    203: "https://images.pexels.com/photos/803046/pexels-photo-803046.jpeg",
+    204: "https://images.pexels.com/photos/7546601/pexels-photo-7546601.jpeg",
+    205: "https://images.pexels.com/photos/36243530/pexels-photo-36243530.jpeg",
+    206: "https://images.pexels.com/photos/29775304/pexels-photo-29775304.jpeg",
+    207: "https://images.pexels.com/photos/5239525/pexels-photo-5239525.jpeg",
+    208: "https://images.pexels.com/photos/13168697/pexels-photo-13168697.jpeg",
+    209: "https://images.pexels.com/photos/7528134/pexels-photo-7528134.jpeg",
+    210: "https://images.pexels.com/photos/7357310/pexels-photo-7357310.jpeg",
+    // Statement of Work
+    211: "https://images.pexels.com/photos/1671630/pexels-photo-1671630.jpeg",
+    212: "https://images.pexels.com/photos/34429712/pexels-photo-34429712.jpeg",
+    213: "https://images.pexels.com/photos/10254876/pexels-photo-10254876.jpeg",
+    214: "https://images.pexels.com/photos/5571969/pexels-photo-5571969.jpeg",
+    // Annual Report
+    215: "https://images.pexels.com/photos/20013170/pexels-photo-20013170.jpeg",
+    216: "https://images.pexels.com/photos/39058020/pexels-photo-39058020.jpeg",
+    217: "https://images.pexels.com/photos/18306343/pexels-photo-18306343.jpeg",
+    218: "https://images.pexels.com/photos/13402800/pexels-photo-13402800.jpeg",
+    219: "https://images.pexels.com/photos/32759835/pexels-photo-32759835.jpeg",
+    220: "https://images.pexels.com/photos/18332045/pexels-photo-18332045.jpeg",
+    221: "https://images.pexels.com/photos/13199323/pexels-photo-13199323.jpeg",
+    222: "https://images.pexels.com/photos/7285975/pexels-photo-7285975.jpeg",
+    223: "https://images.pexels.com/photos/32901665/pexels-photo-32901665.jpeg",
+    // Case Study
+    224: "https://images.pexels.com/photos/9102597/pexels-photo-9102597.jpeg",
+    225: "https://images.pexels.com/photos/36430088/pexels-photo-36430088.jpeg",
+    226: "https://images.pexels.com/photos/5531289/pexels-photo-5531289.jpeg",
+    227: "https://images.pexels.com/photos/16636352/pexels-photo-16636352.jpeg",
+    228: "https://images.pexels.com/photos/262978/pexels-photo-262978.jpeg",
+    229: "https://images.pexels.com/photos/18405036/pexels-photo-18405036.jpeg",
+    230: "https://images.pexels.com/photos/36799163/pexels-photo-36799163.jpeg",
+    // Research Report
+    231: "https://images.pexels.com/photos/29229921/pexels-photo-29229921.jpeg",
+    232: "https://images.pexels.com/photos/10544670/pexels-photo-10544670.jpeg",
+    233: "https://images.pexels.com/photos/6883797/pexels-photo-6883797.jpeg",
+    234: "https://images.pexels.com/photos/38197406/pexels-photo-38197406.jpeg",
+    235: "https://images.pexels.com/photos/18136344/pexels-photo-18136344.jpeg",
+    236: "https://images.pexels.com/photos/3931441/pexels-photo-3931441.jpeg",
+    237: "https://images.pexels.com/photos/9405998/pexels-photo-9405998.jpeg",
+    238: "https://images.pexels.com/photos/31376296/pexels-photo-31376296.jpeg",
+    // Market Analysis
+    239: "https://images.pexels.com/photos/4678065/pexels-photo-4678065.jpeg",
+    240: "https://images.pexels.com/photos/9799736/pexels-photo-9799736.jpeg",
+    241: "https://images.pexels.com/photos/29653407/pexels-photo-29653407.jpeg",
+    242: "https://images.pexels.com/photos/5660747/pexels-photo-5660747.jpeg",
+    243: "https://images.pexels.com/photos/4005049/pexels-photo-4005049.jpeg",
+    244: "https://images.pexels.com/photos/16586150/pexels-photo-16586150.jpeg",
+    245: "https://images.pexels.com/photos/13034408/pexels-photo-13034408.jpeg",
+    246: "https://images.pexels.com/photos/9800035/pexels-photo-9800035.jpeg",
+    // Quarterly Business Review
+    247: "https://images.pexels.com/photos/16827297/pexels-photo-16827297.jpeg",
+    248: "https://images.pexels.com/photos/7316998/pexels-photo-7316998.jpeg",
+    249: "https://images.pexels.com/photos/7708657/pexels-photo-7708657.jpeg",
+    250: "https://images.pexels.com/photos/12182294/pexels-photo-12182294.jpeg",
+    251: "https://images.pexels.com/photos/8964568/pexels-photo-8964568.jpeg",
+    252: "https://images.pexels.com/photos/12264570/pexels-photo-12264570.jpeg",
+    // Industry Trends Report
+    253: "https://images.pexels.com/photos/27530475/pexels-photo-27530475.jpeg",
+    254: "https://images.pexels.com/photos/18471441/pexels-photo-18471441.jpeg",
+    255: "https://images.pexels.com/photos/16544056/pexels-photo-16544056.jpeg",
+    256: "https://images.pexels.com/photos/36217325/pexels-photo-36217325.jpeg",
+    257: "https://images.pexels.com/photos/12747007/pexels-photo-12747007.jpeg",
+    258: "https://images.pexels.com/photos/19750125/pexels-photo-19750125.jpeg",
+    // Restaurant Menu
+    259: "https://images.pexels.com/photos/36029879/pexels-photo-36029879.jpeg",
+    260: "https://images.pexels.com/photos/27101539/pexels-photo-27101539.jpeg",
+    261: "https://images.pexels.com/photos/27828493/pexels-photo-27828493.jpeg",
+    262: "https://images.pexels.com/photos/35567499/pexels-photo-35567499.jpeg",
+    263: "https://images.pexels.com/photos/93796/pexels-photo-93796.jpeg",
+    264: "https://images.pexels.com/photos/15971319/pexels-photo-15971319.jpeg",
+    // Travel Itinerary
+    265: "https://images.pexels.com/photos/12382830/pexels-photo-12382830.jpeg",
+    266: "https://images.pexels.com/photos/20955080/pexels-photo-20955080.jpeg",
+    267: "https://images.pexels.com/photos/27128374/pexels-photo-27128374.jpeg",
+    268: "https://images.pexels.com/photos/20458520/pexels-photo-20458520.jpeg",
+    269: "https://images.pexels.com/photos/2236602/pexels-photo-2236602.jpeg",
+    270: "https://images.pexels.com/photos/32265085/pexels-photo-32265085.jpeg",
+    271: "https://images.pexels.com/photos/35919331/pexels-photo-35919331.jpeg",
+    272: "https://images.pexels.com/photos/8904578/pexels-photo-8904578.jpeg",
+    273: "https://images.pexels.com/photos/29877239/pexels-photo-29877239.jpeg",
+    274: "https://images.pexels.com/photos/31291321/pexels-photo-31291321.jpeg",
+    275: "https://images.pexels.com/photos/35901123/pexels-photo-35901123.jpeg",
+    276: "https://images.pexels.com/photos/614484/pexels-photo-614484.jpeg",
+    277: "https://images.pexels.com/photos/27680481/pexels-photo-27680481.jpeg",
+    // Property Listing
+    278: "https://images.pexels.com/photos/7046770/pexels-photo-7046770.jpeg",
+    279: "https://images.pexels.com/photos/10855258/pexels-photo-10855258.jpeg",
+    280: "https://images.pexels.com/photos/2889618/pexels-photo-2889618.jpeg",
+    281: "https://images.pexels.com/photos/39163577/pexels-photo-39163577.jpeg",
+    282: "https://images.pexels.com/photos/31996198/pexels-photo-31996198.jpeg",
+    283: "https://images.pexels.com/photos/10681197/pexels-photo-10681197.jpeg",
+    284: "https://images.pexels.com/photos/23957265/pexels-photo-23957265.jpeg",
+    285: "https://images.pexels.com/photos/8829198/pexels-photo-8829198.jpeg",
+    286: "https://images.pexels.com/photos/35425402/pexels-photo-35425402.jpeg",
+    287: "https://images.pexels.com/photos/12909227/pexels-photo-12909227.jpeg",
+    // Guest Guide
+    288: "https://images.pexels.com/photos/20555138/pexels-photo-20555138.jpeg",
+    289: "https://images.pexels.com/photos/32278894/pexels-photo-32278894.jpeg",
+    290: "https://images.pexels.com/photos/33338121/pexels-photo-33338121.jpeg",
+    291: "https://images.pexels.com/photos/33843099/pexels-photo-33843099.jpeg",
+    292: "https://images.pexels.com/photos/30274512/pexels-photo-30274512.jpeg",
+    293: "https://images.pexels.com/photos/1796710/pexels-photo-1796710.jpeg",
+    294: "https://images.pexels.com/photos/11150214/pexels-photo-11150214.jpeg",
+    295: "https://images.pexels.com/photos/30100918/pexels-photo-30100918.jpeg",
+    296: "https://images.pexels.com/photos/5505744/pexels-photo-5505744.jpeg",
+    297: "https://images.pexels.com/photos/36931077/pexels-photo-36931077.jpeg",
+    // Recipe Collection
+    298: "https://images.pexels.com/photos/37848848/pexels-photo-37848848.jpeg",
+    299: "https://images.pexels.com/photos/6287295/pexels-photo-6287295.jpeg",
+    300: "https://images.pexels.com/photos/566564/pexels-photo-566564.jpeg",
+    301: "https://images.pexels.com/photos/5645031/pexels-photo-5645031.jpeg",
+    302: "https://images.pexels.com/photos/7262983/pexels-photo-7262983.jpeg",
+    303: "https://images.pexels.com/photos/35041670/pexels-photo-35041670.jpeg",
+    304: "https://images.pexels.com/photos/574125/pexels-photo-574125.jpeg",
+    305: "https://images.pexels.com/photos/14146060/pexels-photo-14146060.jpeg",
+    306: "https://images.pexels.com/photos/9878732/pexels-photo-9878732.jpeg",
+    307: "https://images.pexels.com/photos/4033108/pexels-photo-4033108.jpeg",
+    // Event Program
+    308: "https://images.pexels.com/photos/22863012/pexels-photo-22863012.jpeg",
+    309: "https://images.pexels.com/photos/7715781/pexels-photo-7715781.jpeg",
+    310: "https://images.pexels.com/photos/30175901/pexels-photo-30175901.jpeg",
+    311: "https://images.pexels.com/photos/9419224/pexels-photo-9419224.jpeg",
+    312: "https://images.pexels.com/photos/31644581/pexels-photo-31644581.jpeg",
+    313: "https://images.pexels.com/photos/18477124/pexels-photo-18477124.jpeg",
+    314: "https://images.pexels.com/photos/30838766/pexels-photo-30838766.jpeg",
+    315: "https://images.pexels.com/photos/39004762/pexels-photo-39004762.jpeg",
+    316: "https://images.pexels.com/photos/10024790/pexels-photo-10024790.jpeg",
+    // Executive Summary
+    317: "https://images.pexels.com/photos/27830878/pexels-photo-27830878.jpeg",
+    318: "https://images.pexels.com/photos/13971183/pexels-photo-13971183.jpeg",
+    319: "https://images.pexels.com/photos/18274597/pexels-photo-18274597.jpeg",
+    320: "https://images.pexels.com/photos/6223001/pexels-photo-6223001.jpeg",
+    321: "https://images.pexels.com/photos/35096909/pexels-photo-35096909.jpeg",
+    322: "https://images.pexels.com/photos/35484457/pexels-photo-35484457.jpeg",
+    323: "https://images.pexels.com/photos/3257659/pexels-photo-3257659.jpeg",
+    324: "https://images.pexels.com/photos/34937972/pexels-photo-34937972.jpeg",
+    // Product One-Pager
+    325: "https://images.pexels.com/photos/11053643/pexels-photo-11053643.jpeg",
+    326: "https://images.pexels.com/photos/6720532/pexels-photo-6720532.jpeg",
+    327: "https://images.pexels.com/photos/27099093/pexels-photo-27099093.jpeg",
+    328: "https://images.pexels.com/photos/38189356/pexels-photo-38189356.jpeg",
+    329: "https://images.pexels.com/photos/4345863/pexels-photo-4345863.jpeg",
+    330: "https://images.pexels.com/photos/10826603/pexels-photo-10826603.jpeg",
+    // Company Fact Sheet
+    331: "https://images.pexels.com/photos/19740640/pexels-photo-19740640.jpeg",
+    332: "https://images.pexels.com/photos/30552490/pexels-photo-30552490.jpeg",
+    333: "https://images.pexels.com/photos/15559302/pexels-photo-15559302.jpeg",
+    334: "https://images.pexels.com/photos/19311440/pexels-photo-19311440.jpeg",
+    335: "https://images.pexels.com/photos/6699404/pexels-photo-6699404.jpeg",
+    336: "https://images.pexels.com/photos/5991595/pexels-photo-5991595.jpeg",
+    337: "https://images.pexels.com/photos/32050401/pexels-photo-32050401.jpeg",
+    338: "https://images.pexels.com/photos/14254070/pexels-photo-14254070.jpeg",
+    339: "https://images.pexels.com/photos/4763440/pexels-photo-4763440.jpeg",
+    340: "https://images.pexels.com/photos/11621064/pexels-photo-11621064.jpeg",
+    // Partnership Proposal
+    341: "https://images.pexels.com/photos/7192878/pexels-photo-7192878.jpeg",
+    342: "https://images.pexels.com/photos/10755242/pexels-photo-10755242.jpeg",
+    343: "https://images.pexels.com/photos/7510489/pexels-photo-7510489.jpeg",
+    344: "https://images.pexels.com/photos/13272708/pexels-photo-13272708.jpeg",
+    345: "https://images.pexels.com/photos/20052577/pexels-photo-20052577.jpeg",
+    // About Page
+    346: "https://images.pexels.com/photos/8093846/pexels-photo-8093846.jpeg",
+    347: "https://images.pexels.com/photos/8093908/pexels-photo-8093908.jpeg",
+    348: "https://images.pexels.com/photos/16849843/pexels-photo-16849843.jpeg",
+    349: "https://images.pexels.com/photos/6050331/pexels-photo-6050331.jpeg",
+    350: "https://images.pexels.com/photos/14498783/pexels-photo-14498783.jpeg",
+    351: "https://images.pexels.com/photos/39268200/pexels-photo-39268200.jpeg",
+    352: "https://images.pexels.com/photos/2977515/pexels-photo-2977515.jpeg",
+    353: "https://images.pexels.com/photos/10389450/pexels-photo-10389450.jpeg",
+    354: "https://images.pexels.com/photos/2035416/pexels-photo-2035416.jpeg",
+    355: "https://images.pexels.com/photos/26988194/pexels-photo-26988194.jpeg",
+    // Demo Booking Page
+    356: "https://images.pexels.com/photos/6959221/pexels-photo-6959221.jpeg",
+    357: "https://images.pexels.com/photos/71184/pexels-photo-71184.jpeg",
+    358: "https://images.pexels.com/photos/8371705/pexels-photo-8371705.jpeg",
+    359: "https://images.pexels.com/photos/35569763/pexels-photo-35569763.jpeg",
+    360: "https://images.pexels.com/photos/9152297/pexels-photo-9152297.jpeg",
+    // Wall of Love
+    361: "https://images.pexels.com/photos/4391469/pexels-photo-4391469.jpeg",
+    362: "https://images.pexels.com/photos/6044805/pexels-photo-6044805.jpeg",
+    363: "https://images.pexels.com/photos/37677476/pexels-photo-37677476.jpeg",
+    364: "https://images.pexels.com/photos/8456426/pexels-photo-8456426.jpeg",
+    365: "https://images.pexels.com/photos/2918/lights-lamps-design-recycling.jpg",
+    // Solution Page
+    366: "https://images.pexels.com/photos/34902065/pexels-photo-34902065.jpeg",
+    367: "https://images.pexels.com/photos/6720519/pexels-photo-6720519.jpeg",
+    368: "https://images.pexels.com/photos/12418935/pexels-photo-12418935.jpeg",
+    369: "https://images.pexels.com/photos/17720190/pexels-photo-17720190.png",
+    370: "https://images.pexels.com/photos/5762756/pexels-photo-5762756.jpeg",
+    371: "https://images.pexels.com/photos/28231879/pexels-photo-28231879.jpeg",
+    // Comparison Page
+    372: "https://images.pexels.com/photos/6942673/pexels-photo-6942673.jpeg",
+    373: "https://images.pexels.com/photos/7054757/pexels-photo-7054757.jpeg",
+    374: "https://images.pexels.com/photos/8533487/pexels-photo-8533487.jpeg",
+    375: "https://images.pexels.com/photos/10346461/pexels-photo-10346461.jpeg",
+    376: "https://images.pexels.com/photos/5357431/pexels-photo-5357431.jpeg",
+    377: "https://images.pexels.com/photos/31107325/pexels-photo-31107325.jpeg",
+    378: "https://images.pexels.com/photos/6026154/pexels-photo-6026154.jpeg",
+    // Campaign Pitch
+    379: "https://images.pexels.com/photos/6933080/pexels-photo-6933080.jpeg",
+    380: "https://images.pexels.com/photos/6619046/pexels-photo-6619046.jpeg",
+    381: "https://images.pexels.com/photos/1118800/pexels-photo-1118800.jpeg",
+    382: "https://images.pexels.com/photos/2777594/pexels-photo-2777594.jpeg",
+    383: "https://images.pexels.com/photos/1210043/pexels-photo-1210043.jpeg",
+    384: "https://images.pexels.com/photos/8357239/pexels-photo-8357239.jpeg",
+    385: "https://images.pexels.com/photos/32138542/pexels-photo-32138542.jpeg",
+    386: "https://images.pexels.com/photos/7878196/pexels-photo-7878196.jpeg",
+    387: "https://images.pexels.com/photos/12604249/pexels-photo-12604249.jpeg",
+    // Brand Guidelines
+    388: "https://images.pexels.com/photos/10215906/pexels-photo-10215906.jpeg",
+    389: "https://images.pexels.com/photos/37539911/pexels-photo-37539911.jpeg",
+    390: "https://images.pexels.com/photos/4140925/pexels-photo-4140925.jpeg",
+    391: "https://images.pexels.com/photos/30444143/pexels-photo-30444143.jpeg",
+    392: "https://images.pexels.com/photos/4353571/pexels-photo-4353571.jpeg",
+    393: "https://images.pexels.com/photos/18059555/pexels-photo-18059555.jpeg",
+    394: "https://images.pexels.com/photos/30925472/pexels-photo-30925472.jpeg",
+    395: "https://images.pexels.com/photos/38675233/pexels-photo-38675233.jpeg",
+    396: "https://images.pexels.com/photos/28720636/pexels-photo-28720636.jpeg",
+    // Announcement Keynote
+    397: "https://images.pexels.com/photos/34514431/pexels-photo-34514431.jpeg",
+    398: "https://images.pexels.com/photos/2382941/pexels-photo-2382941.jpeg",
+    399: "https://images.pexels.com/photos/16682740/pexels-photo-16682740.jpeg",
+    400: "https://images.pexels.com/photos/20605710/pexels-photo-20605710.jpeg",
+    401: "https://images.pexels.com/photos/35522712/pexels-photo-35522712.jpeg",
+    402: "https://images.pexels.com/photos/17877136/pexels-photo-17877136.jpeg",
+    403: "https://images.pexels.com/photos/10207902/pexels-photo-10207902.jpeg",
+    // Launch Briefing
+    404: "https://images.pexels.com/photos/15801259/pexels-photo-15801259.jpeg",
+    405: "https://images.pexels.com/photos/4487383/pexels-photo-4487383.jpeg",
+    406: "https://images.pexels.com/photos/1576655/pexels-photo-1576655.jpeg",
+    407: "https://images.pexels.com/photos/7019315/pexels-photo-7019315.jpeg",
+    408: "https://images.pexels.com/photos/37306360/pexels-photo-37306360.jpeg",
+    409: "https://images.pexels.com/photos/27741479/pexels-photo-27741479.jpeg",
+    // Release Notes
+    410: "https://images.pexels.com/photos/19844983/pexels-photo-19844983.jpeg",
+    411: "https://images.pexels.com/photos/32846085/pexels-photo-32846085.jpeg",
+    412: "https://images.pexels.com/photos/5379735/pexels-photo-5379735.jpeg",
+    413: "https://images.pexels.com/photos/32313637/pexels-photo-32313637.jpeg",
+    414: "https://images.pexels.com/photos/8730963/pexels-photo-8730963.jpeg",
+    415: "https://images.pexels.com/photos/33119680/pexels-photo-33119680.jpeg",
+    416: "https://images.pexels.com/photos/14145081/pexels-photo-14145081.jpeg",
+    // Press Kit
+    417: "https://images.pexels.com/photos/6910805/pexels-photo-6910805.jpeg",
+    418: "https://images.pexels.com/photos/36935416/pexels-photo-36935416.jpeg",
+    419: "https://images.pexels.com/photos/36169774/pexels-photo-36169774.jpeg",
+    420: "https://images.pexels.com/photos/2286953/pexels-photo-2286953.jpeg",
+    421: "https://images.pexels.com/photos/29249340/pexels-photo-29249340.jpeg",
+    422: "https://images.pexels.com/photos/35671577/pexels-photo-35671577.jpeg",
+    423: "https://images.pexels.com/photos/6221592/pexels-photo-6221592.jpeg",
+    // Launch Playbook
+    424: "https://images.pexels.com/photos/13451362/pexels-photo-13451362.jpeg",
+    425: "https://images.pexels.com/photos/36040444/pexels-photo-36040444.jpeg",
+    426: "https://images.pexels.com/photos/22743642/pexels-photo-22743642.jpeg",
+    427: "https://images.pexels.com/photos/7433833/pexels-photo-7433833.jpeg",
+    428: "https://images.pexels.com/photos/7590891/pexels-photo-7590891.jpeg",
+    429: "https://images.pexels.com/photos/9807534/pexels-photo-9807534.jpeg",
+    430: "https://images.pexels.com/photos/97065/pexels-photo-97065.jpeg",
+    // Messaging Guide
+    431: "https://images.pexels.com/photos/27457817/pexels-photo-27457817.jpeg",
+    432: "https://images.pexels.com/photos/7018645/pexels-photo-7018645.jpeg",
+    433: "https://images.pexels.com/photos/15884387/pexels-photo-15884387.jpeg",
+    434: "https://images.pexels.com/photos/37082290/pexels-photo-37082290.jpeg",
+    435: "https://images.pexels.com/photos/34207364/pexels-photo-34207364.jpeg",
+    // Pricing Page
+    436: "https://images.pexels.com/photos/38929851/pexels-photo-38929851.jpeg",
+    437: "https://images.pexels.com/photos/4350068/pexels-photo-4350068.jpeg",
+    438: "https://images.pexels.com/photos/18999171/pexels-photo-18999171.jpeg",
+    439: "https://images.pexels.com/photos/33350398/pexels-photo-33350398.jpeg",
+    440: "https://images.pexels.com/photos/7433847/pexels-photo-7433847.jpeg",
+    441: "https://images.pexels.com/photos/5414405/pexels-photo-5414405.jpeg",
+    // Kickoff Deck
+    442: "https://images.pexels.com/photos/36836423/pexels-photo-36836423.jpeg",
+    443: "https://images.pexels.com/photos/36316814/pexels-photo-36316814.jpeg",
+    444: "https://images.pexels.com/photos/37815287/pexels-photo-37815287.jpeg",
+    445: "https://images.pexels.com/photos/35631346/pexels-photo-35631346.jpeg",
+    446: "https://images.pexels.com/photos/9880528/pexels-photo-9880528.jpeg",
+    // Capabilities Deck
+    447: "https://images.pexels.com/photos/30618178/pexels-photo-30618178.jpeg",
+    448: "https://images.pexels.com/photos/9850083/pexels-photo-9850083.jpeg",
+    449: "https://images.pexels.com/photos/34916291/pexels-photo-34916291.jpeg",
+    450: "https://images.pexels.com/photos/6621012/pexels-photo-6621012.jpeg",
+    451: "https://images.pexels.com/photos/5090641/pexels-photo-5090641.jpeg",
+    452: "https://images.pexels.com/photos/1068323/pexels-photo-1068323.jpeg",
+    453: "https://images.pexels.com/photos/4153156/pexels-photo-4153156.jpeg",
+    454: "https://images.pexels.com/photos/18328707/pexels-photo-18328707.jpeg",
+    455: "https://images.pexels.com/photos/28101598/pexels-photo-28101598.jpeg",
+    456: "https://images.pexels.com/photos/28101637/pexels-photo-28101637.jpeg",
+    457: "https://images.pexels.com/photos/8678659/pexels-photo-8678659.jpeg",
+    458: "https://images.pexels.com/photos/1529034/pexels-photo-1529034.jpeg",
+    459: "https://images.pexels.com/photos/14458376/pexels-photo-14458376.jpeg",
+    // Workshop Deck
+    460: "https://images.pexels.com/photos/4820683/pexels-photo-4820683.jpeg",
+    461: "https://images.pexels.com/photos/4347484/pexels-photo-4347484.jpeg",
+    462: "https://images.pexels.com/photos/3807741/pexels-photo-3807741.jpeg",
+    463: "https://images.pexels.com/photos/37539928/pexels-photo-37539928.jpeg",
+    464: "https://images.pexels.com/photos/9572404/pexels-photo-9572404.jpeg",
+    465: "https://images.pexels.com/photos/9962719/pexels-photo-9962719.jpeg",
+    466: "https://images.pexels.com/photos/14679166/pexels-photo-14679166.jpeg",
+    467: "https://images.pexels.com/photos/16682441/pexels-photo-16682441.jpeg",
+    // Client Status Update
+    468: "https://images.pexels.com/photos/5845892/pexels-photo-5845892.jpeg",
+    469: "https://images.pexels.com/photos/5963131/pexels-photo-5963131.jpeg",
+    470: "https://images.pexels.com/photos/5531409/pexels-photo-5531409.jpeg",
+    471: "https://images.pexels.com/photos/7203849/pexels-photo-7203849.jpeg",
+    472: "https://images.pexels.com/photos/6790748/pexels-photo-6790748.jpeg",
+    473: "https://images.pexels.com/photos/8551121/pexels-photo-8551121.jpeg",
+    // Proposal Site
+    474: "https://images.pexels.com/photos/4820783/pexels-photo-4820783.jpeg",
+    475: "https://images.pexels.com/photos/32258174/pexels-photo-32258174.jpeg",
+    476: "https://images.pexels.com/photos/37539930/pexels-photo-37539930.jpeg",
+    477: "https://images.pexels.com/photos/36407802/pexels-photo-36407802.jpeg",
+    478: "https://images.pexels.com/photos/36247921/pexels-photo-36247921.jpeg",
+    479: "https://images.pexels.com/photos/19193225/pexels-photo-19193225.jpeg",
+    480: "https://images.pexels.com/photos/33469928/pexels-photo-33469928.jpeg",
+    481: "https://images.pexels.com/photos/13278839/pexels-photo-13278839.jpeg",
+    482: "https://images.pexels.com/photos/17309031/pexels-photo-17309031.jpeg",
+    483: "https://images.pexels.com/photos/29472840/pexels-photo-29472840.jpeg",
+    484: "https://images.pexels.com/photos/1212793/pexels-photo-1212793.jpeg",
+    485: "https://images.pexels.com/photos/16556498/pexels-photo-16556498.jpeg",
+    // Project Hub
+    486: "https://images.pexels.com/photos/10178910/pexels-photo-10178910.jpeg",
+    487: "https://images.pexels.com/photos/4992651/pexels-photo-4992651.jpeg",
+    488: "https://images.pexels.com/photos/595910/pexels-photo-595910.jpeg",
+    489: "https://images.pexels.com/photos/7203976/pexels-photo-7203976.jpeg",
+    490: "https://images.pexels.com/photos/11315991/pexels-photo-11315991.jpeg",
+    491: "https://images.pexels.com/photos/8337527/pexels-photo-8337527.jpeg",
+    // Case Study Site
+    492: "https://images.pexels.com/photos/11923047/pexels-photo-11923047.jpeg",
+    493: "https://images.pexels.com/photos/12203611/pexels-photo-12203611.jpeg",
+    494: "https://images.pexels.com/photos/1095124/pexels-photo-1095124.jpeg",
+    495: "https://images.pexels.com/photos/36242476/pexels-photo-36242476.jpeg",
+    496: "https://images.pexels.com/photos/32568165/pexels-photo-32568165.jpeg",
+    497: "https://images.pexels.com/photos/36878588/pexels-photo-36878588.jpeg",
+    498: "https://images.pexels.com/photos/25809277/pexels-photo-25809277.jpeg",
+    499: "https://images.pexels.com/photos/128875/table-covered-glass-cutlery-128875.jpeg",
+    // Services Page
+    500: "https://images.pexels.com/photos/36353420/pexels-photo-36353420.png",
+    501: "https://images.pexels.com/photos/38755602/pexels-photo-38755602.jpeg",
+    502: "https://images.pexels.com/photos/31659327/pexels-photo-31659327.jpeg",
+    503: "https://images.pexels.com/photos/37591021/pexels-photo-37591021.jpeg",
+    504: "https://images.pexels.com/photos/11911863/pexels-photo-11911863.jpeg",
+    505: "https://images.pexels.com/photos/3284980/pexels-photo-3284980.png",
+    506: "https://images.pexels.com/photos/30158441/pexels-photo-30158441.jpeg",
+    // All-Hands Deck
+    507: "https://images.pexels.com/photos/27608329/pexels-photo-27608329.jpeg",
+    508: "https://images.pexels.com/photos/12909044/pexels-photo-12909044.jpeg",
+    509: "https://images.pexels.com/photos/37305116/pexels-photo-37305116.jpeg",
+    510: "https://images.pexels.com/photos/23319066/pexels-photo-23319066.jpeg",
+    511: "https://images.pexels.com/photos/10878673/pexels-photo-10878673.jpeg",
+    512: "https://images.pexels.com/photos/887270/pexels-photo-887270.jpeg",
+    // Growth Review
+    513: "https://images.pexels.com/photos/12563461/pexels-photo-12563461.jpeg",
+    514: "https://images.pexels.com/photos/7857503/pexels-photo-7857503.jpeg",
+    515: "https://images.pexels.com/photos/37184190/pexels-photo-37184190.jpeg",
+    516: "https://images.pexels.com/photos/33582/sunrise-phu-quoc-island-ocean.jpg",
+    517: "https://images.pexels.com/photos/34743825/pexels-photo-34743825.jpeg",
+    // Research Readout
+    518: "https://images.pexels.com/photos/7991493/pexels-photo-7991493.jpeg",
+    519: "https://images.pexels.com/photos/16585156/pexels-photo-16585156.jpeg",
+    520: "https://images.pexels.com/photos/5990039/pexels-photo-5990039.jpeg",
+    521: "https://images.pexels.com/photos/8382613/pexels-photo-8382613.jpeg",
+    522: "https://images.pexels.com/photos/15569230/pexels-photo-15569230.jpeg",
+    523: "https://images.pexels.com/photos/33196899/pexels-photo-33196899.jpeg",
+    // Annual Plan
+    524: "https://images.pexels.com/photos/16586151/pexels-photo-16586151.jpeg",
+    525: "https://images.pexels.com/photos/6961110/pexels-photo-6961110.jpeg",
+    526: "https://images.pexels.com/photos/9875676/pexels-photo-9875676.jpeg",
+    527: "https://images.pexels.com/photos/8961701/pexels-photo-8961701.jpeg",
+    528: "https://images.pexels.com/photos/38555493/pexels-photo-38555493.png",
+    529: "https://images.pexels.com/photos/36848361/pexels-photo-36848361.jpeg",
+    // Impact Report Site
+    530: "https://images.pexels.com/photos/9875685/pexels-photo-9875685.jpeg",
+    531: "https://images.pexels.com/photos/4254166/pexels-photo-4254166.jpeg",
+    532: "https://images.pexels.com/photos/5724030/pexels-photo-5724030.jpeg",
+    533: "https://images.pexels.com/photos/7339349/pexels-photo-7339349.jpeg",
+    534: "https://images.pexels.com/photos/6961122/pexels-photo-6961122.jpeg",
+    535: "https://images.pexels.com/photos/3829454/pexels-photo-3829454.jpeg",
+    536: "https://images.pexels.com/photos/12936108/pexels-photo-12936108.jpeg",
+    537: "https://images.pexels.com/photos/18306342/pexels-photo-18306342.jpeg",
+    // Research Report Site
+    538: "https://images.pexels.com/photos/32967976/pexels-photo-32967976.jpeg",
+    539: "https://images.pexels.com/photos/12384897/pexels-photo-12384897.jpeg",
+    540: "https://images.pexels.com/photos/29625510/pexels-photo-29625510.jpeg",
+    541: "https://images.pexels.com/photos/9050619/pexels-photo-9050619.jpeg",
+    542: "https://images.pexels.com/photos/9572635/pexels-photo-9572635.jpeg",
+    543: "https://images.pexels.com/photos/115294/pexels-photo-115294.jpeg",
+    544: "https://images.pexels.com/photos/7707287/pexels-photo-7707287.jpeg",
+    545: "https://images.pexels.com/photos/16512513/pexels-photo-16512513.jpeg",
+    // Changelog Site
+    546: "https://images.pexels.com/photos/216589/pexels-photo-216589.jpeg",
+    547: "https://images.pexels.com/photos/18386434/pexels-photo-18386434.jpeg",
+    548: "https://images.pexels.com/photos/6991349/pexels-photo-6991349.jpeg",
+    549: "https://images.pexels.com/photos/8035282/pexels-photo-8035282.jpeg",
+    550: "https://images.pexels.com/photos/36252681/pexels-photo-36252681.jpeg",
+    // Open Metrics Page
+    551: "https://images.pexels.com/photos/9958947/pexels-photo-9958947.jpeg",
+    552: "https://images.pexels.com/photos/14285574/pexels-photo-14285574.jpeg",
+    553: "https://images.pexels.com/photos/14776969/pexels-photo-14776969.jpeg",
+    554: "https://images.pexels.com/photos/2149904/pexels-photo-2149904.jpeg",
+    555: "https://images.pexels.com/photos/8594371/pexels-photo-8594371.jpeg",
+    // Status Page
+    556: "https://images.pexels.com/photos/37730212/pexels-photo-37730212.jpeg",
+    557: "https://images.pexels.com/photos/3202238/pexels-photo-3202238.jpeg",
+    558: "https://images.pexels.com/photos/845254/pexels-photo-845254.jpeg",
+    // Conference Talk
+    559: "https://images.pexels.com/photos/35411369/pexels-photo-35411369.jpeg",
+    560: "https://images.pexels.com/photos/1462226/pexels-photo-1462226.jpeg",
+    561: "https://images.pexels.com/photos/7115510/pexels-photo-7115510.jpeg",
+    562: "https://images.pexels.com/photos/33743787/pexels-photo-33743787.jpeg",
+    563: "https://images.pexels.com/photos/38014878/pexels-photo-38014878.jpeg",
+    564: "https://images.pexels.com/photos/8327872/pexels-photo-8327872.jpeg",
+    565: "https://images.pexels.com/photos/28824299/pexels-photo-28824299.jpeg",
+    566: "https://images.pexels.com/photos/20281787/pexels-photo-20281787.jpeg",
+    // Portfolio Deck
+    567: "https://images.pexels.com/photos/6136314/pexels-photo-6136314.jpeg",
+    568: "https://images.pexels.com/photos/11229760/pexels-photo-11229760.jpeg",
+    569: "https://images.pexels.com/photos/8475172/pexels-photo-8475172.jpeg",
+    570: "https://images.pexels.com/photos/29611199/pexels-photo-29611199.jpeg",
+    571: "https://images.pexels.com/photos/6275937/pexels-photo-6275937.jpeg",
+    572: "https://images.pexels.com/photos/14499187/pexels-photo-14499187.jpeg",
+    573: "https://images.pexels.com/photos/33837946/pexels-photo-33837946.jpeg",
+    // Workshop Deck
+    574: "https://images.pexels.com/photos/38673756/pexels-photo-38673756.jpeg",
+    575: "https://images.pexels.com/photos/14279706/pexels-photo-14279706.jpeg",
+    576: "https://images.pexels.com/photos/8510617/pexels-photo-8510617.jpeg",
+    577: "https://images.pexels.com/photos/6310453/pexels-photo-6310453.jpeg",
+    578: "https://images.pexels.com/photos/10738764/pexels-photo-10738764.jpeg",
+    // Year in Review
+    579: "https://images.pexels.com/photos/1110661/pexels-photo-1110661.jpeg",
+    580: "https://images.pexels.com/photos/11361935/pexels-photo-11361935.jpeg",
+    581: "https://images.pexels.com/photos/15875334/pexels-photo-15875334.jpeg",
+    582: "https://images.pexels.com/photos/10288924/pexels-photo-10288924.jpeg",
+    583: "https://images.pexels.com/photos/24989112/pexels-photo-24989112.jpeg",
+    584: "https://images.pexels.com/photos/14288862/pexels-photo-14288862.jpeg",
+    585: "https://images.pexels.com/photos/1642295/pexels-photo-1642295.jpeg",
+    586: "https://images.pexels.com/photos/32846096/pexels-photo-32846096.jpeg",
+    587: "https://images.pexels.com/photos/4460478/pexels-photo-4460478.jpeg",
+    // Side Project Pitch
+    588: "https://images.pexels.com/photos/1117153/pexels-photo-1117153.jpeg",
+    589: "https://images.pexels.com/photos/16372970/pexels-photo-16372970.jpeg",
+    590: "https://images.pexels.com/photos/13288524/pexels-photo-13288524.jpeg",
+    591: "https://images.pexels.com/photos/27817983/pexels-photo-27817983.jpeg",
+    592: "https://images.pexels.com/photos/2898315/pexels-photo-2898315.jpeg",
+    // Design Case Study
+    593: "https://images.pexels.com/photos/14866182/pexels-photo-14866182.jpeg",
+    594: "https://images.pexels.com/photos/401213/pexels-photo-401213.jpeg",
+    595: "https://images.pexels.com/photos/23531657/pexels-photo-23531657.jpeg",
+    596: "https://images.pexels.com/photos/4140919/pexels-photo-4140919.jpeg",
+    597: "https://images.pexels.com/photos/38371841/pexels-photo-38371841.jpeg",
+    598: "https://images.pexels.com/photos/12379712/pexels-photo-12379712.jpeg",
+    599: "https://images.pexels.com/photos/35291748/pexels-photo-35291748.jpeg",
+    // Speaker Kit
+    600: "https://images.pexels.com/photos/14654918/pexels-photo-14654918.jpeg",
+    601: "https://images.pexels.com/photos/37063496/pexels-photo-37063496.jpeg",
+    602: "https://images.pexels.com/photos/19966343/pexels-photo-19966343.jpeg",
+    603: "https://images.pexels.com/photos/38490369/pexels-photo-38490369.jpeg",
+    604: "https://images.pexels.com/photos/9275222/pexels-photo-9275222.jpeg",
+    605: "https://images.pexels.com/photos/35657609/pexels-photo-35657609.jpeg",
+    606: "https://images.pexels.com/photos/13356851/pexels-photo-13356851.jpeg",
+    607: "https://images.pexels.com/photos/34698781/pexels-photo-34698781.jpeg",
+    // Link Hub
+    608: "https://images.pexels.com/photos/5191373/pexels-photo-5191373.jpeg",
+    609: "https://images.pexels.com/photos/15361907/pexels-photo-15361907.jpeg",
+    610: "https://images.pexels.com/photos/36824934/pexels-photo-36824934.jpeg",
+    611: "https://images.pexels.com/photos/9964128/pexels-photo-9964128.png",
+    // Speaking Page
+    612: "https://images.pexels.com/photos/32285897/pexels-photo-32285897.jpeg",
+    613: "https://images.pexels.com/photos/7991436/pexels-photo-7991436.jpeg",
+    614: "https://images.pexels.com/photos/29636314/pexels-photo-29636314.jpeg",
+    615: "https://images.pexels.com/photos/8035286/pexels-photo-8035286.jpeg",
+    616: "https://images.pexels.com/photos/5204283/pexels-photo-5204283.jpeg",
+    // App Site
+    617: "https://images.pexels.com/photos/877971/pexels-photo-877971.jpeg",
+    618: "https://images.pexels.com/photos/2228561/pexels-photo-2228561.jpeg",
+    619: "https://images.pexels.com/photos/32875258/pexels-photo-32875258.jpeg",
+    620: "https://images.pexels.com/photos/28238205/pexels-photo-28238205.jpeg",
+    621: "https://images.pexels.com/photos/10677842/pexels-photo-10677842.jpeg",
+    622: "https://images.pexels.com/photos/51343/old-letters-old-letter-handwriting-51343.jpeg",
+    // Celebration Slideshow
+    623: "https://images.pexels.com/photos/15322634/pexels-photo-15322634.jpeg",
+    624: "https://images.pexels.com/photos/13115111/pexels-photo-13115111.jpeg",
+    625: "https://images.pexels.com/photos/2499601/pexels-photo-2499601.jpeg",
+    626: "https://images.pexels.com/photos/27176134/pexels-photo-27176134.jpeg",
+    627: "https://images.pexels.com/photos/5638699/pexels-photo-5638699.jpeg",
+    628: "https://images.pexels.com/photos/15175666/pexels-photo-15175666.jpeg",
+    629: "https://images.pexels.com/photos/19101571/pexels-photo-19101571.jpeg",
+    630: "https://images.pexels.com/photos/33175695/pexels-photo-33175695.jpeg",
+    631: "https://images.pexels.com/photos/12174173/pexels-photo-12174173.jpeg",
+    632: "https://images.pexels.com/photos/14154985/pexels-photo-14154985.jpeg",
+    // Trivia Night
+    633: "https://images.pexels.com/photos/5491037/pexels-photo-5491037.jpeg",
+    634: "https://images.pexels.com/photos/12039010/pexels-photo-12039010.jpeg",
+    635: "https://images.pexels.com/photos/5054648/pexels-photo-5054648.jpeg",
+    636: "https://images.pexels.com/photos/36516123/pexels-photo-36516123.jpeg",
+    637: "https://images.pexels.com/photos/30481262/pexels-photo-30481262.jpeg",
+    // Travel Recap
+    638: "https://images.pexels.com/photos/9606918/pexels-photo-9606918.jpeg",
+    639: "https://images.pexels.com/photos/34585978/pexels-photo-34585978.jpeg",
+    640: "https://images.pexels.com/photos/8707896/pexels-photo-8707896.jpeg",
+    641: "https://images.pexels.com/photos/37843544/pexels-photo-37843544.jpeg",
+    642: "https://images.pexels.com/photos/37066099/pexels-photo-37066099.jpeg",
+    643: "https://images.pexels.com/photos/2569817/pexels-photo-2569817.jpeg",
+    644: "https://images.pexels.com/photos/34640062/pexels-photo-34640062.jpeg",
+    645: "https://images.pexels.com/photos/36800260/pexels-photo-36800260.jpeg",
+    646: "https://images.pexels.com/photos/16380649/pexels-photo-16380649.jpeg",
+    // Birthday Toast
+    647: "https://images.pexels.com/photos/1341883/pexels-photo-1341883.jpeg",
+    648: "https://images.pexels.com/photos/36129615/pexels-photo-36129615.jpeg",
+    649: "https://images.pexels.com/photos/11368700/pexels-photo-11368700.jpeg",
+    650: "https://images.pexels.com/photos/5637766/pexels-photo-5637766.jpeg",
+    651: "https://images.pexels.com/photos/8673500/pexels-photo-8673500.jpeg",
+    652: "https://images.pexels.com/photos/8260489/pexels-photo-8260489.jpeg",
+    653: "https://images.pexels.com/photos/8124248/pexels-photo-8124248.jpeg",
+    654: "https://images.pexels.com/photos/25956380/pexels-photo-25956380.jpeg",
+    655: "https://images.pexels.com/photos/30146471/pexels-photo-30146471.jpeg",
+    // Book Club Season
+    656: "https://images.pexels.com/photos/7167831/pexels-photo-7167831.jpeg",
+    657: "https://images.pexels.com/photos/34047398/pexels-photo-34047398.jpeg",
+    658: "https://images.pexels.com/photos/38075228/pexels-photo-38075228.jpeg",
+    659: "https://images.pexels.com/photos/7879388/pexels-photo-7879388.jpeg",
+    660: "https://images.pexels.com/photos/176103/pexels-photo-176103.jpeg",
+    // Party Invite
+    661: "https://images.pexels.com/photos/5638813/pexels-photo-5638813.jpeg",
+    662: "https://images.pexels.com/photos/3937880/pexels-photo-3937880.jpeg",
+    663: "https://images.pexels.com/photos/5864479/pexels-photo-5864479.jpeg",
+    664: "https://images.pexels.com/photos/19685213/pexels-photo-19685213.jpeg",
+    665: "https://images.pexels.com/photos/288478/pexels-photo-288478.jpeg",
+    666: "https://images.pexels.com/photos/13567862/pexels-photo-13567862.jpeg",
+    667: "https://images.pexels.com/photos/14757517/pexels-photo-14757517.jpeg",
+    668: "https://images.pexels.com/photos/15075570/pexels-photo-15075570.jpeg",
+    // Reunion Site
+    669: "https://images.pexels.com/photos/12623944/pexels-photo-12623944.jpeg",
+    670: "https://images.pexels.com/photos/6232552/pexels-photo-6232552.jpeg",
+    671: "https://images.pexels.com/photos/5263266/pexels-photo-5263266.jpeg",
+    672: "https://images.pexels.com/photos/35822109/pexels-photo-35822109.jpeg",
+    673: "https://images.pexels.com/photos/21175874/pexels-photo-21175874.jpeg",
+    674: "https://images.pexels.com/photos/4716814/pexels-photo-4716814.jpeg",
+    // Restaurant Site
+    675: "https://images.pexels.com/photos/28059309/pexels-photo-28059309.jpeg",
+    676: "https://images.pexels.com/photos/17001771/pexels-photo-17001771.jpeg",
+    677: "https://images.pexels.com/photos/6871940/pexels-photo-6871940.jpeg",
+    678: "https://images.pexels.com/photos/5779787/pexels-photo-5779787.jpeg",
+    679: "https://images.pexels.com/photos/30658142/pexels-photo-30658142.jpeg",
+    680: "https://images.pexels.com/photos/34279639/pexels-photo-34279639.jpeg",
+    // Rental Listing Site
+    681: "https://images.pexels.com/photos/34221319/pexels-photo-34221319.jpeg",
+    682: "https://images.pexels.com/photos/37125162/pexels-photo-37125162.jpeg",
+    683: "https://images.pexels.com/photos/5506135/pexels-photo-5506135.jpeg",
+    684: "https://images.pexels.com/photos/16722408/pexels-photo-16722408.jpeg",
+    685: "https://images.pexels.com/photos/38929393/pexels-photo-38929393.jpeg",
+    686: "https://images.pexels.com/photos/36498469/pexels-photo-36498469.jpeg",
+    687: "https://images.pexels.com/photos/32953037/pexels-photo-32953037.jpeg",
+    688: "https://images.pexels.com/photos/18999116/pexels-photo-18999116.jpeg",
+};
+const pic = (id: number, w = 1100, h = 900): string => {
+    const base = PHOTOS[id];
+    return base ? `${base}?auto=compress&cs=tinysrgb&fit=crop&w=${w}&h=${h}` : "";
+};
 
 const DEMO_VIDEO = "https://www.youtube.com/watch?v=WhWc3b3KhnY";
 
@@ -91,9 +880,9 @@ export const resume: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-                img(pic(1027), 0.82, 200),
+                img(pic(1), 0.82, 200),
             ),
-            { background: bgImage(pic(114, 1700, 1100), 0.55) },
+            { background: bgImage(pic(2, 1700, 1100), 0.55) },
         ),
         section(
             "r2",
@@ -208,7 +997,7 @@ export const resume: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-                img(pic(533), 0.82, 12),
+                img(pic(3), 0.82, 12),
             ),
         ),
         section(
@@ -265,10 +1054,10 @@ export const resume: ArtifactContent = doc(
                     " · references on request, and they answer fast",
                 ),
             ),
-            { background: bgImage(pic(119, 1700, 1100), 0.35) },
+            { background: bgImage(pic(4, 1700, 1100), 0.35) },
         ),
     ],
-    bgImage("manuscript-paper-bg", 0.2),
+    bgImage("https://images.pexels.com/photos/16557322/pexels-photo-16557322.jpeg", 0.2),
 );
 
 export const portfolio: ArtifactContent = web(
@@ -300,10 +1089,16 @@ export const portfolio: ArtifactContent = web(
                     "subtitle",
                 ),
                 button("See the work", "#work"),
+                pin(badge("Taking Q1 commissions"), "end", "start", {
+                    dx: -28,
+                    dy: 34,
+                    rotate: 3,
+                    z: 2,
+                }),
             ),
             {
                 bleed: true,
-                background: bgImage(pic(546, 1700, 1100), 0.55),
+                background: bgImage(pic(5, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 7 },
             },
         ),
@@ -311,7 +1106,7 @@ export const portfolio: ArtifactContent = web(
             "studio",
             split(
                 40,
-                img(pic(508), 0.82),
+                img(pic(6), 0.82),
                 col(
                     t("Statement", "label"),
                     t("We design the pause before the room speaks.", "h2"),
@@ -346,19 +1141,19 @@ export const portfolio: ArtifactContent = web(
             "work-a",
             row(
                 card(
-                    img(pic(1051), 1.2),
+                    img(pic(7), 1.2),
                     t("Fjord House", "h3"),
                     t("Private residence · Bergen · 2025", "caption"),
                 ),
                 card(
-                    img(pic(1059), 1.2),
+                    img(pic(8), 1.2),
                     t("Hotel Amber", "h3"),
                     t("28-room boutique hotel · Copenhagen · 2024", "caption"),
                 ),
             ),
         ),
         section("interlude", col(t("Light is the one material we never buy.", "h2", "center")), {
-            background: bgImage(pic(32, 1700, 1100), 0.5),
+            background: bgImage(pic(9, 1700, 1100), 0.5),
             bleed: true,
             frame: { aspect: 16 / 5 },
         }),
@@ -366,17 +1161,17 @@ export const portfolio: ArtifactContent = web(
             "more-work",
             row(
                 card(
-                    img(pic(428), 1),
+                    img(pic(10), 1),
                     t("The Glasshouse", "h3"),
                     t("Café & roastery · Oslo", "caption"),
                 ),
                 card(
-                    img(pic(21), 1),
+                    img(pic(11), 1),
                     t("Marlowe Flagship", "h3"),
                     t("Retail identity · London", "caption"),
                 ),
                 card(
-                    img(pic(420), 1),
+                    img(pic(12), 1),
                     t("Linen Apartment", "h3"),
                     t("Pied-à-terre · Paris", "caption"),
                 ),
@@ -398,7 +1193,7 @@ export const portfolio: ArtifactContent = web(
                         variant: "outline",
                     }),
                 ),
-                img(pic(418), 0.92),
+                img(pic(13), 0.92),
             ),
         ),
         section("services", col(t("What we do", "label"), t("Three ways to work with us.", "h2"))),
@@ -434,7 +1229,7 @@ export const portfolio: ArtifactContent = web(
                 "They handed us a building we'd stopped seeing and gave it back as somewhere we never want to leave.",
                 "Ines Lund · Owner, Hotel Amber",
             ),
-            { background: bgImage(pic(882, 1700, 1100), 0.62), bleed: true },
+            { background: bgImage(pic(14, 1700, 1100), 0.62), bleed: true },
         ),
         section(
             "contact",
@@ -455,9 +1250,9 @@ export const portfolio: ArtifactContent = web(
                         }),
                     ),
                 ),
-                img(pic(123), 0.92),
+                img(pic(15), 0.92),
             ),
-            { bleed: true, background: bgImage(pic(550, 1700, 1100), 0.4) },
+            { bleed: true, background: bgImage(pic(16, 1700, 1100), 0.4) },
         ),
         section(
             "footer",
@@ -501,7 +1296,7 @@ export const portfolio: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage("couture-paper-texture", 0.3),
+    bgImage("https://images.pexels.com/photos/6757416/pexels-photo-6757416.jpeg", 0.3),
 );
 
 export const personalSite: ArtifactContent = web(
@@ -527,7 +1322,7 @@ export const personalSite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(962, 1700, 1100), 0.55),
+                background: bgImage(pic(17, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -550,7 +1345,7 @@ export const personalSite: ArtifactContent = web(
             "story",
             split(
                 40,
-                img(pic(788), 0.9),
+                img(pic(18), 0.9),
                 col(
                     t("About", "label"),
                     t("A short version of a long story.", "h2"),
@@ -682,7 +1477,7 @@ export const personalSite: ArtifactContent = web(
             "margin",
             split(
                 40,
-                img(pic(251), 1),
+                img(pic(19), 1),
                 col(
                     t("Featured", "label"),
                     badge("LIVE"),
@@ -746,7 +1541,7 @@ export const personalSite: ArtifactContent = web(
                 ),
                 button("Email me", "mailto:wren@quietmachines.co"),
             ),
-            { bleed: true, background: bgImage(pic(910, 1700, 1100), 0.45) },
+            { bleed: true, background: bgImage(pic(20, 1700, 1100), 0.45) },
         ),
         section(
             "footer",
@@ -798,7 +1593,7 @@ export const personalSite: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage(pic(552, 1700, 1100), 0.32),
+    bgImage(pic(21, 1700, 1100), 0.32),
 );
 
 export const coverLetter: ArtifactContent = doc(
@@ -812,7 +1607,7 @@ export const coverLetter: ArtifactContent = doc(
                 t("Application · Senior Product Designer, Northwind", "caption"),
                 t("camille.laurent@hey.com · (415) 555-0142 · Portland, OR · June 2026", "caption"),
             ),
-            { background: bgImage(pic(486, 1700, 1100), 0.55) },
+            { background: bgImage(pic(22, 1700, 1100), 0.55) },
         ),
         section(
             "c2",
@@ -828,7 +1623,7 @@ export const coverLetter: ArtifactContent = doc(
             "c3",
             split(
                 40,
-                img(pic(885), 1.15),
+                img(pic(23), 1.15),
                 group(
                     t("What I’d bring", "label"),
                     t("Earning permission before asking for it.", "h2"),
@@ -919,7 +1714,7 @@ export const coverLetter: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(8), 0.82),
+                img(pic(24), 0.82),
             ),
         ),
         section(
@@ -931,14 +1726,14 @@ export const coverLetter: ArtifactContent = doc(
                     "body",
                 ),
             ),
-            { background: bgImage(pic(802, 1700, 1100), 0.4) },
+            { background: bgImage(pic(25, 1700, 1100), 0.4) },
         ),
     ],
-    bgImage("camille-laurent-paper", 0.28),
+    bgImage("https://images.pexels.com/photos/20899958/pexels-photo-20899958.jpeg", 0.28),
 );
 
 export const eventInvite: ArtifactContent = web(
-    "orchard",
+    "loft",
     [
         section(
             "hero",
@@ -951,7 +1746,6 @@ export const eventInvite: ArtifactContent = web(
                     navCta("RSVP", "#rsvp"),
                 ),
                 t("WITH JOYFUL HEARTS, TOGETHER WITH THEIR FAMILIES", "label"),
-                badge("SATURDAY · 12 SEPTEMBER 2026"),
                 t("Amara & Théo", "h1"),
                 t(
                     "are getting married, and they would be overjoyed for you to be there, under the olive trees, when they say yes.",
@@ -959,10 +1753,16 @@ export const eventInvite: ArtifactContent = web(
                 ),
                 t("Quinta da Lua · Sintra, Portugal", "caption"),
                 button("RSVP by 1 August", "#rsvp"),
+                pin(badge("Save the date · 12 September"), "end", "start", {
+                    dx: -28,
+                    dy: 30,
+                    rotate: -5,
+                    z: 2,
+                }),
             ),
             {
                 bleed: true,
-                background: bgImage(pic(62, 1700, 1100), 0.55),
+                background: bgImage(pic(26, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 7 },
             },
         ),
@@ -996,12 +1796,12 @@ export const eventInvite: ArtifactContent = web(
                     ),
                     t("Yours, Amara & Théo", "caption"),
                 ),
-                img(pic(129), 0.84),
+                img(pic(27), 0.84),
             ),
         ),
 
         section("olive", col(t("Come for the vows. Stay for the figs.", "h2", "center")), {
-            background: bgImage(pic(116, 1700, 1100), 0.45),
+            background: bgImage(pic(28, 1700, 1100), 0.45),
             bleed: true,
             frame: { aspect: 16 / 5 },
         }),
@@ -1010,17 +1810,17 @@ export const eventInvite: ArtifactContent = web(
             "details",
             row(
                 card(
-                    img(pic(468), 1),
+                    img(pic(29), 1),
                     t("The Ceremony", "h3"),
                     t("4:00 PM · The Olive Terrace · please be seated by 3:45", "caption"),
                 ),
                 card(
-                    img(pic(195), 1),
+                    img(pic(30), 1),
                     t("The Reception", "h3"),
                     t("6:00 PM · The Stone Barn · dinner, toasts & dancing to follow", "caption"),
                 ),
                 card(
-                    img(pic(103), 1),
+                    img(pic(31), 1),
                     t("What to Wear", "h3"),
                     t("Garden formal · soft colours · flat-friendly for grass & gravel", "caption"),
                 ),
@@ -1052,7 +1852,7 @@ export const eventInvite: ArtifactContent = web(
                     variant: "outline",
                 }),
             ),
-            { bleed: true, background: bgImage(pic(982, 1700, 1100), 0.5) },
+            { bleed: true, background: bgImage(pic(32, 1700, 1100), 0.5) },
         ),
 
         section(
@@ -1092,12 +1892,12 @@ export const eventInvite: ArtifactContent = web(
         section(
             "gallery",
             row(
-                col(img(pic(699), 0.8), t("The grove at the hour we'll marry.", "caption")),
+                col(img(pic(33), 0.8), t("The grove at the hour we'll marry.", "caption")),
                 col(
-                    img(pic(42), 0.8),
+                    img(pic(34), 0.8),
                     t("Long tables, figs, and far too many candles.", "caption"),
                 ),
-                col(img(pic(407), 0.8), t("And then, the part with the dancing.", "caption")),
+                col(img(pic(35), 0.8), t("And then, the part with the dancing.", "caption")),
             ),
         ),
 
@@ -1107,7 +1907,7 @@ export const eventInvite: ArtifactContent = web(
                 "These two make everyone around them feel like the most interesting person in the room. Come September, that room has a sea view.",
                 "Lena · maid of honour",
             ),
-            { background: bgImage(pic(777, 1700, 1100), 0.6), bleed: true },
+            { background: bgImage(pic(36, 1700, 1100), 0.6), bleed: true },
         ),
 
         section(
@@ -1183,7 +1983,7 @@ export const eventInvite: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage(pic(255, 1700, 1100), 0.3),
+    bgImage(pic(37, 1700, 1100), 0.3),
 );
 
 export const photoEssay: ArtifactContent = doc(
@@ -1200,7 +2000,7 @@ export const photoEssay: ArtifactContent = doc(
                 ),
                 t("Photographs & words by Jonah Reyes · winter, 5:40 AM", "caption"),
             ),
-            { background: bgImage(pic(860, 1700, 1100), 0.55) },
+            { background: bgImage(pic(38, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -1225,7 +2025,7 @@ export const photoEssay: ArtifactContent = doc(
         section(
             "s3",
             group(
-                img(pic(520), 1.6),
+                img(pic(39), 1.6),
                 t(
                     "Washington Street, 5:48. The bridge hangs in the gap between two rows of brick like a picture no one ever takes down. I stood in the middle of the road to make this, and nothing asked me to move.",
                     "caption",
@@ -1237,7 +2037,15 @@ export const photoEssay: ArtifactContent = doc(
             "s4",
             split(
                 40,
-                img(pic(821), 1.05),
+                group(
+                    img(pic(40), 1.05),
+                    pin(
+                        w(64, card(t("Platform 6, four minutes between trains.", "caption"))),
+                        "start",
+                        "end",
+                        { dx: -20, dy: 16, rotate: -3, z: 2 },
+                    ),
+                ),
                 group(
                     t("Underground", "label"),
                     t("The first train", "h2"),
@@ -1252,7 +2060,7 @@ export const photoEssay: ArtifactContent = doc(
         section(
             "s5",
             group(
-                img(pic(249), 1.6),
+                img(pic(41), 1.6),
                 t(
                     "The hour the lights give up: every window still burning from the night before, and the sky already deciding otherwise. By six the argument will be over.",
                     "caption",
@@ -1272,7 +2080,7 @@ export const photoEssay: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(221), 0.82),
+                img(pic(42), 0.82),
             ),
         ),
 
@@ -1280,18 +2088,18 @@ export const photoEssay: ArtifactContent = doc(
             "s7",
             row(
                 group(
-                    img(pic(299), 0.8),
+                    img(pic(43), 0.8),
                     t("A street built for thousands, rehearsing in an empty house.", "caption"),
                 ),
                 group(
-                    img(pic(396), 0.8),
+                    img(pic(44), 0.8),
                     t(
                         "The escalator runs all night whether anyone rides it or not. There is a kind of faith in that.",
                         "caption",
                     ),
                 ),
                 group(
-                    img(pic(57), 0.8),
+                    img(pic(45), 0.8),
                     t(
                         "SoHo before the shutters go up, when the cast iron gets the street to itself.",
                         "caption",
@@ -1306,14 +2114,14 @@ export const photoEssay: ArtifactContent = doc(
                 "I came for the skyline and stayed for the hour underneath it, which no lens has ever once held still.",
                 "From field notes, the third morning",
             ),
-            { background: bgImage(pic(868, 1700, 1100), 0.55) },
+            { background: bgImage(pic(46, 1700, 1100), 0.55) },
         ),
 
         section(
             "s9",
             split(
                 40,
-                img(pic(800), 1.08),
+                img(pic(47), 1.08),
                 group(
                     t("Grand Central", "label"),
                     t("First light on the concourse", "h2"),
@@ -1328,7 +2136,7 @@ export const photoEssay: ArtifactContent = doc(
         section(
             "s10",
             group(
-                img(pic(411), 1.6),
+                img(pic(48), 1.6),
                 t(
                     "Midtown from forty floors up, still in its blue hour. From this height the city looks like it is only pretending to sleep, which is, of course, the truth.",
                     "caption",
@@ -1348,7 +2156,7 @@ export const photoEssay: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(259), 0.82),
+                img(pic(49), 0.82),
             ),
         ),
 
@@ -1363,10 +2171,10 @@ export const photoEssay: ArtifactContent = doc(
                 ),
                 t("Jonah, walking home over the bridge", "caption"),
             ),
-            { background: bgImage(pic(862, 1700, 1100), 0.5) },
+            { background: bgImage(pic(50, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage("photoessay-paper-bg", 0.3),
+    bgImage("https://images.pexels.com/photos/8941369/pexels-photo-8941369.jpeg", 0.3),
 );
 
 export const productLaunch: ArtifactContent = web(
@@ -1396,10 +2204,16 @@ export const productLaunch: ArtifactContent = web(
                     "subtitle",
                 ),
                 button("Pre-order · $249", "#preorder"),
+                pin(badge("Ships October 12"), "end", "start", {
+                    dx: -28,
+                    dy: 8,
+                    rotate: -4,
+                    z: 2,
+                }),
             ),
             {
                 bleed: true,
-                background: bgImage(pic(311, 1700, 1100), 0.58),
+                background: bgImage(pic(51, 1700, 1100), 0.58),
                 frame: { aspect: 16 / 7 },
             },
         ),
@@ -1415,7 +2229,7 @@ export const productLaunch: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(178), 0.92),
+                img(pic(52), 0.92),
             ),
         ),
         section(
@@ -1425,13 +2239,13 @@ export const productLaunch: ArtifactContent = web(
                 stat("12 min", "to clear a 400 sq ft room"),
                 stat("21 dB", "quieter than a library at night"),
             ),
-            { background: bgImage(pic(385, 1700, 1100), 0.5), bleed: true },
+            { background: bgImage(pic(53, 1700, 1100), 0.5), bleed: true },
         ),
         section(
             "product",
             split(
                 40,
-                img(pic(305), 1.05),
+                img(pic(54), 1.05),
                 col(
                     t("Meet Aer One", "label"),
                     t("Engineered to disappear into your home.", "h2"),
@@ -1453,7 +2267,7 @@ export const productLaunch: ArtifactContent = web(
                     "subtitle",
                     "center",
                 ),
-                video(DEMO_VIDEO, pic(995, 1280, 720)),
+                video(DEMO_VIDEO, pic(55, 1280, 720)),
             ),
             { background: bgTone("tint"), bleed: true },
         ),
@@ -1470,7 +2284,7 @@ export const productLaunch: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(41), 0.92),
+                img(pic(56), 0.92),
             ),
         ),
         section(
@@ -1504,7 +2318,7 @@ export const productLaunch: ArtifactContent = web(
             "features",
             row(
                 card(
-                    img(pic(252), 1),
+                    img(pic(57), 1),
                     t("One-click filter", "h3"),
                     t(
                         "A magnetic cartridge swaps in five seconds, and the device tells you the exact day it’s due.",
@@ -1512,7 +2326,7 @@ export const productLaunch: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img(pic(691), 1),
+                    img(pic(58), 1),
                     t("Sleep mode", "h3"),
                     t(
                         "The glow ring dims to nothing and the fan drops below a whisper, so it works while you don’t hear it.",
@@ -1520,7 +2334,7 @@ export const productLaunch: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img(pic(893), 1),
+                    img(pic(59), 1),
                     t("Built to last", "h3"),
                     t(
                         "Repairable by design, a five-year warranty, and a shell spun from 100% recycled aluminum.",
@@ -1544,7 +2358,7 @@ export const productLaunch: ArtifactContent = web(
                     stat("96%", "would replace their old purifier"),
                 ),
             ),
-            { background: bgImage(pic(1008, 1700, 1100), 0.55), bleed: true },
+            { background: bgImage(pic(60, 1700, 1100), 0.55), bleed: true },
         ),
         section(
             "data",
@@ -1645,10 +2459,10 @@ export const productLaunch: ArtifactContent = web(
                 button("Pre-order Aer One", "https://aerone.com/preorder", { size: "lg" }),
                 t("Free shipping across North America · 2–4 days", "caption", "center"),
             ),
-            { background: bgImage(pic(53, 1700, 1100), 0.55), bleed: true },
+            { background: bgImage(pic(61, 1700, 1100), 0.55), bleed: true },
         ),
     ],
-    bgImage(pic(133, 1700, 1100), 0.32),
+    bgImage(pic(62, 1700, 1100), 0.32),
 );
 
 export const landingPage: ArtifactContent = web(
@@ -1682,14 +2496,20 @@ export const landingPage: ArtifactContent = web(
                     button("Start free, no card", "#signup"),
                     button("See the pricing", "#pricing", { variant: "outline" }),
                 ),
+                pin(
+                    w(22, card(t("LIVE", "label"), t("p95 at 42ms as you read this.", "body"))),
+                    "end",
+                    "end",
+                    { dx: -28, dy: 108, z: 2 },
+                ),
             ),
             {
                 bleed: true,
-                background: bgImage(pic(7, 1700, 1100), 0.52),
+                background: bgImage(pic(63, 1700, 1100), 0.52),
                 frame: { aspect: 16 / 8 },
             },
         ),
-        section("shot", col(t("One screen, every source", "label"), img(pic(532), 1.7))),
+        section("shot", col(t("One screen, every source", "label"), img(pic(64), 1.7))),
         section(
             "logos",
             col(
@@ -1722,7 +2542,7 @@ export const landingPage: ArtifactContent = web(
                     "Connect, Ask, Share",
                     split(
                         45,
-                        img(pic(3), 1.35),
+                        img(pic(65), 1.35),
                         col(
                             t("Connect in minutes", "h3"),
                             t(
@@ -1738,7 +2558,7 @@ export const landingPage: ArtifactContent = web(
                     ),
                     split(
                         45,
-                        img(pic(4), 1.35),
+                        img(pic(66), 1.35),
                         col(
                             t("Ask in plain English", "h3"),
                             t(
@@ -1754,7 +2574,7 @@ export const landingPage: ArtifactContent = web(
                     ),
                     split(
                         45,
-                        img(pic(192), 1.35),
+                        img(pic(67), 1.35),
                         col(
                             t("Share without friction", "h3"),
                             t(
@@ -1775,7 +2595,7 @@ export const landingPage: ArtifactContent = web(
             "live",
             split(
                 40,
-                img(pic(0), 1.05),
+                img(pic(68), 1.05),
                 col(
                     t("Always current", "label"),
                     badge("REAL-TIME"),
@@ -1787,7 +2607,7 @@ export const landingPage: ArtifactContent = web(
                     button("See it live", "#signup", { variant: "outline" }),
                 ),
             ),
-            { background: bgImage(pic(122, 1700, 1100), 0.5), bleed: true },
+            { background: bgImage(pic(69, 1700, 1100), 0.5), bleed: true },
         ),
         section(
             "why",
@@ -1982,7 +2802,7 @@ export const landingPage: ArtifactContent = web(
             { background: bgTone("tint"), bleed: true },
         ),
     ],
-    bgImage(pic(930, 1700, 1100), 0.3),
+    bgImage(pic(70, 1700, 1100), 0.3),
 );
 
 export const eventPage: ArtifactContent = web(
@@ -2018,7 +2838,7 @@ export const eventPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(904, 1700, 1100), 0.58),
+                background: bgImage(pic(71, 1700, 1100), 0.58),
                 frame: { aspect: 16 / 7 },
             },
         ),
@@ -2034,14 +2854,14 @@ export const eventPage: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(1047), 0.92),
+                img(pic(72), 0.92),
             ),
         ),
         section(
             "why",
             row(
                 card(
-                    img(pic(528), 1),
+                    img(pic(73), 1),
                     t("Learn the new craft", "h3"),
                     t(
                         "Forty hands-on workshops on prompt design, agent UX, and shipping AI features people actually trust.",
@@ -2049,7 +2869,7 @@ export const eventPage: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img(pic(1033), 1),
+                    img(pic(74), 1),
                     t("Meet your next collaborators", "h3"),
                     t(
                         "Curated dinners, hallway tracks, and a matchmaking app that puts the right five people in a room together.",
@@ -2057,7 +2877,7 @@ export const eventPage: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img(pic(56), 1),
+                    img(pic(75), 1),
                     t("See it before everyone else", "h3"),
                     t(
                         "First looks at unreleased tools, live demo nights, and research that won’t be public for another year.",
@@ -2070,7 +2890,7 @@ export const eventPage: ArtifactContent = web(
             "lineup",
             split(
                 40,
-                img(pic(494), 1.05),
+                img(pic(76), 1.05),
                 col(
                     t("The lineup", "label"),
                     t("Sixty voices worth flying for.", "h2"),
@@ -2148,6 +2968,8 @@ export const eventPage: ArtifactContent = web(
                 t("Three days, three frequencies.", "h2"),
                 table(
                     "Day,Morning,Afternoon,Night\nThu · Foundations,Keynote + craft talks,Hands-on workshops,Opening party on the terrace\nFri · Frontiers,Agent UX deep dives,Research showcase,Live demo night\nSat · Futures,Design fireside chats,Build-your-own labs,Closing set + dinner",
+                    true,
+                    1,
                 ),
             ),
             { background: bgTone("tint"), bleed: true },
@@ -2171,7 +2993,7 @@ export const eventPage: ArtifactContent = web(
                 stat("96%", "said they’d come back"),
                 stat("48", "countries on the badge list"),
             ),
-            { background: bgImage(pic(585, 1700, 1100), 0.55), bleed: true },
+            { background: bgImage(pic(77, 1700, 1100), 0.55), bleed: true },
         ),
         section(
             "praise",
@@ -2201,6 +3023,12 @@ export const eventPage: ArtifactContent = web(
             col(
                 t("Tickets", "label"),
                 t("Pick your pass before they’re gone.", "h2"),
+                pin(badge("Early bird ends Friday"), "end", "start", {
+                    dx: -20,
+                    dy: 8,
+                    rotate: 3,
+                    z: 2,
+                }),
                 row(
                     { align: "start" },
                     pricing(
@@ -2277,7 +3105,7 @@ export const eventPage: ArtifactContent = web(
                         variant: "outline",
                     }),
                 ),
-                img(pic(208), 1.1),
+                img(pic(78), 1.1),
             ),
         ),
         section(
@@ -2325,10 +3153,10 @@ export const eventPage: ArtifactContent = web(
                 ),
                 button("Get your pass", "https://frequency.fest/tickets", { size: "lg" }),
             ),
-            { background: bgImage(pic(344, 1700, 1100), 0.55), bleed: true },
+            { background: bgImage(pic(79, 1700, 1100), 0.55), bleed: true },
         ),
     ],
-    bgImage(pic(135, 1700, 1100), 0.32),
+    bgImage(pic(80, 1700, 1100), 0.32),
 );
 
 export const waitlistPage: ArtifactContent = web(
@@ -2354,7 +3182,7 @@ export const waitlistPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(441, 1700, 1100), 0.62),
+                background: bgImage(pic(81, 1700, 1100), 0.62),
                 frame: { aspect: 16 / 9 },
             },
         ),
@@ -2370,7 +3198,7 @@ export const waitlistPage: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(794), 0.92),
+                img(pic(82), 0.92),
             ),
         ),
         section(
@@ -2378,14 +3206,14 @@ export const waitlistPage: ArtifactContent = web(
             col(
                 t("First look", "label"),
                 t("This is what nothing-in-your-way looks like.", "h2"),
-                img(pic(68), 1.7),
+                img(pic(83), 1.7),
             ),
         ),
         section(
             "features",
             row(
                 card(
-                    img(pic(679), 1),
+                    img(pic(84), 1),
                     t("One thing at a time", "h3"),
                     t(
                         "Pull a task into focus and the rest of the world dims. When you finish, the next thing rises on its own.",
@@ -2393,7 +3221,7 @@ export const waitlistPage: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img(pic(831), 1),
+                    img(pic(85), 1),
                     t("Private by design", "h3"),
                     t(
                         "Everything runs on your device. Your notes, your work, your patterns. None of it leaves the machine.",
@@ -2401,7 +3229,7 @@ export const waitlistPage: ArtifactContent = web(
                     ),
                 ),
                 card(
-                    img(pic(989), 1),
+                    img(pic(86), 1),
                     t("A quiet assistant", "h3"),
                     t(
                         "An AI that drafts, summarizes, and clears the busywork, then steps back without asking for a thing.",
@@ -2414,7 +3242,7 @@ export const waitlistPage: ArtifactContent = web(
             "deep",
             split(
                 40,
-                img(pic(832), 1.05),
+                img(pic(87), 1.05),
                 col(
                     t("Built for deep work", "label"),
                     badge("ON-DEVICE"),
@@ -2450,7 +3278,7 @@ export const waitlistPage: ArtifactContent = web(
             "founders",
             split(
                 40,
-                img(pic(1), 1.05),
+                img(pic(88), 1.05),
                 testimonial(
                     "We built Vanta because we were tired of software that treats your attention as inventory to sell. This is the tool we wanted for ourselves, and the first thing in years that made our own work feel quiet again.",
                     "Eli Brandt & Nora Vance",
@@ -2500,7 +3328,7 @@ export const waitlistPage: ArtifactContent = web(
                 ),
                 button("Join the waitlist", "https://vanta.app/waitlist", { size: "lg" }),
             ),
-            { background: bgImage(pic(416, 1700, 1100), 0.58), bleed: true },
+            { background: bgImage(pic(89, 1700, 1100), 0.58), bleed: true },
         ),
         section(
             "footer",
@@ -2520,7 +3348,7 @@ export const waitlistPage: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage(pic(642, 1700, 1100), 0.34),
+    bgImage(pic(90, 1700, 1100), 0.34),
 );
 
 export const agencySite: ArtifactContent = web(
@@ -2555,11 +3383,17 @@ export const agencySite: ArtifactContent = web(
                     button("Start a project", "#contact"),
                     button("See the work", "#work", { variant: "outline" }),
                 ),
+                pin(badge("Booking spring projects"), "end", "start", {
+                    dx: -28,
+                    dy: 92,
+                    rotate: 3,
+                    z: 2,
+                }),
             ),
             {
                 bleed: true,
                 frame: { aspect: 16 / 7 },
-                background: bgImage(pic(464, 1700, 1100), 0.55),
+                background: bgImage(pic(91, 1700, 1100), 0.55),
             },
         ),
         section(
@@ -2603,24 +3437,24 @@ export const agencySite: ArtifactContent = web(
             "work",
             row(
                 card(
-                    img(pic(20), 1.4),
+                    img(pic(92), 1.4),
                     t("Meridian", "h3"),
                     t("Brand & app for a challenger bank · 2025", "caption"),
                 ),
                 card(
-                    img(pic(627), 1.4),
+                    img(pic(93), 1.4),
                     t("Orchard", "h3"),
                     t("Identity & packaging for a grocery startup · 2024", "caption"),
                 ),
                 card(
-                    img(pic(180), 1.4),
+                    img(pic(94), 1.4),
                     t("Atlas", "h3"),
                     t("Product design for an analytics platform · 2024", "caption"),
                 ),
             ),
         ),
         section("interlude", col(t("The details are the work.", "h2", "center")), {
-            background: bgImage(pic(80, 1700, 1100), 0.55),
+            background: bgImage(pic(95, 1700, 1100), 0.55),
             bleed: true,
             frame: { aspect: 16 / 5 },
         }),
@@ -2628,12 +3462,12 @@ export const agencySite: ArtifactContent = web(
             "more-work",
             row(
                 card(
-                    img(pic(24), 1.6),
+                    img(pic(96), 1.6),
                     t("Novel Press", "h3"),
                     t("Full rebrand & site for an independent publisher · 2023", "caption"),
                 ),
                 card(
-                    img(pic(871), 1.6),
+                    img(pic(97), 1.6),
                     t("Tidal", "h3"),
                     t("Campaign & motion system for a clean-energy launch · 2023", "caption"),
                 ),
@@ -2694,7 +3528,7 @@ export const agencySite: ArtifactContent = web(
                 stat("11 yrs", "designing in the open"),
                 stat("6", "clients a year, on purpose"),
             ),
-            { background: bgImage(pic(531, 1700, 1100), 0.55), bleed: true },
+            { background: bgImage(pic(98, 1700, 1100), 0.55), bleed: true },
         ),
         section(
             "quote",
@@ -2704,13 +3538,19 @@ export const agencySite: ArtifactContent = web(
                 "VP Brand, Meridian",
                 "https://i.pravatar.cc/240?img=41",
             ),
-            { background: bgImage(pic(945, 1700, 1100), 0.6), bleed: true },
+            { background: bgImage(pic(99, 1700, 1100), 0.6), bleed: true },
         ),
         section(
             "team",
             col(
                 t("The studio", "label"),
                 t("Nine people, no account managers.", "h2"),
+                pin(
+                    w(16, polaroid(pic(100, 900, 700), 1.3, "The studio, mostly awake.")),
+                    "end",
+                    "end",
+                    { dx: -24, dy: 215, rotate: 4, z: 1 },
+                ),
                 row(
                     fill(
                         profile(
@@ -2752,7 +3592,7 @@ export const agencySite: ArtifactContent = web(
                     size: "lg",
                 }),
             ),
-            { background: bgImage(pic(1031, 1700, 1100), 0.55), bleed: true },
+            { background: bgImage(pic(101, 1700, 1100), 0.55), bleed: true },
         ),
         section(
             "footer",
@@ -2815,7 +3655,7 @@ export const agencySite: ArtifactContent = web(
             ),
         ),
     ],
-    bgImage(pic(143, 1700, 1100), 0.3),
+    bgImage(pic(102, 1700, 1100), 0.3),
 );
 
 export const newsletter: ArtifactContent = doc(
@@ -2832,7 +3672,7 @@ export const newsletter: ArtifactContent = doc(
                 ),
                 t("Saturday, June 27, 2026 · edited by Lena Hartmann", "caption"),
             ),
-            { background: bgImage(pic(690, 1700, 1100), 0.55) },
+            { background: bgImage(pic(103, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -2866,7 +3706,7 @@ export const newsletter: ArtifactContent = doc(
                     ),
                 ),
                 group(
-                    img(pic(441), 0.78, 6),
+                    img(pic(104), 0.78, 6),
                     t(
                         "Rua das Flores, three weeks after the cars left. The chairs were the city’s only intervention.",
                         "caption",
@@ -2879,7 +3719,7 @@ export const newsletter: ArtifactContent = doc(
             split(
                 40,
                 group(
-                    img(pic(553), 1.05, 6),
+                    img(pic(105), 1.05, 6),
                     t(
                         "The new benches: backs, armrests, and shade, which is more than most cities manage.",
                         "caption",
@@ -2902,7 +3742,7 @@ export const newsletter: ArtifactContent = doc(
                     "A surprising line in this month’s council report: streets with warm, human-scale lighting see thirty percent more evening foot traffic than those lit by the usual orange floodlights. Counter-intuitively, they also see less crime. Light that makes a place feel watched-over rather than interrogated turns out to be the cheapest urban safety measure we have. The city is swapping two thousand fixtures this autumn. Watch the corners that used to empty at dusk.",
                     "body",
                 ),
-                img(pic(232), 2.2, 6),
+                img(pic(106), 2.2, 6),
                 t(
                     "Two of the two thousand: warm lamps, and a sky that stays visible above them.",
                     "caption",
@@ -2921,7 +3761,7 @@ export const newsletter: ArtifactContent = doc(
                     ),
                 ),
                 group(
-                    img(pic(839), 0.78, 6),
+                    img(pic(107), 0.78, 6),
                     t(
                         "Morning deliveries in central Ghent. The cargo bike has quietly replaced the delivery van.",
                         "caption",
@@ -2987,7 +3827,7 @@ export const newsletter: ArtifactContent = doc(
             ),
         ),
     ],
-    bgImage("commonground-paper-grain-bg", 0.26),
+    bgImage("https://images.pexels.com/photos/5993568/pexels-photo-5993568.jpeg", 0.26),
 );
 
 export const startupPitch: ArtifactContent = deck(
@@ -3004,7 +3844,7 @@ export const startupPitch: ArtifactContent = deck(
                 ),
                 badge("$4M SEED · LED BY ANDISON CAPITAL"),
             ),
-            { background: bgImage(pic(490, 1700, 1100), 0.55) },
+            { background: bgImage(pic(108, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -3018,7 +3858,7 @@ export const startupPitch: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(292), 0.82),
+                img(pic(109), 0.82),
             ),
         ),
         section(
@@ -3027,13 +3867,13 @@ export const startupPitch: ArtifactContent = deck(
                 "Front of house got Toast, Square, and Resy. The kitchen, where the money is actually made or lost, got nothing.",
                 "The Mise thesis",
             ),
-            { background: bgImage(pic(42, 1700, 1100), 0.6) },
+            { background: bgImage(pic(110, 1700, 1100), 0.6) },
         ),
         section(
             "s4",
             split(
                 40,
-                img(pic(88), 1.1),
+                img(pic(111), 1.1),
                 group(
                     t("02 · Why now", "label"),
                     t("The kitchen's data finally left the building.", "h2"),
@@ -3049,7 +3889,7 @@ export const startupPitch: ArtifactContent = deck(
             "s5",
             split(
                 40,
-                img(pic(341), 1.1),
+                img(pic(112), 1.1),
                 group(
                     t("03 · The product", "label"),
                     t("One screen the whole line actually opens.", "h2"),
@@ -3087,7 +3927,11 @@ export const startupPitch: ArtifactContent = deck(
                 60,
                 group(
                     t("05 · Traction", "label"),
-                    t("Kitchens that don't want to give it back.", "h2"),
+                    row(
+                        { align: "baseline", gap: 10 },
+                        fitW(t("38", "h1")),
+                        t("kitchens that don't want to give it back.", "h2"),
+                    ),
                     t(
                         "Live in 38 kitchens across 6 restaurant groups, with $2.1M in food orders run through Mise this quarter. Pilots cut food cost by an average of 310 basis points within 60 days.",
                         "body",
@@ -3134,24 +3978,24 @@ export const startupPitch: ArtifactContent = deck(
                         "We're POS-agnostic: the data layer for the kitchen, not another silo",
                     ),
                 ),
-                img(pic(395), 0.86),
+                img(pic(113), 0.86),
             ),
         ),
         section(
             "s12",
             row(
                 group(
-                    img(pic(978), 1),
+                    img(pic(114), 1),
                     t("Dana Reyes", "h3"),
                     t("CEO · ex-Toast, ran ops for 40 kitchens", "caption"),
                 ),
                 group(
-                    img(pic(5), 1),
+                    img(pic(115), 1),
                     t("Marcus Vallée", "h3"),
                     t("CTO · ex-Flexport forecasting", "caption"),
                 ),
                 group(
-                    img(pic(429), 1),
+                    img(pic(116), 1),
                     t("Priya Anand", "h3"),
                     t("Head of Culinary · 12 years on the line", "caption"),
                 ),
@@ -3161,7 +4005,7 @@ export const startupPitch: ArtifactContent = deck(
             "s13",
             split(
                 40,
-                img(pic(23), 0.86),
+                img(pic(117), 0.86),
                 group(
                     t("08 · The ask", "label"),
                     t("Raising $4M to put Mise in 1,000 kitchens.", "h2"),
@@ -3172,10 +4016,10 @@ export const startupPitch: ArtifactContent = deck(
                     button("dana@mise.kitchen"),
                 ),
             ),
-            { background: bgImage(pic(437, 1700, 1100), 0.6) },
+            { background: bgImage(pic(118, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.35),
+    bgImage(pic(119, 1700, 1100), 0.35),
 );
 
 export const salesDeck: ArtifactContent = deck(
@@ -3192,7 +4036,7 @@ export const salesDeck: ArtifactContent = deck(
                 ),
                 badge("TRUSTED BY 140+ FLEETS"),
             ),
-            { background: bgImage(pic(352, 1700, 1100), 0.55) },
+            { background: bgImage(pic(120, 1700, 1100), 0.55) },
         ),
         section(
             "f2",
@@ -3206,7 +4050,7 @@ export const salesDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(371), 0.82),
+                img(pic(121), 0.82),
             ),
         ),
         section(
@@ -3221,7 +4065,7 @@ export const salesDeck: ArtifactContent = deck(
             "f4",
             split(
                 40,
-                img(pic(370), 1.1),
+                img(pic(122), 1.1),
                 group(
                     t("The solution", "label"),
                     t("Fix it in the bay, on your schedule.", "h2"),
@@ -3278,7 +4122,7 @@ export const salesDeck: ArtifactContent = deck(
                 "We used to staff for breakdowns. Now we staff for the schedule Fleetwise hands us the night before.",
                 "Carla Mendez, VP Maintenance, Meridian Freight",
             ),
-            { background: bgImage(pic(495, 1700, 1100), 0.6) },
+            { background: bgImage(pic(123, 1700, 1100), 0.6) },
         ),
         section(
             "f9",
@@ -3302,14 +4146,14 @@ export const salesDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(36), 0.86),
+                img(pic(124), 0.86),
             ),
         ),
         section(
             "f11",
             split(
                 40,
-                img(pic(605), 0.86),
+                img(pic(125), 0.86),
                 group(
                     t("Next steps", "label"),
                     t("See your own fleet's risk in 30 minutes.", "h2"),
@@ -3320,10 +4164,10 @@ export const salesDeck: ArtifactContent = deck(
                     button("Book your fleet assessment"),
                 ),
             ),
-            { background: bgImage(pic(88, 1700, 1100), 0.55) },
+            { background: bgImage(pic(126, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(893, 1700, 1100), 0.35),
+    bgImage(pic(127, 1700, 1100), 0.35),
 );
 
 export const seriesA: ArtifactContent = deck(
@@ -3340,7 +4184,7 @@ export const seriesA: ArtifactContent = deck(
                 ),
                 badge("$18M SERIES A · LED BY MERIDIAN VENTURES"),
             ),
-            { background: bgImage(pic(223, 1700, 1100), 0.55) },
+            { background: bgImage(pic(128, 1700, 1100), 0.55) },
         ),
         section(
             "a2",
@@ -3354,7 +4198,7 @@ export const seriesA: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(504), 0.82),
+                img(pic(129), 0.82),
             ),
         ),
         section(
@@ -3363,7 +4207,7 @@ export const seriesA: ArtifactContent = deck(
                 "Every missed call is a job that went to the next plumber on Google. We just pick up.",
                 "The Switchboard thesis",
             ),
-            { background: bgImage(pic(579, 1700, 1100), 0.6) },
+            { background: bgImage(pic(130, 1700, 1100), 0.6) },
         ),
         section(
             "a4",
@@ -3399,7 +4243,7 @@ export const seriesA: ArtifactContent = deck(
             "a6",
             split(
                 40,
-                img(pic(366), 1.1),
+                img(pic(131), 1.1),
                 group(
                     t("03 · The product", "label"),
                     t("One front desk that never sleeps.", "h2"),
@@ -3424,7 +4268,7 @@ export const seriesA: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(160), 0.82),
+                img(pic(132), 0.82),
             ),
         ),
         section(
@@ -3453,17 +4297,17 @@ export const seriesA: ArtifactContent = deck(
             "a10",
             row(
                 group(
-                    img(pic(1), 1),
+                    img(pic(133), 1),
                     t("Dana Whitfield", "h3"),
                     t("CEO · ex-ServiceTitan, scaled 3,000 contractors", "caption"),
                 ),
                 group(
-                    img(pic(304), 1),
+                    img(pic(134), 1),
                     t("Amir Hassan", "h3"),
                     t("CTO · ex-Google speech, built real-time voice", "caption"),
                 ),
                 group(
-                    img(pic(856), 1),
+                    img(pic(135), 1),
                     t("Lena Ortiz", "h3"),
                     t("Head of Revenue · ex-Jobber, 0→$30M", "caption"),
                 ),
@@ -3502,10 +4346,10 @@ export const seriesA: ArtifactContent = deck(
                     "subtitle",
                 ),
             ),
-            { background: bgImage(pic(320, 1700, 1100), 0.5) },
+            { background: bgImage(pic(136, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(683, 1700, 1100), 0.35),
+    bgImage(pic(137, 1700, 1100), 0.35),
 );
 
 export const productDemo: ArtifactContent = deck(
@@ -3522,7 +4366,7 @@ export const productDemo: ArtifactContent = deck(
                 ),
                 badge("A FIVE-MINUTE TOUR"),
             ),
-            { background: bgImage(pic(60, 1700, 1100), 0.55) },
+            { background: bgImage(pic(138, 1700, 1100), 0.55) },
         ),
         section(
             "p2",
@@ -3535,14 +4379,14 @@ export const productDemo: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(529), 1.0),
+                img(pic(139), 1.0),
             ),
         ),
         section(
             "p3",
             split(
                 40,
-                img(pic(56), 1.1),
+                img(pic(140), 1.1),
                 group(
                     t("Before Sift", "label"),
                     t("Feedback lives everywhere. Decisions live on a hunch.", "h2"),
@@ -3565,7 +4409,7 @@ export const productDemo: ArtifactContent = deck(
             "p4",
             split(
                 40,
-                img(pic(180), 1.1),
+                img(pic(141), 1.1),
                 group(
                     t("The tour · 01", "label"),
                     t("Every signal lands in one inbox.", "h2"),
@@ -3590,14 +4434,14 @@ export const productDemo: ArtifactContent = deck(
                         'Ask in plain English ("what are enterprise accounts frustrated by?") and get the answer with receipts',
                     ),
                 ),
-                img(pic(367), 0.82),
+                img(pic(142), 0.82),
             ),
         ),
         section(
             "p6",
             split(
                 40,
-                img(pic(8), 1.1),
+                img(pic(143), 1.1),
                 group(
                     t("The tour · 03", "label"),
                     t("Watch the themes that matter move week over week.", "h2"),
@@ -3622,7 +4466,7 @@ export const productDemo: ArtifactContent = deck(
                         "Reopen rates drop and renewal calls get a lot friendlier",
                     ),
                 ),
-                img(pic(7), 0.82),
+                img(pic(144), 0.82),
             ),
         ),
         section(
@@ -3639,7 +4483,7 @@ export const productDemo: ArtifactContent = deck(
                 "We stopped arguing about the roadmap in meetings. Now we just open Sift and the answer's already there.",
                 "Priya Nair, VP Product, Northwind Software",
             ),
-            { background: bgImage(pic(625, 1700, 1100), 0.6) },
+            { background: bgImage(pic(145, 1700, 1100), 0.6) },
         ),
         section(
             "p10",
@@ -3673,10 +4517,10 @@ export const productDemo: ArtifactContent = deck(
                 ),
                 button("Start free"),
             ),
-            { background: bgImage(pic(173, 1700, 1100), 0.55) },
+            { background: bgImage(pic(146, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(114, 1700, 1100), 0.35),
+    bgImage(pic(147, 1700, 1100), 0.35),
 );
 
 export const companyOverview: ArtifactContent = deck(
@@ -3693,7 +4537,7 @@ export const companyOverview: ArtifactContent = deck(
                 ),
                 badge("EST. 2012 · PORTLAND, OREGON"),
             ),
-            { background: bgImage(pic(153, 1700, 1100), 0.55) },
+            { background: bgImage(pic(148, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -3711,7 +4555,7 @@ export const companyOverview: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(534), 0.82),
+                img(pic(149), 0.82),
             ),
         ),
 
@@ -3719,7 +4563,7 @@ export const companyOverview: ArtifactContent = deck(
             "c3",
             split(
                 40,
-                img(pic(553), 1.05),
+                img(pic(150), 1.05),
                 group(
                     t("OUR STORY", "label"),
                     t("It started with one stubborn bench.", "h2"),
@@ -3735,7 +4579,7 @@ export const companyOverview: ArtifactContent = deck(
             "c4",
             row(
                 card(
-                    img(pic(32), 1.4),
+                    img(pic(151), 1.4),
                     t("Seating", "h3"),
                     t(
                         "Chairs, benches, and sofas with frames that are screwed rather than stapled, and reupholstered rather than replaced.",
@@ -3743,7 +4587,7 @@ export const companyOverview: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img(pic(1068), 1.4),
+                    img(pic(152), 1.4),
                     t("Tables & casegoods", "h3"),
                     t(
                         "Dining tables, desks, and storage in solid oak, walnut, and ash, finished by hand.",
@@ -3751,7 +4595,7 @@ export const companyOverview: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img(pic(305), 1.4),
+                    img(pic(153), 1.4),
                     t("Lighting", "h3"),
                     t(
                         "Pendants, sconces, and floor lamps in turned wood, blown glass, and brushed brass.",
@@ -3772,7 +4616,7 @@ export const companyOverview: ArtifactContent = deck(
                 ),
                 button("Tour the workshop"),
             ),
-            { background: bgImage(pic(284, 1700, 1100), 0.6) },
+            { background: bgImage(pic(154, 1700, 1100), 0.6) },
         ),
 
         section(
@@ -3797,7 +4641,7 @@ export const companyOverview: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-                img(pic(834), 0.82),
+                img(pic(155), 0.82),
             ),
         ),
 
@@ -3841,7 +4685,7 @@ export const companyOverview: ArtifactContent = deck(
                         180,
                     ),
                 ),
-                img(pic(527), 0.9),
+                img(pic(156), 0.9),
             ),
         ),
 
@@ -3849,17 +4693,17 @@ export const companyOverview: ArtifactContent = deck(
             "c10",
             row(
                 group(
-                    img(pic(399), 1),
+                    img(pic(157), 1),
                     t("Mara Fernwood", "h3"),
                     t("Founder & Creative Director", "caption"),
                 ),
                 group(
-                    img(pic(491), 1),
+                    img(pic(158), 1),
                     t("Elias Fernwood", "h3"),
                     t("Founder & Head of Workshop", "caption"),
                 ),
                 group(
-                    img(pic(635), 1),
+                    img(pic(159), 1),
                     t("Jun Park", "h3"),
                     t("Design Lead · ex-Heath Ceramics", "caption"),
                 ),
@@ -3870,7 +4714,7 @@ export const companyOverview: ArtifactContent = deck(
             "c11",
             split(
                 40,
-                img(pic(785), 1.05),
+                img(pic(160), 1.05),
                 group(
                     t("WHAT WE BELIEVE", "label"),
                     t("Make less. Make it last.", "h2"),
@@ -3902,10 +4746,10 @@ export const companyOverview: ArtifactContent = deck(
                 ),
                 button("hello@fernwoodco.com"),
             ),
-            { background: bgImage(pic(307, 1700, 1100), 0.55) },
+            { background: bgImage(pic(161, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(143, 1700, 1100), 0.34),
+    bgImage(pic(162, 1700, 1100), 0.34),
 );
 
 export const gtmPlan: ArtifactContent = deck(
@@ -3922,7 +4766,7 @@ export const gtmPlan: ArtifactContent = deck(
                 ),
                 badge("GO-TO-MARKET PLAN · H2 2026"),
             ),
-            { background: bgImage(pic(348, 1700, 1100), 0.55) },
+            { background: bgImage(pic(163, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -3951,7 +4795,7 @@ export const gtmPlan: ArtifactContent = deck(
             "g3",
             row(
                 card(
-                    img(pic(535), 1.4),
+                    img(pic(164), 1.4),
                     t("DTC brands", "h3"),
                     t(
                         "$2M–$30M online sellers on Shopify juggling Amazon, TikTok Shop, and their own site.",
@@ -3959,7 +4803,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img(pic(405), 1.4),
+                    img(pic(165), 1.4),
                     t("Multi-location retail", "h3"),
                     t(
                         "3–20 store chains that need one source of truth across the floor and the stockroom.",
@@ -3967,7 +4811,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img(pic(617), 1.4),
+                    img(pic(166), 1.4),
                     t("Wholesale & distribution", "h3"),
                     t(
                         "Brands shipping to stockists who need to promise dates they can actually keep.",
@@ -3994,14 +4838,14 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
             ),
-            { background: bgImage(pic(115, 1700, 1100), 0.55) },
+            { background: bgImage(pic(167, 1700, 1100), 0.55) },
         ),
 
         section(
             "g5",
             split(
                 40,
-                img(pic(396), 1.05),
+                img(pic(168), 1.05),
                 group(
                     t("THE FUNNEL", "label"),
                     t("How a curious operator becomes a paying brand.", "h2"),
@@ -4022,7 +4866,7 @@ export const gtmPlan: ArtifactContent = deck(
             "g6",
             row(
                 card(
-                    img(pic(885), 1.4),
+                    img(pic(169), 1.4),
                     t("Content & SEO", "h3"),
                     t(
                         "Operator-grade guides on demand planning that rank for the problems brands Google at 11pm.",
@@ -4030,7 +4874,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img(pic(513), 1.4),
+                    img(pic(170), 1.4),
                     t("Platform partnerships", "h3"),
                     t(
                         "A featured Shopify app and co-marketing with 3PLs and agencies who already have the trust.",
@@ -4038,7 +4882,7 @@ export const gtmPlan: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img(pic(195), 1.4),
+                    img(pic(171), 1.4),
                     t("Community & events", "h3"),
                     t(
                         "Founder dinners and an operators' Slack where our best customers sell the next ones.",
@@ -4118,10 +4962,10 @@ export const gtmPlan: ArtifactContent = deck(
                 ),
                 button("Approve & kick off"),
             ),
-            { background: bgImage(pic(563, 1700, 1100), 0.55) },
+            { background: bgImage(pic(172, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(185, 1700, 1100), 0.34),
+    bgImage(pic(173, 1700, 1100), 0.34),
 );
 
 export const projectProposal: ArtifactContent = deck(
@@ -4138,7 +4982,7 @@ export const projectProposal: ArtifactContent = deck(
                 ),
                 badge("CONFIDENTIAL · v2"),
             ),
-            { background: bgImage(pic(425, 1700, 1100), 0.55) },
+            { background: bgImage(pic(174, 1700, 1100), 0.55) },
         ),
         section(
             "opportunity",
@@ -4152,7 +4996,7 @@ export const projectProposal: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(431), 0.82),
+                img(pic(175), 0.82),
             ),
         ),
         section(
@@ -4175,13 +5019,13 @@ export const projectProposal: ArtifactContent = deck(
                 "We don’t want to look bigger. We want to look like the best version of ourselves.",
                 "Dana Mercer · Founder, Atlas Coffee Roasters",
             ),
-            { background: bgImage(pic(1060, 1700, 1100), 0.6) },
+            { background: bgImage(pic(176, 1700, 1100), 0.6) },
         ),
         section(
             "approach",
             split(
                 40,
-                img(pic(766), 1.05),
+                img(pic(177), 1.05),
                 group(
                     t("03 · Our approach", "label"),
                     t("Strategy first. Then a system, not a logo.", "h2"),
@@ -4239,9 +5083,9 @@ export const projectProposal: ArtifactContent = deck(
         section(
             "team",
             row(
-                group(img(pic(20), 1), t("Nora Vance", "h3"), t("Creative Director", "caption")),
-                group(img(pic(403), 1), t("Devin Osei", "h3"), t("Brand Strategist", "caption")),
-                group(img(pic(532), 1), t("Lina Park", "h3"), t("Design & Web Lead", "caption")),
+                group(img(pic(178), 1), t("Nora Vance", "h3"), t("Creative Director", "caption")),
+                group(img(pic(179), 1), t("Devin Osei", "h3"), t("Brand Strategist", "caption")),
+                group(img(pic(180), 1), t("Lina Park", "h3"), t("Design & Web Lead", "caption")),
             ),
         ),
         section(
@@ -4262,7 +5106,7 @@ export const projectProposal: ArtifactContent = deck(
             "why-us",
             split(
                 40,
-                img(pic(526), 0.86),
+                img(pic(181), 0.86),
                 group(
                     t("06 · Why Foldwork", "label"),
                     t("We make brands people taste before they read.", "h2"),
@@ -4302,12 +5146,12 @@ export const projectProposal: ArtifactContent = deck(
                     ),
                     button("Approve & schedule kickoff"),
                 ),
-                img(pic(464), 0.86),
+                img(pic(182), 0.86),
             ),
-            { background: bgImage(pic(63, 1700, 1100), 0.58) },
+            { background: bgImage(pic(183, 1700, 1100), 0.58) },
         ),
     ],
-    bgImage("foldwork-bg", 0.35),
+    bgImage("https://images.pexels.com/photos/2455119/pexels-photo-2455119.jpeg", 0.35),
 );
 
 export const investorUpdate: ArtifactContent = doc(
@@ -4324,7 +5168,7 @@ export const investorUpdate: ArtifactContent = doc(
                 ),
                 t("Elena Vossberg · Co-founder & CEO", "caption"),
             ),
-            { background: bgImage(pic(6, 1700, 1100), 0.55) },
+            { background: bgImage(pic(184, 1700, 1100), 0.55) },
         ),
         section(
             "tldr",
@@ -4344,10 +5188,13 @@ export const investorUpdate: ArtifactContent = doc(
         ),
         section(
             "headline",
-            row(
-                stat("$248K", "MRR · +16% MoM"),
-                stat("124%", "Net revenue retention"),
-                stat("21 mo", "Cash runway"),
+            group(
+                row(
+                    { align: "baseline", gap: 10 },
+                    fitW(t("$248K", "h1")),
+                    t("MRR, up 16% on the month.", "h2"),
+                ),
+                row(stat("124%", "Net revenue retention"), stat("21 mo", "Cash runway")),
             ),
         ),
         section(
@@ -4388,7 +5235,7 @@ export const investorUpdate: ArtifactContent = doc(
                 "Cadence replaced three internal tools and a spreadsheet the whole team was afraid of. We closed the books four days faster.",
                 "Marisol Tan · VP Finance, Northloop",
             ),
-            { background: bgImage(pic(0, 1700, 1100), 0.6) },
+            { background: bgImage(pic(185, 1700, 1100), 0.6) },
         ),
         section(
             "challenges",
@@ -4422,7 +5269,7 @@ export const investorUpdate: ArtifactContent = doc(
             "product",
             split(
                 40,
-                img(pic(668), 1.2),
+                img(pic(186), 1.2),
                 group(
                     t("Product progress", "label"),
                     t("Usage Studio is live.", "h2"),
@@ -4456,10 +5303,10 @@ export const investorUpdate: ArtifactContent = doc(
                 ),
                 t("Elena Vossberg · Co-founder & CEO, Cadence · May 2026", "caption"),
             ),
-            { background: bgImage(pic(192, 1700, 1100), 0.6) },
+            { background: bgImage(pic(187, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage("cadence-bg", 0.3),
+    bgImage("https://images.pexels.com/photos/15060583/pexels-photo-15060583.jpeg", 0.3),
 );
 
 export const businessProposal: ArtifactContent = doc(
@@ -4476,7 +5323,7 @@ export const businessProposal: ArtifactContent = doc(
                 ),
                 badge("CONFIDENTIAL · v1.2"),
             ),
-            { background: bgImage(pic(297, 1700, 1100), 0.55) },
+            { background: bgImage(pic(188, 1700, 1100), 0.55) },
         ),
         section(
             "summary",
@@ -4511,7 +5358,7 @@ export const businessProposal: ArtifactContent = doc(
                         "A financing structure that protects working capital",
                     ),
                 ),
-                img(pic(315), 0.82),
+                img(pic(189), 0.82),
             ),
         ),
         section(
@@ -4536,7 +5383,7 @@ export const businessProposal: ArtifactContent = doc(
             "solution",
             split(
                 40,
-                img(pic(222), 1.05),
+                img(pic(190), 1.05),
                 group(
                     t("03 · Proposed solution", "label"),
                     t("Rooftop, carport, and storage: one integrated system.", "h2"),
@@ -4620,23 +5467,23 @@ export const businessProposal: ArtifactContent = doc(
                 "Cascade ran the whole project around our production schedule. We never lost an hour on the line, and our power bill dropped 71% the first month it switched on.",
                 "Renata Pho · Director of Operations, Sierra Foods",
             ),
-            { background: bgImage(pic(551, 1700, 1100), 0.6) },
+            { background: bgImage(pic(191, 1700, 1100), 0.6) },
         ),
         section(
             "team",
             row(
                 group(
-                    img(pic(4), 1),
+                    img(pic(192), 1),
                     t("Marcus Bell", "h3"),
                     t("Lead Project Engineer", "caption"),
                 ),
                 group(
-                    img(pic(2), 1),
+                    img(pic(193), 1),
                     t("Yuki Tanaka", "h3"),
                     t("Energy Modeling & Finance", "caption"),
                 ),
                 group(
-                    img(pic(604), 1),
+                    img(pic(194), 1),
                     t("Darnell Cruz", "h3"),
                     t("Construction Manager", "caption"),
                 ),
@@ -4655,12 +5502,12 @@ export const businessProposal: ArtifactContent = doc(
                     ),
                     button("Approve & schedule site survey"),
                 ),
-                img(pic(101), 0.86),
+                img(pic(195), 0.86),
             ),
-            { background: bgImage(pic(894, 1700, 1100), 0.58) },
+            { background: bgImage(pic(196, 1700, 1100), 0.58) },
         ),
     ],
-    bgImage("cascade-bg", 0.35),
+    bgImage("https://images.pexels.com/photos/24342984/pexels-photo-24342984.jpeg", 0.35),
 );
 
 export const boardDeck: ArtifactContent = deck(
@@ -4677,7 +5524,7 @@ export const boardDeck: ArtifactContent = deck(
                 ),
                 t("Priya Anand · Co-founder & CEO", "caption"),
             ),
-            { background: bgImage(pic(378, 1700, 1100), 0.55) },
+            { background: bgImage(pic(197, 1700, 1100), 0.55) },
         ),
         section(
             "agenda",
@@ -4755,7 +5602,7 @@ export const boardDeck: ArtifactContent = deck(
             "product",
             split(
                 40,
-                img(pic(201), 1.2),
+                img(pic(198), 1.2),
                 group(
                     t("03 · Product & ops", "label"),
                     t("Signals shipped, and it’s landing.", "h2"),
@@ -4789,7 +5636,7 @@ export const boardDeck: ArtifactContent = deck(
                 "Tideline is the first analytics tool our PMs actually open every morning. Signals caught a checkout regression before our on-call did.",
                 "Theo Marsh · Head of Product, Loop Commerce",
             ),
-            { background: bgImage(pic(972, 1700, 1100), 0.6) },
+            { background: bgImage(pic(199, 1700, 1100), 0.6) },
         ),
         section(
             "risks",
@@ -4858,10 +5705,10 @@ export const boardDeck: ArtifactContent = deck(
                 ),
                 button("Open discussion"),
             ),
-            { background: bgImage(pic(625, 1700, 1100), 0.6) },
+            { background: bgImage(pic(200, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage("tideline-bg", 0.3),
+    bgImage("https://images.pexels.com/photos/19215108/pexels-photo-19215108.jpeg", 0.3),
 );
 
 export const sponsorshipDeck: ArtifactContent = deck(
@@ -4878,7 +5725,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 ),
                 badge("AUG 14–16, 2026 · PIER 9, OAKHAVEN"),
             ),
-            { background: bgImage(pic(452, 1700, 1100), 0.55) },
+            { background: bgImage(pic(201, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -4897,7 +5744,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(453), 0.82),
+                img(pic(202), 0.82),
             ),
         ),
 
@@ -4951,14 +5798,14 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 ),
                 button("Talk to our partnerships team"),
             ),
-            { background: bgImage(pic(158, 1700, 1100), 0.6) },
+            { background: bgImage(pic(203, 1700, 1100), 0.6) },
         ),
 
         section(
             "activations",
             row(
                 card(
-                    img(pic(87), 1.4),
+                    img(pic(204), 1.4),
                     t("Branded lounges", "h3"),
                     t(
                         "Shaded waterfront decks with seating, charging, and your brand as the host of the calm.",
@@ -4966,7 +5813,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img(pic(686), 1.4),
+                    img(pic(205), 1.4),
                     t("Sampling & retail", "h3"),
                     t(
                         "Hand product to 65,000 people in the exact moment they’re open to trying something new.",
@@ -4974,7 +5821,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     ),
                 ),
                 card(
-                    img(pic(819), 1.4),
+                    img(pic(206), 1.4),
                     t("Stage & moment naming", "h3"),
                     t(
                         "Put your name on a stage, the sunset set, or the after-dark fireworks over the harbor.",
@@ -5014,7 +5861,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
                     ),
                 ),
                 group(
-                    img(pic(590), 0.9),
+                    img(pic(207), 0.9),
                     t(
                         "The harbor-deck hospitality lounge, where partners host clients above the crowd.",
                         "caption",
@@ -5041,14 +5888,14 @@ export const sponsorshipDeck: ArtifactContent = deck(
                 "Harborlight is the only sponsorship on our calendar where the audience thanks us for being there. We didn’t buy attention. We earned a weekend of it.",
                 "Priya Anand · VP Brand, Northwater Seltzer · Presenting Partner 2024–25",
             ),
-            { background: bgImage(pic(828, 1700, 1100), 0.62) },
+            { background: bgImage(pic(208, 1700, 1100), 0.62) },
         ),
 
         section(
             "ask",
             split(
                 40,
-                img(pic(639), 1.05),
+                img(pic(209), 1.05),
                 group(
                     t("THE ASK", "label"),
                     t("Let’s build your 2026 weekend.", "h2"),
@@ -5061,7 +5908,7 @@ export const sponsorshipDeck: ArtifactContent = deck(
             ),
         ),
     ],
-    bgImage(pic(384, 1700, 1100), 0.32),
+    bgImage(pic(210, 1700, 1100), 0.32),
 );
 
 export const sow: ArtifactContent = doc(
@@ -5081,7 +5928,7 @@ export const sow: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(532, 1700, 1100), 0.55) },
+            { background: bgImage(pic(211, 1700, 1100), 0.55) },
         ),
 
         section(
@@ -5100,7 +5947,7 @@ export const sow: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(26), 0.82),
+                img(pic(212), 0.82),
             ),
         ),
 
@@ -5139,7 +5986,7 @@ export const sow: ArtifactContent = doc(
             split(
                 40,
                 group(
-                    img(pic(7), 1.05),
+                    img(pic(213), 1.05),
                     t(
                         "Discovery workshops run on-site in week one to lock scope before any code ships.",
                         "caption",
@@ -5195,7 +6042,7 @@ export const sow: ArtifactContent = doc(
                         ),
                     ),
                 ),
-                img(pic(9), 0.78),
+                img(pic(214), 0.78),
             ),
         ),
 
@@ -5249,6 +6096,8 @@ export const sow: ArtifactContent = doc(
                 t("Fixed fee, billed against milestones.", "h2"),
                 table(
                     "Milestone,Trigger,Amount,Payment terms\nM1 · Kickoff,SOW execution,$37.2K,Due on signing\nM2 · Design accepted,D2 sign-off,$46.5K,Net 15\nM3 · Build complete,D3 sign-off,$55.8K,Net 15\nM4 · UAT passed,D4 sign-off,$28K,Net 15\nM5 · Launch,Production cutover,$18.5K,Net 15\nTotal,,$186K,",
+                    true,
+                    1,
                 ),
                 t(
                     "Fees are fixed for the scope above. Approved change orders are billed at a blended rate of $215/hour.",
@@ -5294,7 +6143,7 @@ export const sow: ArtifactContent = doc(
             ),
         ),
     ],
-    bgImage("sow-bg-grid-paper", 0.3),
+    bgImage("https://images.pexels.com/photos/28380105/pexels-photo-28380105.jpeg", 0.3),
 );
 
 export const annualReport: ArtifactContent = doc(
@@ -5315,7 +6164,7 @@ export const annualReport: ArtifactContent = doc(
                 ),
                 badge("NYSE: SOLS · 1,280 EMPLOYEES · 14 STATES"),
             ),
-            { background: bgImage(pic(448, 1700, 1100), 0.55) },
+            { background: bgImage(pic(215, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -5338,7 +6187,7 @@ export const annualReport: ArtifactContent = doc(
                     ),
                     t("Naomi Okonkwo, Co-founder & Chief Executive Officer", "caption"),
                 ),
-                img(pic(996), 0.82),
+                img(pic(216), 0.82),
             ),
         ),
         section(
@@ -5410,13 +6259,13 @@ export const annualReport: ArtifactContent = doc(
                     200,
                 ),
             ),
-            { background: bgImage(pic(617, 1700, 1100), 0.6) },
+            { background: bgImage(pic(217, 1700, 1100), 0.6) },
         ),
         section(
             "s8",
             row(
                 card(
-                    img(pic(252), 1),
+                    img(pic(218), 1),
                     t("Solstice One", "h3"),
                     t(
                         "Our first home battery: 13.5 kWh, whole-home backup, installed in a single day.",
@@ -5424,7 +6273,7 @@ export const annualReport: ArtifactContent = doc(
                     ),
                 ),
                 card(
-                    img(pic(816), 1),
+                    img(pic(219), 1),
                     t("Aurora 3.0", "h3"),
                     t(
                         "A rebuilt app that turns every roof into a dashboard, and every storm into a plan.",
@@ -5432,7 +6281,7 @@ export const annualReport: ArtifactContent = doc(
                     ),
                 ),
                 card(
-                    img(pic(887), 1),
+                    img(pic(220), 1),
                     t("GridShare", "h3"),
                     t(
                         "A virtual power plant that pays members to share stored energy when demand peaks.",
@@ -5445,7 +6294,7 @@ export const annualReport: ArtifactContent = doc(
             "s9",
             split(
                 40,
-                img(pic(514), 1.05),
+                img(pic(221), 1.05),
                 group(
                     t("Our people", "label"),
                     t("The company is the crew.", "h2"),
@@ -5497,9 +6346,9 @@ export const annualReport: ArtifactContent = doc(
                         "Reach cash-flow-positive operations by the end of FY2026",
                     ),
                 ),
-                img(pic(1008), 0.9),
+                img(pic(222), 0.9),
             ),
-            { background: bgImage(pic(110, 1700, 1100), 0.5) },
+            { background: bgImage(pic(223, 1700, 1100), 0.5) },
         ),
         section(
             "s13",
@@ -5515,7 +6364,7 @@ export const annualReport: ArtifactContent = doc(
             ),
         ),
     ],
-    bgImage("solstice-report-bg", 0.3),
+    bgImage("https://images.pexels.com/photos/30332204/pexels-photo-30332204.jpeg", 0.3),
 );
 
 export const caseStudy: ArtifactContent = doc(
@@ -5533,7 +6382,7 @@ export const caseStudy: ArtifactContent = doc(
                 t("A Tempo case study · Hospitality · 12-month engagement", "caption"),
                 badge("PUBLISHED WITH PERMISSION · MARLOW HOSPITALITY GROUP"),
             ),
-            { background: bgImage(pic(395, 1700, 1100), 0.55) },
+            { background: bgImage(pic(224, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -5551,7 +6400,7 @@ export const caseStudy: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(437), 0.82),
+                img(pic(225), 0.82),
             ),
         ),
         section(
@@ -5566,7 +6415,7 @@ export const caseStudy: ArtifactContent = doc(
             "s4",
             split(
                 40,
-                img(pic(42), 1.05),
+                img(pic(226), 1.05),
                 group(
                     t("The challenge", "label"),
                     t("Growth was outrunning the spreadsheet", "h2"),
@@ -5609,14 +6458,14 @@ export const caseStudy: ArtifactContent = doc(
                     ),
                     diagram("process", "Audit, Pilot in Boston, Roll out by city, Optimize", 200),
                 ),
-                img(pic(3), 0.85),
+                img(pic(227), 0.85),
             ),
         ),
         section(
             "s7",
             split(
                 40,
-                img(pic(488), 1.05),
+                img(pic(228), 1.05),
                 group(
                     t("The solution", "label"),
                     t("One platform, from forecast to clock-out", "h2"),
@@ -5649,10 +6498,16 @@ export const caseStudy: ArtifactContent = doc(
         ),
         section(
             "s9",
-            row(
-                stat("−18%", "labor cost as a share of sales"),
-                stat("$2.4M", "annualized savings across the group"),
-                stat("+31", "points of manager satisfaction (eNPS)"),
+            group(
+                row(
+                    { align: "baseline", gap: 10 },
+                    fitW(t("$2.4M", "h1")),
+                    t("in annualized savings across the group.", "h2"),
+                ),
+                row(
+                    stat("−18%", "labor cost as a share of sales"),
+                    stat("+31", "points of manager satisfaction (eNPS)"),
+                ),
             ),
         ),
         section(
@@ -5679,7 +6534,7 @@ export const caseStudy: ArtifactContent = doc(
                 "I got my Sundays back, and my GMs got their floors back. Tempo didn't just save us money. It let us open six restaurants without losing the thing that makes Marlow, Marlow.",
                 "Daniela Marlow, Chief Operating Officer, Marlow Hospitality Group",
             ),
-            { background: bgImage(pic(999, 1700, 1100), 0.6) },
+            { background: bgImage(pic(229, 1700, 1100), 0.6) },
         ),
         section(
             "s12",
@@ -5694,11 +6549,11 @@ export const caseStudy: ArtifactContent = doc(
                     ),
                     button("Book a demo"),
                 ),
-                img(pic(163), 0.9),
+                img(pic(230), 0.9),
             ),
         ),
     ],
-    bgImage("marlow-case-bg", 0.3),
+    bgImage("https://images.pexels.com/photos/4790056/pexels-photo-4790056.jpeg", 0.3),
 );
 
 export const researchReport: ArtifactContent = doc(
@@ -5719,7 +6574,7 @@ export const researchReport: ArtifactContent = doc(
                 ),
                 badge("11,400 KNOWLEDGE WORKERS · 38 COUNTRIES · 6 INDUSTRIES"),
             ),
-            { background: bgImage(pic(445, 1700, 1100), 0.55) },
+            { background: bgImage(pic(231, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -5741,14 +6596,14 @@ export const researchReport: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(48), 0.82),
+                img(pic(232), 0.82),
             ),
         ),
         section(
             "s3",
             split(
                 40,
-                img(pic(8), 1.05),
+                img(pic(233), 1.05),
                 group(
                     t("Methodology", "label"),
                     t("How we ran the study", "h2"),
@@ -5811,7 +6666,7 @@ export const researchReport: ArtifactContent = doc(
             "s7",
             split(
                 40,
-                img(pic(625), 1.05),
+                img(pic(234), 1.05),
                 group(
                     t("Finding 02 · The office's new job", "label"),
                     t("Buildings became meeting rooms", "h2"),
@@ -5837,7 +6692,7 @@ export const researchReport: ArtifactContent = doc(
                     "body",
                 ),
             ),
-            { background: bgImage(pic(830, 1700, 1100), 0.6) },
+            { background: bgImage(pic(235, 1700, 1100), 0.6) },
         ),
         section(
             "s9",
@@ -5868,7 +6723,7 @@ export const researchReport: ArtifactContent = doc(
                         ),
                     ),
                 ),
-                img(pic(513), 0.85),
+                img(pic(236), 0.85),
             ),
         ),
         section(
@@ -5889,7 +6744,7 @@ export const researchReport: ArtifactContent = doc(
                 ),
                 diagram("process", "Set anchors, Document, Pair & sponsor, Measure outcomes", 200),
             ),
-            { background: bgImage(pic(692, 1700, 1100), 0.6) },
+            { background: bgImage(pic(237, 1700, 1100), 0.6) },
         ),
         section(
             "s12",
@@ -5917,11 +6772,11 @@ export const researchReport: ArtifactContent = doc(
                     ),
                     button("Download the full dataset"),
                 ),
-                img(pic(119), 0.82),
+                img(pic(238), 0.82),
             ),
         ),
     ],
-    bgImage("remote-work-report-bg", 0.3),
+    bgImage("https://images.pexels.com/photos/36346049/pexels-photo-36346049.jpeg", 0.3),
 );
 
 export const marketAnalysis: ArtifactContent = doc(
@@ -5939,7 +6794,7 @@ export const marketAnalysis: ArtifactContent = doc(
                 t("Meridian Research · Global EV Infrastructure Practice · June 2026", "caption"),
                 badge("GLOBAL · PUBLIC + HOME CHARGING · 2026–2032 FORECAST"),
             ),
-            { background: bgImage(pic(132, 1700, 1100), 0.55) },
+            { background: bgImage(pic(239, 1700, 1100), 0.55) },
         ),
         section(
             "s2",
@@ -5999,7 +6854,7 @@ export const marketAnalysis: ArtifactContent = doc(
             "s6",
             row(
                 card(
-                    img(pic(223), 1),
+                    img(pic(240), 1),
                     t("Voltline Networks", "h3"),
                     t(
                         "The volume leader in public Level 2, with ~190k connectors and a software platform others license.",
@@ -6007,7 +6862,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     ),
                 ),
                 card(
-                    img(pic(576), 1),
+                    img(pic(241), 1),
                     t("AmpGrid", "h3"),
                     t(
                         "Pure-play ultra-fast operator betting on highway corridors and 350kW megawatt-ready sites.",
@@ -6015,7 +6870,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     ),
                 ),
                 card(
-                    img(pic(352), 1),
+                    img(pic(242), 1),
                     t("Hyperion (OEM)", "h3"),
                     t(
                         "An automaker's captive network now opening to other brands: distribution as a moat.",
@@ -6028,7 +6883,7 @@ export const marketAnalysis: ArtifactContent = doc(
             "s7",
             split(
                 40,
-                img(pic(304), 1.05),
+                img(pic(243), 1.05),
                 group(
                     t("Competitive landscape", "label"),
                     t("Four ways players are trying to win", "h2"),
@@ -6060,7 +6915,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     200,
                 ),
             ),
-            { background: bgImage(pic(182, 1700, 1100), 0.5) },
+            { background: bgImage(pic(244, 1700, 1100), 0.5) },
         ),
         section(
             "s9",
@@ -6099,7 +6954,7 @@ export const marketAnalysis: ArtifactContent = doc(
                 "The winners won't be whoever pours the most concrete. They'll be whoever keeps the most plugs working, at the lowest cost of energy, with the fewest taps to pay.",
                 "Marcus Idowu, Partner, Meridian Research",
             ),
-            { background: bgImage(pic(341, 1700, 1100), 0.6) },
+            { background: bgImage(pic(245, 1700, 1100), 0.6) },
         ),
         section(
             "s11",
@@ -6114,7 +6969,7 @@ export const marketAnalysis: ArtifactContent = doc(
                     ),
                     stat("23.6%", "base-case CAGR, 2025–2032"),
                 ),
-                img(pic(857), 0.9),
+                img(pic(246), 0.9),
             ),
         ),
         section(
@@ -6127,7 +6982,7 @@ export const marketAnalysis: ArtifactContent = doc(
             ),
         ),
     ],
-    bgImage("ev-market-report-bg", 0.3),
+    bgImage("https://images.pexels.com/photos/5052445/pexels-photo-5052445.jpeg", 0.3),
 );
 
 export const qbr: ArtifactContent = doc(
@@ -6149,7 +7004,7 @@ export const qbr: ArtifactContent = doc(
                 t("ARR $48.6M · NRR 119% · 612 customers", "caption"),
             ),
             {
-                background: bgImage(pic(948, 1700, 1100), 0.58),
+                background: bgImage(pic(247, 1700, 1100), 0.58),
             },
         ),
 
@@ -6159,7 +7014,11 @@ export const qbr: ArtifactContent = doc(
                 60,
                 group(
                     t("The quarter at a glance", "label"),
-                    t("We beat plan on revenue and missed it on reach.", "h2"),
+                    row(
+                        { align: "baseline", gap: 10 },
+                        fitW(t("113%", "h1")),
+                        t("of plan on revenue, and a miss on reach.", "h2"),
+                    ),
                     t(
                         "Q2 was our best revenue quarter ever and our slowest new-logo quarter in a year, at the same time. Existing customers expanded faster than we modeled, carrying net new ARR to 113% of plan. But the top of the funnel cooled: enterprise cycles stretched, the SDR class ramped slowly, and we closed 84 of the 95 new logos we forecast.",
                         "subtitle",
@@ -6170,7 +7029,7 @@ export const qbr: ArtifactContent = doc(
                     ),
                 ),
                 group(
-                    img(pic(687), 0.82, 10),
+                    img(pic(248), 0.82, 10),
                     t(
                         "Q2 in close-up: revenue ahead of plan, reach behind it, and four decisions at the end.",
                         "caption",
@@ -6234,7 +7093,7 @@ export const qbr: ArtifactContent = doc(
             split(
                 40,
                 group(
-                    img(pic(407), 1.05, 10),
+                    img(pic(249), 1.05, 10),
                     t(
                         "Northwind Bank went live on Tessera in six weeks, a new record for a Tier 1 account.",
                         "caption",
@@ -6259,7 +7118,7 @@ export const qbr: ArtifactContent = doc(
                 "Our installed base is doing the work of a sales team we haven't hired yet. That's a gift and a warning.",
                 "Priya Nandakumar, Chief Revenue Officer",
             ),
-            { background: bgImage(pic(1078, 1700, 1100), 0.6) },
+            { background: bgImage(pic(250, 1700, 1100), 0.6) },
         ),
 
         section(
@@ -6347,10 +7206,10 @@ export const qbr: ArtifactContent = doc(
                 "The business is compounding from the inside out. The work now is to make sure the next twelve months of new customers are as healthy as this quarter's revenue. We have the team, the product, and the plan. We need the four yeses above to run it.",
                 "subtitle",
             ),
-            { background: bgImage(pic(417, 1700, 1100), 0.55) },
+            { background: bgImage(pic(251, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(945, 1700, 1100), 0.35),
+    bgImage(pic(252, 1700, 1100), 0.35),
 );
 
 export const trendsReport: ArtifactContent = doc(
@@ -6368,7 +7227,7 @@ export const trendsReport: ArtifactContent = doc(
                 t("Continuum Research · Automation & Robotics Practice · June 2026", "caption"),
                 badge("420 MANUFACTURERS SURVEYED · 11 SECTORS · 19 COUNTRIES"),
             ),
-            { background: bgImage(pic(331, 1700, 1100), 0.58) },
+            { background: bgImage(pic(253, 1700, 1100), 0.58) },
         ),
 
         section(
@@ -6388,7 +7247,7 @@ export const trendsReport: ArtifactContent = doc(
                     ),
                 ),
                 group(
-                    img(pic(495), 0.82, 10),
+                    img(pic(254), 0.82, 10),
                     t(
                         "The era this report leaves behind: fixed machines, fenced off, each doing one job.",
                         "caption",
@@ -6434,7 +7293,7 @@ export const trendsReport: ArtifactContent = doc(
             split(
                 40,
                 group(
-                    img(pic(250), 1.05, 10),
+                    img(pic(255), 1.05, 10),
                     t(
                         "The camera became the fixture: the part no longer has to arrive in a known place.",
                         "caption",
@@ -6490,7 +7349,7 @@ export const trendsReport: ArtifactContent = doc(
                     "subtitle",
                 ),
             ),
-            { background: bgImage(pic(775, 1700, 1100), 0.62) },
+            { background: bgImage(pic(256, 1700, 1100), 0.62) },
         ),
 
         section(
@@ -6522,7 +7381,7 @@ export const trendsReport: ArtifactContent = doc(
                 "The question on the floor is no longer whether to automate a task. It's which financing model and how soon, and that shift is the whole story of 2026.",
                 "Lead Analyst, Continuum Automation Practice",
             ),
-            { background: bgImage(pic(315, 1700, 1100), 0.6) },
+            { background: bgImage(pic(257, 1700, 1100), 0.6) },
         ),
 
         section(
@@ -6586,7 +7445,7 @@ export const trendsReport: ArtifactContent = doc(
             ),
         ),
     ],
-    bgImage(pic(616, 1700, 1100), 0.4),
+    bgImage(pic(258, 1700, 1100), 0.4),
 );
 
 // keyed by the same ids as @model/workspace's TEMPLATE_INDEX; a missing key is a 404, so the two
@@ -6614,21 +7473,31 @@ export const restaurantMenu: ArtifactContent = doc(
                 ),
                 t("5:30 to 10, Tuesday through Sunday · 1214 SE Ankeny", "caption"),
             ),
-            { background: bgImage(pic(999, 1700, 1100), 0.6) },
+            { background: bgImage(pic(259, 1700, 1100), 0.6) },
         ),
         section(
             "note",
-            split(
-                60,
-                group(
-                    t("FROM THE KITCHEN", "label"),
-                    t(
-                        "Nearly everything on this page was grown within forty miles of the room you are sitting in. The menu is short because the walk-in is honest: when the last of the delicata goes, so does the dish. Ask about anything; the kitchen likes talking.",
-                        "body",
+            group(
+                w(
+                    58,
+                    group(
+                        t("FROM THE KITCHEN", "label"),
+                        t(
+                            "Nearly everything on this page was grown within forty miles of the room you are sitting in. The menu is short because the walk-in is honest: when the last of the delicata goes, so does the dish. Ask about anything; the kitchen likes talking.",
+                            "body",
+                        ),
+                        t("June Aldana, chef & owner", "caption"),
                     ),
-                    t("June Aldana, chef & owner", "caption"),
                 ),
-                img(pic(292), 0.82),
+                pin(
+                    w(
+                        30,
+                        polaroid(pic(260, 900, 1100), 0.82, "The larder, photographed on Tuesday."),
+                    ),
+                    "end",
+                    "center",
+                    { dx: -16, rotate: -3, z: 1 },
+                ),
             ),
         ),
         section(
@@ -6652,7 +7521,7 @@ export const restaurantMenu: ArtifactContent = doc(
                     "body",
                 ),
             ),
-            { background: bgImage(pic(674, 1700, 1100), 0.55) },
+            { background: bgImage(pic(261, 1700, 1100), 0.55) },
         ),
         section(
             "mains",
@@ -6708,7 +7577,7 @@ export const restaurantMenu: ArtifactContent = doc(
                     dish("Quince membrillo", "9", "From the orchard that named the room"),
                     dish("Sourdough loaf", "8", "Fridays only · reserve with dinner"),
                 ),
-                img(pic(163), 0.82),
+                img(pic(262), 0.82),
             ),
         ),
         section(
@@ -6729,10 +7598,10 @@ export const restaurantMenu: ArtifactContent = doc(
                     ["hello@thequince.com", "mailto:hello@thequince.com"],
                 ),
             ),
-            { background: bgImage(pic(835, 1700, 1100), 0.55) },
+            { background: bgImage(pic(263, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(307, 1700, 1100), 0.3),
+    bgImage(pic(264, 1700, 1100), 0.3),
 );
 
 export const travelItinerary: ArtifactContent = doc(
@@ -6749,7 +7618,7 @@ export const travelItinerary: ArtifactContent = doc(
                 ),
                 t("Reykjavík to Vík to Höfn and back · 1,340 km", "caption"),
             ),
-            { background: bgImage(pic(964, 1700, 1100), 0.5) },
+            { background: bgImage(pic(265, 1700, 1100), 0.5) },
         ),
         section(
             "overview",
@@ -6763,7 +7632,7 @@ export const travelItinerary: ArtifactContent = doc(
             "day1",
             split(
                 40,
-                img(pic(512), 1.05),
+                img(pic(266), 1.05),
                 group(
                     t("DAY 1 · SUNDAY", "label"),
                     t("Land, float, recover.", "h2"),
@@ -6788,7 +7657,7 @@ export const travelItinerary: ArtifactContent = doc(
                     ),
                     t("Drive 240 km · Stay: Reykjavík", "caption"),
                 ),
-                img(pic(506), 0.82),
+                img(pic(267), 0.82),
             ),
         ),
         section(
@@ -6801,21 +7670,21 @@ export const travelItinerary: ArtifactContent = doc(
                     "body",
                 ),
             ),
-            { background: bgImage(pic(928, 1700, 1100), 0.5) },
+            { background: bgImage(pic(268, 1700, 1100), 0.5) },
         ),
         section(
             "day3-stops",
             row(
                 group(
-                    img(pic(509), 0.8),
+                    img(pic(269), 0.8),
                     t("Seljalandsfoss: the path goes behind the water.", "caption"),
                 ),
                 group(
-                    img(pic(515), 0.8),
+                    img(pic(270), 0.8),
                     t("The Sólheimasandur wreck, an hour's flat walk each way.", "caption"),
                 ),
                 group(
-                    img(pic(1052), 0.8),
+                    img(pic(271), 0.8),
                     t("Reynisdrangar from the beach. Respect the sneaker waves.", "caption"),
                 ),
             ),
@@ -6824,7 +7693,7 @@ export const travelItinerary: ArtifactContent = doc(
             "day4",
             split(
                 40,
-                img(pic(907), 1.05),
+                img(pic(272), 1.05),
                 group(
                     t("DAY 4 · WEDNESDAY", "label"),
                     t("Glacier lagoon and the long light.", "h2"),
@@ -6849,19 +7718,39 @@ export const travelItinerary: ArtifactContent = doc(
                     ),
                     t("Drive 456 km · Stay: Reykjavík · Flight out 10:50", "caption"),
                 ),
-                img(pic(514), 0.82),
+                img(pic(273), 0.82),
             ),
         ),
         section(
             "aurora",
             group(
-                t("Every clear night is an aurora night.", "h2"),
-                t(
-                    "Check the forecast at vedur.is; above Kp 4, drive out past the streetlights, cut the engine, and look north for twenty minutes before deciding it isn't happening.",
-                    "caption",
+                w(62, t("Every clear night is an aurora night.", "h2")),
+                w(
+                    62,
+                    t(
+                        "Check the forecast at vedur.is; above Kp 4, drive out past the streetlights, cut the engine, and look north for twenty minutes before deciding it isn't happening.",
+                        "caption",
+                    ),
+                ),
+                pin(
+                    w(
+                        24,
+                        polaroid(
+                            pic(274, 900, 700),
+                            1.28,
+                            "What Kp 4 looked like from the hot tub.",
+                        ),
+                    ),
+                    "end",
+                    "center",
+                    {
+                        dx: -24,
+                        rotate: 4,
+                        z: 1,
+                    },
                 ),
             ),
-            { background: bgImage(pic(901, 1700, 1100), 0.45) },
+            { background: bgImage(pic(275, 1700, 1100), 0.45) },
         ),
         section(
             "bookings",
@@ -6869,6 +7758,8 @@ export const travelItinerary: ArtifactContent = doc(
                 t("BOOKINGS", "label"),
                 table(
                     "Booking,Reference,Note\nFlights FI 642 / FI 643,KX93JX,Bags checked both ways\nHouse in Reykjavík,BNB-88214,Self check-in after 3\nGuesthouse Höfn,GH-2210,Breakfast included\n4x4 rental · Dacia Duster,ICE-77015,Gravel cover added",
+                    true,
+                    1,
                 ),
             ),
         ),
@@ -6895,10 +7786,10 @@ export const travelItinerary: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(507, 1700, 1100), 0.5) },
+            { background: bgImage(pic(276, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(971, 1700, 1100), 0.3),
+    bgImage(pic(277, 1700, 1100), 0.3),
 );
 
 export const realEstateListing: ArtifactContent = doc(
@@ -6913,16 +7804,29 @@ export const realEstateListing: ArtifactContent = doc(
                     "A 1962 stone and cedar house on two acres of bluff, every principal room facing open water, offered for the first time in thirty years.",
                     "subtitle",
                 ),
-                t("Offered at $4.85M · Shown by appointment", "caption"),
+                t("Shown by appointment", "caption"),
+                pin(badge("Open house · Sat 2 to 4"), "end", "start", {
+                    dx: -24,
+                    dy: 24,
+                    rotate: -5,
+                    z: 2,
+                }),
             ),
-            { background: bgImage(pic(236, 1700, 1100), 0.45) },
+            { background: bgImage(pic(278, 1700, 1100), 0.45) },
         ),
         section(
             "facts",
-            row(
-                stat("4", "bedrooms · 3 baths"),
-                stat("2.1", "acres of bluff"),
-                stat("3,240", "square feet"),
+            group(
+                row(
+                    { align: "baseline", gap: 10 },
+                    fitW(t("$4.85M", "h1")),
+                    t("for the house and both acres of bluff.", "h2"),
+                ),
+                row(
+                    stat("4", "bedrooms · 3 baths"),
+                    stat("2.1", "acres of bluff"),
+                    stat("3,240", "square feet"),
+                ),
             ),
         ),
         section(
@@ -6937,15 +7841,15 @@ export const realEstateListing: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(882), 0.82),
+                img(pic(279), 0.82),
             ),
         ),
         section(
             "rooms",
             row(
-                group(img(pic(311), 0.8), t("The primary bedroom, first light.", "caption")),
-                group(img(pic(1008), 0.8), t("The den, west light all afternoon.", "caption")),
-                group(img(pic(305), 0.8), t("The stair landing on the garden side.", "caption")),
+                group(img(pic(280), 0.8), t("The primary bedroom, first light.", "caption")),
+                group(img(pic(281), 0.8), t("The den, west light all afternoon.", "caption")),
+                group(img(pic(282), 0.8), t("The stair landing on the garden side.", "caption")),
             ),
         ),
         section(
@@ -6966,13 +7870,13 @@ export const realEstateListing: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(483, 1700, 1100), 0.5) },
+            { background: bgImage(pic(283, 1700, 1100), 0.5) },
         ),
         section(
             "land",
             split(
                 40,
-                img(pic(87), 1.05),
+                img(pic(284), 1.05),
                 group(
                     t("THE LAND", "label"),
                     t("Bluff, meadow, and a stair to the cove.", "h2"),
@@ -7013,7 +7917,7 @@ export const realEstateListing: ArtifactContent = doc(
                         " · Brokers welcome at 2.5%",
                     ),
                 ),
-                img(pic(1005), 0.82),
+                img(pic(285), 0.82),
             ),
         ),
         section(
@@ -7025,14 +7929,14 @@ export const realEstateListing: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(44, 1700, 1100), 0.5) },
+            { background: bgImage(pic(286, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(385, 1700, 1100), 0.3),
+    bgImage(pic(287, 1700, 1100), 0.3),
 );
 
 export const guestGuide: ArtifactContent = doc(
-    "pueblo",
+    "loft",
     [
         section(
             "cover",
@@ -7045,13 +7949,27 @@ export const guestGuide: ArtifactContent = doc(
                 ),
                 t("Iris & Daan · +31 6 21 44 90 82, day or night", "caption"),
             ),
-            { background: bgImage(pic(826, 1700, 1100), 0.5) },
+            { background: bgImage(pic(288, 1700, 1100), 0.5) },
         ),
         section(
             "arrival",
             split(
                 40,
-                img(pic(859), 1.05),
+                group(
+                    img(pic(289), 1.05),
+                    pin(
+                        w(
+                            60,
+                            card(
+                                t("DOOR CODE 4471", "label"),
+                                t("The keypad sticks, push twice.", "body"),
+                            ),
+                        ),
+                        "end",
+                        "start",
+                        { dx: 24, dy: 18, rotate: 3, z: 2 },
+                    ),
+                ),
                 group(
                     t("GETTING IN", "label"),
                     t("The green door by the bikes.", "h2"),
@@ -7070,6 +7988,7 @@ export const guestGuide: ArtifactContent = doc(
                 table(
                     "Wifi,CanalFlat-5G · password tulip-tulip-214\nHeat,Dial in the hall · 20 is cozy\nHot water,Endless · within reason\nCoffee,Grinder and moka pot by the stove · beans in the freezer\nQuiet hours,10 PM to 8 AM · the neighbors are lovely",
                     false,
+                    1,
                 ),
             ),
         ),
@@ -7092,21 +8011,21 @@ export const guestGuide: ArtifactContent = doc(
                 t("Five places we love.", "h2"),
                 row(
                     group(
-                        img(pic(163), 0.8),
+                        img(pic(290), 0.8),
                         t(
                             "Café Zog, three doors down. Sit outside, order the apple cake.",
                             "caption",
                         ),
                     ),
                     group(
-                        img(pic(686), 0.8),
+                        img(pic(291), 0.8),
                         t(
                             "The floating market on Saturday mornings. Arrive before ten.",
                             "caption",
                         ),
                     ),
                     group(
-                        img(pic(437), 0.8),
+                        img(pic(292), 0.8),
                         t("De Rode Hoek, for dinner when you don't want to decide.", "caption"),
                     ),
                 ),
@@ -7125,7 +8044,7 @@ export const guestGuide: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(273, 1700, 1100), 0.5) },
+            { background: bgImage(pic(293, 1700, 1100), 0.5) },
         ),
         section(
             "around",
@@ -7140,7 +8059,7 @@ export const guestGuide: ArtifactContent = doc(
                     ),
                     t("Airport: direct train from Centraal, 17 minutes", "caption"),
                 ),
-                img(pic(212), 0.82),
+                img(pic(294), 0.82),
             ),
         ),
         section(
@@ -7175,7 +8094,7 @@ export const guestGuide: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(946, 1700, 1100), 0.5) },
+            { background: bgImage(pic(295, 1700, 1100), 0.5) },
         ),
         section(
             "return",
@@ -7183,14 +8102,14 @@ export const guestGuide: ArtifactContent = doc(
                 t("Come back in tulip season.", "h2"),
                 linked("caption", "Iris & Daan · ", ["thecanalflat.nl", "https://thecanalflat.nl"]),
             ),
-            { background: bgImage(pic(164, 1700, 1100), 0.5) },
+            { background: bgImage(pic(296, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(210, 1700, 1100), 0.3),
+    bgImage(pic(297, 1700, 1100), 0.3),
 );
 
 export const recipeCollection: ArtifactContent = doc(
-    "orchard",
+    "loft",
     [
         section(
             "cover",
@@ -7203,7 +8122,7 @@ export const recipeCollection: ArtifactContent = doc(
                 ),
                 t("Collected by Ada Okafor · Winter 2026", "caption"),
             ),
-            { background: bgImage(pic(23, 1700, 1100), 0.6) },
+            { background: bgImage(pic(298, 1700, 1100), 0.6) },
         ),
         section(
             "before",
@@ -7217,7 +8136,7 @@ export const recipeCollection: ArtifactContent = doc(
                     ),
                     t("Ada, for everyone who asked", "caption"),
                 ),
-                img(pic(312), 0.82),
+                img(pic(299), 0.82),
             ),
         ),
         section(
@@ -7228,7 +8147,7 @@ export const recipeCollection: ArtifactContent = doc(
                 t("Serves 2 · 25 minutes, mostly oven", "caption"),
                 split(
                     40,
-                    img(pic(493), 1.05),
+                    img(pic(300), 1.05),
                     group(
                         t("INGREDIENTS", "label"),
                         bullets(
@@ -7263,7 +8182,7 @@ export const recipeCollection: ArtifactContent = doc(
                 t("Serves 4 · 20 minutes", "caption"),
                 split(
                     40,
-                    img(pic(488), 1.05),
+                    img(pic(301), 1.05),
                     group(
                         t("INGREDIENTS", "label"),
                         bullets(
@@ -7297,7 +8216,7 @@ export const recipeCollection: ArtifactContent = doc(
                     "body",
                 ),
             ),
-            { background: bgImage(pic(517, 1700, 1100), 0.55) },
+            { background: bgImage(pic(302, 1700, 1100), 0.55) },
         ),
         section(
             "r3",
@@ -7307,7 +8226,7 @@ export const recipeCollection: ArtifactContent = doc(
                 t("Serves 4, or 2 with the right leftovers · 45 minutes", "caption"),
                 split(
                     40,
-                    img(pic(490), 1.05),
+                    img(pic(303), 1.05),
                     group(
                         t("INGREDIENTS", "label"),
                         bullets(
@@ -7342,7 +8261,7 @@ export const recipeCollection: ArtifactContent = doc(
                 t("Makes 24 · An hour, half of it waiting", "caption"),
                 split(
                     40,
-                    img(pic(835), 1.05),
+                    img(pic(304), 1.05),
                     group(
                         t("INGREDIENTS", "label"),
                         bullets(
@@ -7388,7 +8307,7 @@ export const recipeCollection: ArtifactContent = doc(
                 t("Serves 6 as a side · 90 minutes, mostly unattended", "caption"),
                 split(
                     40,
-                    img(pic(995), 1.05),
+                    img(pic(305), 1.05),
                     group(
                         t("INGREDIENTS", "label"),
                         bullets(
@@ -7430,10 +8349,10 @@ export const recipeCollection: ArtifactContent = doc(
                 t("Add your own on the blank pages.", "h2"),
                 t("For the grandchildren, who should double the garlic.", "caption"),
             ),
-            { background: bgImage(pic(225, 1700, 1100), 0.5) },
+            { background: bgImage(pic(306, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(98, 1700, 1100), 0.3),
+    bgImage(pic(307, 1700, 1100), 0.3),
 );
 
 export const eventProgram: ArtifactContent = doc(
@@ -7450,7 +8369,7 @@ export const eventProgram: ArtifactContent = doc(
                 ),
                 t("Saturday, 6 December · Doors at 7, music at 7:30", "caption"),
             ),
-            { background: bgImage(pic(819, 1700, 1100), 0.5) },
+            { background: bgImage(pic(308, 1700, 1100), 0.5) },
         ),
         section(
             "welcome",
@@ -7482,7 +8401,7 @@ export const eventProgram: ArtifactContent = doc(
             "performers",
             row(
                 group(
-                    img(pic(836), 0.8),
+                    img(pic(309), 0.8),
                     t("Etta Vaughn", "h3"),
                     t(
                         "Songwriter and collector of other people's choruses. Three records, one van.",
@@ -7490,7 +8409,7 @@ export const eventProgram: ArtifactContent = doc(
                     ),
                 ),
                 group(
-                    img(pic(1082), 0.8),
+                    img(pic(310), 0.8),
                     t("Jonas Mehl", "h3"),
                     t(
                         "Pianist. Plays the nocturnes on the hall's own 1931 grand, freshly tuned for tonight.",
@@ -7498,7 +8417,7 @@ export const eventProgram: ArtifactContent = doc(
                     ),
                 ),
                 group(
-                    img(pic(453), 0.8),
+                    img(pic(311), 0.8),
                     t("The house band", "h3"),
                     t(
                         "Seven regulars who have closed this room a hundred times and never twice the same way.",
@@ -7516,7 +8435,7 @@ export const eventProgram: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(936, 1700, 1100), 0.5) },
+            { background: bgImage(pic(312, 1700, 1100), 0.5) },
         ),
         section(
             "appeal",
@@ -7531,7 +8450,7 @@ export const eventProgram: ArtifactContent = doc(
                     ),
                     button("Give to the roof fund", "https://orpheumhall.org/roof"),
                 ),
-                img(pic(953), 0.82),
+                img(pic(313), 0.82),
             ),
         ),
         section(
@@ -7558,7 +8477,7 @@ export const eventProgram: ArtifactContent = doc(
             "history",
             split(
                 40,
-                img(pic(782), 1.05),
+                img(pic(314), 1.05),
                 group(
                     t("THE ROOM YOU'RE IN", "label"),
                     t("Eighty-nine years, briefly.", "h2"),
@@ -7591,10 +8510,10 @@ export const eventProgram: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(117, 1700, 1100), 0.55) },
+            { background: bgImage(pic(315, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(546, 1700, 1100), 0.35),
+    bgImage(pic(316, 1700, 1100), 0.35),
 );
 
 // pitch & sell: the paper and pages around the decks
@@ -7613,7 +8532,7 @@ export const execSummary: ArtifactContent = doc(
                 ),
                 t("Seed round · $4M · Dana Reyes, dana@mise.kitchen", "caption"),
             ),
-            { background: bgImage(pic(490, 1700, 1100), 0.62) },
+            { background: bgImage(pic(317, 1700, 1100), 0.62) },
         ),
         section(
             "problem",
@@ -7639,7 +8558,7 @@ export const execSummary: ArtifactContent = doc(
                         "Live food cost by dish, by station, by shift",
                     ),
                 ),
-                img(pic(341), 0.82),
+                img(pic(318), 0.82),
             ),
         ),
         section(
@@ -7672,7 +8591,7 @@ export const execSummary: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(3), 0.82),
+                img(pic(319), 0.82),
             ),
         ),
         section(
@@ -7708,17 +8627,17 @@ export const execSummary: ArtifactContent = doc(
                 t("THE TEAM", "label"),
                 row(
                     group(
-                        img(pic(978), 1),
+                        img(pic(320), 1),
                         t("Dana Reyes", "h3"),
                         t("CEO · ex-Toast, ran ops for 40 kitchens", "caption"),
                     ),
                     group(
-                        img(pic(5), 1),
+                        img(pic(321), 1),
                         t("Marcus Vallée", "h3"),
                         t("CTO · ex-Flexport forecasting", "caption"),
                     ),
                     group(
-                        img(pic(429), 1),
+                        img(pic(322), 1),
                         t("Priya Anand", "h3"),
                         t("Head of Culinary · 12 years on the line", "caption"),
                     ),
@@ -7739,10 +8658,10 @@ export const execSummary: ArtifactContent = doc(
                     "mailto:dana@mise.kitchen",
                 ]),
             ),
-            { background: bgImage(pic(437, 1700, 1100), 0.6) },
+            { background: bgImage(pic(323, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.3),
+    bgImage(pic(324, 1700, 1100), 0.3),
 );
 
 export const productSheet: ArtifactContent = doc(
@@ -7759,7 +8678,7 @@ export const productSheet: ArtifactContent = doc(
                 ),
                 t("For operations & maintenance leaders · 20 to 2,000 vehicles", "caption"),
             ),
-            { background: bgImage(pic(352, 1700, 1100), 0.6) },
+            { background: bgImage(pic(325, 1700, 1100), 0.6) },
         ),
         section(
             "how",
@@ -7774,7 +8693,7 @@ export const productSheet: ArtifactContent = doc(
                         "Work orders draft themselves with parts, labor, and the best open bay window",
                     ),
                 ),
-                img(pic(370), 0.82),
+                img(pic(326), 0.82),
             ),
         ),
         section(
@@ -7791,6 +8710,8 @@ export const productSheet: ArtifactContent = doc(
                 t("SPECIFICATIONS", "label"),
                 table(
                     "Item,Detail\nTelematics,Samsara · Geotab · Motive · Verizon Connect\nCoverage,Class 3 through Class 8 · EV and diesel\nIntegrations,Fullbay · Fleetio · your parts supplier's catalog\nSecurity,SOC 2 Type II · read-only vehicle access\nDeployment,Cloud · nothing installed in the truck",
+                    true,
+                    1,
                 ),
             ),
         ),
@@ -7808,7 +8729,7 @@ export const productSheet: ArtifactContent = doc(
             "case",
             split(
                 40,
-                img(pic(371), 1.05),
+                img(pic(327), 1.05),
                 group(
                     t("IN THE FIELD", "label"),
                     t("Meridian Freight, 212 trucks.", "h2"),
@@ -7828,7 +8749,7 @@ export const productSheet: ArtifactContent = doc(
                     "Carla Mendez · VP Maintenance, Meridian Freight",
                 ),
             ),
-            { background: bgImage(pic(495, 1700, 1100), 0.62) },
+            { background: bgImage(pic(328, 1700, 1100), 0.62) },
         ),
         section(
             "rollout",
@@ -7865,10 +8786,10 @@ export const productSheet: ArtifactContent = doc(
                     ["sales@fleetwise.io", "mailto:sales@fleetwise.io"],
                 ),
             ),
-            { background: bgImage(pic(88, 1700, 1100), 0.6) },
+            { background: bgImage(pic(329, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage(pic(893, 1700, 1100), 0.3),
+    bgImage(pic(330, 1700, 1100), 0.3),
 );
 
 export const factSheet: ArtifactContent = doc(
@@ -7885,7 +8806,7 @@ export const factSheet: ArtifactContent = doc(
                 ),
                 t("Founded 2024 · Austin, TX · 63 people", "caption"),
             ),
-            { background: bgImage(pic(223, 1700, 1100), 0.58) },
+            { background: bgImage(pic(331, 1700, 1100), 0.58) },
         ),
         section(
             "numbers",
@@ -7918,17 +8839,17 @@ export const factSheet: ArtifactContent = doc(
             "leadership",
             row(
                 group(
-                    img(pic(1), 1),
+                    img(pic(332), 1),
                     t("Dana Whitfield", "h3"),
                     t("CEO · ex-ServiceTitan, scaled 3,000 contractors", "caption"),
                 ),
                 group(
-                    img(pic(304), 1),
+                    img(pic(333), 1),
                     t("Amir Hassan", "h3"),
                     t("CTO · ex-Google speech, built real-time voice", "caption"),
                 ),
                 group(
-                    img(pic(856), 1),
+                    img(pic(334), 1),
                     t("Lena Ortiz", "h3"),
                     t("Head of Revenue · ex-Jobber, 0 to $30M", "caption"),
                 ),
@@ -7947,7 +8868,7 @@ export const factSheet: ArtifactContent = doc(
                         "Hands to a human mid-sentence the moment it should",
                     ),
                 ),
-                img(pic(366), 0.82),
+                img(pic(335), 0.82),
             ),
         ),
         section(
@@ -7964,15 +8885,15 @@ export const factSheet: ArtifactContent = doc(
                 t("A YEAR IN THREE MOMENTS", "label"),
                 row(
                     group(
-                        img(pic(504), 1.4),
+                        img(pic(336), 1.4),
                         t("January: Spanish goes GA and Texas triples", "caption"),
                     ),
                     group(
-                        img(pic(160), 1.4),
+                        img(pic(337), 1.4),
                         t("March: the 1000th business, a roofer in Tulsa", "caption"),
                     ),
                     group(
-                        img(pic(1), 1.4),
+                        img(pic(338), 1.4),
                         t("June: the Series A, led by Meridian Ventures", "caption"),
                     ),
                 ),
@@ -8005,10 +8926,10 @@ export const factSheet: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(320, 1700, 1100), 0.55) },
+            { background: bgImage(pic(339, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(683, 1700, 1100), 0.3),
+    bgImage(pic(340, 1700, 1100), 0.3),
 );
 
 export const partnershipPitch: ArtifactContent = doc(
@@ -8025,7 +8946,7 @@ export const partnershipPitch: ArtifactContent = doc(
                 ),
                 t("Prepared for the Cascadia brand team · January 2026", "caption"),
             ),
-            { background: bgImage(pic(452, 1700, 1100), 0.6) },
+            { background: bgImage(pic(341, 1700, 1100), 0.6) },
         ),
         section(
             "why",
@@ -8080,7 +9001,7 @@ export const partnershipPitch: ArtifactContent = doc(
             "handled",
             split(
                 40,
-                img(pic(686), 1.05),
+                img(pic(342), 1.05),
                 group(
                     t("WHAT WE HANDLE", "label"),
                     t("You bring the coffee; we carry everything else.", "h2"),
@@ -8102,7 +9023,7 @@ export const partnershipPitch: ArtifactContent = doc(
                     "Brand lead · Halcyon Brewing · 2025 partner",
                 ),
             ),
-            { background: bgImage(pic(158, 1700, 1100), 0.6) },
+            { background: bgImage(pic(343, 1700, 1100), 0.6) },
         ),
         section(
             "timeline",
@@ -8126,10 +9047,10 @@ export const partnershipPitch: ArtifactContent = doc(
                     "mailto:partners@harborlightfest.org",
                 ]),
             ),
-            { background: bgImage(pic(590, 1700, 1100), 0.58) },
+            { background: bgImage(pic(344, 1700, 1100), 0.58) },
         ),
     ],
-    bgImage(pic(384, 1700, 1100), 0.32),
+    bgImage(pic(345, 1700, 1100), 0.32),
 );
 export const aboutPage: ArtifactContent = web(
     "noir",
@@ -8153,7 +9074,7 @@ export const aboutPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(437, 1700, 1100), 0.6),
+                background: bgImage(pic(346, 1700, 1100), 0.6),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -8173,7 +9094,7 @@ export const aboutPage: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(292), 0.82),
+                img(pic(347), 0.82),
             ),
         ),
         section(
@@ -8204,17 +9125,17 @@ export const aboutPage: ArtifactContent = web(
                 t("Three founders, one kitchen between them.", "h2"),
                 row(
                     group(
-                        img(pic(978), 1),
+                        img(pic(348), 1),
                         t("Dana Reyes", "h3"),
                         t("CEO · ex-Toast, ran ops for 40 kitchens", "caption"),
                     ),
                     group(
-                        img(pic(5), 1),
+                        img(pic(349), 1),
                         t("Marcus Vallée", "h3"),
                         t("CTO · ex-Flexport forecasting", "caption"),
                     ),
                     group(
-                        img(pic(429), 1),
+                        img(pic(350), 1),
                         t("Priya Anand", "h3"),
                         t("Head of Culinary · 12 years on the line", "caption"),
                     ),
@@ -8245,18 +9166,18 @@ export const aboutPage: ArtifactContent = web(
                 t("Thirty-eight rooms that trust us at 6am.", "h2"),
                 row(
                     group(
-                        img(pic(42), 1.4),
+                        img(pic(351), 1.4),
                         t(
                             "Bar Ostra, Portland · first customer, still calls with ideas",
                             "caption",
                         ),
                     ),
                     group(
-                        img(pic(437), 1.4),
+                        img(pic(352), 1.4),
                         t("The Dorset Group · six rooms, one prep sheet", "caption"),
                     ),
                     group(
-                        img(pic(163), 1.4),
+                        img(pic(353), 1.4),
                         t("Cafe Zola · where the order tap got its sound", "caption"),
                     ),
                 ),
@@ -8291,7 +9212,7 @@ export const aboutPage: ArtifactContent = web(
                 t("We hire cooks who learned to code and coders who can hold a knife.", "subtitle"),
                 button("See open roles", "https://mise.kitchen/careers", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(42, 1700, 1100), 0.6) },
+            { bleed: true, background: bgImage(pic(354, 1700, 1100), 0.6) },
         ),
         section(
             "footer",
@@ -8323,7 +9244,7 @@ export const aboutPage: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.35),
+    bgImage(pic(355, 1700, 1100), 0.35),
 );
 
 export const demoPage: ArtifactContent = web(
@@ -8345,10 +9266,22 @@ export const demoPage: ArtifactContent = web(
                     "subtitle",
                 ),
                 button("Pick a time", "#book", { size: "lg" }),
+                pin(
+                    w(
+                        24,
+                        card(
+                            t("TODAY", "label"),
+                            t("Four slots left. They go by lunchtime most days.", "body"),
+                        ),
+                    ),
+                    "end",
+                    "end",
+                    { dx: -24, dy: 110, z: 2 },
+                ),
             ),
             {
                 bleed: true,
-                background: bgImage(pic(60, 1700, 1100), 0.6),
+                background: bgImage(pic(356, 1700, 1100), 0.6),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -8365,7 +9298,7 @@ export const demoPage: ArtifactContent = web(
                         "One theme pushed to Jira, and the customer-notify loop that follows it",
                     ),
                 ),
-                img(pic(529), 0.82),
+                img(pic(357), 0.82),
             ),
         ),
         section(
@@ -8432,7 +9365,7 @@ export const demoPage: ArtifactContent = web(
             "leave",
             split(
                 40,
-                img(pic(8), 1.05),
+                img(pic(358), 1.05),
                 group(
                     t("WHAT YOU LEAVE WITH", "label"),
                     t("The demo workspace is yours to keep.", "h2"),
@@ -8471,7 +9404,7 @@ export const demoPage: ArtifactContent = web(
                 t("The worse your backlog, the better the demo.", "subtitle"),
                 button("Book the 30 minutes", "https://sift.app/demo", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(173, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(359, 1700, 1100), 0.55) },
         ),
         section(
             "footer",
@@ -8499,7 +9432,7 @@ export const demoPage: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(114, 1700, 1100), 0.35),
+    bgImage(pic(360, 1700, 1100), 0.35),
 );
 
 export const wallOfLove: ArtifactContent = web(
@@ -8523,7 +9456,7 @@ export const wallOfLove: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(579, 1700, 1100), 0.6),
+                background: bgImage(pic(361, 1700, 1100), 0.6),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -8559,6 +9492,51 @@ export const wallOfLove: ArtifactContent = web(
                     ),
                 ),
             ),
+        ),
+        section(
+            "fridge",
+            group(
+                t("STUCK TO THE FRIDGE", "label"),
+                t("What the trades say", "h2"),
+                row(
+                    card(
+                        t("The Saturday guy quit and nobody noticed for a month.", "h3"),
+                        t("Dee Waller · Waller Septic, Boise", "caption"),
+                    ),
+                    card(
+                        t("I stopped writing numbers on my arm at red lights.", "h3"),
+                        t("Curt Boyle · Boyle Paving, Erie", "caption"),
+                    ),
+                ),
+                pin(
+                    w(
+                        30,
+                        card(
+                            t("The after-hours calls just stopped ringing at my house.", "body"),
+                            t("Marta Ilić · Ilić HVAC, Duluth", "caption"),
+                        ),
+                    ),
+                    "start",
+                    "end",
+                    { dx: 90, dy: 104, rotate: -3, z: 1 },
+                ),
+                pin(
+                    w(
+                        30,
+                        card(
+                            t(
+                                "Booked a water heater while I was under a sink. Didn't touch the phone.",
+                                "body",
+                            ),
+                            t("Gene Park · Park Plumbing, Fresno", "caption"),
+                        ),
+                    ),
+                    "center",
+                    "end",
+                    { dx: 150, dy: 122, rotate: 2, z: 1 },
+                ),
+            ),
+            { bleed: true, background: bgTone("tint") },
         ),
         section(
             "numbers",
@@ -8608,7 +9586,7 @@ export const wallOfLove: ArtifactContent = web(
                 t("Every one of these calls used to ring out.", "h2"),
                 t("The wall updates weekly; the misspellings stay in.", "caption"),
             ),
-            { bleed: true, background: bgImage(pic(504, 1700, 1100), 0.6) },
+            { bleed: true, background: bgImage(pic(362, 1700, 1100), 0.6) },
         ),
         section(
             "trades",
@@ -8620,7 +9598,7 @@ export const wallOfLove: ArtifactContent = web(
                         t("640 businesses · the after-hours champions", "caption"),
                     ),
                     group(
-                        img(pic(160), 1.4),
+                        img(pic(363), 1.4),
                         t("HVAC & electrical", "h3"),
                         t("890 businesses · our largest trade", "caption"),
                     ),
@@ -8649,7 +9627,7 @@ export const wallOfLove: ArtifactContent = web(
                 t("Forward it for a week and read your own wall.", "subtitle"),
                 button("Start free", "https://switchboard.ai/start", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(320, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(364, 1700, 1100), 0.55) },
         ),
         section(
             "footer",
@@ -8687,7 +9665,7 @@ export const wallOfLove: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(683, 1700, 1100), 0.35),
+    bgImage(pic(365, 1700, 1100), 0.35),
 );
 
 export const solutionPage: ArtifactContent = web(
@@ -8713,7 +9691,7 @@ export const solutionPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(352, 1700, 1100), 0.58),
+                background: bgImage(pic(366, 1700, 1100), 0.58),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -8742,7 +9720,7 @@ export const solutionPage: ArtifactContent = web(
                         "Week six: planned work overtakes reactive for the first time",
                     ),
                 ),
-                img(pic(36), 0.82),
+                img(pic(367), 0.82),
             ),
         ),
         section(
@@ -8769,7 +9747,7 @@ export const solutionPage: ArtifactContent = web(
             "fits",
             split(
                 40,
-                img(pic(370), 1.05),
+                img(pic(368), 1.05),
                 group(
                     t("FITS THE STACK YOU RUN", "label"),
                     t("Reads your telematics, writes to your shop.", "h2"),
@@ -8804,7 +9782,7 @@ export const solutionPage: ArtifactContent = web(
         section(
             "interlude",
             group(t("Every truck in the yard tonight is margin tomorrow.", "h2")),
-            { bleed: true, background: bgImage(pic(605, 1700, 1100), 0.6) },
+            { bleed: true, background: bgImage(pic(369, 1700, 1100), 0.6) },
         ),
         section(
             "cta",
@@ -8816,7 +9794,7 @@ export const solutionPage: ArtifactContent = web(
                 ),
                 button("Book the assessment", "https://fleetwise.io/assessment", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(88, 1700, 1100), 0.58) },
+            { bleed: true, background: bgImage(pic(370, 1700, 1100), 0.58) },
         ),
         section(
             "footer",
@@ -8853,7 +9831,7 @@ export const solutionPage: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(893, 1700, 1100), 0.35),
+    bgImage(pic(371, 1700, 1100), 0.35),
 );
 
 export const comparePage: ArtifactContent = web(
@@ -8877,7 +9855,7 @@ export const comparePage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(0, 1700, 1100), 0.6),
+                background: bgImage(pic(372, 1700, 1100), 0.6),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -8938,7 +9916,7 @@ export const comparePage: ArtifactContent = web(
             "checklist",
             split(
                 40,
-                img(pic(532), 1.05),
+                img(pic(373), 1.05),
                 group(
                     t("SHOULD YOU SWITCH?", "label"),
                     t("The honest checklist.", "h2"),
@@ -8977,7 +9955,7 @@ export const comparePage: ArtifactContent = web(
                 t("Run them side by side. Keep the winner.", "h2"),
                 button("Start free, no card", "https://app.northwind.dev/signup", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(122, 1700, 1100), 0.6) },
+            { bleed: true, background: bgImage(pic(374, 1700, 1100), 0.6) },
         ),
         section(
             "gallery",
@@ -8985,12 +9963,12 @@ export const comparePage: ArtifactContent = web(
                 t("LIFE AFTER THE SWITCH", "label"),
                 row(
                     group(
-                        img(pic(7), 1.4),
+                        img(pic(375), 1.4),
                         t("Monday metrics over coffee, not over tickets", "caption"),
                     ),
-                    group(img(pic(4), 1.4), t("The report that writes itself now", "caption")),
+                    group(img(pic(376), 1.4), t("The report that writes itself now", "caption")),
                     group(
-                        img(pic(192), 1.4),
+                        img(pic(377), 1.4),
                         t("The BI backlog meeting, cancelled forever", "caption"),
                     ),
                 ),
@@ -9032,7 +10010,7 @@ export const comparePage: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(930, 1700, 1100), 0.3),
+    bgImage(pic(378, 1700, 1100), 0.3),
 );
 
 // launch & market: the campaign, the brand, the announcement, and the paper behind them
@@ -9051,7 +10029,7 @@ export const campaignPitch: ArtifactContent = deck(
                 ),
                 t("Prepared for the Aer brand team · February 2026", "caption"),
             ),
-            { background: bgImage(pic(25, 1700, 1100), 0.5) },
+            { background: bgImage(pic(379, 1700, 1100), 0.5) },
         ),
         section(
             "insight",
@@ -9065,7 +10043,7 @@ export const campaignPitch: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(178), 0.82),
+                img(pic(380), 0.82),
             ),
         ),
         section(
@@ -9078,7 +10056,7 @@ export const campaignPitch: ArtifactContent = deck(
                     "subtitle",
                 ),
             ),
-            { background: bgImage(pic(386, 1700, 1100), 0.5) },
+            { background: bgImage(pic(381, 1700, 1100), 0.5) },
         ),
         section(
             "executions",
@@ -9086,7 +10064,7 @@ export const campaignPitch: ArtifactContent = deck(
                 t("03 · THREE EXECUTIONS", "label"),
                 row(
                     group(
-                        img(pic(305), 1.4),
+                        img(pic(382), 1.4),
                         t("Film · 30s", "h3"),
                         t(
                             "A window opens in twelve homes, one continuous shot, one breath.",
@@ -9094,7 +10072,7 @@ export const campaignPitch: ArtifactContent = deck(
                         ),
                     ),
                     group(
-                        img(pic(691), 1.4),
+                        img(pic(383), 1.4),
                         t("Out-of-home", "h3"),
                         t(
                             "Transit and gym takeovers where the air is worst and the point lands hardest.",
@@ -9102,7 +10080,7 @@ export const campaignPitch: ArtifactContent = deck(
                         ),
                     ),
                     group(
-                        img(pic(41), 1.4),
+                        img(pic(384), 1.4),
                         t("Social", "h3"),
                         t(
                             "Creators run the two-week air experiment, data on screen, no script.",
@@ -9143,7 +10121,7 @@ export const campaignPitch: ArtifactContent = deck(
                     ),
                     t("Director shortlist attached · two are spring-available", "caption"),
                 ),
-                img(pic(311), 0.82),
+                img(pic(385), 0.82),
             ),
         ),
         section(
@@ -9180,7 +10158,7 @@ export const campaignPitch: ArtifactContent = deck(
             "ask",
             split(
                 40,
-                img(pic(25), 0.86),
+                img(pic(386), 0.86),
                 group(
                     t("05 · THE ASK", "label"),
                     t("Approve the idea; spring won't wait.", "h2"),
@@ -9194,7 +10172,7 @@ export const campaignPitch: ArtifactContent = deck(
             { background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(114, 1700, 1100), 0.3),
+    bgImage(pic(387, 1700, 1100), 0.3),
 );
 
 export const brandGuidelines: ArtifactContent = deck(
@@ -9211,7 +10189,7 @@ export const brandGuidelines: ArtifactContent = deck(
                 ),
                 t("Maintained by Foldwork · For everyone who touches the brand", "caption"),
             ),
-            { background: bgImage(pic(431, 1700, 1100), 0.55) },
+            { background: bgImage(pic(388, 1700, 1100), 0.55) },
         ),
         section(
             "logo",
@@ -9227,7 +10205,7 @@ export const brandGuidelines: ArtifactContent = deck(
                         "Never stretched, tilted, outlined, or gradiented, even in a hurry",
                     ),
                 ),
-                img(pic(526), 0.82),
+                img(pic(389), 0.82),
             ),
         ),
         section(
@@ -9246,7 +10224,7 @@ export const brandGuidelines: ArtifactContent = deck(
             "type",
             split(
                 40,
-                img(pic(403), 1.05),
+                img(pic(390), 1.05),
                 group(
                     t("03 · TYPE", "label"),
                     t("A serif that argues, a sans that pours.", "h2"),
@@ -9273,9 +10251,9 @@ export const brandGuidelines: ArtifactContent = deck(
                 t("05 · PHOTOGRAPHY", "label"),
                 t("Shot in the room, not the studio.", "h2"),
                 row(
-                    group(img(pic(425), 1.4), t("Beans, close and honest", "caption")),
-                    group(img(pic(1060), 1.4), t("Hands and machines at work", "caption")),
-                    group(img(pic(766), 1.4), t("Morning light, real counters", "caption")),
+                    group(img(pic(391), 1.4), t("Beans, close and honest", "caption")),
+                    group(img(pic(392), 1.4), t("Hands and machines at work", "caption")),
+                    group(img(pic(393), 1.4), t("Morning light, real counters", "caption")),
                 ),
             ),
         ),
@@ -9292,7 +10270,7 @@ export const brandGuidelines: ArtifactContent = deck(
                         "When a layout feels empty, it is probably finished",
                     ),
                 ),
-                img(pic(464), 0.82),
+                img(pic(394), 0.82),
             ),
         ),
         section(
@@ -9323,7 +10301,7 @@ export const brandGuidelines: ArtifactContent = deck(
             "apply",
             split(
                 40,
-                img(pic(63), 0.86),
+                img(pic(395), 0.86),
                 group(
                     t("06 · IN USE", "label"),
                     t("When in doubt, less label, more coffee.", "h2"),
@@ -9340,7 +10318,7 @@ export const brandGuidelines: ArtifactContent = deck(
             { background: bgTone("tint") },
         ),
     ],
-    bgImage(pic(766, 1700, 1100), 0.3),
+    bgImage(pic(396, 1700, 1100), 0.3),
 );
 
 export const announcementKeynote: ArtifactContent = deck(
@@ -9353,7 +10331,7 @@ export const announcementKeynote: ArtifactContent = deck(
                 t("What if your computer went quiet?", "h1"),
                 t("A short announcement. One product, one price, one date.", "caption"),
             ),
-            { background: bgImage(pic(441, 1700, 1100), 0.68) },
+            { background: bgImage(pic(397, 1700, 1100), 0.68) },
         ),
         section(
             "reveal",
@@ -9365,7 +10343,7 @@ export const announcementKeynote: ArtifactContent = deck(
                     "subtitle",
                 ),
             ),
-            { background: bgImage(pic(68, 1700, 1100), 0.5) },
+            { background: bgImage(pic(398, 1700, 1100), 0.5) },
         ),
         section(
             "one",
@@ -9380,14 +10358,14 @@ export const announcementKeynote: ArtifactContent = deck(
                     ),
                     t("Works with the apps you keep; ignores the ones that keep you.", "caption"),
                 ),
-                img(pic(679), 0.82),
+                img(pic(399), 0.82),
             ),
         ),
         section(
             "two",
             split(
                 40,
-                img(pic(832), 1.05),
+                img(pic(400), 1.05),
                 group(
                     t("PRIVATE BY DESIGN", "label"),
                     t("Everything runs on your device.", "h2"),
@@ -9421,7 +10399,7 @@ export const announcementKeynote: ArtifactContent = deck(
                     ),
                     t("Every suggestion carries its source; nothing is invented.", "caption"),
                 ),
-                img(pic(989), 0.82),
+                img(pic(401), 0.82),
             ),
         ),
         section(
@@ -9450,10 +10428,10 @@ export const announcementKeynote: ArtifactContent = deck(
                 t("Invites go to the waitlist first. The quiet is almost ready.", "subtitle"),
                 button("Join the waitlist", "https://vanta.app/waitlist", { size: "lg" }),
             ),
-            { background: bgImage(pic(416, 1700, 1100), 0.5) },
+            { background: bgImage(pic(402, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(642, 1700, 1100), 0.3),
+    bgImage(pic(403, 1700, 1100), 0.3),
 );
 
 export const launchBriefing: ArtifactContent = deck(
@@ -9470,7 +10448,7 @@ export const launchBriefing: ArtifactContent = deck(
                 ),
                 t("All-hands briefing · September 2 · 25 minutes", "caption"),
             ),
-            { background: bgImage(pic(348, 1700, 1100), 0.6) },
+            { background: bgImage(pic(404, 1700, 1100), 0.6) },
         ),
         section(
             "ships",
@@ -9485,7 +10463,7 @@ export const launchBriefing: ArtifactContent = deck(
                         "Pricing v2: Free, Growth $149, Pro $399",
                     ),
                 ),
-                img(pic(396), 0.82),
+                img(pic(405), 0.82),
             ),
         ),
         section(
@@ -9507,7 +10485,7 @@ export const launchBriefing: ArtifactContent = deck(
                     "body",
                 ),
             ),
-            { background: bgImage(pic(951, 1700, 1100), 0.65) },
+            { background: bgImage(pic(406, 1700, 1100), 0.65) },
         ),
         section(
             "day",
@@ -9534,7 +10512,7 @@ export const launchBriefing: ArtifactContent = deck(
             "support",
             split(
                 40,
-                img(pic(192), 1.05),
+                img(pic(407), 1.05),
                 group(
                     t("06 · SUPPORT'S WEEK", "label"),
                     t("Three shifts, no heroes.", "h2"),
@@ -9573,10 +10551,10 @@ export const launchBriefing: ArtifactContent = deck(
                 t("Two years of work. One good morning.", "h2"),
                 t("Questions now, or in #launch-room. Thank you for building this.", "subtitle"),
             ),
-            { background: bgImage(pic(563, 1700, 1100), 0.55) },
+            { background: bgImage(pic(408, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(185, 1700, 1100), 0.3),
+    bgImage(pic(409, 1700, 1100), 0.3),
 );
 
 export const releaseNotes: ArtifactContent = doc(
@@ -9593,7 +10571,7 @@ export const releaseNotes: ArtifactContent = doc(
                 ),
                 t("Published September 1 · Every account already has all of it", "caption"),
             ),
-            { background: bgImage(pic(122, 1700, 1100), 0.6) },
+            { background: bgImage(pic(410, 1700, 1100), 0.6) },
         ),
         section(
             "feature",
@@ -9611,7 +10589,7 @@ export const releaseNotes: ArtifactContent = doc(
                         "caption",
                     ),
                 ),
-                img(pic(532), 0.82),
+                img(pic(411), 0.82),
             ),
         ),
         section(
@@ -9632,6 +10610,8 @@ export const releaseNotes: ArtifactContent = doc(
                 t("FIXED", "label"),
                 table(
                     "What broke,Where,Status\nTimezone drift on weekly rollups,Charts,Fixed\nDuplicate members after SSO rename,Admin,Fixed\nSafari copy button doing nothing,Everywhere,Fixed · sorry Safari",
+                    true,
+                    1,
                 ),
             ),
         ),
@@ -9651,7 +10631,7 @@ export const releaseNotes: ArtifactContent = doc(
             "alerts2",
             split(
                 40,
-                img(pic(0), 1.05),
+                img(pic(412), 1.05),
                 group(
                     t("HOW TEAMS USE IT", "label"),
                     t("Three alerts worth copying.", "h2"),
@@ -9686,9 +10666,15 @@ export const releaseNotes: ArtifactContent = doc(
             group(
                 t("SHIP WEEK, DOCUMENTED", "label"),
                 row(
-                    group(img(pic(4), 1.4), t("The alert spec, drafted on paper first", "caption")),
-                    group(img(pic(7), 1.4), t("The team read-through before the post", "caption")),
-                    group(img(pic(0), 1.4), t("2am, the Safari fix finally landing", "caption")),
+                    group(
+                        img(pic(413), 1.4),
+                        t("The alert spec, drafted on paper first", "caption"),
+                    ),
+                    group(
+                        img(pic(414), 1.4),
+                        t("The team read-through before the post", "caption"),
+                    ),
+                    group(img(pic(415), 1.4), t("2am, the Safari fix finally landing", "caption")),
                 ),
             ),
         ),
@@ -9704,7 +10690,7 @@ export const releaseNotes: ArtifactContent = doc(
             ),
         ),
     ],
-    bgImage(pic(930, 1700, 1100), 0.3),
+    bgImage(pic(416, 1700, 1100), 0.3),
 );
 
 export const pressKit: ArtifactContent = doc(
@@ -9721,7 +10707,7 @@ export const pressKit: ArtifactContent = doc(
                 ),
                 t("Contact: press@aerone.com · Assets: aerone.com/press", "caption"),
             ),
-            { background: bgImage(pic(311, 1700, 1100), 0.55) },
+            { background: bgImage(pic(417, 1700, 1100), 0.55) },
         ),
         section(
             "facts",
@@ -9778,7 +10764,7 @@ export const pressKit: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(305), 0.82),
+                img(pic(418), 0.82),
             ),
         ),
         section(
@@ -9808,14 +10794,14 @@ export const pressKit: ArtifactContent = doc(
                 t("FROM THE PHOTO KIT", "label"),
                 row(
                     group(
-                        img(pic(41), 1.4),
+                        img(pic(419), 1.4),
                         t("The sensor array, sixty reads a second", "caption"),
                     ),
                     group(
-                        img(pic(252), 1.4),
+                        img(pic(420), 1.4),
                         t("The teardown shot reviewers request first", "caption"),
                     ),
-                    group(img(pic(691), 1.4), t("Sleep mode, in its natural habitat", "caption")),
+                    group(img(pic(421), 1.4), t("Sleep mode, in its natural habitat", "caption")),
                 ),
             ),
         ),
@@ -9830,10 +10816,10 @@ export const pressKit: ArtifactContent = doc(
                     ["aerone.com/press", "https://aerone.com/press"],
                 ),
             ),
-            { background: bgImage(pic(385, 1700, 1100), 0.5) },
+            { background: bgImage(pic(422, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(133, 1700, 1100), 0.3),
+    bgImage(pic(423, 1700, 1100), 0.3),
 );
 
 export const launchPlaybook: ArtifactContent = doc(
@@ -9850,7 +10836,7 @@ export const launchPlaybook: ArtifactContent = doc(
                 ),
                 t("Living document · Owned by Priya · Updated Fridays", "caption"),
             ),
-            { background: bgImage(pic(185, 1700, 1100), 0.55) },
+            { background: bgImage(pic(424, 1700, 1100), 0.55) },
         ),
         section(
             "tminus",
@@ -9907,7 +10893,7 @@ export const launchPlaybook: ArtifactContent = doc(
                         "T-0 6:59am: the embargo lifts and the founder post goes up at 7:01",
                     ),
                 ),
-                img(pic(885), 0.82),
+                img(pic(425), 0.82),
             ),
         ),
         section(
@@ -9935,13 +10921,13 @@ export const launchPlaybook: ArtifactContent = doc(
             group(
                 t("SCENES FROM THE LAST DRY RUN", "label"),
                 row(
-                    group(img(pic(348), 1.4), t("Retail traffic, simulated at 10×", "caption")),
+                    group(img(pic(426), 1.4), t("Retail traffic, simulated at 10×", "caption")),
                     group(
-                        img(pic(396), 1.4),
+                        img(pic(427), 1.4),
                         t("The war room, calm by rehearsal three", "caption"),
                     ),
                     group(
-                        img(pic(951), 1.4),
+                        img(pic(428), 1.4),
                         t("The launch wall, color-coded and argued over", "caption"),
                     ),
                 ),
@@ -9956,10 +10942,10 @@ export const launchPlaybook: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(563, 1700, 1100), 0.6) },
+            { background: bgImage(pic(429, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.28),
+    bgImage(pic(430, 1700, 1100), 0.28),
 );
 
 export const messagingGuide: ArtifactContent = doc(
@@ -9976,7 +10962,7 @@ export const messagingGuide: ArtifactContent = doc(
                 ),
                 t("v3 · Post-launch edition · Owned by brand", "caption"),
             ),
-            { background: bgImage(pic(535, 1700, 1100), 0.6) },
+            { background: bgImage(pic(431, 1700, 1100), 0.6) },
         ),
         section(
             "positioning",
@@ -10045,7 +11031,7 @@ export const messagingGuide: ArtifactContent = doc(
             "story",
             split(
                 40,
-                img(pic(396), 1.05),
+                img(pic(432), 1.05),
                 group(
                     t("THE STORY WE TELL", "label"),
                     t("The 2am spreadsheet.", "h2"),
@@ -10071,7 +11057,7 @@ export const messagingGuide: ArtifactContent = doc(
             "field",
             split(
                 40,
-                img(pic(348), 1.05),
+                img(pic(433), 1.05),
                 group(
                     t("THE MESSAGE, IN THE WILD", "label"),
                     t("Where the words go to work.", "h2"),
@@ -10091,10 +11077,10 @@ export const messagingGuide: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(951, 1700, 1100), 0.6) },
+            { background: bgImage(pic(434, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage(pic(185, 1700, 1100), 0.3),
+    bgImage(pic(435, 1700, 1100), 0.3),
 );
 
 export const pricingPage: ArtifactContent = web(
@@ -10119,7 +11105,7 @@ export const pricingPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(9, 1700, 1100), 0.62),
+                background: bgImage(pic(436, 1700, 1100), 0.62),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -10223,7 +11209,7 @@ export const pricingPage: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(2), 0.82),
+                img(pic(437), 0.82),
             ),
         ),
         section(
@@ -10261,14 +11247,14 @@ export const pricingPage: ArtifactContent = web(
                 t("TEAMS ON NORTHWIND", "label"),
                 row(
                     group(
-                        img(pic(7), 1.4),
+                        img(pic(438), 1.4),
                         t("Cedarworks · 40 viewers, 6 editors, $49", "caption"),
                     ),
                     group(
-                        img(pic(4), 1.4),
+                        img(pic(439), 1.4),
                         t("A solo founder's Monday report, free plan", "caption"),
                     ),
-                    group(img(pic(192), 1.4), t("Haloway's exec review, Business plan", "caption")),
+                    group(img(pic(440), 1.4), t("Haloway's exec review, Business plan", "caption")),
                 ),
             ),
         ),
@@ -10310,7 +11296,7 @@ export const pricingPage: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(930, 1700, 1100), 0.3),
+    bgImage(pic(441, 1700, 1100), 0.3),
 );
 
 // client work: winning it, starting it, and keeping the client in the loop
@@ -10329,7 +11315,7 @@ export const kickoffDeck: ArtifactContent = deck(
                 ),
                 t("Kickoff call · July 8 · 60 minutes", "caption"),
             ),
-            { background: bgImage(pic(532, 1700, 1100), 0.6) },
+            { background: bgImage(pic(442, 1700, 1100), 0.6) },
         ),
         section(
             "agenda",
@@ -10378,7 +11364,7 @@ export const kickoffDeck: ArtifactContent = deck(
                         "One shared Slack channel; email is for contracts only",
                     ),
                 ),
-                img(pic(7), 0.82),
+                img(pic(443), 0.82),
             ),
         ),
         section(
@@ -10421,7 +11407,7 @@ export const kickoffDeck: ArtifactContent = deck(
                         "Weeks 10 to 12: QA, UAT, and a calm launch",
                     ),
                 ),
-                img(pic(180), 0.82),
+                img(pic(444), 0.82),
             ),
         ),
         section(
@@ -10450,10 +11436,10 @@ export const kickoffDeck: ArtifactContent = deck(
                 t("See you Friday at the first demo.", "h2"),
                 t("It will be small, and it will be real.", "subtitle"),
             ),
-            { background: bgImage(pic(26, 1700, 1100), 0.6) },
+            { background: bgImage(pic(445, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.28),
+    bgImage(pic(446, 1700, 1100), 0.28),
 );
 
 export const capabilitiesDeck: ArtifactContent = deck(
@@ -10470,13 +11456,13 @@ export const capabilitiesDeck: ArtifactContent = deck(
                 ),
                 t("Prepared for prospective clients · 2026", "caption"),
             ),
-            { background: bgImage(pic(546, 1700, 1100), 0.55) },
+            { background: bgImage(pic(447, 1700, 1100), 0.55) },
         ),
         section(
             "statement",
             split(
                 40,
-                img(pic(508), 1.05),
+                img(pic(448), 1.05),
                 group(
                     t("THE STUDIO", "label"),
                     t("We design the pause before the room speaks.", "h2"),
@@ -10493,7 +11479,7 @@ export const capabilitiesDeck: ArtifactContent = deck(
                 t("THREE PRACTICES", "label"),
                 row(
                     group(
-                        img(pic(1051), 1.4),
+                        img(pic(449), 1.4),
                         t("Interiors", "h3"),
                         t(
                             "Residential and hospitality, from first sketch to last switch plate.",
@@ -10501,12 +11487,12 @@ export const capabilitiesDeck: ArtifactContent = deck(
                         ),
                     ),
                     group(
-                        img(pic(1059), 1.4),
+                        img(pic(450), 1.4),
                         t("Identity", "h3"),
                         t("Naming, type, and the small printed things people keep.", "caption"),
                     ),
                     group(
-                        img(pic(21), 1.4),
+                        img(pic(451), 1.4),
                         t("Objects", "h3"),
                         t("Limited-run furniture and lighting, made in-house.", "caption"),
                     ),
@@ -10518,9 +11504,9 @@ export const capabilitiesDeck: ArtifactContent = deck(
             group(
                 t("SELECTED WORK", "label"),
                 row(
-                    group(img(pic(428), 1.4), t("The Glasshouse · Oslo", "caption")),
-                    group(img(pic(420), 1.4), t("Linen Apartment · Paris", "caption")),
-                    group(img(pic(882), 1.4), t("Hotel Amber · Copenhagen", "caption")),
+                    group(img(pic(452), 1.4), t("The Glasshouse · Oslo", "caption")),
+                    group(img(pic(453), 1.4), t("Linen Apartment · Paris", "caption")),
+                    group(img(pic(454), 1.4), t("Hotel Amber · Copenhagen", "caption")),
                 ),
             ),
         ),
@@ -10551,9 +11537,9 @@ export const capabilitiesDeck: ArtifactContent = deck(
                 t("THE CRAFT", "label"),
                 t("Materials we keep coming back to.", "h2"),
                 row(
-                    group(img(pic(123), 1.4), t("Stone, honest about its weight", "caption")),
-                    group(img(pic(307), 1.4), t("Wood, old enough to have opinions", "caption")),
-                    group(img(pic(418), 1.4), t("Light, the only free material", "caption")),
+                    group(img(pic(455), 1.4), t("Stone, honest about its weight", "caption")),
+                    group(img(pic(456), 1.4), t("Wood, old enough to have opinions", "caption")),
+                    group(img(pic(457), 1.4), t("Light, the only free material", "caption")),
                 ),
             ),
         ),
@@ -10588,10 +11574,10 @@ export const capabilitiesDeck: ArtifactContent = deck(
                     "tel:+4722401806",
                 ]),
             ),
-            { background: bgImage(pic(550, 1700, 1100), 0.55) },
+            { background: bgImage(pic(458, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(12, 1700, 1100), 0.3),
+    bgImage(pic(459, 1700, 1100), 0.3),
 );
 
 export const workshopDeck: ArtifactContent = deck(
@@ -10608,7 +11594,7 @@ export const workshopDeck: ArtifactContent = deck(
                 ),
                 t("Atlas Coffee · The roastery loft · July 15, 9 to 4", "caption"),
             ),
-            { background: bgImage(pic(526, 1700, 1100), 0.55) },
+            { background: bgImage(pic(460, 1700, 1100), 0.55) },
         ),
         section(
             "why",
@@ -10622,7 +11608,7 @@ export const workshopDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(20), 0.82),
+                img(pic(461), 0.82),
             ),
         ),
         section(
@@ -10640,12 +11626,12 @@ export const workshopDeck: ArtifactContent = deck(
                 t("03 · THE EXERCISES", "label"),
                 row(
                     group(
-                        img(pic(403), 1.4),
+                        img(pic(462), 1.4),
                         t("Twenty questions", "h3"),
                         t("Fast, written, anonymous; the quiet people win this one.", "caption"),
                     ),
                     group(
-                        img(pic(532), 1.4),
+                        img(pic(463), 1.4),
                         t("The shelf test", "h3"),
                         t(
                             "Your bag against six rivals, at arm's length, three seconds.",
@@ -10653,7 +11639,7 @@ export const workshopDeck: ArtifactContent = deck(
                         ),
                     ),
                     group(
-                        img(pic(63), 1.4),
+                        img(pic(464), 1.4),
                         t("Kill the darling", "h3"),
                         t("Everyone sacrifices one beloved idea, publicly, kindly.", "caption"),
                     ),
@@ -10697,7 +11683,7 @@ export const workshopDeck: ArtifactContent = deck(
                         "One empty chair for the customer, kept honest by the morning's calls",
                     ),
                 ),
-                img(pic(7), 0.82),
+                img(pic(465), 0.82),
             ),
         ),
         section(
@@ -10725,10 +11711,10 @@ export const workshopDeck: ArtifactContent = deck(
                 t("Bring opinions. Wear comfortable shoes.", "h2"),
                 t("Coffee is handled. It's the one thing we're not worried about.", "subtitle"),
             ),
-            { background: bgImage(pic(1060, 1700, 1100), 0.55) },
+            { background: bgImage(pic(466, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(98, 1700, 1100), 0.3),
+    bgImage(pic(467, 1700, 1100), 0.3),
 );
 
 export const clientStatus: ArtifactContent = doc(
@@ -10745,7 +11731,7 @@ export const clientStatus: ArtifactContent = doc(
                 ),
                 t("Sent Friday, August 14 · Next demo: Friday 10am", "caption"),
             ),
-            { background: bgImage(pic(532, 1700, 1100), 0.62) },
+            { background: bgImage(pic(468, 1700, 1100), 0.62) },
         ),
         section(
             "status",
@@ -10753,6 +11739,8 @@ export const clientStatus: ArtifactContent = doc(
                 t("BY WORKSTREAM", "label"),
                 table(
                     "Workstream,Status,This week\nStorefront build,Ahead,Product & collection pages done · reviews live\nReturns portal,On track,Label generation working · policy engine in test\nContent migration,Flag,See below · decision needed Tuesday\nAnalytics & CI/CD,On track,Staging pipeline green since Monday",
+                    true,
+                    1,
                 ),
             ),
         ),
@@ -10791,7 +11779,7 @@ export const clientStatus: ArtifactContent = doc(
             "demo",
             split(
                 40,
-                img(pic(3), 1.05),
+                img(pic(469), 1.05),
                 group(
                     t("FROM FRIDAY'S DEMO", "label"),
                     t("Checkout, end to end, on your live tax rules.", "h2"),
@@ -10832,9 +11820,12 @@ export const clientStatus: ArtifactContent = doc(
             group(
                 t("FROM STAGING, FRIDAY MORNING", "label"),
                 row(
-                    group(img(pic(26), 1.4), t("The product page, gear laid flat", "caption")),
-                    group(img(pic(9), 1.4), t("Returns portal, label in one tap", "caption")),
-                    group(img(pic(4), 1.4), t("The punch list, shrinking on schedule", "caption")),
+                    group(img(pic(470), 1.4), t("The product page, gear laid flat", "caption")),
+                    group(img(pic(471), 1.4), t("Returns portal, label in one tap", "caption")),
+                    group(
+                        img(pic(472), 1.4),
+                        t("The punch list, shrinking on schedule", "caption"),
+                    ),
                 ),
             ),
         ),
@@ -10854,7 +11845,7 @@ export const clientStatus: ArtifactContent = doc(
             ),
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.26),
+    bgImage(pic(473, 1700, 1100), 0.26),
 );
 
 export const proposalSite: ArtifactContent = web(
@@ -10880,7 +11871,7 @@ export const proposalSite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(425, 1700, 1100), 0.58),
+                background: bgImage(pic(474, 1700, 1100), 0.58),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -10902,7 +11893,7 @@ export const proposalSite: ArtifactContent = web(
                 t("Eight weeks, three moves.", "h2"),
                 row(
                     group(
-                        img(pic(20), 1.4),
+                        img(pic(475), 1.4),
                         t("Weeks 1–3 · Strategy", "h3"),
                         t(
                             "Positioning, naming audit, and the one sentence everything hangs on.",
@@ -10910,7 +11901,7 @@ export const proposalSite: ArtifactContent = web(
                         ),
                     ),
                     group(
-                        img(pic(526), 1.4),
+                        img(pic(476), 1.4),
                         t("Weeks 3–6 · Identity", "h3"),
                         t(
                             "Mark, type, color, and packaging, tested at arm's length on a real shelf.",
@@ -10918,7 +11909,7 @@ export const proposalSite: ArtifactContent = web(
                         ),
                     ),
                     group(
-                        img(pic(431), 1.4),
+                        img(pic(477), 1.4),
                         t("Weeks 6–8 · Rollout", "h3"),
                         t(
                             "Bags, menus, site, and the guidelines that keep it all standing.",
@@ -10935,17 +11926,17 @@ export const proposalSite: ArtifactContent = web(
                 t("WHO SHOWS UP", "label"),
                 row(
                     group(
-                        img(pic(528), 1),
+                        img(pic(478), 1),
                         t("Nora Espen", "h3"),
                         t("Creative director · every review, no exceptions", "caption"),
                     ),
                     group(
-                        img(pic(403), 1),
+                        img(pic(479), 1),
                         t("Devin Marsh", "h3"),
                         t("Brand strategist · the words and the why", "caption"),
                     ),
                     group(
-                        img(pic(532), 1),
+                        img(pic(480), 1),
                         t("Lina Vogel", "h3"),
                         t("Design & web lead · from sketch to shipped", "caption"),
                     ),
@@ -10971,17 +11962,17 @@ export const proposalSite: ArtifactContent = web(
                 t("WORK LIKE YOURS", "label"),
                 row(
                     group(
-                        img(pic(24), 1.4),
+                        img(pic(481), 1.4),
                         t("Novel Press", "h3"),
                         t("Publisher rebrand · shelf sales up 22% in year one", "caption"),
                     ),
                     group(
-                        img(pic(627), 1.4),
+                        img(pic(482), 1.4),
                         t("Orchard Grocery", "h3"),
                         t("Identity and packaging · from farmers market to 40 doors", "caption"),
                     ),
                     group(
-                        img(pic(871), 1.4),
+                        img(pic(483), 1.4),
                         t("Tidal", "h3"),
                         t("Clean-energy launch · the campaign your barista mentioned", "caption"),
                     ),
@@ -11031,7 +12022,7 @@ export const proposalSite: ArtifactContent = web(
                 ),
                 button("Accept & schedule kickoff", "mailto:nora@foldwork.studio", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(63, 1700, 1100), 0.58) },
+            { bleed: true, background: bgImage(pic(484, 1700, 1100), 0.58) },
         ),
         section(
             "footer",
@@ -11059,7 +12050,7 @@ export const proposalSite: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(98, 1700, 1100), 0.3),
+    bgImage(pic(485, 1700, 1100), 0.3),
 );
 
 export const projectHub: ArtifactContent = web(
@@ -11085,7 +12076,7 @@ export const projectHub: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(26, 1700, 1100), 0.6),
+                background: bgImage(pic(486, 1700, 1100), 0.6),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -11154,12 +12145,12 @@ export const projectHub: ArtifactContent = web(
             group(
                 t("FROM STAGING, THIS MORNING", "label"),
                 row(
-                    group(img(pic(26), 1.4), t("The new product page, gear laid flat", "caption")),
+                    group(img(pic(487), 1.4), t("The new product page, gear laid flat", "caption")),
                     group(
-                        img(pic(532), 1.4),
+                        img(pic(488), 1.4),
                         t("Checkout on desktop, three steps flat", "caption"),
                     ),
-                    group(img(pic(9), 1.4), t("The returns portal, label in one tap", "caption")),
+                    group(img(pic(489), 1.4), t("The returns portal, label in one tap", "caption")),
                 ),
             ),
             { bleed: true, background: bgTone("tint") },
@@ -11197,7 +12188,7 @@ export const projectHub: ArtifactContent = web(
                     size: "lg",
                 }),
             ),
-            { bleed: true, background: bgImage(pic(9, 1700, 1100), 0.6) },
+            { bleed: true, background: bgImage(pic(490, 1700, 1100), 0.6) },
         ),
         section(
             "footer",
@@ -11230,7 +12221,7 @@ export const projectHub: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.26),
+    bgImage(pic(491, 1700, 1100), 0.26),
 );
 
 export const caseStudySite: ArtifactContent = web(
@@ -11254,7 +12245,7 @@ export const caseStudySite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(395, 1700, 1100), 0.62),
+                background: bgImage(pic(492, 1700, 1100), 0.62),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -11270,7 +12261,7 @@ export const caseStudySite: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(437), 0.82),
+                img(pic(493), 0.82),
             ),
         ),
         section(
@@ -11308,7 +12299,7 @@ export const caseStudySite: ArtifactContent = web(
                     "https://i.pravatar.cc/240?img=44",
                 ),
             ),
-            { bleed: true, background: bgImage(pic(999, 1700, 1100), 0.6) },
+            { bleed: true, background: bgImage(pic(494, 1700, 1100), 0.6) },
         ),
         section(
             "detail",
@@ -11323,7 +12314,7 @@ export const caseStudySite: ArtifactContent = web(
             "rollout",
             split(
                 40,
-                img(pic(488), 1.05),
+                img(pic(495), 1.05),
                 group(
                     t("THE ROLLOUT, HONESTLY", "label"),
                     t("Week three was the hard one.", "h2"),
@@ -11339,9 +12330,9 @@ export const caseStudySite: ArtifactContent = web(
             group(
                 t("THE FLOORS IN QUESTION", "label"),
                 row(
-                    group(img(pic(42), 1.4), t("Marlow Beacon Hill, the pilot room", "caption")),
-                    group(img(pic(163), 1.4), t("The patio at Marlow Cambridge", "caption")),
-                    group(img(pic(999), 1.4), t("Service, mid-Saturday, unbothered", "caption")),
+                    group(img(pic(496), 1.4), t("Marlow Beacon Hill, the pilot room", "caption")),
+                    group(img(pic(497), 1.4), t("The patio at Marlow Cambridge", "caption")),
+                    group(img(pic(498), 1.4), t("Service, mid-Saturday, unbothered", "caption")),
                 ),
             ),
             { bleed: true, background: bgTone("tint") },
@@ -11389,7 +12380,7 @@ export const caseStudySite: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(135, 1700, 1100), 0.3),
+    bgImage(pic(499, 1700, 1100), 0.3),
 );
 
 export const servicesPage: ArtifactContent = web(
@@ -11414,7 +12405,7 @@ export const servicesPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(32, 1700, 1100), 0.5),
+                background: bgImage(pic(500, 1700, 1100), 0.5),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -11470,7 +12461,7 @@ export const servicesPage: ArtifactContent = web(
                     "body",
                 ),
             ),
-            { bleed: true, background: bgImage(pic(418, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(501, 1700, 1100), 0.55) },
         ),
         section(
             "faq",
@@ -11502,12 +12493,12 @@ export const servicesPage: ArtifactContent = web(
                 t("RECENTLY FINISHED", "label"),
                 row(
                     group(
-                        img(pic(1051), 1.4),
+                        img(pic(502), 1.4),
                         t("Fjord House · private residence, Bergen", "caption"),
                     ),
-                    group(img(pic(882), 1.4), t("Hotel Amber · 28 rooms, Copenhagen", "caption")),
+                    group(img(pic(503), 1.4), t("Hotel Amber · 28 rooms, Copenhagen", "caption")),
                     group(
-                        img(pic(21), 1.4),
+                        img(pic(504), 1.4),
                         t("Marlowe Flagship · retail identity, London", "caption"),
                     ),
                 ),
@@ -11543,7 +12534,7 @@ export const servicesPage: ArtifactContent = web(
                 ),
                 button("Write to the studio", "mailto:studio@halvorsen.no", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(550, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(505, 1700, 1100), 0.55) },
         ),
         section(
             "footer",
@@ -11585,13 +12576,13 @@ export const servicesPage: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(12, 1700, 1100), 0.3),
+    bgImage(pic(506, 1700, 1100), 0.3),
 );
 
 // reports & reviews: the cadence decks and the public-facing report sites
 
 export const allHandsDeck: ArtifactContent = deck(
-    "foundry",
+    "kiln",
     [
         section(
             "cover",
@@ -11604,7 +12595,7 @@ export const allHandsDeck: ArtifactContent = deck(
                 ),
                 t("First Thursday · 45 minutes · questions always win", "caption"),
             ),
-            { background: bgImage(pic(378, 1700, 1100), 0.6) },
+            { background: bgImage(pic(507, 1700, 1100), 0.6) },
         ),
         section(
             "numbers",
@@ -11630,8 +12621,9 @@ export const allHandsDeck: ArtifactContent = deck(
                         "First enterprise deal closed on the back of it",
                         "The migration tool nobody notices, which was the goal",
                     ),
+                    pin(badge("All four, on time."), "end", "start", { dy: 6, rotate: -4, z: 2 }),
                 ),
-                img(pic(201), 0.82),
+                img(pic(508), 0.82),
             ),
         ),
         section(
@@ -11661,7 +12653,7 @@ export const allHandsDeck: ArtifactContent = deck(
             "shoutouts",
             split(
                 40,
-                img(pic(407), 1.05),
+                img(pic(509), 1.05),
                 group(
                     t("05 · SHOUTOUTS", "label"),
                     t("The quarter had heroes.", "h2"),
@@ -11685,7 +12677,7 @@ export const allHandsDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(2), 0.82),
+                img(pic(510), 0.82),
             ),
         ),
         section(
@@ -11718,10 +12710,10 @@ export const allHandsDeck: ArtifactContent = deck(
                     "subtitle",
                 ),
             ),
-            { background: bgImage(pic(625, 1700, 1100), 0.6) },
+            { background: bgImage(pic(511, 1700, 1100), 0.6) },
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.3),
+    bgImage(pic(512, 1700, 1100), 0.3),
 );
 
 export const growthReview: ArtifactContent = deck(
@@ -11738,14 +12730,20 @@ export const growthReview: ArtifactContent = deck(
                 ),
                 t("Growth review · October 3 · numbers as of September 30", "caption"),
             ),
-            { background: bgImage(pic(396, 1700, 1100), 0.6) },
+            { background: bgImage(pic(513, 1700, 1100), 0.6) },
         ),
         section(
             "headline",
-            row(
-                stat("1,140", "signups · 114% of target"),
-                stat("$96", "blended CAC · target $120"),
-                stat("31%", "signup-to-paid at day 30"),
+            group(
+                row(
+                    { align: "baseline", gap: 10 },
+                    fitW(t("1,140", "h1")),
+                    t("signups, 114% of the target.", "h2"),
+                ),
+                row(
+                    stat("$96", "blended CAC · target $120"),
+                    stat("31%", "signup-to-paid at day 30"),
+                ),
             ),
         ),
         section(
@@ -11770,7 +12768,7 @@ export const growthReview: ArtifactContent = deck(
                         "Founder posts beat the brand account 6:1 on the same content",
                     ),
                 ),
-                img(pic(885), 0.82),
+                img(pic(514), 0.82),
             ),
         ),
         section(
@@ -11800,7 +12798,7 @@ export const growthReview: ArtifactContent = deck(
             "cohorts",
             split(
                 40,
-                img(pic(668), 1.05),
+                img(pic(515), 1.05),
                 group(
                     t("05 · COHORT QUALITY", "label"),
                     t("Content signups stay; paid signups shop.", "h2"),
@@ -11838,10 +12836,10 @@ export const growthReview: ArtifactContent = deck(
                 t("Budget follows evidence.", "h2"),
                 t("Same review, same table, first Friday of January.", "subtitle"),
             ),
-            { background: bgImage(pic(563, 1700, 1100), 0.55) },
+            { background: bgImage(pic(516, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(185, 1700, 1100), 0.3),
+    bgImage(pic(517, 1700, 1100), 0.3),
 );
 
 export const researchReadout: ArtifactContent = deck(
@@ -11858,7 +12856,7 @@ export const researchReadout: ArtifactContent = deck(
                 ),
                 t("Future of Work Summit · 18 minutes + questions", "caption"),
             ),
-            { background: bgImage(pic(445, 1700, 1100), 0.55) },
+            { background: bgImage(pic(518, 1700, 1100), 0.55) },
         ),
         section(
             "one",
@@ -11884,14 +12882,14 @@ export const researchReadout: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(625), 0.82),
+                img(pic(519), 0.82),
             ),
         ),
         section(
             "three",
             split(
                 40,
-                img(pic(513), 1.05),
+                img(pic(520), 1.05),
                 group(
                     t("FINDING 03", "label"),
                     t("Mentorship is the casualty nobody budgeted.", "h2"),
@@ -11938,7 +12936,7 @@ export const researchReadout: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(119), 0.82),
+                img(pic(521), 0.82),
             ),
         ),
         section(
@@ -11975,10 +12973,10 @@ export const researchReadout: ArtifactContent = deck(
                     "caption",
                 ),
             ),
-            { background: bgImage(pic(692, 1700, 1100), 0.55) },
+            { background: bgImage(pic(522, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(114, 1700, 1100), 0.3),
+    bgImage(pic(523, 1700, 1100), 0.3),
 );
 
 export const annualPlan: ArtifactContent = deck(
@@ -11995,7 +12993,7 @@ export const annualPlan: ArtifactContent = deck(
                 ),
                 t("Presented to the whole company · December 12", "caption"),
             ),
-            { background: bgImage(pic(448, 1700, 1100), 0.55) },
+            { background: bgImage(pic(524, 1700, 1100), 0.55) },
         ),
         section(
             "recap",
@@ -12017,14 +13015,14 @@ export const annualPlan: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(543), 0.82),
+                img(pic(525), 0.82),
             ),
         ),
         section(
             "p2",
             split(
                 40,
-                img(pic(887), 1.05),
+                img(pic(526), 1.05),
                 group(
                     t("PRIORITY TWO", "label"),
                     t("GridShare grows up.", "h2"),
@@ -12069,7 +13067,7 @@ export const annualPlan: ArtifactContent = deck(
                         "GridShare gets its own team of six; no more borrowed engineers",
                     ),
                 ),
-                img(pic(514), 0.82),
+                img(pic(527), 0.82),
             ),
         ),
         section(
@@ -12100,10 +13098,10 @@ export const annualPlan: ArtifactContent = deck(
                     "subtitle",
                 ),
             ),
-            { background: bgImage(pic(110, 1700, 1100), 0.5) },
+            { background: bgImage(pic(528, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(133, 1700, 1100), 0.3),
+    bgImage(pic(529, 1700, 1100), 0.3),
 );
 
 export const impactSite: ArtifactContent = web(
@@ -12128,7 +13126,7 @@ export const impactSite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(448, 1700, 1100), 0.55),
+                background: bgImage(pic(530, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -12153,7 +13151,7 @@ export const impactSite: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(816), 0.82),
+                img(pic(531), 0.82),
             ),
         ),
         section(
@@ -12162,17 +13160,17 @@ export const impactSite: ArtifactContent = web(
                 t("THREE ROOFS AMONG THOUSANDS", "label"),
                 row(
                     group(
-                        img(pic(1008), 1.4),
+                        img(pic(532), 1.4),
                         t("The Alvarez family", "h3"),
                         t("$97 average monthly bill became $11, battery included.", "caption"),
                     ),
                     group(
-                        img(pic(887), 1.4),
+                        img(pic(533), 1.4),
                         t("Casa Verde co-op", "h3"),
                         t("Forty units sharing one GridShare battery wall.", "caption"),
                     ),
                     group(
-                        img(pic(514), 1.4),
+                        img(pic(534), 1.4),
                         t("Crew 7", "h3"),
                         t("Four apprentices, 212 installs, zero incidents.", "caption"),
                     ),
@@ -12205,7 +13203,7 @@ export const impactSite: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(182), 0.82),
+                img(pic(535), 0.82),
             ),
         ),
         section(
@@ -12241,7 +13239,7 @@ export const impactSite: ArtifactContent = web(
                 t("The whole report, no email wall.", "h2"),
                 button("Download the PDF", "https://solstice.energy/impact.pdf", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(110, 1700, 1100), 0.5) },
+            { bleed: true, background: bgImage(pic(536, 1700, 1100), 0.5) },
         ),
         section(
             "footer",
@@ -12281,7 +13279,7 @@ export const impactSite: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(133, 1700, 1100), 0.3),
+    bgImage(pic(537, 1700, 1100), 0.3),
 );
 export const researchSite: ArtifactContent = web(
     "studio",
@@ -12304,7 +13302,7 @@ export const researchSite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(445, 1700, 1100), 0.55),
+                background: bgImage(pic(538, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -12323,17 +13321,17 @@ export const researchSite: ArtifactContent = web(
                 t("THE FOUR FINDINGS", "label"),
                 row(
                     group(
-                        img(pic(48), 1.4),
+                        img(pic(539), 1.4),
                         t("Hybrid calcified", "h3"),
                         t("The experiment ended; the settlement is two anchored days.", "caption"),
                     ),
                     group(
-                        img(pic(625), 1.4),
+                        img(pic(540), 1.4),
                         t("Offices became meeting rooms", "h3"),
                         t("Focus work moved home and is not coming back.", "caption"),
                     ),
                     group(
-                        img(pic(513), 1.4),
+                        img(pic(541), 1.4),
                         t("Mentorship pays the price", "h3"),
                         t("Unplanned senior contact fell 40% for workers under 30.", "caption"),
                     ),
@@ -12363,7 +13361,7 @@ export const researchSite: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(119), 0.82),
+                img(pic(542), 0.82),
             ),
             { bleed: true, background: bgTone("contrast") },
         ),
@@ -12379,7 +13377,7 @@ export const researchSite: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(830), 0.82),
+                img(pic(543), 0.82),
             ),
         ),
         section(
@@ -12416,7 +13414,7 @@ export const researchSite: ArtifactContent = web(
                     size: "lg",
                 }),
             ),
-            { bleed: true, background: bgImage(pic(692, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(544, 1700, 1100), 0.55) },
         ),
         section(
             "footer",
@@ -12456,7 +13454,7 @@ export const researchSite: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(114, 1700, 1100), 0.3),
+    bgImage(pic(545, 1700, 1100), 0.3),
 );
 
 export const changelogSite: ArtifactContent = web(
@@ -12480,7 +13478,7 @@ export const changelogSite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(68, 1700, 1100), 0.55),
+                background: bgImage(pic(546, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -12532,7 +13530,7 @@ export const changelogSite: ArtifactContent = web(
                     "Never: your data leaving the machine, even for our convenience",
                 ),
             ),
-            { bleed: true, background: bgImage(pic(831, 1700, 1100), 0.7) },
+            { bleed: true, background: bgImage(pic(547, 1700, 1100), 0.7) },
         ),
         section(
             "asked",
@@ -12569,7 +13567,7 @@ export const changelogSite: ArtifactContent = web(
                 t("One email per release, four lines long.", "h2"),
                 button("Subscribe to the changelog", "https://vanta.app/changelog", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(416, 1700, 1100), 0.5) },
+            { bleed: true, background: bgImage(pic(548, 1700, 1100), 0.5) },
         ),
         section(
             "desk",
@@ -12583,7 +13581,7 @@ export const changelogSite: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(794), 0.82),
+                img(pic(549), 0.82),
             ),
         ),
         section(
@@ -12617,7 +13615,7 @@ export const changelogSite: ArtifactContent = web(
             { bleed: true, background: bgTone("tint") },
         ),
     ],
-    bgImage(pic(642, 1700, 1100), 0.3),
+    bgImage(pic(550, 1700, 1100), 0.3),
 );
 
 export const openMetrics: ArtifactContent = web(
@@ -12642,7 +13640,7 @@ export const openMetrics: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(6, 1700, 1100), 0.6),
+                background: bgImage(pic(551, 1700, 1100), 0.6),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -12676,7 +13674,7 @@ export const openMetrics: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(668), 0.82),
+                img(pic(552), 0.82),
             ),
         ),
         section(
@@ -12695,7 +13693,7 @@ export const openMetrics: ArtifactContent = web(
             "history",
             split(
                 40,
-                img(pic(366), 1.05),
+                img(pic(553), 1.05),
                 group(
                     t("THE WORST MONTH, KEPT UP", "label"),
                     t("March 2025 stays on the page.", "h2"),
@@ -12739,7 +13737,7 @@ export const openMetrics: ArtifactContent = web(
                 t("Metering your revenue? That's the product.", "h2"),
                 button("Try Cadence free", "https://cadence.dev", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(0, 1700, 1100), 0.6) },
+            { bleed: true, background: bgImage(pic(554, 1700, 1100), 0.6) },
         ),
         section(
             "footer",
@@ -12772,7 +13770,7 @@ export const openMetrics: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.28),
+    bgImage(pic(555, 1700, 1100), 0.28),
 );
 
 export const statusPage: ArtifactContent = web(
@@ -12856,7 +13854,7 @@ export const statusPage: ArtifactContent = web(
                     "https://status.northwind.dev/pm/2026-07-30",
                 ]),
             ),
-            { bleed: true, background: bgImage(pic(220, 1700, 1100), 0.66) },
+            { bleed: true, background: bgImage(pic(556, 1700, 1100), 0.66) },
         ),
         section(
             "principles",
@@ -12896,7 +13894,7 @@ export const statusPage: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(304), 0.82),
+                img(pic(557), 0.82),
             ),
         ),
         section(
@@ -12947,7 +13945,7 @@ export const statusPage: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(930, 1700, 1100), 0.3),
+    bgImage(pic(558, 1700, 1100), 0.3),
 );
 
 // you & your work: the personal wing's decks, papers, and pages
@@ -12966,7 +13964,7 @@ export const conferenceTalk: ArtifactContent = deck(
                 ),
                 t("Wren Halloran · Quiet Machines · 25 minutes", "caption"),
             ),
-            { background: bgImage(pic(962, 1700, 1100), 0.55) },
+            { background: bgImage(pic(559, 1700, 1100), 0.55) },
         ),
         section(
             "who",
@@ -12980,7 +13978,7 @@ export const conferenceTalk: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(788), 0.82),
+                img(pic(560), 0.82),
             ),
         ),
         section(
@@ -12996,7 +13994,7 @@ export const conferenceTalk: ArtifactContent = deck(
             "one",
             split(
                 40,
-                img(pic(251), 1.05),
+                img(pic(561), 1.05),
                 group(
                     t("LESSON ONE", "label"),
                     t("Decide what it will never do.", "h2"),
@@ -13019,14 +14017,14 @@ export const conferenceTalk: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(885), 0.82),
+                img(pic(562), 0.82),
             ),
         ),
         section(
             "three",
             split(
                 40,
-                img(pic(910), 1.05),
+                img(pic(563), 1.05),
                 group(
                     t("LESSON THREE", "label"),
                     t("Finish things. It's allowed.", "h2"),
@@ -13060,7 +14058,7 @@ export const conferenceTalk: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(486), 0.82),
+                img(pic(564), 0.82),
             ),
         ),
         section(
@@ -13080,10 +14078,10 @@ export const conferenceTalk: ArtifactContent = deck(
                 t("Slides, the reading list, and the letter: quietmachines.co/talk", "subtitle"),
                 t("Thank you. Questions welcome, small ones especially.", "caption"),
             ),
-            { background: bgImage(pic(552, 1700, 1100), 0.55) },
+            { background: bgImage(pic(565, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(552, 1700, 1100), 0.3),
+    bgImage(pic(566, 1700, 1100), 0.3),
 );
 
 export const portfolioDeck: ArtifactContent = deck(
@@ -13100,7 +14098,7 @@ export const portfolioDeck: ArtifactContent = deck(
                 ),
                 t("Prepared for the Northwind design team · 12 minutes", "caption"),
             ),
-            { background: bgImage(pic(533, 1700, 1100), 0.55) },
+            { background: bgImage(pic(567, 1700, 1100), 0.55) },
         ),
         section(
             "p1",
@@ -13118,7 +14116,7 @@ export const portfolioDeck: ArtifactContent = deck(
                         "caption",
                     ),
                 ),
-                img(pic(532), 0.82),
+                img(pic(568), 0.82),
             ),
         ),
         section(
@@ -13133,7 +14131,7 @@ export const portfolioDeck: ArtifactContent = deck(
             "p2",
             split(
                 40,
-                img(pic(180), 1.05),
+                img(pic(569), 1.05),
                 group(
                     t("02 · MERCHANT DASHBOARD 2.0", "label"),
                     t("The redesign that read like a receipt.", "h2"),
@@ -13156,7 +14154,7 @@ export const portfolioDeck: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(48), 0.82),
+                img(pic(570), 0.82),
             ),
         ),
         section(
@@ -13175,7 +14173,7 @@ export const portfolioDeck: ArtifactContent = deck(
             "practice",
             split(
                 40,
-                img(pic(533), 1.05),
+                img(pic(571), 1.05),
                 group(
                     t("THE THREAD", "label"),
                     t("Systems over screens.", "h2"),
@@ -13217,10 +14215,10 @@ export const portfolioDeck: ArtifactContent = deck(
                     "https://vance.design",
                 ]),
             ),
-            { background: bgImage(pic(119, 1700, 1100), 0.5) },
+            { background: bgImage(pic(572, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(114, 1700, 1100), 0.3),
+    bgImage(pic(573, 1700, 1100), 0.3),
 );
 
 export const teachingDeck: ArtifactContent = deck(
@@ -13237,7 +14235,7 @@ export const teachingDeck: ArtifactContent = deck(
                 ),
                 t("Elena Vance · Config 2026 workshop track", "caption"),
             ),
-            { background: bgImage(pic(945, 1700, 1100), 0.6) },
+            { background: bgImage(pic(574, 1700, 1100), 0.6) },
         ),
         section(
             "premise",
@@ -13272,7 +14270,7 @@ export const teachingDeck: ArtifactContent = deck(
                         "Budget halves: what do you stop documenting first?",
                     ),
                 ),
-                img(pic(4), 0.82),
+                img(pic(575), 0.82),
             ),
         ),
         section(
@@ -13293,7 +14291,7 @@ export const teachingDeck: ArtifactContent = deck(
             "takeaway",
             split(
                 40,
-                img(pic(180), 1.05),
+                img(pic(576), 1.05),
                 group(
                     t("THE TWO-PARAGRAPH SUCCESSION PLAN", "label"),
                     t("Write the obituary before the birth.", "h2"),
@@ -13326,10 +14324,10 @@ export const teachingDeck: ArtifactContent = deck(
                 ]),
                 t("Stay for the hallway; that's where the real questions live.", "caption"),
             ),
-            { background: bgImage(pic(119, 1700, 1100), 0.55) },
+            { background: bgImage(pic(577, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(115, 1700, 1100), 0.3),
+    bgImage(pic(578, 1700, 1100), 0.3),
 );
 
 export const yearInReview: ArtifactContent = deck(
@@ -13346,7 +14344,7 @@ export const yearInReview: ArtifactContent = deck(
                 ),
                 t("Jonah Reyes · made in the last week of December", "caption"),
             ),
-            { background: bgImage(pic(860, 1700, 1100), 0.55) },
+            { background: bgImage(pic(579, 1700, 1100), 0.55) },
         ),
         section(
             "numbers",
@@ -13360,7 +14358,7 @@ export const yearInReview: ArtifactContent = deck(
             "spring",
             split(
                 40,
-                img(pic(821), 1.05),
+                img(pic(580), 1.05),
                 group(
                     t("SPRING", "label"),
                     t("The essay got published.", "h2"),
@@ -13383,14 +14381,14 @@ export const yearInReview: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(846), 0.82),
+                img(pic(581), 0.82),
             ),
         ),
         section(
             "fall",
             split(
                 40,
-                img(pic(998), 1.05),
+                img(pic(582), 1.05),
                 group(
                     t("FALL", "label"),
                     t("Grandpa's letters, finally scanned.", "h2"),
@@ -13417,10 +14415,29 @@ export const yearInReview: ArtifactContent = deck(
             "gallery",
             group(
                 t("TWELVE MONTHS, SIX FRAMES", "label"),
-                row(
-                    group(img(pic(860), 1.4), t("January, the bridge to myself", "caption")),
-                    group(img(pic(846), 1.4), t("July, wave number one", "caption")),
-                    group(img(pic(407), 1.4), t("December, the cousins' sparklers", "caption")),
+                col(
+                    { align: "center" },
+                    w(38, group(img(pic(583), 1.4), t("July, wave number one", "caption"))),
+                ),
+                pin(
+                    w(24, polaroid(pic(584, 900, 700), 1.4, "January, the bridge to myself")),
+                    "start",
+                    "center",
+                    {
+                        dx: 40,
+                        rotate: -5,
+                        z: 1,
+                    },
+                ),
+                pin(
+                    w(24, polaroid(pic(585, 900, 700), 1.4, "December, the cousins' sparklers")),
+                    "end",
+                    "center",
+                    {
+                        dx: -40,
+                        rotate: 4,
+                        z: 1,
+                    },
                 ),
             ),
         ),
@@ -13454,10 +14471,10 @@ export const yearInReview: ArtifactContent = deck(
                     "subtitle",
                 ),
             ),
-            { background: bgImage(pic(862, 1700, 1100), 0.5) },
+            { background: bgImage(pic(586, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(255, 1700, 1100), 0.3),
+    bgImage(pic(587, 1700, 1100), 0.3),
 );
 
 export const sideProjectPitch: ArtifactContent = deck(
@@ -13474,7 +14491,7 @@ export const sideProjectPitch: ArtifactContent = deck(
                 ),
                 t("Wren Halloran · pitching collaborators, not capital", "caption"),
             ),
-            { background: bgImage(pic(24, 1700, 1100), 0.55) },
+            { background: bgImage(pic(588, 1700, 1100), 0.55) },
         ),
         section(
             "what",
@@ -13488,7 +14505,7 @@ export const sideProjectPitch: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(251), 0.82),
+                img(pic(589), 0.82),
             ),
         ),
         section(
@@ -13533,7 +14550,7 @@ export const sideProjectPitch: ArtifactContent = deck(
                         "Highlights export to plain text, forever portable",
                     ),
                 ),
-                img(pic(367), 0.82),
+                img(pic(590), 0.82),
             ),
         ),
         section(
@@ -13571,10 +14588,10 @@ export const sideProjectPitch: ArtifactContent = deck(
                     "mailto:wren@quietmachines.co",
                 ]),
             ),
-            { background: bgImage(pic(910, 1700, 1100), 0.55) },
+            { background: bgImage(pic(591, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(552, 1700, 1100), 0.3),
+    bgImage(pic(592, 1700, 1100), 0.3),
 );
 
 export const designCaseStudy: ArtifactContent = doc(
@@ -13591,7 +14608,7 @@ export const designCaseStudy: ArtifactContent = doc(
                 ),
                 t("Elena Vance · Lead Product Designer · 8 minute read", "caption"),
             ),
-            { background: bgImage(pic(533, 1700, 1100), 0.55) },
+            { background: bgImage(pic(593, 1700, 1100), 0.55) },
         ),
         section(
             "problem",
@@ -13616,7 +14633,7 @@ export const designCaseStudy: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(532), 0.82),
+                img(pic(594), 0.82),
             ),
         ),
         section(
@@ -13645,12 +14662,12 @@ export const designCaseStudy: ArtifactContent = doc(
                 t("THE PROCESS, IN PICTURES", "label"),
                 row(
                     group(
-                        img(pic(4), 1.4),
+                        img(pic(595), 1.4),
                         t("The audit wall: every gray, every button, every sin", "caption"),
                     ),
-                    group(img(pic(20), 1.4), t("Token naming, round three of five", "caption")),
+                    group(img(pic(596), 1.4), t("Token naming, round three of five", "caption")),
                     group(
-                        img(pic(180), 1.4),
+                        img(pic(597), 1.4),
                         t("The first eight components, shipped embedded", "caption"),
                     ),
                 ),
@@ -13688,10 +14705,10 @@ export const designCaseStudy: ArtifactContent = doc(
                     "mailto:elena@vance.design",
                 ]),
             ),
-            { background: bgImage(pic(119, 1700, 1100), 0.5) },
+            { background: bgImage(pic(598, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(114, 1700, 1100), 0.3),
+    bgImage(pic(599, 1700, 1100), 0.3),
 );
 
 export const speakerKit: ArtifactContent = doc(
@@ -13708,7 +14725,7 @@ export const speakerKit: ArtifactContent = doc(
                 ),
                 t("Lisbon, most of the year · speaks in English & Portuguese", "caption"),
             ),
-            { background: bgImage(pic(962, 1700, 1100), 0.55) },
+            { background: bgImage(pic(600, 1700, 1100), 0.55) },
         ),
         section(
             "bio",
@@ -13725,7 +14742,13 @@ export const speakerKit: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img(pic(788), 0.82),
+                middle(
+                    polaroid(
+                        pic(601, 900, 1100),
+                        0.82,
+                        "Current headshot, print quality on request.",
+                    ),
+                ),
             ),
         ),
         section(
@@ -13776,7 +14799,7 @@ export const speakerKit: ArtifactContent = doc(
             "clips",
             split(
                 40,
-                img(pic(494), 1.05),
+                img(pic(602), 1.05),
                 group(
                     t("WATCH FIRST", "label"),
                     t("Twelve minutes tells you everything.", "h2"),
@@ -13810,9 +14833,9 @@ export const speakerKit: ArtifactContent = doc(
             group(
                 t("PHOTOS FOR YOUR PROGRAM", "label"),
                 row(
-                    group(img(pic(788), 1.4), t("The usual headshot · print-safe", "caption")),
-                    group(img(pic(910), 1.4), t("On stage, Small Software Conf", "caption")),
-                    group(img(pic(251), 1.4), t("The landscape crop, for wide layouts", "caption")),
+                    group(img(pic(603), 1.4), t("The usual headshot · print-safe", "caption")),
+                    group(img(pic(604), 1.4), t("On stage, Small Software Conf", "caption")),
+                    group(img(pic(605), 1.4), t("The landscape crop, for wide layouts", "caption")),
                 ),
             ),
         ),
@@ -13827,10 +14850,10 @@ export const speakerKit: ArtifactContent = doc(
                     ["quietmachines.co/speaking", "https://quietmachines.co/speaking"],
                 ),
             ),
-            { background: bgImage(pic(910, 1700, 1100), 0.5) },
+            { background: bgImage(pic(606, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(552, 1700, 1100), 0.3),
+    bgImage(pic(607, 1700, 1100), 0.3),
 );
 
 export const linkHub: ArtifactContent = web(
@@ -13848,7 +14871,7 @@ export const linkHub: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(962, 1700, 1100), 0.6),
+                background: bgImage(pic(608, 1700, 1100), 0.6),
                 frame: { aspect: 16 / 9 },
             },
         ),
@@ -13906,7 +14929,7 @@ export const linkHub: ArtifactContent = web(
                 t("Lisbon, most mornings.", "h2"),
                 t("The office is whichever café has the corner table free.", "caption"),
             ),
-            { bleed: true, background: bgImage(pic(419, 1700, 1100), 0.5) },
+            { bleed: true, background: bgImage(pic(609, 1700, 1100), 0.5) },
         ),
         section(
             "gear",
@@ -13947,11 +14970,11 @@ export const linkHub: ArtifactContent = web(
                     ),
                     t("I reply to every note within two days, shorter ones faster.", "caption"),
                 ),
-                img(pic(788), 0.82),
+                img(pic(610), 0.82),
             ),
         ),
     ],
-    bgImage(pic(552, 1700, 1100), 0.3),
+    bgImage(pic(611, 1700, 1100), 0.3),
 );
 
 export const speakingPage: ArtifactContent = web(
@@ -13975,7 +14998,7 @@ export const speakingPage: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(585, 1700, 1100), 0.6),
+                background: bgImage(pic(612, 1700, 1100), 0.6),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -14055,7 +15078,7 @@ export const speakingPage: ArtifactContent = web(
         ),
         section("photo", group(t("Rooms are where the work argues back.", "h2")), {
             bleed: true,
-            background: bgImage(pic(117, 1700, 1100), 0.6),
+            background: bgImage(pic(613, 1700, 1100), 0.6),
         }),
         section(
             "logistics",
@@ -14078,13 +15101,13 @@ export const speakingPage: ArtifactContent = web(
                 ),
                 button("Email elena@vance.design", "mailto:elena@vance.design", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(119, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(614, 1700, 1100), 0.55) },
         ),
         section(
             "workshop",
             split(
                 40,
-                img(pic(4), 1.05),
+                img(pic(615), 1.05),
                 group(
                     t("THE WORKSHOP DAY, UP CLOSE", "label"),
                     t("Paper first, laptops after lunch.", "h2"),
@@ -14128,7 +15151,7 @@ export const speakingPage: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(114, 1700, 1100), 0.3),
+    bgImage(pic(616, 1700, 1100), 0.3),
 );
 
 export const appSite: ArtifactContent = web(
@@ -14151,10 +15174,22 @@ export const appSite: ArtifactContent = web(
                     "subtitle",
                 ),
                 button("Start your library", "https://margin.app/start", { size: "lg" }),
+                pin(
+                    w(
+                        22,
+                        card(
+                            t("4.9 on the App Store", "label"),
+                            t("12,400 ratings, most of them wordy.", "body"),
+                        ),
+                    ),
+                    "end",
+                    "end",
+                    { dx: -28, dy: 108, z: 2 },
+                ),
             ),
             {
                 bleed: true,
-                background: bgImage(pic(24, 1700, 1100), 0.55),
+                background: bgImage(pic(617, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -14164,7 +15199,7 @@ export const appSite: ArtifactContent = web(
                 t("HOW IT WORKS", "label"),
                 row(
                     group(
-                        img(pic(3), 1.4),
+                        img(pic(618), 1.4),
                         t("Save from anywhere", "h3"),
                         t(
                             "One tap from the share sheet, one click from the browser, or forward any email.",
@@ -14172,7 +15207,7 @@ export const appSite: ArtifactContent = web(
                         ),
                     ),
                     group(
-                        img(pic(367), 1.4),
+                        img(pic(619), 1.4),
                         t("Read beautifully", "h3"),
                         t(
                             "Typography worth the name, offline always, in your type size.",
@@ -14180,7 +15215,7 @@ export const appSite: ArtifactContent = web(
                         ),
                     ),
                     group(
-                        img(pic(24), 1.4),
+                        img(pic(620), 1.4),
                         t("Keep forever", "h3"),
                         t(
                             "No expiry, no algorithm, full export any time. It's your shelf.",
@@ -14270,7 +15305,7 @@ export const appSite: ArtifactContent = web(
                 t("Build the shelf your reading deserves.", "h2"),
                 button("Start free for 30 days", "https://margin.app/start", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(251, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(621, 1700, 1100), 0.55) },
         ),
         section(
             "footer",
@@ -14300,13 +15335,13 @@ export const appSite: ArtifactContent = web(
             { bleed: true, background: bgTone("tint") },
         ),
     ],
-    bgImage(pic(552, 1700, 1100), 0.3),
+    bgImage(pic(622, 1700, 1100), 0.3),
 );
 
 // everyday & occasions: the decks and sites for the life side of the catalog
 
 export const celebrationSlideshow: ArtifactContent = deck(
-    "orchard",
+    "loft",
     [
         section(
             "title",
@@ -14316,7 +15351,7 @@ export const celebrationSlideshow: ArtifactContent = deck(
                 t("Eight years, two cities, and one very good dog later.", "subtitle"),
                 t("A few pictures before the first dance. Dinner is safe; cry freely.", "caption"),
             ),
-            { background: bgImage(pic(62, 1700, 1100), 0.5) },
+            { background: bgImage(pic(623, 1700, 1100), 0.5) },
         ),
         section(
             "numbers",
@@ -14330,7 +15365,7 @@ export const celebrationSlideshow: ArtifactContent = deck(
             "beginning",
             split(
                 40,
-                img(pic(129), 1.05),
+                img(pic(624), 1.05),
                 group(
                     t("HOW IT STARTED", "label"),
                     t("A film neither of them saw.", "h2"),
@@ -14346,12 +15381,12 @@ export const celebrationSlideshow: ArtifactContent = deck(
             group(
                 t("THE YEARS BETWEEN", "label"),
                 row(
-                    group(img(pic(699), 1.4), t("The Sintra hikes", "caption")),
+                    group(img(pic(625), 1.4), t("The Sintra hikes", "caption")),
                     group(
-                        img(pic(838), 1.4),
+                        img(pic(626), 1.4),
                         t("Lagos, London, and every kitchen between", "caption"),
                     ),
-                    group(img(pic(1001), 1.4), t("The families, finally in one photo", "caption")),
+                    group(img(pic(627), 1.4), t("The families, finally in one photo", "caption")),
                 ),
             ),
         ),
@@ -14380,10 +15415,15 @@ export const celebrationSlideshow: ArtifactContent = deck(
             "dog",
             split(
                 40,
-                img(pic(659), 1.05),
+                img(pic(628), 1.05),
                 group(
                     t("A WORD ON BISCUIT", "label"),
                     t("The dog knew first.", "h2"),
+                    pin(badge("Ring bearer, supervised"), "end", "start", {
+                        dy: 4,
+                        rotate: 5,
+                        z: 2,
+                    }),
                     t(
                         "Adopted the week they moved in together, present for the proposal (asleep), and tonight's ring bearer (supervised). He would like you to know the bow tie was not his idea.",
                         "body",
@@ -14399,8 +15439,18 @@ export const celebrationSlideshow: ArtifactContent = deck(
                     "Every anniversary walk ended at this quinta. Now you know why this address.",
                     "caption",
                 ),
+                pin(
+                    w(24, polaroid(pic(629, 900, 700), 1.28, "an hour before the vows")),
+                    "end",
+                    "center",
+                    {
+                        dx: -28,
+                        rotate: -6,
+                        z: 1,
+                    },
+                ),
             ),
-            { background: bgImage(pic(982, 1700, 1100), 0.5) },
+            { background: bgImage(pic(630, 1700, 1100), 0.5) },
         ),
         section(
             "table",
@@ -14419,10 +15469,10 @@ export const celebrationSlideshow: ArtifactContent = deck(
                 t("Now: the first dance.", "h1"),
                 t("Then the floor is everyone's. Sparklers at midnight, on the drive.", "subtitle"),
             ),
-            { background: bgImage(pic(407, 1700, 1100), 0.5) },
+            { background: bgImage(pic(631, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(255, 1700, 1100), 0.3),
+    bgImage(pic(632, 1700, 1100), 0.3),
 );
 
 export const triviaNight: ArtifactContent = deck(
@@ -14439,7 +15489,7 @@ export const triviaNight: ArtifactContent = deck(
                 ),
                 t("Teams of four to six · winners drink free · scores are final-ish", "caption"),
             ),
-            { background: bgImage(pic(96, 1700, 1100), 0.6) },
+            { background: bgImage(pic(633, 1700, 1100), 0.6) },
         ),
         section(
             "rules",
@@ -14511,7 +15561,7 @@ export const triviaNight: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(63), 0.82),
+                img(pic(634), 0.82),
             ),
         ),
         section(
@@ -14532,7 +15582,7 @@ export const triviaNight: ArtifactContent = deck(
                 t("The back room, mid-round three.", "h2"),
                 t("Someone is always this confident. They are rarely this correct.", "caption"),
             ),
-            { background: bgImage(pic(30, 1700, 1100), 0.55) },
+            { background: bgImage(pic(635, 1700, 1100), 0.55) },
         ),
         section(
             "close",
@@ -14540,10 +15590,10 @@ export const triviaNight: ArtifactContent = deck(
                 t("Pens up. Round one.", "h1"),
                 t("Good luck, and remember: it's just a quiz, except it isn't.", "subtitle"),
             ),
-            { background: bgImage(pic(56, 1700, 1100), 0.55) },
+            { background: bgImage(pic(636, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(56, 1700, 1100), 0.3),
+    bgImage(pic(637, 1700, 1100), 0.3),
 );
 
 export const travelRecap: ArtifactContent = deck(
@@ -14560,7 +15610,7 @@ export const travelRecap: ArtifactContent = deck(
                 ),
                 t("October 12 to 17 · as promised, with numbers", "caption"),
             ),
-            { background: bgImage(pic(507, 1700, 1100), 0.5) },
+            { background: bgImage(pic(638, 1700, 1100), 0.5) },
         ),
         section(
             "numbers",
@@ -14574,17 +15624,28 @@ export const travelRecap: ArtifactContent = deck(
             "best",
             group(
                 t("THE PODIUM", "label"),
+                pin(
+                    w(18, polaroid(pic(639, 900, 700), 1.28, "Not pictured: the wind")),
+                    "end",
+                    "start",
+                    {
+                        dx: -6,
+                        dy: -34,
+                        rotate: 5,
+                        z: 2,
+                    },
+                ),
                 row(
                     group(
-                        img(pic(509), 1.4),
+                        img(pic(640), 1.4),
                         t("Gold: behind Seljalandsfoss at 8am, soaked and alone", "caption"),
                     ),
                     group(
-                        img(pic(907), 1.4),
+                        img(pic(641), 1.4),
                         t("Silver: the glacier lagoon doing its slow blue theater", "caption"),
                     ),
                     group(
-                        img(pic(901), 1.4),
+                        img(pic(642), 1.4),
                         t("Bronze: Kp 5 aurora from a gas station parking lot", "caption"),
                     ),
                 ),
@@ -14606,7 +15667,7 @@ export const travelRecap: ArtifactContent = deck(
             "verdict",
             split(
                 40,
-                img(pic(515), 1.05),
+                img(pic(643), 1.05),
                 group(
                     t("THE VERDICT", "label"),
                     t("Go in the shoulder season. Go hungry.", "h2"),
@@ -14632,7 +15693,7 @@ export const travelRecap: ArtifactContent = deck(
                 t("The near-miss, immortalized.", "h2"),
                 t("It had right of way. It knew it had right of way.", "caption"),
             ),
-            { background: bgImage(pic(699, 1700, 1100), 0.5) },
+            { background: bgImage(pic(644, 1700, 1100), 0.5) },
         ),
         section(
             "tips",
@@ -14655,14 +15716,14 @@ export const travelRecap: ArtifactContent = deck(
                     "subtitle",
                 ),
             ),
-            { background: bgImage(pic(964, 1700, 1100), 0.5) },
+            { background: bgImage(pic(645, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(971, 1700, 1100), 0.3),
+    bgImage(pic(646, 1700, 1100), 0.3),
 );
 
 export const birthdayToast: ArtifactContent = deck(
-    "pueblo",
+    "loft",
     [
         section(
             "title",
@@ -14675,13 +15736,13 @@ export const birthdayToast: ArtifactContent = deck(
                 ),
                 t("A few slides before cake. She has approved none of them.", "caption"),
             ),
-            { background: bgImage(pic(695, 1700, 1100), 0.5) },
+            { background: bgImage(pic(647, 1700, 1100), 0.5) },
         ),
         section(
             "early",
             split(
                 40,
-                img(pic(100), 1.05),
+                img(pic(648), 1.05),
                 group(
                     t("THE EARLY YEARS", "label"),
                     t("Fastest kid on the beach, 1974.", "h2"),
@@ -14704,7 +15765,7 @@ export const birthdayToast: ArtifactContent = deck(
                         "body",
                     ),
                 ),
-                img(pic(838), 0.82),
+                img(pic(649), 0.82),
             ),
         ),
         section(
@@ -14731,7 +15792,7 @@ export const birthdayToast: ArtifactContent = deck(
             "grand",
             split(
                 40,
-                img(pic(1001), 1.05),
+                img(pic(650), 1.05),
                 group(
                     t("THE GRANDMA YEARS", "label"),
                     t("Retired from the hospital, never from the job.", "h2"),
@@ -14756,9 +15817,9 @@ export const birthdayToast: ArtifactContent = deck(
             group(
                 t("SIXTY YEARS, THREE FRAMES", "label"),
                 row(
-                    group(img(pic(100), 1.4), t("The beach, 1974", "caption")),
-                    group(img(pic(822), 1.4), t("The school run era", "caption")),
-                    group(img(pic(755), 1.4), t("Sunday coffee, last month", "caption")),
+                    group(img(pic(651), 1.4), t("The beach, 1974", "caption")),
+                    group(img(pic(652), 1.4), t("The school run era", "caption")),
+                    group(img(pic(653), 1.4), t("Sunday coffee, last month", "caption")),
                 ),
             ),
             { background: bgTone("tint") },
@@ -14769,10 +15830,10 @@ export const birthdayToast: ArtifactContent = deck(
                 t("Happy birthday, Rosa.", "h1"),
                 t("Cake now. Dancing after. She picked the playlist herself.", "subtitle"),
             ),
-            { background: bgImage(pic(976, 1700, 1100), 0.5) },
+            { background: bgImage(pic(654, 1700, 1100), 0.5) },
         ),
     ],
-    bgImage(pic(255, 1700, 1100), 0.3),
+    bgImage(pic(655, 1700, 1100), 0.3),
 );
 
 export const bookClub: ArtifactContent = deck(
@@ -14789,7 +15850,7 @@ export const bookClub: ArtifactContent = deck(
                 ),
                 t("First meeting January 6 · Priya's place · 7:30", "caption"),
             ),
-            { background: bgImage(pic(1073, 1700, 1100), 0.55) },
+            { background: bgImage(pic(656, 1700, 1100), 0.55) },
         ),
         section(
             "list",
@@ -14861,7 +15922,7 @@ export const bookClub: ArtifactContent = deck(
                         "Snack champion: Dev's honey cake, three-time winner",
                     ),
                 ),
-                img(pic(367), 0.82),
+                img(pic(657), 0.82),
             ),
         ),
         section(
@@ -14889,7 +15950,7 @@ export const bookClub: ArtifactContent = deck(
                 t("Where the reading actually happens.", "h2"),
                 t("Tuesday is the meeting; the book gets read wherever it gets read.", "caption"),
             ),
-            { background: bgImage(pic(1010, 1700, 1100), 0.55) },
+            { background: bgImage(pic(658, 1700, 1100), 0.55) },
         ),
         section(
             "snacks",
@@ -14918,10 +15979,10 @@ export const bookClub: ArtifactContent = deck(
                 t("January 6. Read the Brandt.", "h1"),
                 t("Or at least the first hundred pages. We'll know.", "subtitle"),
             ),
-            { background: bgImage(pic(832, 1700, 1100), 0.55) },
+            { background: bgImage(pic(659, 1700, 1100), 0.55) },
         ),
     ],
-    bgImage(pic(1073, 1700, 1100), 0.3),
+    bgImage(pic(660, 1700, 1100), 0.3),
 );
 
 export const partyInvite: ArtifactContent = web(
@@ -14946,7 +16007,7 @@ export const partyInvite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(195, 1700, 1100), 0.55),
+                background: bgImage(pic(661, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -14982,7 +16043,7 @@ export const partyInvite: ArtifactContent = web(
             "leo",
             split(
                 40,
-                img(pic(863), 1.05),
+                img(pic(662), 1.05),
                 group(
                     t("ABOUT THE BIRTHDAY BOY", "label"),
                     t("Forty things we love; here are three.", "h2"),
@@ -15037,7 +16098,7 @@ export const partyInvite: ArtifactContent = web(
                 ),
                 button("RSVP to Léo", "mailto:leo@fourzero.party", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(959, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(663, 1700, 1100), 0.55) },
         ),
         section(
             "courtyard",
@@ -15048,7 +16109,7 @@ export const partyInvite: ArtifactContent = web(
                     "caption",
                 ),
             ),
-            { bleed: true, background: bgImage(pic(369, 1700, 1100), 0.5) },
+            { bleed: true, background: bgImage(pic(664, 1700, 1100), 0.5) },
         ),
         section(
             "moments",
@@ -15056,11 +16117,11 @@ export const partyInvite: ArtifactContent = web(
                 t("PREVIOUS LÉO PARTIES, FOR THE RECORD", "label"),
                 row(
                     group(
-                        img(pic(660), 1.4),
+                        img(pic(665), 1.4),
                         t("The 35th: sparklers, briefly confiscated", "caption"),
                     ),
-                    group(img(pic(56), 1.4), t("The 38th: the dance floor at 1am", "caption")),
-                    group(img(pic(835), 1.4), t("Every year: Amélie's lime shortbread", "caption")),
+                    group(img(pic(666), 1.4), t("The 38th: the dance floor at 1am", "caption")),
+                    group(img(pic(667), 1.4), t("Every year: Amélie's lime shortbread", "caption")),
                 ),
             ),
         ),
@@ -15092,7 +16153,7 @@ export const partyInvite: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(255, 1700, 1100), 0.3),
+    bgImage(pic(668, 1700, 1100), 0.3),
 );
 
 export const reunionSite: ArtifactContent = web(
@@ -15117,7 +16178,7 @@ export const reunionSite: ArtifactContent = web(
             ),
             {
                 bleed: true,
-                background: bgImage(pic(1029, 1700, 1100), 0.55),
+                background: bgImage(pic(669, 1700, 1100), 0.55),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -15216,16 +16277,16 @@ export const reunionSite: ArtifactContent = web(
                 ),
                 button("RSVP & pay", "https://lakeside16.reunion.page/rsvp", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(924, 1700, 1100), 0.5) },
+            { bleed: true, background: bgImage(pic(670, 1700, 1100), 0.5) },
         ),
         section(
             "gallery",
             group(
                 t("FROM THE ARCHIVE", "label"),
                 row(
-                    group(img(pic(840), 1.4), t("The courts where gym class happened", "caption")),
-                    group(img(pic(553), 1.4), t("The quad benches · still there", "caption")),
-                    group(img(pic(596), 1.4), t("Skate club, yearbook page 47", "caption")),
+                    group(img(pic(671), 1.4), t("The courts where gym class happened", "caption")),
+                    group(img(pic(672), 1.4), t("The quad benches · still there", "caption")),
+                    group(img(pic(673), 1.4), t("Skate club, yearbook page 47", "caption")),
                 ),
             ),
         ),
@@ -15265,7 +16326,7 @@ export const reunionSite: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(135, 1700, 1100), 0.3),
+    bgImage(pic(674, 1700, 1100), 0.3),
 );
 
 export const restaurantSite: ArtifactContent = web(
@@ -15288,10 +16349,22 @@ export const restaurantSite: ArtifactContent = web(
                     "subtitle",
                 ),
                 button("Reserve a table", "https://thequince.com/reserve", { size: "lg" }),
+                pin(
+                    w(
+                        24,
+                        card(
+                            t("TONIGHT", "label"),
+                            t("Seatings at 6 and 8:30. The 6 is nearly spoken for.", "body"),
+                        ),
+                    ),
+                    "end",
+                    "end",
+                    { dx: -28, dy: 108, z: 2 },
+                ),
             ),
             {
                 bleed: true,
-                background: bgImage(pic(999, 1700, 1100), 0.58),
+                background: bgImage(pic(675, 1700, 1100), 0.58),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -15299,6 +16372,11 @@ export const restaurantSite: ArtifactContent = web(
             "menu",
             group(
                 t("TONIGHT, ROUGHLY", "label"),
+                pin(badge("The menu turned over Thursday"), "end", "start", {
+                    dy: 2,
+                    rotate: 3,
+                    z: 2,
+                }),
                 dish("Charred leeks, romesco, hazelnut", "14"),
                 dish("Squash agnolotti, brown butter, sage", "19"),
                 dish("Half chicken, schmaltz potatoes, salsa verde", "29"),
@@ -15321,7 +16399,7 @@ export const restaurantSite: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(42), 0.82),
+                img(pic(676), 0.82),
             ),
         ),
         section(
@@ -15334,7 +16412,7 @@ export const restaurantSite: ArtifactContent = web(
                     "body",
                 ),
             ),
-            { bleed: true, background: bgImage(pic(674, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(677, 1700, 1100), 0.55) },
         ),
         section(
             "find",
@@ -15361,7 +16439,7 @@ export const restaurantSite: ArtifactContent = web(
             "chef",
             split(
                 40,
-                img(pic(292), 1.05),
+                img(pic(678), 1.05),
                 group(
                     t("THE KITCHEN", "label"),
                     t("June Aldana cooks like the farms are watching.", "h2"),
@@ -15413,7 +16491,7 @@ export const restaurantSite: ArtifactContent = web(
                 t("Walk-ins nightly at the bar; the dining room books two weeks out.", "subtitle"),
                 button("Reserve a table", "https://thequince.com/reserve", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(835, 1700, 1100), 0.55) },
+            { bleed: true, background: bgImage(pic(679, 1700, 1100), 0.55) },
         ),
         section(
             "footer",
@@ -15448,11 +16526,11 @@ export const restaurantSite: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(307, 1700, 1100), 0.3),
+    bgImage(pic(680, 1700, 1100), 0.3),
 );
 
 export const rentalSite: ArtifactContent = web(
-    "pueblo",
+    "loft",
     [
         section(
             "hero",
@@ -15470,10 +16548,16 @@ export const rentalSite: ArtifactContent = web(
                     "subtitle",
                 ),
                 button("Check dates", "#book", { size: "lg" }),
+                pin(badge("June has three open weeks"), "end", "start", {
+                    dx: -28,
+                    dy: 30,
+                    rotate: -4,
+                    z: 2,
+                }),
             ),
             {
                 bleed: true,
-                background: bgImage(pic(826, 1700, 1100), 0.5),
+                background: bgImage(pic(681, 1700, 1100), 0.5),
                 frame: { aspect: 16 / 8 },
             },
         ),
@@ -15483,15 +16567,15 @@ export const rentalSite: ArtifactContent = web(
                 t("THE FLAT", "label"),
                 row(
                     group(
-                        img(pic(859), 1.4),
+                        img(pic(682), 1.4),
                         t("The green door by the bikes; your key waits in the lockbox.", "caption"),
                     ),
                     group(
-                        img(pic(273), 1.4),
+                        img(pic(683), 1.4),
                         t("The canal view that does the vacation's heavy lifting.", "caption"),
                     ),
                     group(
-                        img(pic(212), 1.4),
+                        img(pic(684), 1.4),
                         t("The neighborhood runs on two wheels; so will you.", "caption"),
                     ),
                 ),
@@ -15542,7 +16626,7 @@ export const rentalSite: ArtifactContent = web(
                         "body",
                     ),
                 ),
-                img(pic(755), 0.82),
+                img(pic(685), 0.82),
             ),
         ),
         section(
@@ -15574,7 +16658,7 @@ export const rentalSite: ArtifactContent = web(
                 t("The canal at 7am is the whole argument.", "h2"),
                 t("Coffee on the sill, boats starting up, the city not quite awake.", "caption"),
             ),
-            { bleed: true, background: bgImage(pic(273, 1700, 1100), 0.5) },
+            { bleed: true, background: bgImage(pic(686, 1700, 1100), 0.5) },
         ),
         section(
             "book",
@@ -15586,7 +16670,7 @@ export const rentalSite: ArtifactContent = web(
                 ),
                 button("Check dates & book", "https://thecanalflat.nl/book", { size: "lg" }),
             ),
-            { bleed: true, background: bgImage(pic(164, 1700, 1100), 0.5) },
+            { bleed: true, background: bgImage(pic(687, 1700, 1100), 0.5) },
         ),
         section(
             "footer",
@@ -15624,7 +16708,7 @@ export const rentalSite: ArtifactContent = web(
             { bleed: true, background: bgTone("contrast") },
         ),
     ],
-    bgImage(pic(210, 1700, 1100), 0.3),
+    bgImage(pic(688, 1700, 1100), 0.3),
 );
 
 const BODIES: Record<string, ArtifactContent> = {
