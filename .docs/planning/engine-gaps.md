@@ -167,6 +167,10 @@ per-section property, a format property, or always on.
 
 ## 4. Grid and shared track sizing
 
+Status update: the solver half is built (`direction: "grid"` + shared tracks, see
+[`engine-round.md`](engine-round.md)) and the table sits on it; the authorable half — container,
+editor, AI, spans — is planned in [`grid.md`](grid.md). The entry below is the original inventory.
+
 Missing: the engine has row and column only. There is no way for two boxes in different rows to
 share a column width, and no way for a column's width to be the widest content across all rows. This
 is exactly why `canvas/elements/table/table.ts:100` sizes every column at `percent(1 / cols)`.

@@ -893,7 +893,6 @@ formats/fonts, view analytics (beyond the `link_recipients.last_viewed_at` stub)
 **Billing — open tunables / decisions.**
 
 - Credits set to **150 / 2,500 / 6,000** (Free / Pro / Premium) 🔶 — confirm with the AI session.
-- Free tier: monthly credits vs a one-time signup grant (a one-time grant caps AI COGS).
 - Annual discount depth (~2 months free today).
 - Trials? (`billing.trialDays` now flows into Checkout's `trial_period_days`; the catalog keeps 0 until
   a trial is a product decision.)

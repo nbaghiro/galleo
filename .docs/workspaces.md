@@ -397,11 +397,13 @@ bound the estimate can see, so far only `ask-assistant` (`ceiling: { reply: 5 }`
 turn whose base is two) because an agent turn chains however many sub-tools it decides to. A ceiling
 moves where the gate sits, never what the user ends up paying, since the settle refunds the difference.
 
-`model/credits.ts` holds the primitives: `COST_UNITS` (plan 3, section 2, image 5, video 100, text 1,
-theme 4, reply 2), `CREDIT_USD = 0.0142` (derived from a measured 12-section deck, not chosen, and
-carrying a note to re-derive it when the default model or its price moves), `costOf(usage, rates)`, and
-`creditsForUsd`. Both floor at 1 so a real call is never free, while genuinely-nothing has to stay at
-zero, which is why `owed()` checks for any produced unit before calling `costOf`.
+`model/credits.ts` holds the primitives: `CREDIT_USD = 0.0025` (chosen, not measured: it is the
+exchange rate between what a run costs us and what we bill, so it is the margin dial), `usdOfUsage`
+which prices a bag of units in dollars, and `creditsForUsd`. There is no fixed credit table: a unit's
+price is a dollar figure from the model that serves it (`unitPricesFor` in `services/core/models.ts`),
+so an estimate and a charge are the same sum over predicted and actual units. `creditsForUsd` floors
+at 1 so a real call is never free, while genuinely-nothing has to stay at zero, which is why `owed()`
+returns 0 when nothing was burned and nothing produced.
 
 ### The `credits` table
 
@@ -684,7 +686,7 @@ Immediately after `createWorkspaceForUser`:
 - exactly one `members` row, the owner;
 - nothing else: no folders, no artifacts, no themes, no assets, no contexts.
 
-Resolved that way, a fresh workspace can hold 10 artifacts, 500 MB of stored media, 100 credits a month,
+Resolved that way, a fresh workspace can hold 10 artifacts, 500 MB of stored media, 300 credits a month,
 generations capped at 10 sections on basic models, PNG and PDF export with the Galleo mark, no custom
 themes, and no public links.
 
@@ -701,7 +703,7 @@ one file allowed to reach for the corpus and template bodies that live in `core/
 The three are named for the plan they demonstrate (Premium, Pro, Free) and the demo login owns all
 three, so the switcher is the plan ladder and every limit is reachable from one account: Premium runs
 5 seats (3 included plus 2 bought) with an admin, a member and a pending invite; Pro is the single-seat
-solo library with the artifact cap lifted; Free sits at its 10-artifact cap with 72 of 100 credits left
+solo library with the artifact cap lifted; Free sits at its 10-artifact cap with 61 credits left
 and a storage override that puts the wall within reach.
 
 `RETIRED_SLUGS` and `RETIRED_EMAILS` beside the specs name what the demo universe used to hold, and
@@ -739,12 +741,11 @@ spec that outspends its plan rather than clamping into a state no request path c
 barely spent would bank several months, which reads as a bug rather than as a demo. Invite tokens are derived (`<slug>-<handle>-demo`) rather than
 random, so an accept URL survives a reseed and can be pasted into `/invite/:token`.
 
-Verified against the live seeded database (container `galleo-pg`): `demo` is premium with 8 seats and
-2 credit blocks, 291 used against a 7,400 limit (2,400 + 5 × 800 + 2 × 500); `ridgeline` is premium at
-its 3 included seats with 737 used of 2,400, carrying a `scheduled_change` to Pro; `harbor` is
-free/canceled with 1 seat, 2 members, 10 live artifacts, and 95 used of 100; `weekend` is Pro with one
-seat and zero artifacts; `helios-climate` is premium/past_due with 6 seats and 4,800 credits. The
-ledger's `balance_after` column tracks the replay exactly, ending at 7,109.
+Verified against the live seeded database (container `galleo-pg`): `demo` is premium with 5 seats
+(3 included plus 2 bought) and a 10,500 monthly grant, banking 4,240 after its ledger and a 2,000
+credit top-up; `pro` is Pro with one seat, a 1,200 grant and 168 banked; `free` is Free with one seat,
+a 300 grant and 61 banked, which is under a deck's ~95 credits so `generate-artifact` takes the 402
+branch. The ledger's `balance_after` column tracks the replay exactly.
 
 ### Walls in the UI
 

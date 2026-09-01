@@ -31,7 +31,7 @@ with high-fidelity export. Net-new, TypeScript.
 - `.docs/mcp.md` — the remote MCP server: the tool surface exposed outside the product, Galleo as an
   OAuth authorization server, scopes + the step-up challenge, and the one executor all three
   surfaces (chat agent, direct routes, MCP) run their tools through.
-- `.docs/onboarding.md` — the first session: the signup grant, the template-first path, the checklist.
+- `.docs/onboarding.md` — the first session: the template-first path, the confirmation gate, the checklist.
 
 ## Structure (model · canvas · ui · editor · app)
 
@@ -253,12 +253,13 @@ pnpm eval:shots     # headless visual eval: render the corpus in real Chromium a
 pnpm check:suppressions   # no eslint-disable / @ts-* / prettier-ignore / coverage pragmas
 pnpm check:program        # every tracked .ts(x) is actually in the tsc program
 pnpm check:boundaries     # the layering law still reports, not just "no errors"
-pnpm check:models         # every model id is one the installed @ai-sdk provider still declares
+pnpm check:models         # every model id is one the provider declares, and was probed recently
+pnpm check:prices         # every model price was verified against its provider within 90 days
 pnpm check:copy           # no em-dashes in user-facing copy or in the prompts (the machine-written tell)
 pnpm check:elements       # every registered element is reachable and renders
 pnpm check:modules        # the model/ map in this file still matches the directory
 pnpm check:validation     # every request body is read through a schema, never cast
-pnpm check:tools          # one executor: no route reaches around it, no catalog entry it can't serve
+pnpm check:tools          # one executor, no catalog entry it can't serve, every body priced or free
 pnpm check:fonts          # every family a theme or the picker can name has a vendored face
 ```
 
