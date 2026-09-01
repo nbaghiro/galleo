@@ -85,9 +85,6 @@ export function paintedNodeFor(address: ElementAddress): EngineNode | null {
     return section ? composedNodeFor(section, address, paintedCtx(section)) : null;
 }
 
-// The text leaf for an address as painted, for chrome that must match the screen (the inline
-// editor's overlay, the bar's color swatch). The composed leaf carries container restyling and
-// the section's contrast swap; the spec's own leaf covers a bare element.
 /** The painted leaf's line boxes at its painted width — the same memoized entry the paint read. */
 export function paintedLinesFor(address: ElementAddress, width: number): RunLayout | null {
     const leaf = paintedLeafFor(address);
@@ -98,6 +95,9 @@ export function paintedLinesFor(address: ElementAddress, width: number): RunLayo
     return { lines: m.lines, width: m.width, height: m.height, lineHeight };
 }
 
+// The text leaf for an address as painted, for chrome that must match the screen (the inline
+// editor's overlay, the bar's color swatch). The composed leaf carries container restyling and
+// the section's contrast swap; the spec's own leaf covers a bare element.
 export function paintedLeafFor(address: ElementAddress): TextLeaf | null {
     const inst = getElementAt(editor.artifact, address);
     const spec = inst ? getElement(inst.type) : undefined;

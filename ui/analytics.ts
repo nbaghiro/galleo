@@ -180,10 +180,6 @@ export function resetAnalytics(): void {
 }
 
 /**
- * `beacon` is for an event fired immediately before a navigation: the batch timer will not get a
- * chance to run, and a normal request is cancelled when the page goes away.
- */
-/**
  * Stop recording for surfaces where replay costs more than it tells us.
  *
  * The engine repaints the whole section stack on every layout change, so the editor produces a
@@ -207,6 +203,10 @@ export const setRequestId = (id: string | null): void => {
     requestId = id;
 };
 
+/**
+ * `beacon` is for an event fired immediately before a navigation: the batch timer will not get a
+ * chance to run, and a normal request is cancelled when the page goes away.
+ */
 export function capture<N extends EventName>(
     event: N,
     props: EventProps<N>,

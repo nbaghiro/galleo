@@ -590,7 +590,6 @@ export const voices = pgTable(
     (t) => [index("voices_source_idx").on(t.source)],
 );
 
-// The shelf: which voices a workspace has saved, and which one narrates by default.
 /**
  * A workspace's music shelf, the same shape its voice shelf has and for the same reason: the catalog
  * row is shared (a house preset belongs to the deployment), so what a workspace did with one, named
@@ -618,6 +617,7 @@ export const workspaceSoundtracks = pgTable(
     ],
 );
 
+// The shelf: which voices a workspace has saved, and which one narrates by default.
 export const workspaceVoices = pgTable(
     "workspace_voices",
     {

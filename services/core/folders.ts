@@ -57,9 +57,11 @@ export async function renameFolder(
     return f ?? null;
 }
 
-// Deletes the folder and every subfolder beneath it; the artifacts inside fall back to the root
-// rather than being trashed with it.
-/** How many artifacts the folder held, which is what makes the deletion readable. */
+/**
+ * Deletes the folder and every subfolder beneath it; the artifacts inside fall back to the root
+ * rather than being trashed with it. Returns how many it held, which is what makes the deletion
+ * readable back to the reader.
+ */
 export async function deleteFolderTree(workspaceId: string, id: string): Promise<number> {
     const all = await db
         .select({ id: schema.folders.id, parentId: schema.folders.parentId })

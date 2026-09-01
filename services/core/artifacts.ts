@@ -368,7 +368,6 @@ export async function setTrashed(
     return before ? { ...before, sectionCount: Number(before.sections) || 0 } : null;
 }
 
-// visits.ref has no FK (it spans artifacts and templates), so hard deletes drop the rows here
 /** Days the artifact had been in the trash, or null when there was nothing to delete. */
 export async function deleteArtifact(workspaceId: string, id: string): Promise<number | null> {
     return db.transaction(async (tx) => {
@@ -376,6 +375,7 @@ export async function deleteArtifact(workspaceId: string, id: string): Promise<n
             .delete(schema.artifacts)
             .where(owned(id, workspaceId))
             .returning({ id: schema.artifacts.id, trashedAt: schema.artifacts.trashedAt });
+        // visits.ref has no FK (it spans artifacts and templates), so the rows are dropped here
         if (gone.length)
             await tx
                 .delete(schema.visits)

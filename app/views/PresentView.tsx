@@ -12,14 +12,14 @@ import { api } from "@app/api";
 import { can } from "@app/stores/features";
 import { narrationGate } from "@app/stores/narration";
 
+/** Absent access means the caller reached this through their own workspace, so they own it. */
+const canWrite = (a: () => Artifact): boolean => (a().access ?? "edit") === "edit";
+
 /**
  * No source means no control, which is how the parked music feature stays invisible without any of
  * it being deleted: `backgroundMusic` is `status: "planned"`, so `can()` is false for everyone until
  * there are beds to serve. `enable` is the on-ramp and only goes to someone who may edit the piece.
  */
-/** Absent access means the caller reached this through their own workspace, so they own it. */
-const canWrite = (a: () => Artifact): boolean => (a().access ?? "edit") === "edit";
-
 const bedSource = (a: () => Artifact): SoundtrackSource | undefined => {
     if (!can("backgroundMusic")) return undefined;
     if (!canEditHere() || !canWrite(a)) return { load: () => api.soundtrack(a().id) };
