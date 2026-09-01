@@ -10,8 +10,8 @@ import type { ZodType } from "zod";
 
 import type { TurnKind } from "./ai";
 import type { Features } from "./billing";
-import type { UnitRates, Usage } from "./credits";
-import { costOf } from "./credits";
+import type { UnitPrices, Usage } from "./credits";
+import { creditsForUsd, DEFAULT_UNIT_PRICES, usdOfUsage } from "./credits";
 
 // Which priced tool each turn kind bills as. Here rather than in services because the browser needs
 // it too: a turn that dies mid-stream is reported client-side and has to name the same tool the
@@ -59,6 +59,7 @@ export type ToolId =
     | "show-sections"
     | "find-artifacts"
     | "read-artifact"
+    | "read-file"
     | "rename-artifact"
     | "move-artifact"
     | "duplicate-artifact"
@@ -162,9 +163,16 @@ interface ToolMeta {
     // way whichever surface the call came in on.
     requires?: ToolFeature;
     kind?: ToolKind; // default "server"
+    /**
+     * This tool deliberately costs the caller nothing. Say it rather than leaving the price off:
+     * an unpriced tool takes the free branch in reserve(), which never settles, so a body that
+     * reaches a provider would burn tokens nobody is billed for. check:tools fails when a tool with
+     * a registered body declares neither a price nor this.
+     */
+    free?: true;
     // present on credit-costing tools; absent = free
     category?: ToolCategory;
-    usage?: Usage; // typical units → typical cost via costOf()
+    usage?: Usage; // the units a typical run produces; priced by the caller's UnitPrices
     meter?: (m: MeterParams) => Usage; // scales cost with the job; absent = fixed-cost
     // What to HOLD before the work starts, when the real cost has no bound the estimate can see.
     // Absent = hold the estimate. The settle refunds the difference either way, so this only moves
@@ -177,6 +185,7 @@ type Traits = Pick<
     ToolMeta,
     | "kind"
     | "category"
+    | "free"
     | "usage"
     | "meter"
     | "ceiling"
@@ -213,19 +222,6 @@ export function sectionsForLength(length?: string): number {
     return 12;
 }
 
-const LENGTH_CHIPS = ["Short", "Standard", "In-depth"] as const;
-
-/**
- * The chip closest to a section count, for a run whose length is implied by something else (a
- * borrowed shape says how many sections there are). The inverse of the above, and it reads the same
- * three thresholds, so moving one moves both.
- */
-export function lengthForSections(n: number): string {
-    return LENGTH_CHIPS.reduce((best, chip) =>
-        Math.abs(sectionsForLength(chip) - n) < Math.abs(sectionsForLength(best) - n) ? chip : best,
-    );
-}
-
 export const TOOLS: Record<ToolId, ToolMeta> = {
     "generate-artifact": meta(
         "generate-artifact",
@@ -237,7 +233,9 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
             effect: "write",
             category: "create",
             live: true,
-            usage: { plan: 1, section: 12, image: 3 },
+            // the stock-photo default, which is the path a run takes unless the intake form opts
+            // into AI images; the meter below adds those only when it does
+            usage: { plan: 1, section: 12 },
             meter: (m) => {
                 const n = m.sections ?? sectionsForLength(m.length);
                 return {
@@ -303,7 +301,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Move a section to a new position",
         "action",
         OVER_MCP,
-        { effect: "write" },
+        { effect: "write", free: true },
     ),
     "remove-section": meta(
         "remove-section",
@@ -311,7 +309,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Delete a section",
         "action",
         OVER_MCP,
-        { effect: "destructive" },
+        { effect: "destructive", free: true },
     ),
     "set-format": meta(
         "set-format",
@@ -319,7 +317,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Re-render as deck / doc / web",
         "action",
         OVER_MCP,
-        { effect: "write" },
+        { effect: "write", free: true },
     ),
     "set-theme": meta(
         "set-theme",
@@ -327,7 +325,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Switch the artifact to a built-in theme",
         "action",
         OVER_MCP,
-        { effect: "write" },
+        { effect: "write", free: true },
     ),
     "revise-element": meta(
         "revise-element",
@@ -420,7 +418,9 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Re-source a section's image or backdrop from a new description",
         "action",
         ["agent"],
-        { category: "media" },
+        // it produces nothing itself: the picture is made by generate-image through ctx.use,
+        // which carries the price, so charging here too would bill one image twice
+        { category: "media", free: true },
     ),
     "generate-image": meta(
         "generate-image",
@@ -538,6 +538,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Propose what to add next",
         "action",
         AGENT_DIRECT,
+        { category: "assist", live: true, usage: { reply: 1 } },
     ),
     "show-sections": meta(
         "show-sections",
@@ -545,7 +546,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Display the existing sections as a carousel",
         "action",
         OVER_MCP,
-        { effect: "read" },
+        { effect: "read", free: true },
     ),
     "find-artifacts": meta(
         "find-artifacts",
@@ -553,7 +554,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Search the user's library by title or topic",
         "action",
         OVER_MCP,
-        { effect: "read" },
+        { effect: "read", free: true },
     ),
     "read-artifact": meta(
         "read-artifact",
@@ -561,7 +562,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Load one artifact's content to summarize or edit it",
         "action",
         OVER_MCP,
-        { effect: "read" },
+        { effect: "read", free: true },
     ),
     "rename-artifact": meta(
         "rename-artifact",
@@ -569,7 +570,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Rename an artifact",
         "action",
         OVER_MCP,
-        { effect: "write" },
+        { effect: "write", free: true },
     ),
     "move-artifact": meta(
         "move-artifact",
@@ -577,7 +578,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Move an artifact into a folder (or out)",
         "action",
         OVER_MCP,
-        { effect: "write" },
+        { effect: "write", free: true },
     ),
     "duplicate-artifact": meta(
         "duplicate-artifact",
@@ -585,6 +586,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Make a copy of an artifact",
         "action",
         ["agent", "direct"],
+        { free: true },
     ),
     "trash-artifact": meta(
         "trash-artifact",
@@ -592,7 +594,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Move an artifact to Trash",
         "action",
         OVER_MCP,
-        { effect: "destructive" },
+        { effect: "destructive", free: true },
     ),
     "restore-artifact": meta(
         "restore-artifact",
@@ -601,12 +603,16 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         OVER_MCP,
         // the trash pair travels together: whoever may move something there may bring it back
-        { effect: "write", scope: "artifacts:delete" },
+        { effect: "write", scope: "artifacts:delete", free: true },
     ),
-    "create-folder": meta("create-folder", "Create folder", "Make a new folder", "action", [
-        "agent",
-        "direct",
-    ]),
+    "create-folder": meta(
+        "create-folder",
+        "Create folder",
+        "Make a new folder",
+        "action",
+        ["agent", "direct"],
+        { free: true },
+    ),
     "share-artifact": meta(
         "share-artifact",
         "Share artifact",
@@ -616,7 +622,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         // Handing a document to people outside the workspace is its own permission, not a write.
         // No `requires`: the tool opens the share panel rather than creating a link, and the panel
         // is where the plan's own limits are explained.
-        { scope: "artifacts:share" },
+        { scope: "artifacts:share", free: true },
     ),
     "export-artifact": meta(
         "export-artifact",
@@ -624,6 +630,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Open an artifact to export it",
         "action",
         ["agent", "direct"],
+        { free: true },
     ),
     "create-artifact": meta(
         "create-artifact",
@@ -631,7 +638,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Store a piece whose content is already known, with no generation",
         "action",
         OVER_MCP,
-        { effect: "write", live: true },
+        { effect: "write", live: true, free: true },
     ),
     "list-workspaces": meta(
         "list-workspaces",
@@ -639,7 +646,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "The workspaces this account can reach, and which one is used by default",
         "action",
         OVER_MCP,
-        { effect: "read", live: true },
+        { effect: "read", live: true, free: true },
     ),
     "find-templates": meta(
         "find-templates",
@@ -647,7 +654,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "List the starter templates",
         "action",
         OVER_MCP,
-        { effect: "read", public: true },
+        { effect: "read", public: true, free: true },
     ),
     "draft-brief": meta(
         "draft-brief",
@@ -656,6 +663,17 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         ["direct"],
         { category: "create", live: true, usage: { text: 1 } },
+    ),
+    // Only the branch that needs the model: a text layer, a docx or a spreadsheet is parsed locally
+    // and stays free. Priced as one reply because the shape is the same, a whole document in and
+    // notes out, and the settle bills the real tokens whatever the page count turns out to be.
+    "read-file": meta(
+        "read-file",
+        "Read a file",
+        "Read an image or a scanned document that has no text layer",
+        "action",
+        ["direct"],
+        { category: "assist", live: true, usage: { reply: 1 } },
     ),
     "plan-outline": meta(
         "plan-outline",
@@ -671,6 +689,8 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Decide one section's grid + per-cell blocks",
         "primitive",
         INTERNAL,
+        // internal: composed inside a generation run, whose reserve already meters these calls
+        { free: true },
     ),
     "propose-generation": meta(
         "propose-generation",
@@ -718,7 +738,9 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Retrieve passages from the conversation's attached context collections",
         "action",
         ["agent"],
-        { live: true },
+        // agent-only, so it always runs under the turn's own reserve: the retrieval's embedding
+        // spend lands in that turn's meter and is billed there
+        { live: true, free: true },
     ),
     "write-section": meta(
         "write-section",
@@ -726,6 +748,8 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Write the content that fills a planned grid",
         "primitive",
         INTERNAL,
+        // internal: the parent run holds for the sections it writes
+        { free: true },
     ),
     "check-section": meta(
         "check-section",
@@ -753,12 +777,12 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
 // only tools that are BOTH priced (usage) and live, so no unbuyable prices
 export const PRICED_TOOLS: ToolMeta[] = Object.values(TOOLS).filter((t) => t.usage && t.live);
 
-// The permission one call needs. `effect` answers three of the four, and a tool whose scope it
-// cannot express declares one. The fallback leans restrictive on purpose: a tool that says nothing
-// at all lands on write, never on read, so forgetting to annotate cannot widen a token's reach.
 /** Needs no account: callable before a client has a token at all. */
 export const isPublicTool = (id: ToolId): boolean => TOOLS[id]?.public === true;
 
+// The permission one call needs. `effect` answers three of the four, and a tool whose scope it
+// cannot express declares one. The fallback leans restrictive on purpose: a tool that says nothing
+// at all lands on write, never on read, so forgetting to annotate cannot widen a token's reach.
 export const scopeFor = (id: ToolId): ToolScope => {
     const def = TOOLS[id];
     if (def.scope) return def.scope;
@@ -779,25 +803,40 @@ export function usageFor(id: ToolId, m: MeterParams = {}): Usage {
     return t.meter ? t.meter(m) : (t.usage ?? {});
 }
 
-// A tool with neither usage nor a meter is free by construction. costOf floors at 1 so that a real
-// call is never billed nothing; free is a different case and has to reach zero, or every unpriced
-// tool would quietly cost a credit.
-const isFree = (id: ToolId): boolean => !TOOLS[id].usage && !TOOLS[id].meter;
+// creditsForUsd floors at 1 so a real call is never billed nothing; free has to reach zero, or
+// every unpriced tool would quietly cost a credit. `free` is the declared answer and the missing
+// price is the fallback, so forgetting one cannot mis-bill; check:tools is what makes the
+// declaration mandatory for any tool with a body.
+const isFree = (id: ToolId): boolean =>
+    TOOLS[id].free === true || (!TOOLS[id].usage && !TOOLS[id].meter);
+
+// The same formula the settle uses, on the units the run is expected to produce, so an estimate and
+// the charge it precedes cannot disagree about what an action costs.
+const priceOf = (usage: Usage, prices: UnitPrices): number =>
+    creditsForUsd(usdOfUsage(usage, prices));
 
 // what a run typically costs: the number the UI previews and the credits table lists
-export function estimateCost(id: ToolId, m?: MeterParams, rates?: UnitRates): number {
-    return isFree(id) ? 0 : costOf(usageFor(id, m), rates);
+export function estimateCost(
+    id: ToolId,
+    m?: MeterParams,
+    prices: UnitPrices = DEFAULT_UNIT_PRICES,
+): number {
+    return isFree(id) ? 0 : priceOf(usageFor(id, m), prices);
 }
 
 // what the pre-flight gate holds, which is the estimate unless the tool declares a ceiling
-export function reserveCost(id: ToolId, m?: MeterParams, rates?: UnitRates): number {
+export function reserveCost(
+    id: ToolId,
+    m?: MeterParams,
+    prices: UnitPrices = DEFAULT_UNIT_PRICES,
+): number {
     const ceiling = TOOLS[id].ceiling;
-    return ceiling && !isFree(id) ? costOf(ceiling, rates) : estimateCost(id, m, rates);
+    return ceiling && !isFree(id) ? priceOf(ceiling, prices) : estimateCost(id, m, prices);
 }
 
 // headline cost, ignoring job size
-export function typicalCost(id: ToolId): number {
-    return isFree(id) ? 0 : costOf(TOOLS[id].usage ?? {});
+export function typicalCost(id: ToolId, prices: UnitPrices = DEFAULT_UNIT_PRICES): number {
+    return isFree(id) ? 0 : priceOf(TOOLS[id].usage ?? {}, prices);
 }
 
 export function isMetered(id: ToolId): boolean {
@@ -825,13 +864,16 @@ const LARGE: MeterParams = {
     variations: 4,
     imageSource: "ai",
 };
-export function costRange(id: ToolId): { min: number; max: number } {
+export function costRange(
+    id: ToolId,
+    prices: UnitPrices = DEFAULT_UNIT_PRICES,
+): { min: number; max: number } {
     const t = TOOLS[id];
     if (!t.meter) {
-        const c = typicalCost(id);
+        const c = typicalCost(id, prices);
         return { min: c, max: c };
     }
-    return { min: costOf(t.meter(SMALL)), max: costOf(t.meter(LARGE)) };
+    return { min: priceOf(t.meter(SMALL), prices), max: priceOf(t.meter(LARGE), prices) };
 }
 
 // shared input fragments, used by more than one tool

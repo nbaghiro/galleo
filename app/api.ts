@@ -36,8 +36,6 @@ import type { ThemeSummary as Theme, ThemeInput } from "@themes";
 import type {
     AddOn,
     AddOnId,
-    CreditPack,
-    CreditPackId,
     Interval,
     Plan,
     PlanId,
@@ -102,7 +100,9 @@ export interface BillingState {
     catalog: Plan[];
     addOns: AddOn[]; // recurring, purchasable here (an unconfigured price is already filtered out)
     addOnQuantities: Record<AddOnId, number>;
-    packs: CreditPack[]; // one-off credit purchases
+    // one-off credit purchases: the flat rate and the quantities offered as buttons, or null when
+    // the plan cannot buy them or no price is configured
+    creditSale: { usdPerCredit: number; presets: number[] } | null;
     stripeReady: boolean;
     hasCustomer: boolean; // a Stripe customer exists, so the portal has history to show
 }
@@ -184,7 +184,9 @@ export interface ModelCatalogue {
     tasks: string[];
     models: { id: string; label: string; provider: string; locked: boolean }[];
     defaults: Record<string, string>; // already resolved for this workspace's tier
-    rates: Record<string, number>; // credit multiplier per model, baseline 1.0
+    // USD per unit: text units per model, media units once (they do not vary with the text model)
+    unitPrices: Record<string, UnitPrices>;
+    mediaPrices: UnitPrices;
 }
 
 type ApiCoverShape = { eyebrow?: string; title?: string; sub?: string; image?: string };
@@ -312,6 +314,7 @@ export type { ThemeSummary as ApiTheme } from "@themes";
 
 import { modelHeaders } from "./stores/models";
 
+import type { UnitPrices } from "@model/credits";
 import type { ChangeEffect, PaywallReason } from "@model/billing";
 export type { ChangeEffect, PaywallReason } from "@model/billing";
 
@@ -747,7 +750,7 @@ export const api = {
         ),
     uploadMedia: (body: MediaUploadRequest) =>
         req<{ item: MediaItem }>("/media/upload", { method: "POST", body: JSON.stringify(body) }),
-    importPptx: (body: { name?: string; data: string }) =>
+    importPptx: (body: { name?: string; data: string; as?: "content" | "designs" }) =>
         req<{ content: ArtifactContent; title: string }>("/import/pptx", {
             method: "POST",
             body: JSON.stringify(body),
@@ -774,7 +777,10 @@ export const api = {
     deleteMedia: (id: string) => req<{ ok: true }>(`/media/asset/${id}`, { method: "DELETE" }),
     artifactCredits: (id: string) => req<{ credits: MediaCredit[] }>(`/artifacts/${id}/credits`),
     adoptLink: (url: string) =>
-        req<{ url: string }>("/media/link", { method: "POST", body: JSON.stringify({ url }) }),
+        req<{ url: string; poster?: string }>("/media/link", {
+            method: "POST",
+            body: JSON.stringify({ url }),
+        }),
     googleSlides: (data: string, name: string) =>
         req<{ url: string }>("/google/slides", {
             method: "POST",
@@ -809,8 +815,11 @@ export const api = {
     resumePlan: () => req<{ ok?: boolean }>("/billing/resume", { method: "POST" }),
     getLedger: (cursor?: string | null) =>
         req<LedgerPage>(`/billing/ledger${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
-    topUp: (pack: CreditPackId) =>
-        req<{ url: string }>("/billing/topup", { method: "POST", body: JSON.stringify({ pack }) }),
+    topUp: (credits: number) =>
+        req<{ url: string }>("/billing/topup", {
+            method: "POST",
+            body: JSON.stringify({ credits }),
+        }),
     getWorkspace: (withSpend?: boolean) =>
         req<WorkspaceState>(withSpend ? "/workspace?spend=1" : "/workspace"),
 

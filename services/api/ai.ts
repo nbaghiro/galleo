@@ -32,7 +32,7 @@ import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
 import type { WorkspaceRow } from "@services/core/accounts";
 import type { WorkspaceRole } from "@model/workspace";
 import { warn } from "@services/utils/env";
-import { ACTION_FOR, IMPLEMENTED, meterFor, ratesFor, reserve } from "@services/core/spend";
+import { ACTION_FOR, IMPLEMENTED, meterFor, pricesFor, reserve } from "@services/core/spend";
 import {
     generateImage,
     imageGenReady,
@@ -218,7 +218,7 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
     const traced = !!req.trace && isEvalAdmin(c.get("user"));
     const held = await reserve(ws, c.get("user").id, ACTION_FOR[req.kind], {
         size: meterFor(req, feats.maxSectionsPerGeneration),
-        rates: ratesFor(ws, overrides),
+        prices: pricesFor(ws, overrides),
         trace: traced,
         role: c.get("role"),
         surface: "direct",

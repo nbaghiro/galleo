@@ -17,7 +17,7 @@ import {
     voiceFor,
 } from "@services/core/voices";
 import { SpeechError, synthesize } from "@services/core/ai/speech";
-import { ratesFor, reserve } from "@services/core/spend";
+import { pricesFor, reserve } from "@services/core/spend";
 import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
 
 // The voice surface: browsing the provider's community library, saving to a workspace's shelf, and
@@ -149,7 +149,7 @@ voices.post("/voices/design", requireWorkspace, async (c) => {
         );
 
     const held = await reserve(ws, c.get("user").id, "design-voice", {
-        rates: ratesFor(ws, {}),
+        prices: pricesFor(ws, {}),
         role: c.get("role"),
         surface: "direct",
     });
@@ -240,7 +240,7 @@ voices.post("/voices/audition", requireWorkspace, async (c) => {
     if (!voice) return c.json({ error: "this workspace has no voices yet" }, 404);
 
     const held = await reserve(ws, c.get("user").id, "audition-voice", {
-        rates: ratesFor(ws, {}),
+        prices: pricesFor(ws, {}),
         role: c.get("role"),
         surface: "direct",
     });

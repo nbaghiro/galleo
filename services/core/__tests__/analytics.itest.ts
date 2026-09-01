@@ -1,19 +1,21 @@
 import { gunzipSync } from "node:zlib";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import Stripe from "stripe";
+import { creditPurchaseUsd } from "@model/billing";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import type { Transport } from "@services/utils/analytics";
 import { initAnalytics, shutdownAnalytics } from "@services/utils/analytics";
 import { reserve } from "@services/core/spend";
-import { consumeWebhook } from "@services/core/billing";
+import { consumeWebhook, stripe } from "@services/core/billing";
 import {
     createMachineClient,
     machineGrant,
     revokeMachineClient,
 } from "@services/core/authorization";
 import { seedUser } from "@services/__tests__/harness";
+import { stripeLineItems } from "@services/__tests__/stripe-fixtures";
 
 // The events the unit suite cannot reach: they only exist once a real ledger row is written, a real
 // balance is short, or a real webhook lands. The transport is the only thing faked, as everywhere.
@@ -137,22 +139,32 @@ describe("the credit wall, against a real ledger", () => {
 });
 
 describe("the Stripe webhook, which has no client in the request", () => {
+    const CREDIT_PRICE = "price_credit_itest";
+    const BOUGHT = 500;
+
     beforeEach(() => {
         captured.length = 0;
         process.env.STRIPE_SECRET_KEY ??= "sk_test_itest";
         process.env.STRIPE_WEBHOOK_SECRET = WEBHOOK_SECRET;
+        process.env.STRIPE_PRICE_CREDIT = CREDIT_PRICE;
+        // The grant reads the quantity Stripe charged for, so that one lookup is stubbed on the live
+        // client. Everything else stays real, signature verification included: this file exists to
+        // prove a forged event is rejected, which a package-level mock would quietly remove.
+        vi.spyOn(stripe().checkout.sessions, "listLineItems").mockResolvedValue(
+            stripeLineItems([{ priceId: CREDIT_PRICE, quantity: BOUGHT }], "cs_topup_1"),
+        );
         initAnalytics({ key: "phc_itest", fetch: recorder });
     });
 
     afterEach(async () => {
+        vi.restoreAllMocks();
         await shutdownAnalytics();
     });
 
-    // A credit-pack purchase is the one webhook that settles entirely from the event payload, so it
-    // exercises the real signature check and the real grant without reaching for Stripe's API.
-    it("reports a top-up and grants the credits it reports", async () => {
+    it("reports a credit purchase and grants the credits it reports", async () => {
         const { workspaceId } = await seedUser();
         const before = (await workspaceRow(workspaceId)).aiCreditsBalance;
+        const usd = creditPurchaseUsd(BOUGHT);
 
         const payload = JSON.stringify({
             id: "evt_topup_1",
@@ -163,9 +175,11 @@ describe("the Stripe webhook, which has no client in the request", () => {
                     id: "cs_topup_1",
                     object: "checkout.session",
                     mode: "payment",
-                    amount_total: 900,
+                    // the money has to have landed before the credits do
+                    payment_status: "paid",
+                    amount_total: Math.round(usd * 100),
                     client_reference_id: workspaceId,
-                    metadata: { pack: "pack-500", workspaceId },
+                    metadata: { workspaceId },
                 },
             },
         });
@@ -177,11 +191,10 @@ describe("the Stripe webhook, which has no client in the request", () => {
         expect(await consumeWebhook(payload, signature)).toEqual({ received: true });
 
         const [topup] = await eventsNamed("topup_purchased");
-        expect(topup?.properties.pack_id).toBe("pack-500");
-        expect(topup?.properties.credits).toBe(500);
-        expect(topup?.properties.usd).toBe(9);
+        expect(topup?.properties.credits).toBe(BOUGHT);
+        expect(topup?.properties.usd).toBe(usd);
         // the event is not a claim about the row; the row moved too
-        expect((await workspaceRow(workspaceId)).aiCreditsBalance).toBe(before + 500);
+        expect((await workspaceRow(workspaceId)).aiCreditsBalance).toBe(before + BOUGHT);
     });
 
     it("says nothing at all when the signature does not check out", async () => {
@@ -190,7 +203,9 @@ describe("the Stripe webhook, which has no client in the request", () => {
         const payload = JSON.stringify({
             id: "evt_topup_2",
             type: "checkout.session.completed",
-            data: { object: { id: "cs_2", mode: "payment", metadata: { pack: "pack-500" } } },
+            data: {
+                object: { id: "cs_2", mode: "payment", payment_status: "paid" },
+            },
         });
 
         expect(await consumeWebhook(payload, "t=1,v1=forged")).toEqual({ error: "bad signature" });

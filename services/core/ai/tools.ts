@@ -106,6 +106,11 @@ export function toolsFor(surface: ToolSurface): AnyTool[] {
     return [...REGISTRY.values()].filter((t) => TOOLS[t.id].surfaces.includes(surface));
 }
 
+/** Every tool that has a body at all, which is the set that can spend money. */
+export function registeredToolIds(): ToolId[] {
+    return [...REGISTRY.keys()];
+}
+
 export function makeContext(base: Omit<ToolContext, "use">): ToolContext {
     const ctx: ToolContext = {
         artifact: base.artifact,

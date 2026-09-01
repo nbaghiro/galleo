@@ -1,4 +1,4 @@
-import type { CreditPackId, FeatureOverrides, PlanId, ScheduledChange } from "@model/billing";
+import type { FeatureOverrides, PlanId, ScheduledChange } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { ToolId } from "@model/tools";
 
@@ -109,7 +109,7 @@ export interface ThemeSpec {
 export type Charge =
     | { at: number; kind: "spend"; tool: ToolId; credits: number; usage: Usage; by: string }
     | { at: number; kind: "grant" } // the monthly roll: adds the grant, keeps the leftovers
-    | { at: number; kind: "topup"; pack: CreditPackId };
+    | { at: number; kind: "topup"; credits: number };
 
 export interface WorkspaceSpec {
     slug: string;
@@ -153,7 +153,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
         plan: "premium",
         ownerEmail: DEMO_EMAIL, // the one they own: member management is the owner-only surface that works without Stripe
         seats: 5, // the 3 the plan includes plus 2 bought as the seat add-on
-        openingBalance: 1450, // part-way through a 2400 cycle
+        openingBalance: 3800, // part-way through a 10,500 cycle (6,300 + 2 bought seats)
         members: [
             { email: "demo+admin@galleo.app", role: "admin" },
             { email: "demo+member@galleo.app", role: "member" },
@@ -256,12 +256,12 @@ export const WORKSPACES: WorkspaceSpec[] = [
             { templateId: "annual-report", by: "demo+member@galleo.app", uses: 1 },
         ],
         ledger: [
-            { at: 9, kind: "topup", pack: "pack-2k" },
+            { at: 9, kind: "topup", credits: 2000 },
             {
                 at: 26,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 41,
+                credits: 152,
                 usage: { plan: 1, section: 12, image: 2 },
                 by: "demo+admin@galleo.app",
             },
@@ -269,7 +269,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 22,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 44,
+                credits: 180,
                 usage: { plan: 1, section: 12, image: 3 },
                 by: DEMO_EMAIL,
             },
@@ -277,7 +277,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 18,
                 kind: "spend",
                 tool: "ask-assistant",
-                credits: 12,
+                credits: 8,
                 usage: { reply: 1 },
                 by: "demo+member@galleo.app",
             },
@@ -285,7 +285,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 11,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 46,
+                credits: 195,
                 usage: { plan: 1, section: 14, image: 3 },
                 by: DEMO_EMAIL,
             },
@@ -293,7 +293,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 10,
                 kind: "spend",
                 tool: "generate-image",
-                credits: 15,
+                credits: 85,
                 usage: { image: 3 },
                 by: "demo+admin@galleo.app",
             },
@@ -301,7 +301,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 9,
                 kind: "spend",
                 tool: "ask-assistant",
-                credits: 12,
+                credits: 8,
                 usage: { reply: 1 },
                 by: "demo+member@galleo.app",
             },
@@ -309,7 +309,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 8,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 39,
+                credits: 144,
                 usage: { plan: 1, section: 11, image: 2 },
                 by: "demo+member@galleo.app",
             },
@@ -317,7 +317,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 7,
                 kind: "spend",
                 tool: "revise-element",
-                credits: 3,
+                credits: 6,
                 usage: { text: 2 },
                 by: DEMO_EMAIL,
             },
@@ -325,7 +325,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 5,
                 kind: "spend",
                 tool: "generate-video",
-                credits: 100,
+                credits: 568,
                 usage: { video: 1 },
                 by: DEMO_EMAIL,
             },
@@ -333,7 +333,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 4,
                 kind: "spend",
                 tool: "ask-assistant",
-                credits: 14,
+                credits: 8,
                 usage: { reply: 1 },
                 by: "demo+admin@galleo.app",
             },
@@ -341,7 +341,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 3,
                 kind: "spend",
                 tool: "rewrite-section",
-                credits: 2,
+                credits: 7,
                 usage: { section: 1 },
                 by: DEMO_EMAIL,
             },
@@ -349,7 +349,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 2,
                 kind: "spend",
                 tool: "generate-theme",
-                credits: 5,
+                credits: 8,
                 usage: { theme: 1 },
                 by: "demo+member@galleo.app",
             },
@@ -357,7 +357,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 1,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 43,
+                credits: 180,
                 usage: { plan: 1, section: 12, image: 3 },
                 by: "demo+member@galleo.app",
             },
@@ -365,7 +365,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 0.5,
                 kind: "spend",
                 tool: "ask-assistant",
-                credits: 11,
+                credits: 8,
                 usage: { reply: 1 },
                 by: DEMO_EMAIL,
             },
@@ -373,7 +373,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 0.2,
                 kind: "spend",
                 tool: "rewrite-text",
-                credits: 1,
+                credits: 3,
                 usage: { text: 1 },
                 by: DEMO_EMAIL,
             },
@@ -390,7 +390,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
         members: [],
         planStatus: "active",
         periodEndInDays: 27,
-        openingBalance: 415, // part-way through a 700 cycle, before the spend below
+        openingBalance: 700, // part-way through a 1,200 cycle, before the spend below
         windowStartedDaysAgo: 9,
         folders: [
             {
@@ -419,7 +419,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 7,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 68,
+                credits: 223,
                 usage: { plan: 1, section: 14, image: 4 },
                 by: DEMO_EMAIL,
             },
@@ -427,7 +427,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 5,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 54,
+                credits: 152,
                 usage: { plan: 1, section: 12, image: 2 },
                 by: DEMO_EMAIL,
             },
@@ -435,7 +435,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 3,
                 kind: "spend",
                 tool: "rewrite-section",
-                credits: 4,
+                credits: 7,
                 usage: { section: 1 },
                 by: DEMO_EMAIL,
             },
@@ -443,7 +443,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 2,
                 kind: "spend",
                 tool: "generate-theme",
-                credits: 4,
+                credits: 8,
                 usage: { theme: 1 },
                 by: DEMO_EMAIL,
             },
@@ -451,7 +451,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 1,
                 kind: "spend",
                 tool: "generate-image",
-                credits: 25,
+                credits: 142,
                 usage: { image: 5 },
                 by: DEMO_EMAIL,
             },
@@ -498,15 +498,15 @@ export const WORKSPACES: WorkspaceSpec[] = [
             { ref: { template: "trends-report" }, daysAgo: 20 },
         ],
         visits: [{ corpus: "fieldnotes" }, { corpus: "slowweb" }],
-        // Lands at 95 of 100: rewrite-text (1) still passes, ask-assistant and generate-artifact
-        // both take the 402 branch. Free runs basic models, so each charge is exactly costOf(usage),
-        // and no generation exceeds the plan's 10-section cap.
+        // Lands near the wall with about 60 of 600 left: rewrite-text (3) and ask-assistant (8) still
+        // pass, generate-artifact (~95) takes the 402 branch. Free runs basic models, so each charge is
+        // exactly what the units cost, and no generation exceeds the plan's 10-section cap.
         ledger: [
             {
                 at: 21,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 31,
+                credits: 130,
                 usage: { plan: 1, section: 9, image: 2 },
                 by: DEMO_EMAIL,
             },
@@ -514,7 +514,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 17,
                 kind: "spend",
                 tool: "ask-assistant",
-                credits: 2,
+                credits: 8,
                 usage: { reply: 1 },
                 by: DEMO_EMAIL,
             },
@@ -523,7 +523,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 5,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 29,
+                credits: 123,
                 usage: { plan: 1, section: 8, image: 2 },
                 by: DEMO_EMAIL,
             },
@@ -531,7 +531,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 4,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 20,
+                credits: 80,
                 usage: { plan: 1, section: 6, image: 1 },
                 by: DEMO_EMAIL,
             },
@@ -539,7 +539,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 3,
                 kind: "spend",
                 tool: "generate-artifact",
-                credits: 17,
+                credits: 58,
                 usage: { plan: 1, section: 7 },
                 by: DEMO_EMAIL,
             },
@@ -547,7 +547,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 2,
                 kind: "spend",
                 tool: "ask-assistant",
-                credits: 2,
+                credits: 8,
                 usage: { reply: 1 },
                 by: DEMO_EMAIL,
             },
@@ -555,7 +555,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 1.5,
                 kind: "spend",
                 tool: "generate-image",
-                credits: 20,
+                credits: 114,
                 usage: { image: 4 },
                 by: DEMO_EMAIL,
             },
@@ -563,7 +563,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 1,
                 kind: "spend",
                 tool: "rewrite-section",
-                credits: 2,
+                credits: 7,
                 usage: { section: 1 },
                 by: DEMO_EMAIL,
             },
@@ -571,7 +571,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 0.5,
                 kind: "spend",
                 tool: "generate-theme",
-                credits: 4,
+                credits: 8,
                 usage: { theme: 1 },
                 by: DEMO_EMAIL,
             },
@@ -579,7 +579,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
                 at: 0.2,
                 kind: "spend",
                 tool: "rewrite-text",
-                credits: 1,
+                credits: 3,
                 usage: { text: 1 },
                 by: DEMO_EMAIL,
             },

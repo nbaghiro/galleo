@@ -41,7 +41,7 @@ const PAGE = 12;
 
 // Said on the confirm step because a step with nothing behind it is one people abandon.
 const AFTER_VERIFY = [
-    "200 credits, on the house, for your first generations",
+    "Monthly credits for AI writing and images",
     "A wall of starter decks, docs and sites, yours in one click",
     "The studio, with AI editing on every section",
 ];

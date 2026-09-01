@@ -4,7 +4,12 @@ import type { PlanId } from "@model/billing";
 import {
     ADD_ONS,
     CREDITS_PER_GENERATION,
-    CREDIT_PACKS,
+    CREDIT_PRESETS,
+    CREDIT_PRICE_USD,
+    creditPurchaseUsd,
+    isCreditQuantity,
+    MAX_CREDIT_PURCHASE,
+    MIN_CREDIT_PURCHASE,
     PLANS,
     PLAN_ORDER,
     ROLLOVER_CAP_MONTHS,
@@ -17,7 +22,6 @@ import {
     limit,
     limitsFor,
     monthlyGrantFor,
-    packFor,
     planFor,
     rolloverCapFor,
     sellsSeats,
@@ -56,8 +60,9 @@ describe("sellsSeats", () => {
 });
 
 describe("catalog constants", () => {
+    // the stock-photo default: a plan plus twelve sections, with no AI images unless asked for
     it("CREDITS_PER_GENERATION matches the metered generate cost", () => {
-        expect(CREDITS_PER_GENERATION).toBe(42);
+        expect(CREDITS_PER_GENERATION).toBe(95);
     });
     it("visiblePlans lists the three tiers in order", () => {
         const plans = visiblePlans();
@@ -179,12 +184,11 @@ describe("credit remedies", () => {
     });
 });
 
-describe("add-on and pack pricing", () => {
+describe("add-on and bought-credit pricing", () => {
     // per-credit rate of the plan itself, which neither may undercut
     const planRate = (id: PlanId): number =>
         PLANS[id].billing.priceMonthly / PLANS[id].ai.includedCredits;
-    const cheapest = (): number =>
-        Math.min(...PLAN_ORDER.filter((id) => PLANS[id].billing.priceMonthly > 0).map(planRate));
+    const paidPlans = (): PlanId[] => PLAN_ORDER.filter((id) => PLANS[id].billing.priceMonthly > 0);
 
     it("sells the seat add-on above what its credits cost us", () => {
         expect(ADD_ONS.seat.priceUsd).toBeGreaterThan(ADD_ONS.seat.credits * CREDIT_USD);
@@ -195,50 +199,103 @@ describe("add-on and pack pricing", () => {
         expect(ADD_ONS.seat.credits).toBeGreaterThan(0);
     });
 
-    it("sells every pack above what its credits cost us", () => {
-        for (const pack of CREDIT_PACKS)
-            expect(pack.priceUsd).toBeGreaterThan(pack.credits * CREDIT_USD);
+    it("sells a credit above what it costs us", () => {
+        expect(CREDIT_PRICE_USD).toBeGreaterThan(CREDIT_USD);
     });
 
-    // buying credits outright must never beat subscribing for them
-    it("prices every pack above the cheapest plan's own per-credit rate", () => {
-        for (const pack of CREDIT_PACKS)
-            expect(pack.priceUsd / pack.credits).toBeGreaterThan(cheapest());
+    /**
+     * Buying outright must never beat subscribing, on ANY plan. Checking only the cheapest let the
+     * old tiered packs undercut Premium's own per-credit rate, so a workspace paying the most got
+     * its marginal credit cheaper than its average one.
+     */
+    it("prices a bought credit above every visible plan's own per-credit rate", () => {
+        for (const id of paidPlans()) expect(CREDIT_PRICE_USD).toBeGreaterThan(planRate(id));
     });
 
-    it("gives the larger pack the volume discount", () => {
-        const rate = (p: (typeof CREDIT_PACKS)[number]): number => p.priceUsd / p.credits;
-        const sorted = [...CREDIT_PACKS].sort((a, b) => a.credits - b.credits);
-        for (let i = 1; i < sorted.length; i++)
-            expect(rate(sorted[i]!)).toBeLessThan(rate(sorted[i - 1]!));
+    it("charges one flat rate, with no volume break", () => {
+        const rates = CREDIT_PRESETS.map((n) => creditPurchaseUsd(n) / n);
+        for (const r of rates) expect(r).toBeCloseTo(CREDIT_PRICE_USD, 10);
     });
 
-    it("resolves a pack by id and rejects anything else", () => {
-        expect(packFor("pack-500")).toBe(CREDIT_PACKS[0]);
-        expect(packFor("seat")).toBeNull();
-        expect(packFor(null)).toBeNull();
+    it("accepts a quantity inside the bounds and rejects anything else", () => {
+        expect(isCreditQuantity(MIN_CREDIT_PURCHASE)).toBe(true);
+        expect(isCreditQuantity(MAX_CREDIT_PURCHASE)).toBe(true);
+        expect(isCreditQuantity(MIN_CREDIT_PURCHASE - 1)).toBe(false);
+        expect(isCreditQuantity(MAX_CREDIT_PURCHASE + 1)).toBe(false);
+        expect(isCreditQuantity(500.5)).toBe(false);
+        expect(isCreditQuantity(Number.NaN)).toBe(false);
+    });
+
+    it("prices a purchase at the flat rate", () => {
+        expect(creditPurchaseUsd(500)).toBe(10);
+        expect(creditPurchaseUsd(2000)).toBe(40);
+    });
+
+    it("offers presets that are all buyable", () => {
+        for (const n of CREDIT_PRESETS) expect(isCreditQuantity(n)).toBe(true);
     });
 });
 
 describe("plan credit allowances", () => {
-    // the failure this guards: an allowance worth more in provider spend than the plan is paid
-    it("keeps a fully-used plan well under what it charges", () => {
+    // The floor the allowances were sized to. Checked against the YEARLY price because that is the
+    // thinnest way to pay: clearing it there clears it on every route.
+    const FLOOR = 0.8;
+
+    it("leaves a fifth of the yearly price to serve a fully-used plan", () => {
         for (const id of PLAN_ORDER) {
             const p = PLANS[id];
-            if (!p.billing.priceMonthly) continue;
+            if (!p.billing.priceAnnualMonthly) continue;
             const worstCase = p.ai.includedCredits * CREDIT_USD;
-            expect(worstCase).toBeLessThan(p.billing.priceMonthly * 0.6);
+            expect(worstCase).toBeLessThanOrEqual(p.billing.priceAnnualMonthly * (1 - FLOOR));
         }
     });
 
-    it("does not give a dearer plan thinner margin than a cheaper one", () => {
-        const share = (id: PlanId): number =>
-            (PLANS[id].ai.includedCredits * CREDIT_USD) / PLANS[id].billing.priceMonthly;
-        expect(share("premium")).toBeLessThanOrEqual(share("pro"));
+    /**
+     * This used to demand that a dearer plan never had thinner margin at all. That held only while
+     * plans were priced per credit by accident, and near-parity is now the goal: a credit should
+     * cost about the same wherever it comes from, so the plans sit within a point of each other and
+     * which one is fractionally ahead is noise. The guard is here to catch a plan drifting
+     * materially out of line, not to police the last decimal.
+     */
+    const INVERSION_TOLERANCE = 0.02;
+
+    it("keeps no plan's margin more than two points below a cheaper plan's", () => {
+        const margin = (id: PlanId): number =>
+            1 - (PLANS[id].ai.includedCredits * CREDIT_USD) / PLANS[id].billing.priceMonthly;
+        const paid = PLAN_ORDER.filter((id) => PLANS[id].billing.priceMonthly > 0);
+        for (const dearer of paid)
+            for (const cheaper of paid)
+                if (PLANS[dearer].billing.priceMonthly > PLANS[cheaper].billing.priceMonthly)
+                    expect(margin(dearer)).toBeGreaterThan(margin(cheaper) - INVERSION_TOLERANCE);
+    });
+
+    /**
+     * The property the allowances were sized for: a credit costs about the same however it is
+     * bought. Compared on a monthly basis, seat included, because mixing in the annual prices would
+     * measure the yearly discount rather than credit pricing. A future edit to any allowance or
+     * price that re-opens a wide spread fails here.
+     */
+    it("prices a credit within a tight band across every way of buying one", () => {
+        const rates = [
+            ...PLAN_ORDER.filter((id) => PLANS[id].billing.priceMonthly > 0).map(
+                (id) => PLANS[id].billing.priceMonthly / PLANS[id].ai.includedCredits,
+            ),
+            ADD_ONS.seat.priceUsd / ADD_ONS.seat.credits,
+        ];
+        expect(Math.max(...rates) / Math.min(...rates)).toBeLessThanOrEqual(1.2);
+    });
+
+    // a seat is a seat: what a bought one carries is what an included one is worth
+    it("gives an included seat the same credits as a bought one", () => {
+        expect(PLANS.premium.ai.includedCredits).toBe(
+            PLANS.premium.billing.includedSeats * ADD_ONS.seat.credits,
+        );
     });
 
     it("keeps a seat add-on profitable on its own", () => {
-        expect(ADD_ONS.seat.credits * CREDIT_USD).toBeLessThan(ADD_ONS.seat.priceUsd * 0.6);
+        expect(ADD_ONS.seat.credits * CREDIT_USD).toBeLessThanOrEqual(
+            ADD_ONS.seat.priceUsd * (1 - FLOOR),
+        );
     });
 
     // only Premium holds a team, so a seat add-on has exactly one plan to attach to

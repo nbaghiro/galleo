@@ -1,15 +1,15 @@
 import type { TurnKind, TurnRequest } from "@model/ai";
-import type { CostUnit, UnitRates, Usage } from "@model/credits";
+import type { CostUnit, UnitPrices, Usage } from "@model/credits";
 import type { MeterParams, ToolId, ToolSurface } from "@model/tools";
 import type { PlanBearer } from "@model/billing";
 import type { WorkspaceRole } from "@model/workspace";
-import { costOf, creditsForUsd, taskForUsage, unitMultipliers } from "@model/credits";
+import { creditsForUsd, DEFAULT_UNIT_PRICES, taskForUsage, usdOfUsage } from "@model/credits";
 import { ACTION_FOR, reserveCost, sectionsForLength, usageFor } from "@model/tools";
 export { ACTION_FOR };
 import { canTopUp, canUpgradeFrom, featuresFor, planFor } from "@model/billing";
 import type { AiFailureReason } from "@model/analytics";
 import { capture } from "@services/utils/analytics";
-import { COST_MULTIPLIERS, modelFor, type ModelOverrides } from "./models";
+import { unitPricesFor, type ModelOverrides } from "./models";
 import type { WorkspaceCreditFields } from "./ledger";
 import { chargeCredits, settleCredits, spendThisCycle } from "./ledger";
 import type { Meter, TokenUse } from "./ai/meter";
@@ -35,12 +35,10 @@ export const meterFor = (req: TurnRequest, maxSections?: number): MeterParams =>
           }
         : {};
 
-// the unit prices for this caller's picks; every metered route reserves and settles through it
-export const ratesFor = (ws: PlanBearer, overrides: ModelOverrides): UnitRates =>
-    unitMultipliers(
-        (task) => modelFor(task, featuresFor(ws).textModelTier, overrides),
-        (id) => COST_MULTIPLIERS[id],
-    );
+// The dollar price of every unit for this caller's picks, text and media alike. Every metered route
+// reserves and settles through it, so the model that served the work is what the credits reflect.
+export const pricesFor = (ws: PlanBearer, overrides: ModelOverrides): UnitPrices =>
+    unitPricesFor(featuresFor(ws).textModelTier, overrides);
 
 // One rule for every paid action: reserve the estimate up front, then owe what the work really did —
 // the tokens it burned at provider list price, plus the assets it produced at their flat rate. A run
@@ -183,7 +181,7 @@ export interface ReserveOptions {
     /** scales the estimate for metered tools */
     size?: MeterParams;
     /** prices the estimate against the models this caller pinned */
-    rates?: UnitRates;
+    prices?: UnitPrices;
     /** an eval admin asked for this run to be recorded */
     trace?: boolean;
     /** members are capped, admins and owners are not */
@@ -211,10 +209,17 @@ export async function reserve(
     tool: ToolId,
     opts: ReserveOptions = {},
 ): Promise<Reservation> {
-    const { size = {}, rates = {}, trace = false, role = "member", surface = "direct" } = opts;
+    const {
+        size = {},
+        // a caller that forgets still bills the default model's real cost, not the bare floor
+        prices = DEFAULT_UNIT_PRICES,
+        trace = false,
+        role = "member",
+        surface = "direct",
+    } = opts;
     const runner: Runner = { ws, userId, tool, surface };
     const usage = usageFor(tool, size);
-    const cost = reserveCost(tool, size, rates);
+    const cost = reserveCost(tool, size, prices);
     if (cost === 0) return free(runner);
     // The per-member ceiling, checked before the balance: the pool is shared and the owner is the
     // only one who can refill it, so one member cannot spend the whole month. Admins run the
@@ -259,7 +264,7 @@ export async function reserve(
                             try {
                                 return await run(produced, meter);
                             } finally {
-                                const delta = owed(meter.uses, made, meter.extraUsd) - cost;
+                                const delta = owed(meter.uses, made, meter.extraUsd, prices) - cost;
                                 settled = cost + delta;
                                 await settleCredits(ws, entryId, delta, settledUsage(usage, made));
                             }
@@ -295,14 +300,19 @@ export function settledUsage(estimate: Usage, made: Usage): Usage | null | undef
 }
 
 /**
- * What a finished run owes: its tokens at provider list price plus the assets it produced.
+ * What a finished run owes: everything it spent, in dollars, converted once. Tokens price at the
+ * model that burned them and produced units at the model that made them, so an asset from a dearer
+ * media model settles dearer.
  *
- * `creditsForUsd` and `costOf` each floor at 1 so a real call is never free; nothing at all is a
- * different case and has to stay at zero, or a run that failed before its first token would bill
- * 2 credits for doing nothing.
+ * `creditsForUsd` floors at 1 so a real call is never free; a run that spent nothing at all has to
+ * reach zero instead, or a failure before the first token would bill for doing nothing.
  */
-export function owed(uses: readonly TokenUse[], made: Usage, extraUsd = 0): number {
-    const usd = usdOf(uses) + extraUsd;
-    const assets = Object.values(made).some((n) => n > 0) ? costOf(made) : 0;
-    return (usd > 0 ? creditsForUsd(usd) : 0) + assets;
+export function owed(
+    uses: readonly TokenUse[],
+    made: Usage,
+    extraUsd = 0,
+    prices: UnitPrices = DEFAULT_UNIT_PRICES,
+): number {
+    const usd = usdOf(uses) + usdOfUsage(made, prices) + extraUsd;
+    return usd > 0 ? creditsForUsd(usd) : 0;
 }

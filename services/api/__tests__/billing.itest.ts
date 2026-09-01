@@ -3,7 +3,8 @@ import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
 import {
     ADD_ONS,
-    CREDIT_PACKS,
+    MAX_CREDIT_PURCHASE,
+    MIN_CREDIT_PURCHASE,
     CREDITS_PER_GENERATION,
     PLANS,
     limitsFor,
@@ -12,6 +13,7 @@ import {
     visiblePlans,
 } from "@model/billing";
 import { authed, jsonInit, request, seedUser } from "@services/__tests__/harness";
+import { stripeLineItems } from "@services/__tests__/stripe-fixtures";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { chargeCredits, settleCredits } from "@services/core/ledger";
@@ -21,7 +23,8 @@ import { reserve } from "@services/core/spend";
 // this stub; the pure price↔plan helpers still run for real off the stubbed env.
 const stripeMock = vi.hoisted(() => ({
     customers: { create: vi.fn() },
-    checkout: { sessions: { create: vi.fn() } },
+    checkout: { sessions: { create: vi.fn(), listLineItems: vi.fn(), list: vi.fn() } },
+    charges: { retrieve: vi.fn() },
     billingPortal: { sessions: { create: vi.fn() } },
     subscriptions: { retrieve: vi.fn(), update: vi.fn(), cancel: vi.fn() },
     subscriptionSchedules: { create: vi.fn(), update: vi.fn(), release: vi.fn() },
@@ -40,6 +43,7 @@ const PRICE = {
     proYear: "price_pro_year",
     premiumMonth: "price_premium_month",
     premiumYear: "price_premium_year",
+    credit: "price_credit",
 } as const;
 
 function configureStripe(): void {
@@ -49,6 +53,31 @@ function configureStripe(): void {
     vi.stubEnv("STRIPE_PRICE_PRO_YEAR", PRICE.proYear);
     vi.stubEnv("STRIPE_PRICE_PREMIUM_MONTH", PRICE.premiumMonth);
     vi.stubEnv("STRIPE_PRICE_PREMIUM_YEAR", PRICE.premiumYear);
+    vi.stubEnv("STRIPE_PRICE_CREDIT", PRICE.credit);
+}
+
+/**
+ * The webhook envelope, which is all the route destructures. Not `Stripe.Event`: that is a union
+ * over every event type, so no single member fits a helper whose `type` is a string.
+ */
+type WebhookEvent = { id: string; type: string; data: { object: unknown } };
+
+/** A paid credit purchase: the credit line item Stripe charged for, and a settled payment. */
+function creditPurchase(
+    workspaceId: string,
+    credits: number,
+    o: { id?: string; paymentStatus?: string; priceId?: string } = {},
+): WebhookEvent {
+    stripeMock.checkout.sessions.listLineItems.mockResolvedValue(
+        stripeLineItems([{ priceId: o.priceId ?? PRICE.credit, quantity: credits }]),
+    );
+    return stripeEvent("checkout.session.completed", {
+        id: o.id ?? "cs_credits",
+        mode: "payment",
+        payment_status: o.paymentStatus ?? "paid",
+        client_reference_id: workspaceId,
+        payment_intent: "pi_1",
+    });
 }
 
 const YEAR_2030 = 1893456000; // fixed future unix seconds; keeps period-end assertions deterministic
@@ -64,7 +93,28 @@ type SubOverrides = {
     addOns?: { priceId: string; quantity: number }[]; // extra items beside the plan's own
 };
 
-function fakeSub(o: SubOverrides = {}): Stripe.Subscription {
+type LiveSubItem = {
+    id: string;
+    price: { id: string };
+    quantity: number;
+    current_period_end: number;
+};
+
+/**
+ * The parts of a live subscription the handler reads. Not `Stripe.Subscription`: that is 46 required
+ * fields over nested resources, and asserting past them turns off checking on the fixture itself, so
+ * a mistyped key would reach the handler as `undefined` instead of failing the build. `items` admits
+ * `undefined` because a live sub arriving without them is one of the cases under test.
+ */
+type LiveSub = {
+    id: string;
+    status: Stripe.Subscription.Status;
+    cancel_at_period_end: boolean;
+    metadata: Stripe.Metadata;
+    items: { data: LiveSubItem[] } | undefined;
+};
+
+function fakeSub(o: SubOverrides = {}): LiveSub {
     return {
         id: o.id ?? "sub_1",
         status: o.status ?? "active",
@@ -86,12 +136,15 @@ function fakeSub(o: SubOverrides = {}): Stripe.Subscription {
                 })),
             ],
         },
-    } as unknown as Stripe.Subscription;
+    };
 }
 
 // Event ids carry no idempotency weight (grants key on the Stripe OBJECT ids); kept for realism.
-const stripeEvent = (type: string, object: unknown, id = "evt_test"): Stripe.Event =>
-    ({ id, type, data: { object } }) as unknown as Stripe.Event;
+const stripeEvent = (type: string, object: unknown, id = "evt_test"): WebhookEvent => ({
+    id,
+    type,
+    data: { object },
+});
 
 async function setWs(
     id: string,
@@ -108,7 +161,7 @@ async function getWs(id: string) {
 // Subscription events sync from a fresh retrieve, so the mocked live sub is what the handler sees.
 function postSubEvent(
     type: "customer.subscription.updated" | "customer.subscription.deleted",
-    sub: Stripe.Subscription,
+    sub: LiveSub,
     id = "evt_test",
 ): Promise<Response> {
     stripeMock.subscriptions.retrieve.mockResolvedValue(sub);
@@ -116,7 +169,7 @@ function postSubEvent(
 }
 
 // constructEvent is faked, so signature verification is bypassed and the handler still runs for real.
-function postWebhook(ev: Stripe.Event): Promise<Response> {
+function postWebhook(ev: WebhookEvent): Promise<Response> {
     stripeMock.webhooks.constructEvent.mockReturnValue(ev);
     return request("/billing/webhook", {
         method: "POST",
@@ -127,13 +180,13 @@ function postWebhook(ev: Stripe.Event): Promise<Response> {
 
 beforeEach(() => {
     configureStripe();
-    stripeMock.customers.create.mockResolvedValue({ id: "cus_1" } as unknown as Stripe.Customer);
+    stripeMock.customers.create.mockResolvedValue({ id: "cus_1" });
     stripeMock.checkout.sessions.create.mockResolvedValue({
         url: "https://checkout.stripe.test/s",
-    } as unknown as Stripe.Checkout.Session);
+    });
     stripeMock.billingPortal.sessions.create.mockResolvedValue({
         url: "https://portal.stripe.test/s",
-    } as unknown as Stripe.BillingPortal.Session);
+    });
     stripeMock.subscriptions.update.mockResolvedValue(fakeSub());
 });
 
@@ -261,6 +314,46 @@ describe("POST /billing/checkout", () => {
         const res = await authed(userId, "/billing/checkout", jsonInit("POST", { plan: "pro" }));
         expect(res.status).toBe(503);
         expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+});
+
+describe("POST /billing/topup", () => {
+    it("opens a payment checkout for the quantity asked for", async () => {
+        vi.stubEnv("STRIPE_PRICE_CREDIT", "price_credit");
+        const { userId } = await seedUser({ plan: "pro" });
+        stripeMock.customers.create.mockResolvedValue({ id: "cus_topup" });
+        stripeMock.checkout.sessions.create.mockResolvedValue({ url: "https://pay/x" });
+        const res = await authed(userId, "/billing/topup", jsonInit("POST", { credits: 1500 }));
+        expect(res.status).toBe(200);
+        const args = stripeMock.checkout.sessions.create.mock.calls.at(-1)![0];
+        expect(args.mode).toBe("payment");
+        // one price standing for one credit, charged by quantity
+        expect(args.line_items).toEqual([{ price: "price_credit", quantity: 1500 }]);
+    });
+
+    it("rejects a quantity outside the bounds before reaching Stripe", async () => {
+        vi.stubEnv("STRIPE_PRICE_CREDIT", "price_credit");
+        const { userId } = await seedUser({ plan: "pro" });
+        for (const credits of [MIN_CREDIT_PURCHASE - 1, MAX_CREDIT_PURCHASE + 1, 10.5]) {
+            const res = await authed(userId, "/billing/topup", jsonInit("POST", { credits }));
+            expect(res.status).toBe(400);
+        }
+        expect(stripeMock.checkout.sessions.create).not.toHaveBeenCalled();
+    });
+
+    it("503s when no credit price is configured", async () => {
+        vi.stubEnv("STRIPE_PRICE_CREDIT", "");
+        const { userId } = await seedUser({ plan: "pro" });
+        stripeMock.customers.create.mockResolvedValue({ id: "cus_topup" });
+        const res = await authed(userId, "/billing/topup", jsonInit("POST", { credits: 500 }));
+        expect(res.status).toBe(503);
+    });
+
+    // Free cannot buy credits at all, so the wall is a 402 with an upgrade rather than a price error
+    it("402s on a plan that does not sell credits", async () => {
+        const { userId } = await seedUser({ plan: "free" });
+        const res = await authed(userId, "/billing/topup", jsonInit("POST", { credits: 500 }));
+        expect(res.status).toBe(402);
     });
 });
 
@@ -468,7 +561,7 @@ describe("reserving a priced action", () => {
         await setWs(workspaceId, { aiCreditsBalance: 100, creditsResetAt: future() });
         const held = await reserve(await getWs(workspaceId), userId, "generate-theme");
         expect(held.ok).toBe(true);
-        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(96); // generate-theme = 4
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(92); // generate-theme = 8
     });
 
     it("refuses and charges nothing once the monthly allowance is exhausted", async () => {
@@ -655,12 +748,13 @@ describe("credit engine", () => {
         await setWs(workspaceId, { aiCreditsBalance: banked, creditsResetAt: future() });
         const held = await reserve(await getWs(workspaceId), userId, "generate-theme");
         expect(held.ok).toBe(true);
-        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(banked - 4);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(banked - 8);
     });
 
     it("exactly one of two concurrent near-limit spends wins", async () => {
         const { userId, workspaceId } = await seedUser();
-        await setWs(workspaceId, { aiCreditsBalance: 4, creditsResetAt: future() });
+        // exactly one generate-theme's worth, so the two racers contend for a single charge
+        await setWs(workspaceId, { aiCreditsBalance: 8, creditsResetAt: future() });
         const ws = await getWs(workspaceId);
         const [a, b] = await Promise.all([
             reserve(ws, userId, "generate-theme"),
@@ -680,9 +774,9 @@ describe("credit engine", () => {
             .where(eq(schema.credits.workspaceId, workspaceId));
         expect(rows).toHaveLength(1);
         expect(rows[0]).toMatchObject({
-            delta: -4, // generate-theme = 1 theme unit
+            delta: -8, // one theme unit, priced on the default model
             reason: "generate-theme",
-            balanceAfter: 96,
+            balanceAfter: 92,
         });
     });
 
@@ -751,32 +845,147 @@ describe("webhook hardening", () => {
         });
     });
 
-    it("a pack purchase grants once, keyed on the checkout session", async () => {
+    it("a credit purchase grants the line item's quantity, once, keyed on the session", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setWs(workspaceId, { aiCreditsBalance: 10 });
-        const pack = CREDIT_PACKS[0]!;
-        const ev = stripeEvent("checkout.session.completed", {
-            id: "cs_pack_1",
-            mode: "payment",
-            client_reference_id: workspaceId,
-            metadata: { pack: pack.id },
-        });
+        const bought = 1500;
+        // the grant comes off what Stripe charged for, not off anything we wrote in metadata
+        const ev = creditPurchase(workspaceId, bought, { id: "cs_credits_1" });
         await postWebhook(ev);
         await postWebhook(ev);
         const after = await getWs(workspaceId);
-        expect(after.aiCreditsBalance).toBe(10 + pack.credits);
+        expect(after.aiCreditsBalance).toBe(10 + bought);
         // bought, not granted: exempt from the rollover clip, and not doubled by the redelivery
-        expect(after.purchasedCredits).toBe(pack.credits);
+        expect(after.purchasedCredits).toBe(bought);
         const rows = await db
             .select()
             .from(schema.credits)
             .where(eq(schema.credits.workspaceId, workspaceId));
         expect(rows).toHaveLength(1);
         expect(rows[0]).toMatchObject({
-            delta: pack.credits,
-            reason: `topup:${pack.id}`,
-            key: "cs_pack_1",
+            delta: bought,
+            reason: "topup",
+            key: "cs_credits_1",
         });
+    });
+
+    it("ignores a purchase whose session charged for nothing", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { aiCreditsBalance: 10 });
+        stripeMock.checkout.sessions.listLineItems.mockResolvedValue(stripeLineItems([]));
+        await postWebhook(
+            stripeEvent("checkout.session.completed", {
+                id: "cs_credits_empty",
+                mode: "payment",
+                payment_status: "paid",
+                client_reference_id: workspaceId,
+            }),
+        );
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10);
+    });
+
+    it("counts only the credit line, so another one-off product cannot mint credits", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { aiCreditsBalance: 10 });
+        stripeMock.checkout.sessions.listLineItems.mockResolvedValue(
+            stripeLineItems([
+                { priceId: PRICE.credit, quantity: 500 },
+                { priceId: "price_some_other_product", quantity: 9000 },
+            ]),
+        );
+        await postWebhook(
+            stripeEvent("checkout.session.completed", {
+                id: "cs_mixed",
+                mode: "payment",
+                payment_status: "paid",
+                client_reference_id: workspaceId,
+            }),
+        );
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10 + 500);
+    });
+
+    it("waits for the money: an unpaid session grants nothing until it settles", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { aiCreditsBalance: 10 });
+        // a delayed method completes the session before the payment lands
+        await postWebhook(
+            creditPurchase(workspaceId, 500, { id: "cs_async", paymentStatus: "unpaid" }),
+        );
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10);
+
+        stripeMock.checkout.sessions.listLineItems.mockResolvedValue(
+            stripeLineItems([{ priceId: PRICE.credit, quantity: 500 }]),
+        );
+        await postWebhook(
+            stripeEvent("checkout.session.async_payment_succeeded", {
+                id: "cs_async",
+                mode: "payment",
+                payment_status: "paid",
+                client_reference_id: workspaceId,
+            }),
+        );
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10 + 500);
+    });
+
+    it("refuses a quantity outside the bounds we sell", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { aiCreditsBalance: 10 });
+        // a session made outside our API, where the route's bounds never ran
+        await postWebhook(creditPurchase(workspaceId, 5_000_000, { id: "cs_huge" }));
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10);
+    });
+
+    // A refund is money leaving; the credits it bought have to leave with it, or a buy-spend-refund
+    // loop is free AI. Both events resolve the purchase through the session the charge paid for.
+    async function buyThen(workspaceId: string, credits: number, sessionId: string): Promise<void> {
+        await postWebhook(creditPurchase(workspaceId, credits, { id: sessionId }));
+        stripeMock.checkout.sessions.list.mockResolvedValue({ data: [{ id: sessionId }] });
+    }
+
+    it("takes the credits back when a purchase is refunded, once", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { aiCreditsBalance: 0, purchasedCredits: 0 });
+        await buyThen(workspaceId, 2000, "cs_refund_1");
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(2000);
+
+        const ev = stripeEvent("charge.refunded", { id: "ch_1", payment_intent: "pi_1" });
+        await postWebhook(ev);
+        await postWebhook(ev); // redelivery must not take twice
+        const after = await getWs(workspaceId);
+        expect(after.aiCreditsBalance).toBe(0);
+        // the rollover shield must stop protecting a purchase that was handed back
+        expect(after.purchasedCredits).toBe(0);
+        const rows = await db
+            .select()
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        expect(rows.filter((r) => r.reason === "refund")).toHaveLength(1);
+        expect(rows.find((r) => r.reason === "refund")).toMatchObject({ delta: -2000 });
+    });
+
+    it("floors at zero when the refunded credits are already spent", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { aiCreditsBalance: 0, purchasedCredits: 0 });
+        await buyThen(workspaceId, 2000, "cs_refund_2");
+        // spent most of them before asking for the money back
+        await setWs(workspaceId, { aiCreditsBalance: 300 });
+
+        await postWebhook(stripeEvent("charge.refunded", { id: "ch_2", payment_intent: "pi_1" }));
+        const after = await getWs(workspaceId);
+        expect(after.aiCreditsBalance).toBe(0);
+        expect(after.purchasedCredits).toBe(0);
+    });
+
+    it("takes the credits back on a chargeback too", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { aiCreditsBalance: 0, purchasedCredits: 0 });
+        await buyThen(workspaceId, 500, "cs_dispute_1");
+        stripeMock.charges.retrieve.mockResolvedValue({ id: "ch_3", payment_intent: "pi_1" });
+
+        await postWebhook(
+            stripeEvent("charge.dispute.created", { id: "dp_1", charge: "ch_3", amount: 1000 }),
+        );
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(0);
     });
 
     it("a cycle renewal clips its grant at the rollover cap", async () => {
@@ -884,7 +1093,7 @@ describe("webhook hardening", () => {
         const broken = {
             ...fakeSub({ id: "sub_1", priceId: PRICE.premiumMonth, quantity: 3 }),
             items: undefined,
-        } as unknown as Stripe.Subscription;
+        };
         const first = await postSubEvent("customer.subscription.updated", broken, "evt_retry");
         expect(first.status).toBe(500);
         expect(await getWs(workspaceId)).toMatchObject({ plan: "pro", seats: 1 });
@@ -972,6 +1181,72 @@ describe("interval-aware granting", () => {
         const ws = await getWs(workspaceId);
         expect(ws.aiCreditsBalance).toBe(50 + PLANS.pro.ai.includedCredits);
         expect(ws.creditsResetAt.getTime()).toBeGreaterThan(Date.now());
+    });
+
+    // The failing card case: the roll self-heals, then Stripe's retry finally succeeds. The roll
+    // writes no credits.key for the late invoice to collide with, so the window is the claim.
+    it("does not grant twice when a late invoice lands after the self-heal roll", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const lapsed = new Date(Date.now() - 4 * 24 * 3600 * 1000);
+        await setWs(workspaceId, {
+            stripeCustomerId: "cus_1",
+            stripeSubscriptionId: "sub_1",
+            planInterval: "month",
+            planStatus: "past_due",
+            aiCreditsBalance: 50,
+            creditsStartedAt: new Date(lapsed.getTime() - 30 * 24 * 3600 * 1000),
+            creditsResetAt: lapsed,
+        });
+        await authed(userId, "/billing");
+        const rolled = await getWs(workspaceId);
+        expect(rolled.aiCreditsBalance).toBe(50 + PLANS.pro.ai.includedCredits);
+
+        // the retry succeeds days later, for the period the roll already covered
+        await postWebhook(
+            stripeEvent("invoice.paid", {
+                id: "in_late_1",
+                customer: "cus_1",
+                billing_reason: "subscription_cycle",
+                lines: { data: [{ period: { start: Math.floor(lapsed.getTime() / 1000) } }] },
+            }),
+        );
+        const ws = await getWs(workspaceId);
+        expect(ws.aiCreditsBalance).toBe(rolled.aiCreditsBalance);
+        // the payment still landed, so dunning clears even though the grant was skipped
+        expect(ws.planStatus).toBe("active");
+        const grants = await db
+            .select()
+            .from(schema.credits)
+            .where(eq(schema.credits.workspaceId, workspaceId));
+        expect(grants.filter((r) => r.delta > 0)).toHaveLength(1);
+    });
+
+    it("still grants a genuinely new period after a self-heal roll", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "pro" });
+        const lapsed = new Date(Date.now() - 4 * 24 * 3600 * 1000);
+        await setWs(workspaceId, {
+            stripeCustomerId: "cus_1",
+            stripeSubscriptionId: "sub_1",
+            planInterval: "month",
+            aiCreditsBalance: 0,
+            creditsStartedAt: new Date(lapsed.getTime() - 30 * 24 * 3600 * 1000),
+            creditsResetAt: lapsed,
+        });
+        await authed(userId, "/billing");
+        const rolled = await getWs(workspaceId);
+
+        // the NEXT cycle, whose period opens after the roll did
+        await postWebhook(
+            stripeEvent("invoice.paid", {
+                id: "in_next_1",
+                customer: "cus_1",
+                billing_reason: "subscription_cycle",
+                lines: { data: [{ period: { start: Math.floor(Date.now() / 1000) + 60 } }] },
+            }),
+        );
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBeGreaterThan(
+            rolled.aiCreditsBalance,
+        );
     });
 
     it("a live annual subscription rolls lazily and its yearly invoice only clears dunning", async () => {
@@ -1072,8 +1347,8 @@ describe("GET /billing/ledger", () => {
         expect(res.status).toBe(200);
         const { entries } = await res.json();
         expect(entries).toHaveLength(2);
-        expect(entries[0]).toMatchObject({ delta: -1 }); // rewrite-text, newest first
-        expect(entries[1]).toMatchObject({ delta: -4 }); // generate-theme
+        expect(entries[0]).toMatchObject({ delta: -3 }); // rewrite-text, newest first
+        expect(entries[1]).toMatchObject({ delta: -8 }); // generate-theme
     });
 
     it("degrades a parseable but garbage cursor to the first page", async () => {

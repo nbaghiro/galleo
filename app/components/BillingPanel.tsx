@@ -3,7 +3,12 @@ import { createSignal, For, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { Button, Eyebrow, Spinner } from "@ui/button";
 import { TextField } from "@ui/inputs";
-import { visiblePlans } from "@model/billing";
+import {
+    isCreditQuantity,
+    MAX_CREDIT_PURCHASE,
+    MIN_CREDIT_PURCHASE,
+    visiblePlans,
+} from "@model/billing";
 import { CreditActivity, previewEntries } from "./CreditActivity";
 import { PaymentReturnNotice, PolicyRow, SettingsSection as Section } from "./settings";
 import { UpgradeButton } from "./Upgrade";
@@ -53,6 +58,9 @@ export const BillingPanel: Component = () => {
                 spend: m.spend ?? 0,
                 capped: memberCap() != null && m.role === "member",
             }));
+
+    // how many credits the custom field is asking for; presets do not go through it
+    const [custom, setCustom] = createSignal("");
 
     // the cap has a field, so it saves on submit rather than on change like the dropdowns
     const [cap, setCap] = createSignal<string | null>(null);
@@ -162,35 +170,87 @@ export const BillingPanel: Component = () => {
                                 {new Date(state().credits.resetAt).toLocaleDateString()} · you used{" "}
                                 {state().credits.mySpend.toLocaleString()} this cycle
                             </div>
-                            {/* packs are bought once, so they leave for Checkout rather than
-                                changing the subscription */}
-                            <Show when={state().packs.length > 0 && ready()}>
-                                <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
-                                    <For each={state().packs}>
-                                        {(pack) => (
-                                            <Button
-                                                variant="tool"
-                                                size="sm"
-                                                disabled={anyBusy() || !canManage()}
-                                                loading={busy(`pack:${pack.id}`)}
-                                                onClick={() =>
-                                                    void run(`pack:${pack.id}`, () =>
-                                                        startTopUp(pack.id),
-                                                    )
-                                                }
+                            {/* bought credits leave for Checkout rather than changing the
+                                subscription, and are charged by quantity at one flat rate */}
+                            <Show when={ready() ? state().creditSale : null}>
+                                {(sale) => (
+                                    <div class="mt-3 border-t border-line pt-3">
+                                        <div class="flex flex-wrap items-center gap-1.5">
+                                            <For each={sale().presets}>
+                                                {(n) => (
+                                                    <Button
+                                                        variant="tool"
+                                                        size="sm"
+                                                        disabled={anyBusy() || !canManage()}
+                                                        loading={busy(`credits:${n}`)}
+                                                        onClick={() =>
+                                                            void run(`credits:${n}`, () =>
+                                                                startTopUp(n),
+                                                            )
+                                                        }
+                                                    >
+                                                        +{n.toLocaleString()} · $
+                                                        {(n * sale().usdPerCredit).toFixed(2)}
+                                                    </Button>
+                                                )}
+                                            </For>
+                                            <form
+                                                class="flex items-center gap-1.5"
+                                                onSubmit={(e) => {
+                                                    e.preventDefault();
+                                                    const n = Number(custom());
+                                                    if (!isCreditQuantity(n) || anyBusy()) return;
+                                                    void run(`credits:custom`, () => startTopUp(n));
+                                                }}
                                             >
-                                                +{pack.credits.toLocaleString()} · ${pack.priceUsd}
-                                            </Button>
-                                        )}
-                                    </For>
-                                </div>
+                                                <TextField
+                                                    type="number"
+                                                    min={MIN_CREDIT_PURCHASE}
+                                                    max={MAX_CREDIT_PURCHASE}
+                                                    class="w-24"
+                                                    placeholder="Amount"
+                                                    aria-label="Credits to buy"
+                                                    value={custom()}
+                                                    onChange={setCustom}
+                                                />
+                                                <Button
+                                                    type="submit"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={
+                                                        anyBusy() ||
+                                                        !canManage() ||
+                                                        !isCreditQuantity(Number(custom()))
+                                                    }
+                                                    loading={busy("credits:custom")}
+                                                >
+                                                    Buy
+                                                </Button>
+                                            </form>
+                                        </div>
+                                        <div class="mt-1.5 text-[11px] text-muted">
+                                            ${sale().usdPerCredit.toFixed(2)} a credit, from{" "}
+                                            {MIN_CREDIT_PURCHASE.toLocaleString()} to{" "}
+                                            {MAX_CREDIT_PURCHASE.toLocaleString()}. Bought credits
+                                            never expire.
+                                            <Show when={isCreditQuantity(Number(custom()))}>
+                                                {" "}
+                                                {Number(custom()).toLocaleString()} credits costs $
+                                                {(Number(custom()) * sale().usdPerCredit).toFixed(
+                                                    2,
+                                                )}
+                                                .
+                                            </Show>
+                                        </div>
+                                    </div>
+                                )}
                             </Show>
-                            <Show when={state().packs.length === 0 && state().plan === "free"}>
+                            <Show when={!state().creditSale && state().plan === "free"}>
                                 {/* the sellers are read off the catalog, not written into copy */}
                                 <div class="mt-2.5 flex flex-wrap items-center gap-2 text-[11px] text-muted">
                                     <span>
-                                        Credit packs are available on {packSellers()}. Pick a plan
-                                        to unlock them.
+                                        Buying credits is available on {packSellers()}. Pick a plan
+                                        to unlock it.
                                     </span>
                                     <UpgradeButton variant="link" label="See plans" />
                                 </div>

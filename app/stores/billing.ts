@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import type { CreditPackId, Interval, PlanId } from "@model/billing";
+import type { Interval, PlanId } from "@model/billing";
 import { PLAN_ORDER } from "@model/billing";
 import type { BillingState, ChangeEffect, LedgerEntry } from "@app/api";
 import { api, ApiError } from "@app/api";
@@ -185,8 +185,8 @@ export async function resumePlan(): Promise<void> {
     await loadBilling();
 }
 
-export async function startTopUp(pack: CreditPackId): Promise<void> {
-    const { url } = await api.topUp(pack);
+export async function startTopUp(credits: number): Promise<void> {
+    const { url } = await api.topUp(credits);
     if (url) window.location.href = url;
 }
 

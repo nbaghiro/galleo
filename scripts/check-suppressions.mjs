@@ -25,7 +25,7 @@ const MARKERS = [
     { id: "@ts-nocheck", re: directive(String.raw`@ts-nocheck\b`) },
     { id: "prettier-ignore", re: directive(String.raw`prettier-ignore\b`) },
     { id: "coverage-ignore", re: directive(String.raw`(?:v8|c8|istanbul) ignore\b`) },
-    { id: "double-assertion", re: /\bas unknown as\b/, budget: 10 },
+    { id: "double-assertion", re: /\bas unknown as\b/, budget: 4 },
 ];
 
 // Files allowed to carry a budgeted marker, with the reason. Anything else is a hard failure.
@@ -33,7 +33,6 @@ const ALLOW = {
     "double-assertion": [
         "canvas/testkit.ts", // partial CanvasRenderingContext2D stub
         "services/__tests__/reset-db.ts", // raw SQL row shape
-        "services/api/__tests__/billing.itest.ts", // partial Stripe SDK fixtures
         "ui/__tests__/motion.dom.test.ts", // installs a WAAPI recorder happy-dom lacks onto the prototype
     ],
 };

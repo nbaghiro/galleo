@@ -2,7 +2,7 @@ import "dotenv/config";
 import { execFileSync } from "node:child_process";
 import Stripe from "stripe";
 import type { AddOnId, Interval, PlanId } from "@model/billing";
-import { ADD_ONS, ADD_ON_IDS, CREDIT_PACKS, PLANS, PLAN_ORDER } from "@model/billing";
+import { ADD_ONS, ADD_ON_IDS, CREDIT_PRICE_USD, PLANS, PLAN_ORDER } from "@model/billing";
 
 /**
  * Creates (or updates) the Stripe products and prices Galleo sells, from the catalog in
@@ -103,22 +103,20 @@ function wanted(): WantedPrice[] {
         });
     }
 
-    // Credit packs are one-off prices: they are bought once and land in the balance, so they must
-    // NOT be recurring, or Stripe would bill them every month.
-    for (const pack of CREDIT_PACKS) {
-        const key = pack.id.replace("pack-", "").toUpperCase();
-        out.push({
-            lookup: `galleo_${pack.id.replace("-", "_")}`,
-            envVar: `STRIPE_PRICE_PACK_${key}`,
-            interval: null,
-            cents: Math.round(pack.priceUsd * 100),
-            product: {
-                id: `pack_${pack.id}`,
-                name: `Galleo ${pack.label}`,
-                description: `${pack.credits.toLocaleString()} AI credits, bought once. They join the workspace balance and carry over.`,
-            },
-        });
-    }
+    // One price for ONE credit, charged by quantity, so any amount is buyable from a single id. A
+    // one-off price, not recurring, or Stripe would bill the whole purchase again every month.
+    out.push({
+        lookup: "galleo_credit",
+        envVar: "STRIPE_PRICE_CREDIT",
+        interval: null,
+        cents: Math.round(CREDIT_PRICE_USD * 100),
+        product: {
+            id: "credit",
+            name: "Galleo AI credit",
+            description:
+                "One AI credit, bought once. Bought credits join the workspace balance, carry over, and do not expire.",
+        },
+    });
 
     return out;
 }

@@ -132,7 +132,6 @@ export interface OnboardingState {
     done: OnboardingStep[];
     dismissed: boolean;
     format?: Surface;
-    grantReleased: boolean;
 }
 
 export const MAX_NAME_LEN = 80;

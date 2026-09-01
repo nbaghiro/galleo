@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { ArtifactContent, GenMeta } from "@model/artifact";
 import type { PlanId } from "@model/billing";
-import { monthlyGrantFor, packFor, planFor, resolveFeatures } from "@model/billing";
+import { isCreditQuantity, monthlyGrantFor, planFor, resolveFeatures } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { assertDatabaseUrl, db } from "./client";
@@ -428,13 +428,13 @@ async function seedLedger(
                 createdAt,
             });
         } else if (c.kind === "topup") {
-            const pack = packFor(c.pack);
-            if (!pack) throw new Error(`"${spec.slug}": no credit pack "${c.pack}"`);
-            balance += pack.credits;
+            if (!isCreditQuantity(c.credits))
+                throw new Error(`"${spec.slug}": ${c.credits} is not a buyable credit quantity`);
+            balance += c.credits;
             rows.push({
                 workspaceId: ws.id,
-                delta: pack.credits,
-                reason: `topup:${pack.id}`,
+                delta: c.credits,
+                reason: "topup",
                 balanceAfter: balance,
                 createdAt,
             });

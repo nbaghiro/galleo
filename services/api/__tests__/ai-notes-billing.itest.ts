@@ -4,13 +4,12 @@ import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 
-// Its own file because it turns the scripted model ON, and ai.itest.ts asserts what an
-// UNCONFIGURED server does. Sharing a file makes the two depend on hook ordering, which is how the
-// first draft of this test broke three of theirs.
 /**
- * The billing half of the same seam. The tests above stop at the gate because the harness runs with
- * no provider; this one turns on the scripted model (`GALLEO_FAKE_AI`), which is what `aiReady()`
- * consults, so the route gets past its configuration check and reaches the reserve.
+ * The billing half of the same seam. Its own file because it turns the scripted model ON
+ * (`GALLEO_FAKE_AI`, which is what `aiReady()` consults) so the route gets past its configuration
+ * check and reaches the reserve, while ai.itest.ts asserts what an UNCONFIGURED server does.
+ * Sharing a file makes the two depend on hook ordering, which is how the first draft of this test
+ * broke three of theirs.
  *
  * What is asserted is the tenant the hold lands on, not the amount: the run settles back to almost
  * nothing, and the question worth pinning is whose credits were reachable at all.

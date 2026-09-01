@@ -4,8 +4,9 @@ import { describeUsage } from "@model/credits";
 import type { LedgerEntry } from "@app/api";
 import { ledgerReasonLabel } from "@app/stores/billing";
 
-// must stay in sync with the grant reasons the ledger writes (core/ledger.ts, core/billing.ts,
-// core/onboarding.ts); a pack is keyed per pack id as `topup:<pack>`
+// must stay in sync with the grant reasons the ledger writes (core/ledger.ts, core/billing.ts);
+// a pack is keyed per pack id as `topup:<pack>`. `signup-grant` is no longer written: it stays here
+// so the rows it left behind still read as credit added rather than spent.
 const GRANT_REASONS = new Set(["monthly-grant", "renewal-grant", "upgrade-grant", "signup-grant"]);
 const isGrant = (reason: string): boolean =>
     GRANT_REASONS.has(reason) || reason.startsWith("topup:");

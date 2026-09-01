@@ -16,7 +16,9 @@
 //   1. no file under services/api/ imports a tool body from services/core/ai/tools/,
 //   2. no file outside the executor calls reserve() with a tool id, except the ALLOW list below,
 //   3. every tool the catalog puts on a non-internal surface resolves to a scope, and every tool
-//      on the mcp surface has an implementation and a name within the directory's 64-char limit.
+//      on the mcp surface has an implementation and a name within the directory's 64-char limit,
+//   4. every tool with a registered body either carries a price or says `free: true`, so a body
+//      that reaches a provider cannot bill nothing by omission.
 //
 // Self-verifying: a guard that can only report violations cannot tell you it has stopped working,
 // so it plants both textual violations and fails if the scan stays quiet.
@@ -28,7 +30,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { isToolScope, scopeFor, TOOLS, type ToolId } from "@model/tools";
-import { toolsFor } from "@services/core/ai/tools";
+import { registeredToolIds, toolsFor } from "@services/core/ai/tools";
 import "@services/core/ai/tools/register";
 
 const w = (s: string): void => {
@@ -64,6 +66,8 @@ const ALLOW: Record<string, string> = {
         "narrate-artifact + compose-soundtrack: provider calls, no registered tool body",
     "services/api/voices.ts": "audition-voice / design-voice: provider calls, no registered body",
     "services/api/media.ts": "generate-video: no registered tool body yet",
+    "services/api/context.ts":
+        "read-file: a vision read of an upload, no registered tool body to resolve",
     // the agent turn holds ONE reservation for the whole turn and passes holds:"caller" down, which
     // is the seam that stops unifying from double-charging every chat message
     "services/api/ai.ts": "the /ai/turn reservation the whole turn settles against",
@@ -207,4 +211,52 @@ if (catalogFaults.length) {
     process.exit(1);
 }
 
-w(`✓ one executor, one catalog (${files.length} files scanned, ${implemented.size} mcp tools)`);
+// the pricing half: a tool with a body can spend money, so its price has to be a decision
+
+/**
+ * Tools that have a body but say nothing about what they cost. An unpriced tool takes the free
+ * branch in reserve(), which returns a settle that never calls owed(), so a body reaching a
+ * provider burns tokens nobody is billed for. suggest-sections shipped that way: it called
+ * generateObject on every use and charged nothing.
+ */
+export function unpriced(
+    ids: readonly string[],
+    defs: Readonly<Record<string, { usage?: unknown; meter?: unknown; free?: true }>>,
+): string[] {
+    return ids.filter((id) => {
+        const def = defs[id];
+        return !!def && !def.usage && !def.meter && def.free !== true;
+    });
+}
+
+const PRICE_PROBE = {
+    "silent-spender": {},
+    priced: { usage: { reply: 1 } },
+    metered: { meter: () => ({}) },
+    "declared-free": { free: true as const },
+};
+const probed = unpriced(Object.keys(PRICE_PROBE), PRICE_PROBE);
+if (probed.length !== 1 || probed[0] !== "silent-spender") {
+    w("");
+    w("Tool guard self-check failed: the pricing rule did not report exactly the unpriced tool.");
+    w(`It reported [${probed.join(", ")}]; expected [silent-spender]. Fix the rule in ${SELF}.`);
+    process.exit(1);
+}
+
+const silent = unpriced(registeredToolIds(), TOOLS);
+if (silent.length) {
+    w("");
+    w("Tool guard failed: a tool with a body says nothing about what it costs.\n");
+    for (const id of silent) w(`  ${id}`);
+    w("");
+    w("An unpriced tool takes the free branch in reserve(), which never settles, so if its body");
+    w("reaches a provider the tokens are burned and nobody is billed. Give it a `usage` if it");
+    w("spends, or `free: true` if giving it away is the intent. Either way it becomes a decision");
+    w("somebody made in a reviewed diff rather than a field that was left off.");
+    process.exit(1);
+}
+
+w(
+    `✓ one executor, one catalog (${files.length} files scanned, ${implemented.size} mcp tools, ` +
+        `${registeredToolIds().length} bodies priced or declared free)`,
+);

@@ -227,11 +227,12 @@ describe("the rollover cap at the roll", () => {
         const ws0 = await wsRow(workspaceId);
         const cap = rolloverCapFor(ws0);
         const grant = monthlyGrantFor(ws0);
-        // 300 granted + a 2,000-credit pack banked: over the cap, yet the grant lands in full
-        await lapse(workspaceId, { aiCreditsBalance: 300 + 2000, purchasedCredits: 2000 });
+        // a banked pack that puts the balance over the cap: the grant still lands in full
+        const banked = cap + 400;
+        await lapse(workspaceId, { aiCreditsBalance: banked, purchasedCredits: 2000 });
         await rollCreditWindow(await wsRow(workspaceId));
-        expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(300 + 2000 + grant);
-        expect(300 + 2000).toBeGreaterThan(cap);
+        expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(banked + grant);
+        expect(banked).toBeGreaterThan(cap);
 
         // heavy spend since the purchase: the shield follows the balance down at the next roll,
         // clamped against the PRE-grant balance so the fresh grant never counts as pack credits
@@ -240,6 +241,20 @@ describe("the rollover cap at the roll", () => {
         const after = await wsRow(workspaceId);
         expect(after.aiCreditsBalance).toBe(500 + grant);
         expect(after.purchasedCredits).toBe(500);
+    });
+
+    // What the cap has to leave room for: a workspace that opens on its allowance and has spent
+    // nothing is exactly one grant below its own ceiling, so the first roll lands in full.
+    it("gives a fresh free workspace its whole grant at the first roll", async () => {
+        const { workspaceId } = await seedUser();
+        const ws0 = await wsRow(workspaceId);
+        const grant = monthlyGrantFor(ws0);
+        expect(ws0.aiCreditsBalance).toBe(grant); // opens on the allowance, nothing on top of it
+        await lapse(workspaceId);
+        await rollCreditWindow(await wsRow(workspaceId));
+        const [row] = await ledgerOf(workspaceId);
+        expect(row).toMatchObject({ reason: "monthly-grant", delta: grant });
+        expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(rolloverCapFor(ws0));
     });
 
     it("a fully spent pack decays to zero and later rolls bank only to the cap", async () => {

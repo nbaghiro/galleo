@@ -1,6 +1,6 @@
 import { createSignal } from "solid-js";
-import type { UnitRates } from "@model/credits";
-import { unitMultipliers } from "@model/credits";
+import type { UnitPrices } from "@model/credits";
+import { unitPricesFrom } from "@model/credits";
 import { featuresState } from "./features";
 import { modelOverrides, pickModel, setModelOverride, summarizeSteps } from "./models";
 
@@ -109,6 +109,12 @@ export function currentRunSteps(): Record<string, string> {
     return runs().find((r) => r.id === currentId)?.steps ?? {};
 }
 
-// what the studio's cost previews scale by, so the number on the board is the number charged
-export const unitRates = (): UnitRates =>
-    unitMultipliers(effectiveModel, (id) => catalogue()?.rates[id]);
+// What the studio's cost previews price against, so the number on the board is the number charged.
+// The catalogue carries the server's own table, so the client prices a pinned model without holding
+// a model registry of its own.
+export const unitPrices = (): UnitPrices =>
+    unitPricesFrom(
+        effectiveModel,
+        (id, unit) => catalogue()?.unitPrices[id]?.[unit],
+        (unit) => catalogue()?.mediaPrices[unit],
+    );

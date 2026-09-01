@@ -31,8 +31,8 @@ export type { Tx };
  * Stripe webhook and against two requests racing the same grant. The balance moves only when the row
  * is claimed, so there is no path where history and the counter disagree.
  *
- * Lives here rather than beside its Stripe callers because the balance is this file's concern, and a
- * second caller (the signup grant) would otherwise have copied it.
+ * Lives here rather than beside its Stripe callers because the balance is this file's concern: a
+ * grant path decides what to add, not how the counter and the ledger stay in step.
  */
 export async function grantOnce(
     tx: Tx,

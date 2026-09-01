@@ -1,17 +1,18 @@
 import Stripe from "stripe";
 import type { WorkspaceRole } from "@model/workspace";
 import { and, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
-import type { AddOnId, CreditPackId, Interval, PlanId, ScheduledChange } from "@model/billing";
+import type { AddOnId, Interval, PlanId, ScheduledChange } from "@model/billing";
 import {
     addOnsFor,
     clipGrant,
-    CREDIT_PACKS,
+    CREDIT_PRESETS,
+    CREDIT_PRICE_USD,
     CREDITS_PER_GENERATION,
     extraSeatsOf,
     featuresFor,
+    isCreditQuantity,
     limitsFor,
     monthlyGrantFor,
-    packFor,
     planFor,
     rolloverCapFor,
     seatsFor,
@@ -69,14 +70,10 @@ function addOnEnvKey(_id: AddOnId, interval: Interval): string {
     return interval === "year" ? "STRIPE_PRICE_SEAT_YEAR" : "STRIPE_PRICE_SEAT_MONTH";
 }
 
-// one-off prices, so a pack is bought rather than subscribed to
-const PACK_ENV: Record<CreditPackId, string> = {
-    "pack-500": "STRIPE_PRICE_PACK_500",
-    "pack-2k": "STRIPE_PRICE_PACK_2K",
-};
-
-export function packPriceId(pack: CreditPackId): string | undefined {
-    return process.env[PACK_ENV[pack]] || undefined;
+// One one-off price standing for ONE credit, bought by quantity, so any amount is purchasable
+// without a price per size. Not recurring: a bought credit lands in the balance and carries over.
+export function creditPriceId(): string | undefined {
+    return process.env.STRIPE_PRICE_CREDIT || undefined;
 }
 
 // No monthly fallback for the annual key, unlike the plan prices: Stripe rejects a subscription
@@ -219,9 +216,12 @@ export async function billingSummary(ws: WorkspaceRow, userId: string, role?: Wo
         // only what is actually purchasable: the plan must allow it and the price must be configured
         addOns: addOnsFor(ws.plan).filter((a) => !!addOnPriceId(a.id)),
         addOnQuantities: { seat: extraSeatsOf(ws) },
-        packs: planFor(ws.plan).billing.sellsCredits
-            ? CREDIT_PACKS.filter((p) => !!packPriceId(p.id))
-            : [],
+        // what a credit costs to buy and the quantities offered as buttons; empty when the plan
+        // cannot buy them or the price is not configured
+        creditSale:
+            planFor(ws.plan).billing.sellsCredits && creditPriceId()
+                ? { usdPerCredit: CREDIT_PRICE_USD, presets: CREDIT_PRESETS }
+                : null,
         usage: {
             artifacts: Number(artifactCount?.n ?? 0),
             maxArtifacts: limits.maxArtifacts,
@@ -328,29 +328,32 @@ export async function checkoutUrl(
 }
 
 export type TopupResult =
-    | { error: "invalid-pack" }
+    | { error: "invalid-quantity" }
     | { error: "not-configured" }
     | { url: string | null };
 
-/** Payment-mode Checkout: a pack is bought once, so the webhook adds it to the balance and ends. */
+/**
+ * Payment-mode Checkout for `credits` credits, bought once, so the webhook adds them to the balance
+ * and ends. The quantity is the line item's, which is what the webhook reads back rather than
+ * trusting a number we put in metadata.
+ */
 export async function topupUrl(
     ws: WorkspaceRow,
     email: string,
-    packId: CreditPackId | undefined,
+    credits: number | undefined,
 ): Promise<TopupResult> {
-    const pack = packFor(packId);
-    if (!pack) return { error: "invalid-pack" };
-    const price = packPriceId(pack.id);
+    if (credits === undefined || !isCreditQuantity(credits)) return { error: "invalid-quantity" };
+    const price = creditPriceId();
     if (!price) return { error: "not-configured" };
     const customerId = await ensureCustomer(ws, email);
     const session = await stripe().checkout.sessions.create({
         mode: "payment",
         customer: customerId,
-        line_items: [{ price, quantity: 1 }],
+        line_items: [{ price, quantity: credits }],
         client_reference_id: ws.id,
-        metadata: { workspaceId: ws.id, pack: pack.id },
+        metadata: { workspaceId: ws.id },
         success_url: appUrl("/settings/billing?status=topup-success"),
-        // distinct from the plan checkout's cancel so a backed-out pack is not counted as an
+        // distinct from the plan checkout's cancel so a backed-out purchase is not counted as an
         // abandoned plan checkout
         cancel_url: appUrl("/settings/billing?status=topup-cancel"),
     });
@@ -609,9 +612,24 @@ export async function consumeWebhook(
     // Fetched before the claim transaction so no DB connection is held across a network call.
     let checkoutSub: Stripe.Subscription | null = null;
     let supersededSubId: string | null = null;
-    if (event.type === "checkout.session.completed") {
+    // How many credits a purchase bought, read off the line item Stripe actually charged for rather
+    // than off metadata we wrote, so a tampered or stale session cannot mint credits.
+    let boughtCredits = 0;
+    if (
+        event.type === "checkout.session.completed" ||
+        event.type === "checkout.session.async_payment_succeeded"
+    ) {
         const s = event.data.object as Stripe.Checkout.Session;
         const subId = typeof s.subscription === "string" ? s.subscription : s.subscription?.id;
+        if (s.mode === "payment") {
+            const items = await stripe().checkout.sessions.listLineItems(s.id, { limit: 100 });
+            // only the credit line counts: a second one-off product sold through Checkout would
+            // otherwise mint credits equal to its quantity
+            const credit = creditPriceId();
+            boughtCredits = items.data
+                .filter((i) => !!credit && i.price?.id === credit)
+                .reduce((n, i) => n + (i.quantity ?? 0), 0);
+        }
         if (s.mode !== "payment" && subId) {
             checkoutSub = await stripe().subscriptions.retrieve(subId);
             const wsId = s.client_reference_id ?? s.metadata?.workspaceId;
@@ -624,6 +642,11 @@ export async function consumeWebhook(
             }
         }
     }
+    // A refund or a chargeback on a credit purchase: resolve which purchase it undoes before the
+    // transaction, since finding it costs two Stripe round trips.
+    let clawback: Clawback | null = null;
+    if (event.type === "charge.refunded" || event.type === "charge.dispute.created")
+        clawback = await resolveClawback(event);
     // Subscription events sync from freshly retrieved state, not the event payload: any delivery —
     // duplicate, stale, or out of order — converges on what Stripe currently says. Fetched before
     // the transaction so no DB connection is held across a network call.
@@ -638,7 +661,9 @@ export async function consumeWebhook(
     // No idempotency claim: sync effects converge on replay, and grants key their own ledger row
     // (credits.key), so a redelivery finds the row and applies nothing. A failure rolls the whole
     // transaction back and Stripe's retry re-runs it.
-    await db.transaction((tx) => handleEvent(event, checkoutSub, liveSub, tx));
+    await db.transaction((tx) =>
+        handleEvent(event, checkoutSub, liveSub, boughtCredits, clawback, tx),
+    );
     // A checkout that replaced a live subscription leaves the old one billing with no workspace
     // attached; cancel it. Best-effort — a failure here is Stripe state to clean up, not a webhook
     // 500. Self-guarding on redelivery: once processed, the workspace's sub already matches.
@@ -653,6 +678,44 @@ export async function consumeWebhook(
         }
     }
     return { received: true };
+}
+
+/**
+ * A credit purchase coming back: `key` claims the clawback so a redelivery cannot take twice, and
+ * `grantKey` is the `credits.key` the original grant claimed, which is how we know what was bought.
+ */
+interface Clawback {
+    key: string;
+    grantKey: string;
+    reason: "refund" | "chargeback";
+}
+
+/** The charge a refund or dispute is about, with the Checkout session that granted for it. */
+async function resolveClawback(event: Stripe.Event): Promise<Clawback | null> {
+    const isRefund = event.type === "charge.refunded";
+    const charge = isRefund
+        ? (event.data.object as Stripe.Charge)
+        : await chargeOfDispute(event.data.object as Stripe.Dispute);
+    if (!charge) return null;
+    const pi =
+        typeof charge.payment_intent === "string"
+            ? charge.payment_intent
+            : (charge.payment_intent?.id ?? null);
+    if (!pi) return null;
+    const sessions = await stripe().checkout.sessions.list({ payment_intent: pi, limit: 1 });
+    const grantKey = sessions.data[0]?.id;
+    if (!grantKey) return null;
+    const id = isRefund ? charge.id : (event.data.object as Stripe.Dispute).id;
+    return {
+        key: `${isRefund ? "refund" : "dispute"}:${id}`,
+        grantKey,
+        reason: isRefund ? "refund" : "chargeback",
+    };
+}
+
+async function chargeOfDispute(dispute: Stripe.Dispute): Promise<Stripe.Charge | null> {
+    if (typeof dispute.charge !== "string") return dispute.charge ?? null;
+    return await stripe().charges.retrieve(dispute.charge);
 }
 
 const activeStatus = (s: Stripe.Subscription.Status): string =>
@@ -713,17 +776,32 @@ async function handleEvent(
     event: Stripe.Event,
     checkoutSub: Stripe.Subscription | null,
     liveSub: Stripe.Subscription | null,
+    boughtCredits: number,
+    clawback: Clawback | null,
     tx: Tx,
 ): Promise<void> {
-    if (event.type === "checkout.session.completed") {
+    if (
+        event.type === "checkout.session.completed" ||
+        event.type === "checkout.session.async_payment_succeeded"
+    ) {
         const s = event.data.object as Stripe.Checkout.Session;
         const wsId = s.client_reference_id ?? s.metadata?.workspaceId;
         const customerId = typeof s.customer === "string" ? s.customer : (s.customer?.id ?? null);
         if (s.mode === "payment") {
-            // Re-derive the grant from the catalog rather than trusting a count in metadata, and add
-            // it to the balance: with rollover there is nothing to keep it separate from.
-            const pack = packFor(s.metadata?.pack);
-            if (!wsId || !pack) return;
+            // The quantity Stripe charged for is the grant; metadata is not trusted with an amount.
+            if (!wsId || boughtCredits <= 0) return;
+            // A delayed method (bank debit) completes the session unpaid and settles later through
+            // async_payment_succeeded, so the money has to have landed before the credits do. Both
+            // events carry the same session id, and grantOnce keys on it, so only one can grant.
+            if (s.payment_status !== "paid") return;
+            // The session was created by our API, which bounds the quantity, but a session made any
+            // other way reaches here too: re-check rather than grant an amount we would never sell.
+            if (!isCreditQuantity(boughtCredits)) {
+                warn(
+                    `[billing] refusing out-of-bounds credit purchase ${boughtCredits} on ${s.id}`,
+                );
+                return;
+            }
             const [ws] = await tx
                 .select()
                 .from(schema.workspaces)
@@ -732,14 +810,13 @@ async function handleEvent(
             if (ws) {
                 await grantOnce(tx, ws, {
                     key: s.id,
-                    delta: pack.credits,
-                    reason: `topup:${pack.id}`,
+                    delta: boughtCredits,
+                    reason: "topup",
                     // bought, not granted: the rollover clip's floor exempts this share
-                    also: { purchasedCredits: ws.purchasedCredits + pack.credits },
+                    also: { purchasedCredits: ws.purchasedCredits + boughtCredits },
                 });
                 capture(payer(ws), "topup_purchased", {
-                    pack_id: pack.id,
-                    credits: pack.credits,
+                    credits: boughtCredits,
                     usd: (s.amount_total ?? 0) / 100,
                 });
             }
@@ -903,7 +980,19 @@ async function handleEvent(
         const customerId = invCustomer(inv);
         const ws = customerId ? await workspaceByCustomer(tx, customerId) : null;
         if (!ws) return;
-        if (inv.billing_reason === "subscription_cycle" && ws.planInterval !== "year") {
+        // The lazy roll self-heals a missed grant once the webhook grace lapses, and writes no
+        // credits.key for the invoice to collide with. So the window itself is the claim: if it
+        // already opened at or after this invoice's period, the period has been granted.
+        const periodStart = inv.lines?.data[0]?.period?.start;
+        const rolledAlready =
+            periodStart !== undefined &&
+            periodStart !== null &&
+            ws.creditsStartedAt.getTime() >= periodStart * 1000;
+        if (
+            inv.billing_reason === "subscription_cycle" &&
+            ws.planInterval !== "year" &&
+            !rolledAlready
+        ) {
             // Only a monthly cycle renewal grants; other invoices just clear dunning, and an annual
             // renewal too, since the lazy roll owns an annual sub's monthly cadence and granting
             // here as well would double it. The grant adds to what is banked rather than replacing
@@ -932,5 +1021,38 @@ async function handleEvent(
                 .set({ planStatus: "active" })
                 .where(eq(schema.workspaces.id, ws.id));
         }
+    } else if (event.type === "charge.refunded" || event.type === "charge.dispute.created") {
+        if (!clawback) return;
+        const [granted] = await tx
+            .select({ delta: schema.credits.delta, workspaceId: schema.credits.workspaceId })
+            .from(schema.credits)
+            .where(eq(schema.credits.key, clawback.grantKey));
+        // only a credit purchase is clawed back; a refunded subscription invoice is Stripe's to settle
+        if (!granted || granted.delta <= 0) return;
+        const [ws] = await tx
+            .select()
+            .from(schema.workspaces)
+            .where(eq(schema.workspaces.id, granted.workspaceId))
+            .for("update");
+        if (!ws) return;
+        // Credits already spent cannot come back, so the balance simply floors at zero: the money
+        // has gone to the provider and the workspace keeps the work it bought with it.
+        const take = Math.min(granted.delta, ws.aiCreditsBalance);
+        if (take <= 0) return;
+        await grantOnce(tx, ws, {
+            key: clawback.key,
+            delta: -take,
+            reason: clawback.reason,
+            // The shield stops protecting a purchase that was handed back, and never exceeds what
+            // is actually banked after it: the same invariant every grant site keeps by clamping
+            // against the pre-grant balance.
+            also: {
+                purchasedCredits: Math.max(
+                    0,
+                    Math.min(ws.purchasedCredits - take, ws.aiCreditsBalance - take),
+                ),
+            },
+        });
+        warn(`[billing] ${clawback.reason} took back ${take} credits from ${ws.id}`);
     }
 }

@@ -156,7 +156,7 @@ const BOARDS: Board[] = [
             {
                 name: "Hours from signup to email verification",
                 description:
-                    "The number that decides whether gating the signup grant on verification costs minutes or days.",
+                    "How long a new account waits before it can use the product, since confirming is a hard gate.",
                 query: trend([
                     event("email_verified", {
                         math: "p90",

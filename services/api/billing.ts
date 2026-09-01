@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { BAD_BODY, readJson } from "@services/utils/http";
-import { canTopUp } from "@model/billing";
+import { canTopUp, MAX_CREDIT_PURCHASE, MIN_CREDIT_PURCHASE } from "@model/billing";
 import {
     billingSummary,
     changePlan,
@@ -34,7 +34,10 @@ const zWanted = z.object({
     seats: z.number().int().positive().max(100).optional(),
 });
 
-const zTopup = z.object({ pack: z.enum(["pack-500", "pack-2k"]).optional() });
+// the bounds live in the schema, so an absurd quantity is a 400 before it reaches Stripe
+const zTopup = z.object({
+    credits: z.number().int().min(MIN_CREDIT_PURCHASE).max(MAX_CREDIT_PURCHASE),
+});
 
 plan.get("/billing", requireWorkspace, async (c) =>
     c.json(await billingSummary(c.get("ws"), c.get("user").id, c.get("role"))),
@@ -66,7 +69,7 @@ plan.post("/billing/topup", requireWorkspace, async (c) => {
     if (!canTopUp(ws.plan))
         return c.json(
             {
-                error: "Credit packs need a paid plan. Upgrade to buy one.",
+                error: "Buying credits needs a paid plan. Upgrade to buy them.",
                 reason: "feature" as const,
                 upgrade: true,
             },
@@ -74,11 +77,11 @@ plan.post("/billing/topup", requireWorkspace, async (c) => {
         );
     const body = await readJson(c, zTopup);
     if (!body) return c.json(BAD_BODY, 400);
-    const result = await topupUrl(ws, user.email, body.pack);
+    const result = await topupUrl(ws, user.email, body.credits);
     if ("error" in result)
-        return result.error === "invalid-pack"
-            ? c.json({ error: "invalid pack" }, 400)
-            : c.json({ error: "pack not configured" }, 503);
+        return result.error === "invalid-quantity"
+            ? c.json({ error: "invalid credit quantity" }, 400)
+            : c.json({ error: "credit purchase is not configured" }, 503);
     return c.json({ url: result.url });
 });
 

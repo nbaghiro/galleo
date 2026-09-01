@@ -28,7 +28,7 @@ import { DEFAULT_MS, MusicError, musicReady } from "@services/core/ai/music";
 import { SpeechError, speechReady } from "@services/core/ai/speech";
 import { VoiceError } from "@services/core/voices";
 import { publicRead } from "@services/core/links";
-import { ratesFor, reserve } from "@services/core/spend";
+import { pricesFor, reserve } from "@services/core/spend";
 import { creditRefusal, readJson } from "@services/utils/http";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
@@ -134,7 +134,7 @@ narration.post("/artifacts/:id/narration", requireWorkspace, async (c) => {
         .reduce((n, s) => n + (s.notes?.spoken.trim().length ?? 0), 0);
     const held = await reserve(ws, c.get("user").id, "narrate-artifact", {
         size: { speechUnits: Math.max(1, unitsFor(pending)) },
-        rates: ratesFor(ws, {}),
+        prices: pricesFor(ws, {}),
         role,
         surface: "direct",
     });
@@ -195,7 +195,7 @@ narration.post("/artifacts/:id/narration/section/:sectionId", requireWorkspace, 
         content.sections.find((s) => s.id === sectionId)?.notes?.spoken.trim().length ?? 0;
     const held = await reserve(ws, c.get("user").id, "narrate-artifact", {
         size: { speechUnits: Math.max(1, unitsFor(chars)) },
-        rates: ratesFor(ws, {}),
+        prices: pricesFor(ws, {}),
         role,
         surface: "direct",
     });
@@ -278,7 +278,7 @@ narration.post("/music/shelf", requireWorkspace, async (c) => {
 
     const held = await reserve(ws, c.get("user").id, "compose-soundtrack", {
         size: { musicMinutes: 1 },
-        rates: ratesFor(ws, {}),
+        prices: pricesFor(ws, {}),
         role: c.get("role"),
         surface: "direct",
     });
@@ -312,7 +312,7 @@ narration.post("/music/shelf/compose", requireWorkspace, async (c) => {
 
     const held = await reserve(ws, c.get("user").id, "compose-soundtrack", {
         size: { musicMinutes: 1 },
-        rates: ratesFor(ws, {}),
+        prices: pricesFor(ws, {}),
         role: c.get("role"),
         surface: "direct",
     });
@@ -378,7 +378,7 @@ narration.post("/artifacts/:id/soundtrack", requireWorkspace, async (c) => {
     const minutes = Math.max(1, Math.ceil((body.lengthMs || DEFAULT_MS) / 60_000));
     const held = await reserve(ws, c.get("user").id, "compose-soundtrack", {
         size: { musicMinutes: minutes },
-        rates: ratesFor(ws, {}),
+        prices: pricesFor(ws, {}),
         role: gate.role ?? "member",
         surface: "direct",
     });

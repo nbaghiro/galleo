@@ -82,28 +82,26 @@ export interface Plan {
 export const CREDITS_PER_GENERATION = typicalCost("generate-artifact");
 
 /**
- * The monthly allowance per plan, per seat on a per-seat plan. Declared here rather than inline in
- * PLANS so the pricing-card prose below is derived from it: the two are easy to drift apart, and a
- * credit is real provider spend (CREDIT_USD in model/credits.ts), so an allowance is a dollar
- * liability. Sanity-check any change against price: allowance × CREDIT_USD is the worst-case cost of
- * serving a fully-utilised seat, and it must stay well under what that seat pays.
+ * The monthly allowance per plan. Declared here rather than inline in PLANS so the pricing-card
+ * prose below is derived from it: the two are easy to drift apart, and a credit is real provider
+ * spend (CREDIT_USD in model/credits.ts), so an allowance is a dollar liability.
+ *
+ * Sized against the YEARLY price, which is the thinnest way to pay, so every route clears an 80%
+ * margin floor: allowance × CREDIT_USD is what a fully-used plan costs us, and the test in
+ * model/__tests__/billing.test.ts holds it under a fifth of what that plan charges.
  */
 // the only plan that holds a team; Free and Pro are solo, so a seat add-on is Premium-only
 const PREMIUM_SEATS = 3;
 
-const CREDITS_PER_MONTH: Record<PlanId, number> = { free: 100, pro: 700, premium: 2400 };
+// A seat is a seat: what a bought one carries is what an included one is worth, so Premium's own
+// allowance is this times its seat count rather than a literal that can drift away from it.
+const SEAT_CREDITS = 2_100;
 
-/**
- * A one-time grant on top of the first monthly allowance, so exploring in the first session does not
- * spend the first month. Free is 100 credits and a generation costs ~42, which is 2.4 generations: a
- * new account cannot try the product twice and still have room after a bad result. This lifts month
- * one to roughly seven.
- *
- * It is a customer-acquisition cost, not a product cost: at CREDIT_USD it is real provider spend per
- * signup, so review it against conversion rather than against the plan's own margin. Released once,
- * on email verification, on a user's first workspace only (services/core/onboarding.ts).
- */
-export const SIGNUP_GRANT_CREDITS = 200;
+const CREDITS_PER_MONTH: Record<PlanId, number> = {
+    free: 300,
+    pro: 1_200,
+    premium: PREMIUM_SEATS * SEAT_CREDITS,
+};
 
 /** What the allowance buys, for the pricing card. */
 const gens = (n: number): number => Math.round(n / CREDITS_PER_GENERATION);
@@ -123,33 +121,36 @@ export interface AddOn {
 }
 
 export const ADD_ONS: Record<AddOnId, AddOn> = {
-    seat: { id: "seat", label: "Extra seat", priceUsd: 30, seats: 1, credits: 800 },
+    seat: { id: "seat", label: "Extra seat", priceUsd: 30, seats: 1, credits: SEAT_CREDITS },
 };
 
 export const ADD_ON_IDS: AddOnId[] = ["seat"];
 
 /**
- * Credit packs: bought once, not subscribed to. They can share the single balance because unspent
- * credits roll over (see rollCreditWindow), so nothing is ever wiped and a purchase needs no pool of
- * its own. Priced above CREDIT_USD (model/credits.ts) and above every plan's own per-credit rate, so
- * buying capacity outright never undercuts subscribing to it.
+ * Bought credits: any quantity, one flat rate, no volume break. They can share the single balance
+ * because unspent credits roll over (see rollCreditWindow), so nothing is ever wiped and a purchase
+ * needs no pool of its own, and `purchased_credits` keeps them out of the rollover clip so a bought
+ * credit never expires.
+ *
+ * The rate sits above CREDIT_USD (model/credits.ts) and above EVERY visible plan's own per-credit
+ * rate, so buying outright never undercuts subscribing. Checking only the cheapest plan is not
+ * enough: the dearest plan rate is Pro monthly at $20/1,200 = $0.0167, and the old tiered packs sold
+ * under the plan they attached to, so the workspace paying the most got its marginal credit cheapest.
  */
-export type CreditPackId = "pack-500" | "pack-2k";
+export const CREDIT_PRICE_USD = 0.02;
 
-export interface CreditPack {
-    id: CreditPackId;
-    label: string;
-    credits: number;
-    priceUsd: number;
-}
+/** Offered as buttons; any quantity within the bounds is buyable. */
+export const CREDIT_PRESETS: readonly number[] = [500, 2000, 5000];
 
-export const CREDIT_PACKS: CreditPack[] = [
-    { id: "pack-500", label: "500 credits", credits: 500, priceUsd: 20 },
-    { id: "pack-2k", label: "2,000 credits", credits: 2000, priceUsd: 72 },
-];
+// A floor worth charging a card for, and a ceiling so a fat-fingered quantity cannot bill thousands.
+export const MIN_CREDIT_PURCHASE = 100;
+export const MAX_CREDIT_PURCHASE = 100_000;
 
-export const packFor = (id: string | null | undefined): CreditPack | null =>
-    CREDIT_PACKS.find((p) => p.id === id) ?? null;
+export const isCreditQuantity = (n: number): boolean =>
+    Number.isInteger(n) && n >= MIN_CREDIT_PURCHASE && n <= MAX_CREDIT_PURCHASE;
+
+export const creditPurchaseUsd = (credits: number): number =>
+    Math.round(credits * CREDIT_PRICE_USD * 100) / 100;
 
 export const PLANS: Record<PlanId, Plan> = {
     free: {
@@ -345,7 +346,6 @@ export const canUpgradeFrom = (id: string | null | undefined): boolean => {
     return visiblePlans().some((p) => p.order > cur.order);
 };
 
-/** Whether the plan may buy add-ons, the only remedy left once there is nothing above it. */
 /** Whether the plan may buy credit packs, the remedy that works even on the top plan. */
 export const canTopUp = (id: string | null | undefined): boolean =>
     planFor(id).billing.sellsCredits;

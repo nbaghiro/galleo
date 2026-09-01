@@ -1,7 +1,7 @@
 import type { BeatRole, Surface } from "./ai";
 import { BEAT_ROLES } from "./ai";
 import type { ArtifactAccess, SectionTone } from "./artifact";
-import type { AddOnId, CreditPackId, ExportFormat, FeatureKey, Interval, PlanId } from "./billing";
+import type { AddOnId, ExportFormat, FeatureKey, Interval, PlanId } from "./billing";
 import type { AiTask } from "./credits";
 import type { MediaSource } from "./media";
 import type { SectionArchetype } from "./eval";
@@ -183,7 +183,6 @@ export interface WorkspaceTraits {
     credits_granted_this_window: number;
     has_custom_theme: boolean;
     has_stripe_customer: boolean;
-    signup_grant_released: boolean;
 }
 
 export type AiFailureReason =
@@ -310,6 +309,7 @@ export interface Events {
         length: string;
         beat_count: number;
         ms: number;
+        first_beat_ms?: number;
         model_id?: string;
         credits_charged: number;
         // present when the run borrowed a starter's shapes, so plan quality can be read apart
@@ -327,8 +327,16 @@ export interface Events {
         beat_role?: BeatRole;
         archetype?: SectionArchetype;
         ms: number;
+        images_ms?: number;
         credits_charged: number;
         element_count: number;
+    };
+    // a landed section failed the client-side layout triage (measured in the browser's engine)
+    generation_section_flagged: {
+        format: Surface;
+        overflow: boolean;
+        contrast: boolean;
+        sparse: boolean;
     };
     // A beat the build gave up on after its retry, which is not a `generation_failed`: the run
     // carries on and the piece lands one card short rather than stopping.
@@ -550,7 +558,7 @@ export interface Events {
     downgrade_scheduled: { from_plan: PlanId; to_plan: PlanId; effective_at: string };
     downgrade_cancelled: { plan_id: PlanId };
     plan_cancelled: { plan_id: PlanId; days_active: number; artifacts_created: number };
-    topup_purchased: { pack_id: CreditPackId; credits: number; usd: number };
+    topup_purchased: { credits: number; usd: number };
     seats_changed: { from: number; to: number; direction: "up" | "down" };
     billing_portal_opened: { from: string };
     credit_activity_viewed: { plan_id: PlanId };

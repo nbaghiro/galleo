@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
     AI_TASKS,
-    COST_UNITS,
-    costOf,
+    COST_UNITS_ALL,
+    CREDIT_USD,
+    DEFAULT_UNIT_PRICES,
     creditsForUsd,
     describeUsage,
-    unitMultipliers,
+    unitPricesFrom,
+    usdOfUsage,
 } from "@model/credits";
 import {
     isToolScope,
@@ -23,16 +25,20 @@ import {
     typicalCost,
     usageFor,
 } from "@model/tools";
-import type { CostUnit } from "@model/credits";
+import type { ToolId } from "@model/tools";
 
-// Unit prices: plan 3 · section 2 · image 5 · text 1.
+// One rule prices everything: credits = creditsForUsd(sum of unit dollars).
+const P = DEFAULT_UNIT_PRICES;
 
-describe("costOf", () => {
-    it("floors an empty bag at 1 so nothing is free", () => {
-        expect(costOf({})).toBe(1);
+describe("usdOfUsage", () => {
+    it("sums unit price × count", () => {
+        expect(usdOfUsage({ section: 2, image: 1 }, P)).toBeCloseTo(2 * 0.0181605 + 0.071, 9);
     });
-    it("sums unit price × count (1 plan + 12 sections + 3 images = 42)", () => {
-        expect(costOf({ plan: 1, section: 12, image: 3 })).toBe(42);
+    it("is zero for an empty bag, so nothing spent stays nothing", () => {
+        expect(usdOfUsage({}, P)).toBe(0);
+    });
+    it("contributes nothing for a unit the caller priced at nothing", () => {
+        expect(usdOfUsage({ section: 5 }, {})).toBe(0);
     });
 });
 
@@ -48,108 +54,113 @@ describe("describeUsage", () => {
 });
 
 describe("creditsForUsd", () => {
-    it("converts provider spend at the derived credit price", () => {
-        expect(creditsForUsd(0.384)).toBe(27);
+    it("converts provider spend at the chosen credit price", () => {
+        expect(creditsForUsd(27 * CREDIT_USD)).toBe(27);
     });
     it("floors a real call at 1 credit rather than free", () => {
         expect(creditsForUsd(0.000001)).toBe(1);
     });
 });
 
-const rate =
+const price =
     (map: Record<string, number>) =>
     (id: string): number | undefined =>
         map[id];
 
-describe("unitMultipliers", () => {
-    it("prices each unit by the model behind its task", () => {
-        const rates = unitMultipliers(
+describe("unitPricesFrom", () => {
+    it("prices each unit from the model behind its task", () => {
+        const prices = unitPricesFrom(
             (t) => ({ outline: "big", section: "small" })[t as string],
-            rate({ big: 3, small: 0.5 }),
+            (id) => price({ big: 0.3, small: 0.05 })(id),
         );
-        expect(rates).toEqual({ plan: 3, section: 0.5 });
+        expect(prices.plan).toBe(0.3);
+        expect(prices.section).toBe(0.05);
     });
 
-    it("omits a unit priced at the baseline, so an untouched run carries no rates at all", () => {
-        expect(unitMultipliers(() => "flash", rate({ flash: 1 }))).toEqual({});
+    it("leaves media units unpriced without a media resolver", () => {
+        const prices = unitPricesFrom(() => "big", price({ big: 0.3 }));
+        expect(prices.image).toBeUndefined();
+        expect(prices.video).toBeUndefined();
     });
 
-    it("leaves media units alone: they run on their own models", () => {
-        const rates = unitMultipliers(() => "big", rate({ big: 4 }));
-        expect(rates.image).toBeUndefined();
-        expect(rates.video).toBeUndefined();
+    it("prices media units through the media resolver when one is given", () => {
+        const prices = unitPricesFrom(
+            () => "flash",
+            price({ flash: 0.01 }),
+            (u) => (u === "image" ? 0.071 : undefined),
+        );
+        expect(prices.image).toBe(0.071);
+        expect(prices.video).toBeUndefined();
     });
 
-    it("falls back to the baseline for a model with no price", () => {
-        expect(unitMultipliers(() => "unknown", rate({}))).toEqual({});
+    it("drops a model with no price rather than inventing one", () => {
+        expect(unitPricesFrom(() => "unknown", price({}))).toEqual({});
     });
 
-    it("backs every non-media unit with a task, and asks for a real one", () => {
+    it("backs every non-media unit with a real task", () => {
         const asked: string[] = [];
-        const rates = unitMultipliers(
+        const prices = unitPricesFrom(
             (t) => {
                 asked.push(t);
                 return "m";
             },
-            rate({ m: 2 }),
+            price({ m: 0.02 }),
         );
-        const priced = (Object.keys(COST_UNITS) as CostUnit[]).filter((u) => rates[u]);
+        const priced = COST_UNITS_ALL.filter((u) => prices[u]);
         expect(priced.sort()).toEqual(["plan", "reply", "section", "text", "theme"]);
         for (const t of asked) expect(AI_TASKS).toContain(t);
     });
 });
 
-describe("costOf with rates", () => {
-    it("bills a pinned step at its multiple", () => {
-        expect(costOf({ section: 10 })).toBe(20);
-        expect(costOf({ section: 10 }, { section: 2.93 })).toBe(59);
-    });
-
-    it("charges the old price when nothing is pinned", () => {
-        const usage = { plan: 1, section: 12, image: 3 };
-        expect(costOf(usage, {})).toBe(costOf(usage));
-    });
-
-    it("scales only the pinned unit", () => {
-        expect(costOf({ plan: 1, section: 12 }, { plan: 3 })).toBe(3 * 3 + 12 * 2);
-    });
-
-    it("still floors at 1 so nothing is free", () => {
-        expect(costOf({ text: 1 }, { text: 0.14 })).toBe(1);
-    });
-});
-
 describe("estimateCost", () => {
-    it("scales generate-artifact by the intake length (1 plan + 7 sections = 17)", () => {
-        expect(estimateCost("generate-artifact", { length: "Short" })).toBe(17);
+    it("scales generate-artifact by the intake length (1 plan + 7 sections)", () => {
+        expect(estimateCost("generate-artifact", { length: "Short" }, P)).toBe(58);
     });
-    it("uses the default size when nothing is passed (1 plan + 12 sections = 27)", () => {
-        expect(estimateCost("generate-artifact", {})).toBe(27);
+    it("uses the default size when nothing is passed (1 plan + 12 sections)", () => {
+        expect(estimateCost("generate-artifact", {}, P)).toBe(95);
     });
-    it("honors an explicit section count (1 plan + 20 sections = 43)", () => {
-        expect(estimateCost("generate-artifact", { sections: 20 })).toBe(43);
+    it("honors an explicit section count (1 plan + 20 sections)", () => {
+        expect(estimateCost("generate-artifact", { sections: 20 }, P)).toBe(153);
     });
     it("meters AI images per image, while stock ones stay free", () => {
-        // Short + AI sources 2 images: 3 + 14 + 2 × 5 = 27, and they scale with the image rate
-        expect(estimateCost("generate-artifact", { length: "Short", imageSource: "ai" })).toBe(27);
-        expect(
-            estimateCost("generate-artifact", { length: "Short", imageSource: "ai" }, { image: 2 }),
-        ).toBe(37);
-        expect(estimateCost("generate-artifact", { length: "Short" }, { image: 2 })).toBe(17);
+        // Short + AI sources 2 images, so the pictures add their own dollars on top
+        expect(estimateCost("generate-artifact", { length: "Short", imageSource: "ai" }, P)).toBe(
+            115,
+        );
+        expect(estimateCost("generate-artifact", { length: "Short" }, P)).toBe(58);
     });
-    it("quotes a whole generation at the picked model's rate", () => {
-        const flat = estimateCost("generate-artifact", { sections: 12 });
-        const heavy = estimateCost("generate-artifact", { sections: 12 }, { plan: 3, section: 3 });
-        expect(heavy).toBeGreaterThan(flat * 2.5);
+    it("quotes a whole generation at the picked model's price", () => {
+        const cheap = estimateCost("generate-artifact", { sections: 12 }, P);
+        const heavy = estimateCost(
+            "generate-artifact",
+            { sections: 12 },
+            { ...P, plan: P.plan! * 3, section: P.section! * 3 },
+        );
+        expect(heavy).toBeGreaterThan(cheap * 2.5);
+    });
+    it("agrees with what the settle would charge for exactly those units", () => {
+        const usage = { plan: 1, section: 12 };
+        expect(estimateCost("generate-artifact", { sections: 12 }, P)).toBe(
+            creditsForUsd(usdOfUsage(usage, P)),
+        );
     });
 });
 
 describe("typicalCost", () => {
-    it("prices a headline generate with its typical AI images", () => {
-        expect(typicalCost("generate-artifact")).toBe(42);
+    // AI images are opt-in at the intake form, so the headline is the stock-photo path
+    it("prices a headline generate on the stock-photo default", () => {
+        expect(typicalCost("generate-artifact", P)).toBe(95);
     });
-    it("prices a single added section at 2 credits", () => {
-        expect(typicalCost("add-section")).toBe(2);
+    it("adds the images only when the run opts into AI ones", () => {
+        expect(estimateCost("generate-artifact", { sections: 12, imageSource: "stock" }, P)).toBe(
+            95,
+        );
+        expect(
+            estimateCost("generate-artifact", { sections: 12, imageSource: "ai", images: 3 }, P),
+        ).toBe(180);
+    });
+    it("floors a sub-cent action at one credit rather than free", () => {
+        expect(typicalCost("add-section", P)).toBe(7);
     });
 });
 
@@ -169,7 +180,7 @@ describe("studio tools", () => {
         const t = TOOLS["plan-outline"];
         expect(t.surfaces).toContain("direct");
         expect(t.live).toBe(true);
-        expect(estimateCost("plan-outline")).toBe(3);
+        expect(estimateCost("plan-outline", {}, P)).toBe(8);
     });
     it("keeps the composition primitives off every caller-facing surface", () => {
         for (const id of ["plan-section", "write-section", "check-section", "pick-arc"] as const)
@@ -195,7 +206,7 @@ describe("free tools", () => {
     // action tools that move or rename something: no model call, so nothing to bill
     const FREE = ["reorder-section", "remove-section", "set-format", "set-theme"] as const;
 
-    it.each(FREE)("%s reserves nothing, despite costOf's 1-credit floor", (id) => {
+    it.each(FREE)("%s reserves nothing, despite the 1-credit floor on a real call", (id) => {
         expect(estimateCost(id)).toBe(0);
         expect(typicalCost(id)).toBe(0);
         expect(costRange(id)).toEqual({ min: 0, max: 0 });
@@ -204,6 +215,15 @@ describe("free tools", () => {
     it("keeps them off the credits table", () => {
         const listed = PRICED_TOOLS.map((t) => t.id);
         for (const id of FREE) expect(listed).not.toContain(id);
+    });
+
+    // `free` zeroes a tool's cost, so a tool carrying both would silently give away a real charge.
+    // check:tools enforces the other half, that a tool with a body declares one of the two.
+    it("never marks a priced tool free", () => {
+        const both = (Object.keys(TOOLS) as ToolId[]).filter(
+            (id) => TOOLS[id].free === true && (TOOLS[id].usage || TOOLS[id].meter),
+        );
+        expect(both).toEqual([]);
     });
 });
 
@@ -227,42 +247,53 @@ describe("the credits table", () => {
             "generate-video",
             "narrate-artifact",
             "plan-outline",
+            // a vision pass over a scan; the text-layer branch beside it stays free
+            "read-file",
             "refine-prompt",
             "revise-element",
             "rewrite-passage",
             "rewrite-section",
             "rewrite-text",
             "suggest-section-layouts",
+            // it calls a model on every use; it billed nothing until the free-by-omission fix
+            "suggest-sections",
             "translate-text",
             "write-speaker-notes",
         ]);
     });
 
-    it("prices the media actions apart from the text ones", () => {
-        expect(typicalCost("generate-image")).toBe(COST_UNITS.image);
-        expect(typicalCost("generate-video")).toBe(COST_UNITS.video);
+    it("prices the media actions from their own models, far apart from the text ones", () => {
+        expect(typicalCost("generate-image", P)).toBe(creditsForUsd(P.image!));
+        expect(typicalCost("generate-video", P)).toBe(creditsForUsd(P.video!));
+        expect(typicalCost("generate-video", P)).toBeGreaterThan(typicalCost("generate-image", P));
     });
 });
 
 describe("what the gate holds", () => {
     it("holds the estimate when a tool has no ceiling", () => {
-        expect(reserveCost("add-section")).toBe(estimateCost("add-section"));
-        expect(reserveCost("generate-artifact", { length: "Short" })).toBe(
-            estimateCost("generate-artifact", { length: "Short" }),
+        expect(reserveCost("add-section", {}, P)).toBe(estimateCost("add-section", {}, P));
+        expect(reserveCost("generate-artifact", { length: "Short" }, P)).toBe(
+            estimateCost("generate-artifact", { length: "Short" }, P),
         );
     });
 
     it("holds more than it shows for a chat turn, whose tool loop has no bound", () => {
-        expect(estimateCost("ask-assistant")).toBe(2);
-        expect(reserveCost("ask-assistant")).toBe(10);
+        expect(reserveCost("ask-assistant", {}, P)).toBeGreaterThan(
+            estimateCost("ask-assistant", {}, P),
+        );
+        expect(reserveCost("ask-assistant", {}, P)).toBe(creditsForUsd(5 * P.reply!));
     });
 
     it("keeps the shown price out of the ceiling, so the table is unaffected", () => {
-        expect(typicalCost("ask-assistant")).toBe(2);
+        expect(typicalCost("ask-assistant", P)).toBe(creditsForUsd(P.reply!));
     });
 
     it("prices a ceiling against the caller's models too", () => {
-        expect(reserveCost("ask-assistant", {}, { reply: 3 })).toBe(30);
+        const dear = { ...P, reply: P.reply! * 10 };
+        expect(reserveCost("ask-assistant", {}, dear)).toBe(creditsForUsd(5 * dear.reply));
+        expect(reserveCost("ask-assistant", {}, dear)).toBeGreaterThan(
+            9 * reserveCost("ask-assistant", {}, P),
+        );
     });
 
     it("never holds anything for a free tool", () => {
