@@ -173,12 +173,19 @@ viewport already accounts for the strip's horizontal clipping, so one observer c
 neither needs tile geometry. Requests split into batches of 8 rather than truncating, and sections are
 held per artifact in an LRU of 30 cards, so scrolling a long library does not accumulate it.
 
-The library's grid layout, which is the default, asks for less again. A card shows the artifact's
-cover image and nothing else until someone walks it, so the only sections it fetches are the one on
-screen and the one an arrow away, and it fetches neither until the card itself has crossed into view.
-A first paint of the library therefore reads no section content at all; the list is the layout that
-pays for the strip. Both read the same per-artifact cache (`cardSections`), so switching between them
-repaints from what is already held rather than refetching.
+The library's grid layout asks for less again. A card shows the artifact's cover image and nothing
+else until someone walks it, so the only sections it fetches are the one on screen and the one an
+arrow away, and it fetches neither until the card itself has crossed into view. A first paint in that
+layout therefore reads no section content at all; the list is the layout that pays for the strip.
+
+The canvas layout, which is the default, sits between them: each plate asks for the four sections it
+paints, and asks a viewport early rather than on arrival, because unlike a strip's tiles a plate is
+most of what the card is. Being the default is what makes that budget the one worth watching, since a
+first paint of the library is now a screen of plates rather than a screen of cover images. A pointer
+on the card deepens it to twelve, which is what makes it worth scrolling; that stays cheap because
+the stack painter caches per section and the plate holds one cache for its life rather than minting
+a fresh one per paint. All three layouts read the same per-artifact cache (`cardSections`), so
+switching between them repaints from what is already held rather than refetching.
 
 The eval list row borrows the strip's layout but not its loading. It renders `run.lead`, whole
 sections the list response already carries, so there is nothing to observe and no stand-in to paint;

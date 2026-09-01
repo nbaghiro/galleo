@@ -35,7 +35,7 @@ export {
 
 // How the library draws its rows. A per-device layout choice, so localStorage rather than the
 // account row: the same person wants list on a laptop and grid on a wide monitor.
-export type LibraryLayout = "list" | "grid";
+export type LibraryLayout = "list" | "grid" | "canvas";
 const LAYOUT_KEY = "galleo:library-layout";
 let storedLayout: string | null = null;
 try {
@@ -44,7 +44,7 @@ try {
     /* storage unavailable — use the default */
 }
 const [libraryLayout, setLayoutSignal] = createSignal<LibraryLayout>(
-    storedLayout === "list" ? "list" : "grid",
+    storedLayout === "list" || storedLayout === "grid" ? storedLayout : "canvas",
 );
 export { libraryLayout };
 
@@ -130,8 +130,10 @@ export function ensureLibrary(): Promise<void> {
 
 // ids per request; a wide strip asks for more than this, split across requests rather than truncated
 export const CARD_BATCH = 8;
-// artifacts whose sections stay in memory; a long scroll would otherwise accumulate the whole library
-const CARD_CACHE_MAX = 30;
+// Artifacts whose sections stay in memory; a long scroll would otherwise accumulate the whole
+// library. Three list pages, so the cap sits above what any viewport can show at once: the canvas
+// layout paints a plate per card, and evicting one that is still on screen blanks it.
+export const CARD_CACHE_MAX = 72;
 
 // sections held per artifact, keyed by section id: a strip loads the ones scrolled into view, not all
 const [cardSections, setCardSections] = createSignal<Record<string, Record<string, Section>>>({});

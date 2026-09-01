@@ -489,6 +489,13 @@ export const Sidebar: Component = () => {
     );
 };
 
+// A fact and its counterpart on one line, each kept whole. The sidebar is 230px wide and a theme may
+// set a monospace UI font, so a pair that fits in Inter can be 30% wider in Space Mono, and the
+// numbers here have no upper bound (a workspace with enough seats banks six figures). Wrapping is
+// therefore inevitable at some width; what this stops is wrapping INSIDE a phrase, which is what
+// turned "2,131 credits left" into "2,131 credits" over "left".
+const PAIR_ROW = "flex flex-wrap items-baseline justify-between gap-x-2";
+
 // The plan-at-a-glance card: what's left to spend this cycle, and anything that needs attention
 // (failed payment, pending downgrade). Detail lives in settings; this is the glance.
 const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }> = (props) => {
@@ -505,10 +512,10 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
         <div
             class={`mt-3 flex-none rounded-xl border bg-canvas p-3 ${pastDue() ? "border-accent" : "border-line"}`}
         >
-            <div class="flex items-baseline justify-between text-[11.5px] font-semibold text-soft">
-                <span class="capitalize">{props.b.plan} plan</span>
+            <div class={`${PAIR_ROW} text-[11.5px] font-semibold text-soft`}>
+                <span class="whitespace-nowrap capitalize">{props.b.plan} plan</span>
                 <Show when={props.b.seats > 1}>
-                    <span class="text-muted">{props.b.seats} seats</span>
+                    <span class="whitespace-nowrap text-muted">{props.b.seats} seats</span>
                 </Show>
             </div>
             <Meter
@@ -518,16 +525,16 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
                 trackTone="line"
                 class="my-2"
             />
-            <div class="flex items-baseline justify-between text-[10.5px] text-muted">
-                <span class="tabular-nums">
+            <div class={`${PAIR_ROW} text-[10.5px] text-muted`}>
+                <span class="whitespace-nowrap tabular-nums">
                     <span class={`font-semibold ${low() ? "text-fail" : "text-soft"}`}>
                         {remaining().toLocaleString()}
                     </span>{" "}
-                    credits left
+                    credits
                 </span>
-                <span>
+                <span class="whitespace-nowrap">
                     {props.b.credits.capped
-                        ? "at the rollover cap"
+                        ? "at the cap"
                         : `+${props.b.credits.monthlyGrant.toLocaleString()} in ${grantIn()}d`}
                 </span>
             </div>
@@ -535,19 +542,19 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
             <Show when={props.b.credits.myCap != null}>
                 <div class="mt-0.5 text-[10.5px] tabular-nums text-muted">
                     You: {props.b.credits.mySpend.toLocaleString()} /{" "}
-                    {props.b.credits.myCap!.toLocaleString()} cr this cycle
+                    {props.b.credits.myCap!.toLocaleString()} cr
                 </div>
             </Show>
             <a
-                class={`mt-1.5 block cursor-pointer text-[11.5px] font-semibold ${pastDue() ? "text-accent" : "text-accent"}`}
+                class="mt-1.5 block cursor-pointer whitespace-nowrap text-[11.5px] font-semibold text-accent"
                 onClick={() => props.navigate(pastDue() ? "/settings/billing" : "/settings/plan")}
             >
                 {pastDue()
-                    ? "Payment failed. Fix billing →"
+                    ? "Payment failed →"
                     : lapsing()
                       ? "Plan ends soon. Resume →"
                       : props.b.plan === "free"
-                        ? "Upgrade for more credits →"
+                        ? "Get more credits →"
                         : "Manage plan →"}
             </a>
         </div>

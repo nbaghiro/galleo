@@ -31,8 +31,8 @@ test("a created artifact appears, opens, trashes, and restores", async ({ page }
     await page.request.post(`/api/artifacts/${id}/trash`);
 });
 
-// The grid is the default and draws the same rows as cards, so what it has to prove is the part the
-// list has no equivalent for: the carousel reaches the sections. The switch and its memory follow.
+// The grid draws the same rows as cards, so what it has to prove is the part the list has no
+// equivalent for: the carousel reaches the sections. The switch and its memory follow.
 test("the grid layout carries a section carousel and remembers the switch", async ({ page }) => {
     // Its own multi-section artifact rather than whichever seeded card sorts first: a one-section
     // card disables its arrows, and a disabled arrow is pointer-events-none, so the hover never lands.
@@ -42,6 +42,7 @@ test("the grid layout carries a section carousel and remembers the switch", asyn
         sec("s3", colOf([txt("Carousel page three")])),
     ]);
     await page.goto("/");
+    await page.getByTitle("Grid", { exact: true }).click();
     await expect(page.locator("main section")).toHaveCount(0);
 
     // the title button's parent is the media box, which also holds the nav arrows and the counter
@@ -52,14 +53,66 @@ test("the grid layout carries a section carousel and remembers the switch", asyn
     await next.click();
     await expect(media.getByTestId("card-position")).toBeVisible();
 
+    // the third layout draws the same cells, painting each artifact as its own editor canvas
+    await page.getByTitle("Canvas", { exact: true }).click();
+    await expect(page.locator('[data-testid="library-grid"] > div').first()).toBeVisible();
+    await expect(page.locator("main section")).toHaveCount(0);
+
     await page.getByTitle("List", { exact: true }).click();
     await expect(page.locator("main section").first()).toBeVisible();
     await page.reload();
     await expect(page.locator("main section").first()).toBeVisible();
 
-    // the choice persists per device, so put it back: later specs read the library in its default
-    // grid, where what is on screen (and so matchable) is not the same set of rows.
-    await page.getByTitle("Grid", { exact: true }).click();
+    await page.request.post(`/api/artifacts/${id}/trash`);
+});
+
+// The plate takes the wheel from the page, which is a mode, so the thing worth pinning is that it
+// is only entered on purpose: a wheel over a card the pointer merely crossed still scrolls the page.
+test("a plate takes the wheel only once the pointer has held still on it", async ({ page }) => {
+    const id = await makeArtifact(
+        page.request,
+        "Plate scroll fixture",
+        Array.from({ length: 8 }, (_, i) =>
+            sec(`s${i + 1}`, colOf([txt(`Plate section ${i + 1} body copy that fills the page`)])),
+        ),
+    );
+    await page.goto("/"); // canvas is the default, so the plates are already what is on screen
+    const card = page.locator('[data-testid="library-grid"] > div').first();
+    await expect(card).toBeVisible();
+    const box = (await card.boundingBox())!;
+    const x = Math.round(box.x + box.width / 2);
+    const y = Math.round(box.y + 60);
+    const tops = (): Promise<{ page: number; plate: number }> =>
+        page.evaluate(() => ({
+            page: Math.round(document.querySelector("main")!.scrollTop),
+            plate: Math.round(document.querySelector('[data-testid="plate"]')!.scrollTop),
+        }));
+
+    const overflow = (): Promise<string> =>
+        page.evaluate(
+            () => getComputedStyle(document.querySelector('[data-testid="plate"]')!).overflowY,
+        );
+
+    // A pointer that is only over this card because the page moved under it does not arm: the dwell
+    // starts on a pointermove and a page scroll cancels a pending one, so after this scroll there is
+    // no clock running. Asserted this way round rather than by racing a wheel against the 500ms,
+    // which is a coin toss on a loaded parallel run.
+    await page.mouse.move(x, y);
+    await page.evaluate(() => document.querySelector("main")!.scrollBy({ top: 40 }));
+    await expect.poll(overflow).toBe("hidden");
+    const before = (await tops()).page;
+    await page.mouse.wheel(0, 250);
+    await expect.poll(async () => (await tops()).page).toBeGreaterThan(before);
+    expect((await tops()).plate).toBe(0);
+
+    // moving the pointer again starts a fresh dwell, and holding hands the wheel to the plate
+    await page.evaluate(() => document.querySelector("main")!.scrollTo({ top: 0 }));
+    await page.mouse.move(x + 4, y + 4);
+    await expect.poll(overflow).toBe("auto");
+    await page.mouse.wheel(0, 250);
+    await expect.poll(async () => (await tops()).plate).toBeGreaterThan(0);
+    expect((await tops()).page).toBe(0);
+
     await page.request.post(`/api/artifacts/${id}/trash`);
 });
 

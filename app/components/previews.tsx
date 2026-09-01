@@ -281,7 +281,8 @@ export const SectionThumb: Component<{
 /**
  * A static, scaled copy of the editor's own canvas: the section stack at natural heights over the
  * artifact's backdrop. Paged formats keep their inter-slide gap and the backdrop shows through it,
- * which is what makes a deck read as slides rather than as one page. The caller crops it.
+ * which is what makes a deck read as slides rather than as one page. The caller crops it, unless it
+ * passes `scroll`, in which case the plate's own box is the scroller.
  */
 export const ArtifactPlate: Component<{
     content: ArtifactContent;
@@ -292,9 +293,15 @@ export const ArtifactPlate: Component<{
     // drawn px of head margin, so the first section clears the card edge the way it clears the
     // editor's own top padding; the backdrop still fills the card behind it
     padTop?: number;
+    /** Let the plate's box scroll its own stack. Off by default: a plate is normally a crop. */
+    scroll?: boolean;
 }> = (props) => {
     let host!: HTMLDivElement;
+    let sizer!: HTMLDivElement;
     let inner!: HTMLDivElement;
+    // one cache for the life of the plate: a re-run with a deeper stack then reuses the layers it
+    // already laid out instead of paying for the whole thing again
+    const cache = createSectionStackCache();
 
     createEffect(() => {
         const tk = resolveTheme(props.themeId).tokens;
@@ -304,13 +311,16 @@ export const ArtifactPlate: Component<{
         // absolutely positioned, so scaling the host afterwards is safe
         const { height } = paintSectionStack(inner, sections, profile, tk, {
             fullW: props.layoutWidth,
-            cache: createSectionStackCache(),
+            cache,
         });
-        inner.style.cssText = scaledHostCss(
-            props.layoutWidth,
-            height,
-            props.width / props.layoutWidth,
-        );
+        const scale = props.width / props.layoutWidth;
+        inner.style.cssText = scaledHostCss(props.layoutWidth, height, scale);
+        // A transform does not change layout, so the scaled stack still occupies its full unscaled
+        // height. Stating the drawn height here is what lets a scrolling host measure the extent a
+        // reader actually sees rather than one several times too long. The head margin is part of
+        // that extent: box-sizing is border-box, so leaving it out clips the foot of the artifact
+        // by exactly the margin at the head.
+        sizer.style.height = `${Math.round(height * scale) + (props.padTop ?? 0)}px`;
         host.style.background = backdropCss(props.content.background, tk);
         host.style.backgroundSize = "cover";
         host.style.backgroundPosition = "center";
@@ -320,9 +330,20 @@ export const ArtifactPlate: Component<{
     // width, which is exactly how the editor canvas reads: a narrow doc column shows more backdrop
     // either side than a full-bleed site does, and that difference IS the format's proportion.
     return (
-        <div ref={host} class="relative h-full w-full overflow-hidden">
+        <div
+            ref={host}
+            data-testid="plate"
+            class={`relative h-full w-full ${
+                props.scroll
+                    ? // contain, so reaching the end of the plate does not hand the wheel back to
+                      // the page mid-gesture; the scrollbar is left off because the plate is a picture
+                      "overflow-y-auto overscroll-contain [scrollbar-width:none]"
+                    : "overflow-hidden"
+            }`}
+        >
             <div
-                class="mx-auto"
+                ref={sizer}
+                class="mx-auto overflow-hidden"
                 style={{ width: `${props.width}px`, "padding-top": `${props.padTop ?? 0}px` }}
             >
                 <div ref={inner} />
@@ -351,10 +372,49 @@ const PLATE_CARD_DEPTH = 4; // sections painted before the foot fades
 // maxContentWidth (1000), reached once fullW hits 1064, and passing the 816 page width instead
 // rendered it at 752 and read too narrow.
 const CARD_LAYOUT_W: Record<string, number> = { deck: 1280, doc: 1064, web: 1440 };
-const CARD_SCALE = PLATE_CARD_W / Math.max(...Object.values(CARD_LAYOUT_W));
+const CARD_WIDEST = Math.max(...Object.values(CARD_LAYOUT_W));
 // head margin so a page clears the card edge the way it clears the editor's top padding; a site has
 // no page margin to clear, so it starts at the edge
 const CARD_PAD_TOP = 14;
+
+/**
+ * The plate cropped to its box, drawn at the format's share of that box: the widest format fills
+ * it and the others sit proportionally narrower on the backdrop. Positions itself, so the caller
+ * supplies a relative box and the height it wants.
+ */
+export const PlateBox: Component<{
+    content: ArtifactContent;
+    themeId: string;
+    width: number; // the box's width in px, which the widest format fills
+    depth?: number;
+    scroll?: boolean;
+}> = (props) => {
+    const layoutW = (): number => CARD_LAYOUT_W[props.content.format] ?? CARD_LAYOUT_W.deck!;
+    const bleeds = (): boolean => profileFor(props.content).bleedSections === true;
+    return (
+        // A crop's stack runs on past the bottom, so its foot fades rather than being cut. A
+        // scrolling one is not a crop: there the fade washes out the content being read and, at the
+        // end of the artifact, reads as a gap between the plate and the card under it.
+        <div
+            class="absolute inset-0"
+            style={
+                props.scroll
+                    ? undefined
+                    : { "mask-image": "linear-gradient(180deg,#000 84%,transparent 100%)" }
+            }
+        >
+            <ArtifactPlate
+                content={props.content}
+                themeId={props.themeId}
+                width={Math.round(layoutW() * (props.width / CARD_WIDEST))}
+                layoutWidth={layoutW()}
+                depth={props.depth ?? PLATE_CARD_DEPTH}
+                padTop={bleeds() ? 0 : CARD_PAD_TOP}
+                scroll={props.scroll}
+            />
+        </div>
+    );
+};
 
 export const PlateCard: Component<{
     content: ArtifactContent;
@@ -364,50 +424,33 @@ export const PlateCard: Component<{
     disabled?: boolean;
     /** The word on the hover plate; "Preview" unless the click does something else. */
     action?: string;
-}> = (props) => {
-    const layoutW = (): number => CARD_LAYOUT_W[props.content.format] ?? CARD_LAYOUT_W.deck!;
-    const bleeds = (): boolean => profileFor(props.content).bleedSections === true;
-    return (
-        <button
-            class="group flex flex-col text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
-            style={{ width: `${PLATE_CARD_W}px` }}
-            disabled={props.disabled}
-            onClick={() => props.onOpen()}
+}> = (props) => (
+    <button
+        class="group flex flex-col text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent"
+        style={{ width: `${PLATE_CARD_W}px` }}
+        disabled={props.disabled}
+        onClick={() => props.onOpen()}
+    >
+        <div
+            class="relative overflow-hidden rounded-xl border border-line bg-canvas transition group-hover:border-accent"
+            style={{ height: `${PLATE_CARD_H}px` }}
         >
-            <div
-                class="relative overflow-hidden rounded-xl border border-line bg-canvas transition group-hover:border-accent"
-                style={{ height: `${PLATE_CARD_H}px` }}
-            >
-                {/* the stack runs on past the crop, so the foot fades rather than being cut */}
-                <div
-                    class="absolute inset-0"
-                    style={{ "mask-image": "linear-gradient(180deg,#000 84%,transparent 100%)" }}
-                >
-                    <ArtifactPlate
-                        content={props.content}
-                        themeId={props.themeId}
-                        width={Math.round(layoutW() * CARD_SCALE)}
-                        layoutWidth={layoutW()}
-                        depth={PLATE_CARD_DEPTH}
-                        padTop={bleeds() ? 0 : CARD_PAD_TOP}
-                    />
-                </div>
-                <div class="pointer-events-none absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
-                    <span class="rounded-lg bg-white px-3.5 py-2 text-[12px] font-bold text-[#1a1a1a]">
-                        {props.action ?? "Preview"}
-                    </span>
-                </div>
-            </div>
-            <span class="mt-2 flex items-center gap-1.5 text-muted">
-                <Icon name={formatIcon(props.content.format)} size={12} />
-                <span class="text-[10px] font-bold uppercase tracking-[0.06em]">
-                    {formatLabelPlural(props.content.format)}
+            <PlateBox content={props.content} themeId={props.themeId} width={PLATE_CARD_W} />
+            <div class="pointer-events-none absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                <span class="rounded-lg bg-white px-3.5 py-2 text-[12px] font-bold text-[#1a1a1a]">
+                    {props.action ?? "Preview"}
                 </span>
+            </div>
+        </div>
+        <span class="mt-2 flex items-center gap-1.5 text-muted">
+            <Icon name={formatIcon(props.content.format)} size={12} />
+            <span class="text-[10px] font-bold uppercase tracking-[0.06em]">
+                {formatLabelPlural(props.content.format)}
             </span>
-            <span class="mt-0.5 truncate text-[12.5px] font-semibold text-ink">{props.name}</span>
-        </button>
-    );
-};
+        </span>
+        <span class="mt-0.5 truncate text-[12.5px] font-semibold text-ink">{props.name}</span>
+    </button>
+);
 
 export const PreviewCanvas: Component<{
     content: ArtifactContent;

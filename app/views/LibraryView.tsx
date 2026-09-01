@@ -1,10 +1,11 @@
-import type { Section, SectionSummary } from "@model/artifact";
+import type { ArtifactContent, Section, SectionSummary } from "@model/artifact";
 import { emptyRegion } from "@model/artifact";
 import type { Component } from "solid-js";
 import {
     createEffect,
     createMemo,
     createSignal,
+    untrack,
     For,
     Index,
     Match,
@@ -65,7 +66,7 @@ import {
 } from "@ui/icons";
 import { classifySwipe } from "@ui/gesture";
 import { isCoarsePointer } from "@ui/viewport";
-import { MiniCanvas, SectionThumb } from "@app/components/previews";
+import { MiniCanvas, PLATE_CARD_W, PlateBox, SectionThumb } from "@app/components/previews";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 
 // fills use soft/accent tints, legible on light and dark unlike line
@@ -79,8 +80,12 @@ const TILE_SETTLE = 90; // ms of quiet before the visible tiles are asked for
 
 const LAYOUTS: { label: string; value: LibraryLayout; icon: string }[] = [
     { label: "Grid", value: "grid", icon: "grid" },
+    { label: "Canvas", value: "canvas", icon: "plate" },
     { label: "List", value: "list", icon: "rows" },
 ];
+// Segmented answers with the option's value as a plain string, so the union is re-established here
+const asLayout = (v: string): LibraryLayout =>
+    LAYOUTS.find((l) => l.value === v)?.value ?? "canvas";
 
 // opaque, not tinted: the arrows sit over whatever the section painted, light or dark
 // Chrome that sits over a cover image. Theme tokens cannot carry it: the surface behind is somebody
@@ -105,11 +110,25 @@ const menuSize = (): "lg" | "xs" => (isCoarsePointer() ? TOUCH_SIZE.token : OVER
 const NAV_CLS = `pointer-events-auto grid size-7 place-items-center rounded-full ${OVER_MEDIA} disabled:pointer-events-none disabled:opacity-0`;
 
 const GRID_MIN = 280; // narrowest a card gets before the grid drops a column
+// The canvas layout runs narrower than the grid: a plate is an impression of a whole artifact
+// rather than a picture of one section, so it reads at the width the onboarding wall already gives
+// the same component, and a card that tall wants the extra column back.
+const PLATE_MIN = PLATE_CARD_W;
 const GRID_GAP = 20;
 // Every tile in the library is this shape, in both layouts. A section that does not share it is
 // re-framed into it and fills it: a thumbnail is a picture of the section, and bars around one read
 // as a broken card.
 const CARD_ASPECT = 16 / 9;
+// The canvas layout's card is taller than a cover tile, because what it shows is a stack running on
+// past the crop: at 16:9 a deck's first slide fills the box and there is nothing behind it to read.
+const PLATE_ASPECT = 4 / 3;
+const PLATE_DEPTH = 4; // sections asked for and painted before the crop takes over
+const PLATE_SCROLL_DEPTH = 12; // how far a hovered plate loads, so there is something to scroll
+// how long the pointer holds still on a plate before the plate, not the page, takes the wheel
+const PLATE_DWELL = 500;
+// A plate is asked for before it is scrolled to, unlike a strip's tiles: TILE_LEAD leads sideways
+// because that is the axis a strip clips on, and a grid of plates clips on the other one.
+const PLATE_LEAD = "400px";
 
 const GhostCard: Component<{ variant: number }> = (p) => (
     <div class="flex min-h-37.5 flex-col gap-2.5 rounded-xl border border-soft/15 bg-panel p-3">
@@ -371,8 +390,9 @@ export const LibraryView: Component = () => {
         gridRo.observe(el);
     };
     onCleanup(() => gridRo?.disconnect());
+    const cellMin = (): number => (libraryLayout() === "canvas" ? PLATE_MIN : GRID_MIN);
     const gridCols = (): number =>
-        Math.max(1, Math.floor((gridW() + GRID_GAP) / (GRID_MIN + GRID_GAP)));
+        Math.max(1, Math.floor((gridW() + GRID_GAP) / (cellMin() + GRID_GAP)));
     const cardW = (): number =>
         gridW() ? Math.floor((gridW() - GRID_GAP * (gridCols() - 1)) / gridCols()) : 0;
 
@@ -530,6 +550,45 @@ export const LibraryView: Component = () => {
                 Delete
             </MenuItem>
         </Menu>
+    );
+
+    // a coarse pointer has no hover, so the chrome stays out
+    // focus-visible, not focus-within: a mouse click leaves focus on the arrow, which would
+    // otherwise pin the chrome open after the pointer has left
+    const chrome = (): string =>
+        isCoarsePointer()
+            ? "opacity-100"
+            : "opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100";
+
+    const cardCls = (id: string): string =>
+        `flex flex-col overflow-hidden rounded-xl border bg-panel transition-colors ${
+            isSelected(id) ? "border-accent bg-accent/5" : "border-line"
+        }`;
+
+    // the strip under a card's preview, the same in both card layouts
+    const CardMeta: Component<{ d: ArtifactSummary }> = (p) => (
+        <div class="flex items-center gap-2.5 p-3">
+            <ThemeMark themeId={p.d.themeId} size={30} />
+            <div class="min-w-0 flex-1">
+                <div class="truncate text-[13.5px] font-semibold text-ink" title={p.d.title}>
+                    {p.d.title}
+                </div>
+                <div class="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10.5px] text-muted">
+                    <span class="font-mono text-[9px] font-bold uppercase tracking-[0.06em] text-accent">
+                        {formatLabel(p.d.formatId)}
+                    </span>
+                    <span>·</span>
+                    <span>{(p.d.sections ?? []).length} sections</span>
+                    <span>·</span>
+                    <span>{relativeTime(p.d.updatedAt)}</span>
+                </div>
+                <Show when={limitedAccess(p.d.access)}>
+                    {(label) => (
+                        <div class="mt-0.5 text-[10.5px] font-semibold text-soft">{label()}</div>
+                    )}
+                </Show>
+            </div>
+        </div>
     );
 
     const CoverFill: Component<{ img?: string }> = (p) => (
@@ -729,17 +788,14 @@ export const LibraryView: Component = () => {
             const id = summaryId();
             return id && !cardSection(p.d.id, id) ? at() : undefined;
         };
-        // the card asks for what it shows plus the next one, so an arrow click paints immediately
+        // The card asks for what it shows plus the next one, so an arrow click paints immediately.
+        // Visibility stays live rather than latching on the first sighting: the section cache is an
+        // LRU, so a card can lose what it painted while off screen and has to ask again on return.
         let root!: HTMLElement;
         onMount(() => {
-            const io = new IntersectionObserver(
-                (es) => {
-                    if (!es.some((e) => e.isIntersecting)) return;
-                    setNear(true);
-                    io.disconnect();
-                },
-                { rootMargin: TILE_LEAD },
-            );
+            const io = new IntersectionObserver((es) => setNear(es.some((e) => e.isIntersecting)), {
+                rootMargin: TILE_LEAD,
+            });
             io.observe(root);
             onCleanup(() => io.disconnect());
         });
@@ -749,16 +805,11 @@ export const LibraryView: Component = () => {
             const want = [idx(), idx() + 1]
                 .filter((i) => i >= 0 && i < list.length)
                 .map((i) => tileId(list[i]!, i));
-            if (want.length) void ensureCardSections(p.d.id, want);
+            // untracked: ensureCardSections reads the section cache to see what is missing, and a
+            // tracked read there makes every card re-ask whenever any other card's fetch lands
+            if (want.length) untrack(() => void ensureCardSections(p.d.id, want));
         });
 
-        // a coarse pointer has no hover, so the chrome stays out
-        // focus-visible, not focus-within: a mouse click leaves focus on the arrow, which would
-        // otherwise pin the chrome open after the pointer has left
-        const chrome = (): string =>
-            isCoarsePointer()
-                ? "opacity-100"
-                : "opacity-0 transition-opacity group-hover:opacity-100 group-has-[:focus-visible]:opacity-100";
         const go = (d: number): void => {
             setIdx((v) => Math.min(secs().length - 1, Math.max(firstIdx(), v + d)));
         };
@@ -804,12 +855,7 @@ export const LibraryView: Component = () => {
         };
 
         return (
-            <div
-                ref={(el) => (root = el)}
-                class={`flex flex-col overflow-hidden rounded-xl border bg-panel transition-colors ${
-                    isSelected(p.d.id) ? "border-accent bg-accent/5" : "border-line"
-                }`}
-            >
+            <div ref={(el) => (root = el)} class={cardCls(p.d.id)}>
                 <div
                     class="group relative touch-pan-y"
                     style={{ height: `${mediaH()}px` }}
@@ -894,33 +940,156 @@ export const LibraryView: Component = () => {
                     />
                 </div>
 
-                <div class="flex items-center gap-2.5 p-3">
-                    <ThemeMark themeId={p.d.themeId} size={30} />
-                    <div class="min-w-0 flex-1">
-                        <div
-                            class="truncate text-[13.5px] font-semibold text-ink"
-                            title={p.d.title}
-                        >
-                            {p.d.title}
-                        </div>
-                        <div class="mt-0.5 flex items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10.5px] text-muted">
-                            <span class="font-mono text-[9px] font-bold uppercase tracking-[0.06em] text-accent">
-                                {formatLabel(p.d.formatId)}
-                            </span>
-                            <span>·</span>
-                            <span>{secs().length} sections</span>
-                            <span>·</span>
-                            <span>{relativeTime(p.d.updatedAt)}</span>
-                        </div>
-                        <Show when={limitedAccess(p.d.access)}>
-                            {(label) => (
-                                <div class="mt-0.5 text-[10.5px] font-semibold text-soft">
-                                    {label()}
-                                </div>
-                            )}
-                        </Show>
-                    </div>
+                <CardMeta d={p.d} />
+            </div>
+        );
+    };
+
+    // The canvas layout's card: the artifact the way the editor draws it, its own backdrop with the
+    // head of the section stack standing on it at the format's own layout width, so a doc sits on
+    // more backdrop than a deck and a site runs to the card's edges. Drawn in the APP theme, like
+    // the other two layouts' tiles: a wall of plates each in its own palette reads as a stack of
+    // unrelated screenshots rather than as one library. The saved theme is still what the artifact
+    // opens in, and the card's specimen mark is where you read it. Hold the pointer still on one
+    // and it takes the wheel, so the plate reads further down the artifact without opening it.
+    const Plate: Component<{ d: ArtifactSummary; width: number }> = (p) => {
+        const secs = (): SectionSummary[] => p.d.sections ?? [];
+        const mediaH = (): number => Math.round(p.width / PLATE_ASPECT);
+        // Deeper once the pointer is on the card, since reading further is the whole point of
+        // arming it; a cap rather than the whole artifact, because every section here is a real
+        // layout at the format's full width and the fade already says there is more.
+        const depth = (): number => (hovering() ? PLATE_SCROLL_DEPTH : PLATE_DEPTH);
+        const want = (): string[] =>
+            secs()
+                .slice(0, depth())
+                .map((sec, i) => tileId(sec, i));
+
+        // Live visibility, not a latch, for the same reason as the grid card's: an evicted plate
+        // only repaints if something asks for its sections again when it comes back on screen.
+        let root!: HTMLElement;
+        const [near, setNear] = createSignal(false);
+        onMount(() => {
+            const io = new IntersectionObserver((es) => setNear(es.some((e) => e.isIntersecting)), {
+                rootMargin: PLATE_LEAD,
+            });
+            io.observe(root);
+            onCleanup(() => io.disconnect());
+        });
+        createEffect(() => {
+            const ids = want();
+            // untracked for the reason the grid card's is: the cache this reads is one signal for
+            // the whole library, and tracking it turns one card's fetch into every card's re-ask
+            if (near() && ids.length) untrack(() => void ensureCardSections(p.d.id, ids));
+        });
+
+        // Taking the wheel from the page is a mode, so it has to be asked for. The ask is a pointer
+        // that MOVED onto this card and then held still: a cursor parked where the page happened to
+        // scroll under it never moves, so it never arms, which is the case that would otherwise
+        // swallow the next flick of the wheel. Any page scroll cancels a pending arm for the same
+        // reason. Hovering also deepens the stack, so by the time it arms there is something to read.
+        const [hovering, setHovering] = createSignal(false);
+        const [armed, setArmed] = createSignal(false);
+        let dwell: number | undefined;
+        const disarm = (): void => {
+            window.clearTimeout(dwell);
+            dwell = undefined;
+            setArmed(false);
+        };
+        const startDwell = (): void => {
+            // hover intent is the whole mechanism, and a finger has no hover: on touch the page
+            // keeps the gesture and the plate stays a crop
+            if (dwell || armed() || isCoarsePointer()) return;
+            dwell = window.setTimeout(() => {
+                dwell = undefined;
+                setArmed(true);
+            }, PLATE_DWELL);
+        };
+        // Scroll does not bubble, so the page's own scroller is only reachable in the capture
+        // phase, which also hears the plate scrolling itself: that one is the armed state working,
+        // not the page moving, and disarming on it would hand the rest of the gesture back.
+        onMount(() => {
+            const onPageScroll = (e: Event): void => {
+                if (e.target instanceof Node && root.contains(e.target)) return;
+                disarm();
+            };
+            window.addEventListener("scroll", onPageScroll, true);
+            onCleanup(() => window.removeEventListener("scroll", onPageScroll, true));
+        });
+        onCleanup(() => window.clearTimeout(dwell));
+
+        // The head of the stack, and only a contiguous one: a hole would paint the sections after
+        // it at the wrong offset. Holding the previous array when nothing moved keeps every other
+        // card's fetch from repainting this plate, since the section cache is one shared signal.
+        const head = createMemo<Section[]>((prev) => {
+            const out: Section[] = [];
+            for (const id of want()) {
+                const sec = cardSection(p.d.id, id);
+                if (!sec) break;
+                out.push(sec);
+            }
+            return prev.length === out.length && prev.every((sec, i) => sec === out[i])
+                ? prev
+                : out;
+        }, []);
+
+        // The digest carries the backdrop's image but not the paint behind it, so an artifact
+        // backed by a gradient or a colour reads as its theme's own ground here.
+        const content = createMemo(
+            (): ArtifactContent => ({
+                format: p.d.formatId,
+                theme: appTheme(),
+                sections: head(),
+                ...(p.d.cover?.image
+                    ? { background: { kind: "image" as const, image: p.d.cover.image } }
+                    : {}),
+                ...(p.d.page ? { page: p.d.page } : {}),
+            }),
+        );
+
+        return (
+            <div ref={(el) => (root = el)} class={cardCls(p.d.id)}>
+                <div
+                    class="group relative"
+                    style={{ height: `${mediaH()}px` }}
+                    onPointerEnter={() => setHovering(true)}
+                    onPointerMove={() => startDwell()}
+                    onPointerLeave={() => {
+                        setHovering(false);
+                        disarm();
+                    }}
+                >
+                    <button
+                        class={`absolute inset-0 block w-full overflow-hidden ${
+                            armed() ? "ring-1 ring-inset ring-accent" : ""
+                        }`}
+                        style={{ background: appTk().bg }}
+                        title={p.d.title}
+                        draggable={true}
+                        onDragStart={(e) => startDrag(e, p.d.id, p.d.cover?.image)}
+                        onDragEnd={() => setDraggingArtifact(null)}
+                        onClick={(e) => pickOrOpen(p.d.id, e)}
+                    >
+                        <PlateBox
+                            content={content()}
+                            themeId={appTheme()}
+                            width={p.width}
+                            depth={depth()}
+                            scroll={armed()}
+                        />
+                    </button>
+                    <SelectMark
+                        id={p.d.id}
+                        class={`absolute left-2 top-2 ${
+                            selectMode() ? "" : isCoarsePointer() ? "hidden" : chrome()
+                        }`}
+                    />
+                    <ArtifactMenu
+                        d={p.d}
+                        class={`absolute right-2 top-2 ${OVER_MEDIA}`}
+                        fade={chrome()}
+                    />
                 </div>
+                <CardMeta d={p.d} />
             </div>
         );
     };
@@ -963,7 +1132,7 @@ export const LibraryView: Component = () => {
                                 size="md"
                                 value={libraryLayout()}
                                 options={LAYOUTS}
-                                onChange={(v) => setLibraryLayout(v === "grid" ? "grid" : "list")}
+                                onChange={(v) => setLibraryLayout(asLayout(v))}
                             />
                             <TextField
                                 icon="search"
@@ -1066,7 +1235,7 @@ export const LibraryView: Component = () => {
                         }
                     >
                         <Show
-                            when={libraryLayout() === "grid"}
+                            when={libraryLayout() !== "list"}
                             fallback={<For each={shown()}>{(d) => <Band d={d} />}</For>}
                         >
                             <div class="px-5 py-6 md:px-9">
@@ -1081,7 +1250,14 @@ export const LibraryView: Component = () => {
                                 >
                                     <Show when={cardW()}>
                                         <For each={shown()}>
-                                            {(d) => <Card d={d} width={cardW()} />}
+                                            {(d) => (
+                                                <Show
+                                                    when={libraryLayout() === "canvas"}
+                                                    fallback={<Card d={d} width={cardW()} />}
+                                                >
+                                                    <Plate d={d} width={cardW()} />
+                                                </Show>
+                                            )}
                                         </For>
                                     </Show>
                                 </div>

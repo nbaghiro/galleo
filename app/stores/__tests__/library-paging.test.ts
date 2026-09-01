@@ -3,6 +3,7 @@ import type { ArtifactPage, ArtifactSummary, Section } from "@model/artifact";
 import {
     artifacts,
     CARD_BATCH,
+    CARD_CACHE_MAX,
     cardSection,
     ensureCardSections,
     loadLibrary,
@@ -199,9 +200,11 @@ describe("ensureCardSections", () => {
     });
 
     it("forgets the least recently touched cards rather than growing forever", () => {
-        for (let i = 0; i < 40; i++)
+        // driven off the cap rather than a literal, so raising it does not turn this red
+        const over = CARD_CACHE_MAX + 10;
+        for (let i = 0; i < over; i++)
             seedCardSections(`card${i}`, [{ id: "s1", root: { type: "text", data: {} } }]);
         expect(cardSection("card0", "s1")).toBeUndefined();
-        expect(cardSection("card39", "s1")?.id).toBe("s1");
+        expect(cardSection(`card${over - 1}`, "s1")?.id).toBe("s1");
     });
 });
