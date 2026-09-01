@@ -8,8 +8,9 @@ import { getModel } from "@services/core/models";
 
 export interface TokenUse {
     modelId: string;
-    input: number;
+    input: number; // cached tokens included
     output: number;
+    cached?: number;
 }
 
 // A ModelSpan IS a TokenUse structurally, so billing keeps reading `uses` unchanged; the trace-only
@@ -53,8 +54,8 @@ export function recordParts(assembled: string, parts: PromptPart[]): void {
 export const partsOf = (assembled: string | undefined): PromptPart[] | undefined =>
     assembled ? scope.getStore()?.parts.get(assembled) : undefined;
 
-export function recordTokens(modelId: string, input: number, output: number): void {
-    record({ modelId, input, output, step: stepScope.getStore() ?? "", ms: 0 });
+export function recordTokens(modelId: string, input: number, output: number, cached = 0): void {
+    record({ modelId, input, output, cached, step: stepScope.getStore() ?? "", ms: 0 });
 }
 
 /** The full record for one call; `recordTokens` is the billing-only shorthand. */
@@ -70,13 +71,24 @@ export function recordUsd(usd: number): void {
     if (meter && usd > 0) meter.extraUsd += usd;
 }
 
-/** Provider list price for what was used, in USD. Unknown models price at zero rather than guess. */
+/**
+ * Provider list price for what was used, in USD. Unknown models price at zero rather than guess.
+ *
+ * Cached input is charged at the model's cached rate, roughly a tenth of standard. It has to be
+ * split out here rather than folded into `input`: the provider reports one total, so pricing all of
+ * it at the standard rate would bill the customer for a discount we were given.
+ */
 export function usdOf(uses: readonly TokenUse[]): number {
     let usd = 0;
     for (const u of uses) {
         const m = getModel(u.modelId);
         if (!m) continue;
-        usd += (u.input / 1e6) * m.usd[0] + (u.output / 1e6) * m.usd[1];
+        const cached = Math.min(u.cached ?? 0, u.input);
+        const fresh = u.input - cached;
+        usd +=
+            (fresh / 1e6) * m.usd[0] +
+            (cached / 1e6) * (m.cachedUsd ?? m.usd[0]) +
+            (u.output / 1e6) * m.usd[1];
     }
     return usd;
 }

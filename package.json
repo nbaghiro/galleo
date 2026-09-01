@@ -9,6 +9,7 @@
         "check:suppressions": "node scripts/check-suppressions.mjs",
         "check:program": "node scripts/check-tsc-program.mjs",
         "check:models": "node scripts/check-models.mjs",
+        "check:prices": "node scripts/check-prices.mjs",
         "check:elements": "tsx scripts/check-elements.ts",
         "eval:diagrams": "vitest run canvas/elements/diagram/__tests__/visual-invariants.test.ts",
         "check:boundaries": "node scripts/check-boundaries.mjs",

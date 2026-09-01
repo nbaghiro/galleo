@@ -1,37 +1,48 @@
 import { describe, expect, it } from "vitest";
-import { COST_MULTIPLIERS, costMultiplier, DEFAULT_MODELS, MODELS } from "@services/core/models";
+import { DEFAULT_MODELS, MODELS, textUnitPrice, unitPricesFor } from "@services/core/models";
 
-describe("costMultiplier", () => {
-    it("prices the default model at exactly the baseline, so an untouched run bills as before", () => {
-        expect(costMultiplier(DEFAULT_MODELS.outline)).toBe(1);
+// What a unit of text work costs on each model. The old multiplier table priced a model against a
+// blended baseline; a unit price is the same question answered in dollars, per unit, with no blend.
+
+describe("textUnitPrice", () => {
+    it("prices a unit from the model's own token rates", () => {
+        const m = MODELS.find((x) => x.id === DEFAULT_MODELS.outline)!;
+        expect(textUnitPrice(m.id, "section")).toBeCloseTo(
+            (8171 / 1e6) * m.usd[0] + (656 / 1e6) * m.usd[1],
+            9,
+        );
     });
 
-    it("prices every registered model", () => {
-        for (const m of MODELS) expect(COST_MULTIPLIERS[m.id], m.id).toBeGreaterThan(0);
+    it("prices every model above nothing", () => {
+        for (const m of MODELS) expect(textUnitPrice(m.id, "section"), m.id).toBeGreaterThan(0);
     });
 
-    it("treats an unknown id as the baseline rather than free", () => {
-        expect(costMultiplier("made:up")).toBe(1);
+    it("has no price for a model it does not serve", () => {
+        expect(textUnitPrice("made:up", "section")).toBeUndefined();
     });
 
-    it("orders the Anthropic ladder the way their price list does", () => {
-        const m = COST_MULTIPLIERS;
-        expect(m["anthropic:claude-haiku-4-5"]!).toBeLessThan(m["anthropic:claude-sonnet-5"]!);
-        expect(m["anthropic:claude-sonnet-5"]!).toBeLessThan(m["anthropic:claude-opus-5"]!);
-        expect(m["anthropic:claude-opus-5"]!).toBeLessThan(m["anthropic:claude-fable-5"]!);
+    it("has no text price for a media unit", () => {
+        expect(textUnitPrice(DEFAULT_MODELS.outline, "image")).toBeUndefined();
     });
 
-    it("puts the cheap tiers below the baseline and the frontier tiers above it", () => {
-        expect(COST_MULTIPLIERS["openai:gpt-5.4-nano"]!).toBeLessThan(1);
-        expect(COST_MULTIPLIERS["google:gemini-3.1-flash-lite-preview"]!).toBeLessThan(1);
-        expect(COST_MULTIPLIERS["openai:gpt-5.5"]!).toBeGreaterThan(1);
-        expect(COST_MULTIPLIERS["anthropic:claude-fable-5"]!).toBeGreaterThan(4);
+    it("orders the cheap models below the default and the dear ones above", () => {
+        const base = textUnitPrice(DEFAULT_MODELS.outline, "section")!;
+        const cheaper = ["openai:gpt-5.4-nano", "google:gemini-3.1-flash-lite-preview"];
+        const dearer = ["openai:gpt-5.5", "anthropic:claude-fable-5"];
+        for (const id of cheaper) expect(textUnitPrice(id, "section"), id).toBeLessThan(base);
+        for (const id of dearer) expect(textUnitPrice(id, "section"), id).toBeGreaterThan(base);
     });
 
-    it("carries a published price for every model, so none is silently free", () => {
-        for (const m of MODELS) {
-            expect(m.usd[0], `${m.id} input`).toBeGreaterThan(0);
-            expect(m.usd[1], `${m.id} output`).toBeGreaterThan(0);
-        }
+    it("puts Fable 5 several times above the default, as its token rates do", () => {
+        const base = textUnitPrice(DEFAULT_MODELS.outline, "section")!;
+        expect(textUnitPrice("anthropic:claude-fable-5", "section")!).toBeGreaterThan(base * 4);
+    });
+});
+
+describe("unitPricesFor", () => {
+    it("covers every unit the product can bill", () => {
+        const p = unitPricesFor("premium");
+        for (const unit of ["plan", "section", "text", "theme", "reply", "image", "video"] as const)
+            expect(p[unit], unit).toBeGreaterThan(0);
     });
 });

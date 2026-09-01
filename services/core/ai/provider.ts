@@ -126,8 +126,9 @@ function metering(id: string): LanguageModelMiddleware {
             const r = await doGenerate();
             const input = r.usage?.inputTokens?.total ?? 0;
             const output = r.usage?.outputTokens?.total ?? 0;
+            const cached = r.usage?.inputTokens?.cacheRead ?? 0;
             if (!tracing()) {
-                recordTokens(id, input, output);
+                recordTokens(id, input, output, cached);
                 return r;
             }
             const text = r.content
@@ -137,6 +138,7 @@ function metering(id: string): LanguageModelMiddleware {
                 modelId: id,
                 input,
                 output,
+                cached,
                 step: "",
                 ms: Date.now() - t0,
                 ...traceFields(params),
@@ -162,11 +164,13 @@ function metering(id: string): LanguageModelMiddleware {
                             if (part.type === "finish") {
                                 const input = part.usage?.inputTokens?.total ?? 0;
                                 const output = part.usage?.outputTokens?.total ?? 0;
+                                const cached = part.usage?.inputTokens?.cacheRead ?? 0;
                                 if (traced)
                                     record({
                                         modelId: id,
                                         input,
                                         output,
+                                        cached,
                                         step: "",
                                         ms: Date.now() - t0,
                                         ...traceFields(params),
@@ -174,7 +178,7 @@ function metering(id: string): LanguageModelMiddleware {
                                         temperature: params.temperature,
                                         finishReason: finishOf(part.finishReason),
                                     });
-                                else recordTokens(id, input, output);
+                                else recordTokens(id, input, output, cached);
                             }
                             controller.enqueue(part);
                         },
@@ -215,9 +219,14 @@ function rawModel(id: string) {
 // know is simply ignored by it.
 function providerOpts(id: string): ProviderOpts | undefined {
     const info = getModel(id);
-    // Pro models reject thinkingBudget:0 ("only works in thinking mode"), so only Flash gets it
-    if (info?.provider === "google" && !/pro/i.test(info.model)) {
-        return { google: { thinkingConfig: { thinkingBudget: 0 } } };
+    // Switching thinking off keeps a cheap Google call from spending its budget reasoning first, but
+    // not every model accepts being told to: the ones that refuse declare `thinkingBudget: false`.
+    // This used to be inferred from the model name, which is how gemini-3.6-flash shipped 400ing on
+    // every call. If a new Google model rejects it, `pnpm ai:probe` is what tells you.
+    if (info?.provider === "google") {
+        return info.thinkingBudget === false
+            ? undefined
+            : { google: { thinkingConfig: { thinkingBudget: 0 } } };
     }
     // Anthropic's native constrained decoding compiles a grammar per schema and gives up on ours
     // with "Grammar compilation timed out"; the tool-shaped path has no such limit.

@@ -43,6 +43,10 @@ jobs:
             - name: Model-id guard
               run: pnpm check:models
 
+            # A wrong price does not throw, it just bills the wrong number of credits forever.
+            - name: Model-price staleness guard
+              run: pnpm check:prices
+
             # An em-dash in user-facing copy is the tell that a string was machine-written.
             - name: Copy guard
               run: pnpm check:copy

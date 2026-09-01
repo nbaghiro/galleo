@@ -67,8 +67,8 @@ describe("usdOf", () => {
 
 describe("creditsForUsd", () => {
     it("reproduces today's price for a default 12-section deck", () => {
-        // measured: outline $0.0092 + 12 sections × $0.0312
-        expect(creditsForUsd(0.0092 + 12 * 0.0312)).toBe(27);
+        // measured over 283 real runs: outline $0.0190 + 12 sections × $0.0182
+        expect(creditsForUsd(0.019 + 12 * 0.0182)).toBe(95);
     });
 
     it("never bills a real call as free", () => {
