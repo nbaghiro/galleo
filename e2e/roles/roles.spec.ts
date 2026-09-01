@@ -68,23 +68,3 @@ test("the pinned invite joins the invited account to the workspace", async ({ br
         .toBe(true);
     await ctx.close();
 });
-
-// The one test that leaves the flagship. `activeWorkspaceId` is server-side per user, so anything
-// this switches stays switched for every later spec that logs in as demo: it has to switch back.
-test("the free plan blocks invites past its seat cap", async ({ browser }) => {
-    // the demo login owns the Free workspace: one seat, already taken by them
-    const page = await personaPage(browser, "demo");
-    await enterWorkspace(page.request, "Free Workspace");
-    await page.goto("/settings");
-    const invite = page.getByRole("button", { name: "Invite" });
-    // either the affordance is gated up front, or the attempt is refused with an upsell
-    if (await invite.isVisible()) {
-        await page.getByPlaceholder(/teammate/i).fill("overflow@example.com");
-        await invite.click();
-        await expect(page.getByText(/seat|upgrade|plan/i).first()).toBeVisible();
-    } else {
-        await expect(page.getByText(/seat|upgrade|add seats/i).first()).toBeVisible();
-    }
-    await enterWorkspace(page.request, "Premium Workspace");
-    await page.context().close();
-});

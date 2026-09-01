@@ -18,52 +18,62 @@ export default defineConfig({
     projects: [
         { name: "auth-states", testMatch: /states\.setup\.ts/ },
         {
+            // `plans` moves the demo login onto the free workspace, and `users.activeWorkspaceId` is
+            // one server-side pointer per person rather than one per browser: every context signed
+            // in as demo reads the free plan for as long as it runs. So it goes first, alone, and
+            // everything sharing that login waits for it (see e2e/plans/plans.spec.ts).
+            name: "plans",
+            testMatch: /plans\/.*\.spec\.ts/,
+            dependencies: ["auth-states"],
+            use: { ...devices["Desktop Chrome"] },
+        },
+        {
             name: "smoke",
             testMatch: /smoke\/.*\.spec\.ts/,
-            dependencies: ["auth-states"],
+            dependencies: ["auth-states", "plans"],
             use: { ...devices["Desktop Chrome"] },
         },
         {
             name: "editor",
             testMatch: /editor\/.*\.spec\.ts/,
-            dependencies: ["auth-states"],
+            dependencies: ["auth-states", "plans"],
             use: { ...devices["Desktop Chrome"], storageState: "e2e/.state/demo.json" },
         },
         {
             name: "roles",
             testMatch: /roles\/.*\.spec\.ts/,
-            dependencies: ["auth-states"],
+            dependencies: ["auth-states", "plans"],
             use: { ...devices["Desktop Chrome"] },
         },
         {
             name: "share",
             testMatch: /share\/.*\.spec\.ts/,
-            dependencies: ["auth-states"],
+            dependencies: ["auth-states", "plans"],
             use: { ...devices["Desktop Chrome"], storageState: "e2e/.state/demo.json" },
         },
         {
             name: "library",
             testMatch: /library\/.*\.spec\.ts/,
-            dependencies: ["auth-states"],
+            dependencies: ["auth-states", "plans"],
             use: { ...devices["Desktop Chrome"], storageState: "e2e/.state/demo.json" },
         },
         { name: "auth", testMatch: /auth\/.*\.spec\.ts/, use: { ...devices["Desktop Chrome"] } },
         {
             name: "phone",
             testMatch: /phone\/.*\.spec\.ts/,
-            dependencies: ["auth-states"],
+            dependencies: ["auth-states", "plans"],
             use: { ...devices["Pixel 7"], storageState: "e2e/.state/demo.json" },
         },
         {
             name: "present",
             testMatch: /present\/.*\.spec\.ts/,
-            dependencies: ["auth-states"],
+            dependencies: ["auth-states", "plans"],
             use: { ...devices["Desktop Chrome"], storageState: "e2e/.state/demo.json" },
         },
         {
             name: "ai",
             testMatch: /ai\/.*\.spec\.ts/,
-            dependencies: ["auth-states"],
+            dependencies: ["auth-states", "plans"],
             retries: 0, // a live retry is a hidden re-spend; fake mode is deterministic anyway
             use: { ...devices["Desktop Chrome"], storageState: "e2e/.state/demo.json" },
         },

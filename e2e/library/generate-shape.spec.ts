@@ -27,12 +27,13 @@ test("a picked shape reaches the plan turn, and says so on the way", async ({ pa
     await expect(page.getByRole("button", { name: /Use template/ })).toBeVisible();
     await page.getByRole("button", { name: "Match this shape" }).click();
 
-    // the chip is what tells the reader the run is carrying a shape, and how long it is
-    const chip = page.getByTitle("The shape this run follows, section for section");
+    // the chip is what tells the reader the run is carrying a shape, and how many designs it lends
+    const chip = page.getByTitle("Its designs and its theme. None of its words.");
     await expect(chip).toBeVisible();
     await expect(chip).toContainText(SHAPE);
-    await expect(chip).toContainText("13 sections");
-    // the length moved with it rather than leaving two section counts to disagree in the prompt
+    await expect(chip).toContainText("13 designs");
+    // A shape lends designs, not a running order, so the length stays where the reader left it. The
+    // two counts are allowed to differ; only the chosen length reaches the prompt.
     await expect(page.getByText("Standard length")).toBeVisible();
 
     await page.locator("textarea").first().fill("A launch deck for a calm operating system");

@@ -93,6 +93,29 @@ test("a plate takes the wheel only once the pointer has held still on it", async
             () => getComputedStyle(document.querySelector('[data-testid="plate"]')!).overflowY,
         );
 
+    // A scroll event is dispatched a frame after the scroll that caused it, and on a loaded run that
+    // frame can land after the next pointermove: the dwell would then be started and immediately
+    // cancelled by an event belonging to the scroll before it. A real pointer emits a stream of
+    // moves and heals from that on its own; one synthesized move does not, so wait for the page to
+    // go quiet before moving.
+    const settled = (): Promise<void> =>
+        page.evaluate(
+            () =>
+                new Promise<void>((done) => {
+                    const main = document.querySelector("main")!;
+                    let timer = 0;
+                    const quiet = (): void => {
+                        window.clearTimeout(timer);
+                        timer = window.setTimeout(() => {
+                            main.removeEventListener("scroll", quiet);
+                            done();
+                        }, 150);
+                    };
+                    main.addEventListener("scroll", quiet);
+                    quiet();
+                }),
+        );
+
     // A pointer that is only over this card because the page moved under it does not arm: the dwell
     // starts on a pointermove and a page scroll cancels a pending one, so after this scroll there is
     // no clock running. Asserted this way round rather than by racing a wheel against the 500ms,
@@ -107,6 +130,7 @@ test("a plate takes the wheel only once the pointer has held still on it", async
 
     // moving the pointer again starts a fresh dwell, and holding hands the wheel to the plate
     await page.evaluate(() => document.querySelector("main")!.scrollTo({ top: 0 }));
+    await settled();
     await page.mouse.move(x + 4, y + 4);
     await expect.poll(overflow).toBe("auto");
     await page.mouse.wheel(0, 250);
