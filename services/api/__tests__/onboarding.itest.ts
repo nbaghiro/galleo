@@ -2,94 +2,18 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { SIGNUP_GRANT_CREDITS } from "@model/billing";
-import { onboardingState, releaseSignupGrant } from "@services/core/onboarding";
+import { onboardingState } from "@services/core/onboarding";
 import { authed, jsonInit, request, seedUser } from "@services/__tests__/harness";
-
-const balanceOf = async (workspaceId: string): Promise<number> => {
-    const [w] = await db
-        .select({ n: schema.workspaces.aiCreditsBalance })
-        .from(schema.workspaces)
-        .where(eq(schema.workspaces.id, workspaceId));
-    return w!.n;
-};
-
-const grantRows = async (userId: string): Promise<number> => {
-    const rows = await db
-        .select({ id: schema.credits.id })
-        .from(schema.credits)
-        .where(eq(schema.credits.key, `signup:${userId}`));
-    return rows.length;
-};
-
-describe("the signup grant", () => {
-    it("adds the grant to the balance and leaves one ledger row", async () => {
-        const u = await seedUser();
-        const before = await balanceOf(u.workspaceId);
-        expect(await releaseSignupGrant(u.userId)).toBe(true);
-        expect(await balanceOf(u.workspaceId)).toBe(before + SIGNUP_GRANT_CREDITS);
-        expect(await grantRows(u.userId)).toBe(1);
-    });
-
-    // the unique credits.key is what makes this safe; a re-used verify link must not re-pay
-    it("pays once however many times it is called", async () => {
-        const u = await seedUser();
-        const before = await balanceOf(u.workspaceId);
-        expect(await releaseSignupGrant(u.userId)).toBe(true);
-        expect(await releaseSignupGrant(u.userId)).toBe(false);
-        expect(await releaseSignupGrant(u.userId)).toBe(false);
-        expect(await balanceOf(u.workspaceId)).toBe(before + SIGNUP_GRANT_CREDITS);
-        expect(await grantRows(u.userId)).toBe(1);
-    });
-
-    it("survives concurrent calls without double paying", async () => {
-        const u = await seedUser();
-        const before = await balanceOf(u.workspaceId);
-        const results = await Promise.all([
-            releaseSignupGrant(u.userId),
-            releaseSignupGrant(u.userId),
-            releaseSignupGrant(u.userId),
-        ]);
-        expect(results.filter(Boolean)).toHaveLength(1);
-        expect(await balanceOf(u.workspaceId)).toBe(before + SIGNUP_GRANT_CREDITS);
-    });
-
-    // the anti-farming rule: keyed on the user, so extra workspaces earn nothing
-    it("pays the first owned workspace only, not every workspace a user creates", async () => {
-        const u = await seedUser();
-        expect(await releaseSignupGrant(u.userId)).toBe(true);
-        const [second] = await db
-            .insert(schema.workspaces)
-            .values({
-                name: "Second",
-                slug: `ws-second-${u.userId.slice(0, 8)}`,
-                ownerId: u.userId,
-            })
-            .returning();
-        expect(await releaseSignupGrant(u.userId)).toBe(false);
-        expect(await balanceOf(second!.id)).toBe(0);
-    });
-
-    it("does nothing for a user who owns no workspace", async () => {
-        const [orphan] = await db
-            .insert(schema.users)
-            .values({ email: "orphan@test.local" })
-            .returning();
-        expect(await releaseSignupGrant(orphan!.id)).toBe(false);
-        expect(await grantRows(orphan!.id)).toBe(0);
-    });
-});
 
 describe("the derived checklist", () => {
     const stateOf = async (u: { workspaceId: string; userId: string }, prefs: unknown = {}) =>
-        onboardingState(u.workspaceId, u.userId, prefs);
+        onboardingState(u.workspaceId, prefs);
 
     it("starts with nothing done and the flow owed", async () => {
         const u = await seedUser();
         const s = await stateOf(u);
         expect(s.done).toEqual([]);
         expect(s.needed).toBe(true);
-        expect(s.grantReleased).toBe(false);
     });
 
     it("counts an artifact as `make`, and an ai_meta artifact as `ai` too", async () => {
@@ -163,12 +87,6 @@ describe("the derived checklist", () => {
         expect(s.format).toBe("web");
         expect(s.dismissed).toBe(true);
         expect(s.needed).toBe(false); // startedAt recorded, so the flow has been through
-    });
-
-    it("reports the grant once it is released", async () => {
-        const u = await seedUser();
-        await releaseSignupGrant(u.userId);
-        expect((await stateOf(u)).grantReleased).toBe(true);
     });
 });
 

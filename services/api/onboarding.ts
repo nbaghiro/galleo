@@ -9,6 +9,5 @@ import { onboardingState } from "@services/core/onboarding";
 export const onboarding = new Hono<WorkspaceEnv>();
 
 onboarding.get("/onboarding", requireWorkspace, async (c) => {
-    const user = c.get("user");
-    return c.json({ onboarding: await onboardingState(c.get("ws").id, user.id, user.prefs) });
+    return c.json({ onboarding: await onboardingState(c.get("ws").id, c.get("user").prefs) });
 });

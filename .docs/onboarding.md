@@ -1,9 +1,9 @@
 # Galleo — Onboarding: the first session
 
-> What happens between a signup and a user who has understood the product. Covers the
-> one-time signup grant, why the first artifact is a template rather than a generation, the format
-> question, the activation checklist and how its state is derived, the `UserPrefs` schema, and the
-> events we need before any of this is measurable. Companion docs: `workspaces.md` (the credit window
+> What happens between a signup and a user who has understood the product. Covers why the first
+> artifact is a template rather than a generation, the format question, the confirmation gate, the
+> activation checklist and how its state is derived, the `UserPrefs` schema, and the events we need
+> before any of this is measurable. Companion docs: `workspaces.md` (the credit window
 > and the ledger this spends against), `ai.md` (what a generation costs and what the gate charges
 > for), `frontend.md` (the `@ui` primitives the surfaces are built from), `architecture.md`.
 
@@ -11,32 +11,30 @@
 
 Built, pending manual QA. What ships:
 
-| piece                                                                          | where                                                    |
-| ------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| the `onboarding` prefs branch, read and merged field by field                  | `model/workspace.ts`                                     |
-| the state DTO the app reads                                                    | `model/workspace.ts` (`OnboardingState`)                 |
-| `SIGNUP_GRANT_CREDITS = 200`                                                   | `model/billing.ts`                                       |
-| `grantOnce`, moved down so the grant and Stripe share one idempotent primitive | `services/core/ledger.ts`                                |
-| the grant release and the derived checklist                                    | `services/core/onboarding.ts`                            |
-| `GET /onboarding`                                                              | `services/api/onboarding.ts`                             |
-| release on verification, both paths                                            | `services/api/session.ts`, `services/api/oauth.ts`       |
-| the starter wall (and the format question it replaced)                         | `app/views/OnboardingView.tsx`, routed at `/welcome`     |
-| the checklist                                                                  | `app/components/OnboardingChecklist.tsx`, in the sidebar |
-| the client store                                                               | `app/stores/onboarding.ts`                               |
-| the studio's format default                                                    | `app/stores/generate.ts`                                 |
+| piece                                                         | where                                                    |
+| ------------------------------------------------------------- | -------------------------------------------------------- |
+| the `onboarding` prefs branch, read and merged field by field | `model/workspace.ts`                                     |
+| the state DTO the app reads                                   | `model/workspace.ts` (`OnboardingState`)                 |
+| the derived checklist                                         | `services/core/onboarding.ts`                            |
+| `GET /onboarding`                                             | `services/api/onboarding.ts`                             |
+| the confirmation gate, both paths                             | `services/api/session.ts`, `services/api/oauth.ts`       |
+| the starter wall (and the format question it replaced)        | `app/views/OnboardingView.tsx`, routed at `/welcome`     |
+| the checklist                                                 | `app/components/OnboardingChecklist.tsx`, in the sidebar |
+| the client store                                              | `app/stores/onboarding.ts`                               |
+| the studio's format default                                   | `app/stores/generate.ts`                                 |
 
 The funnel events are now in the catalog (`model/analytics.ts`, the `onboarding_*` block); see the
 Events section below for what they answer and what the wall changed about them.
 
 ## The constraint everything follows from
 
-A new workspace opens with 100 credits and one whole-artifact generation costs 42, so a new user has
-**2.4 generations a month**. That single number decides most of the design below, because it means the
-obvious onboarding move, generating something impressive to demonstrate the product, spends 42% of the
-user's first month before they have decided whether they want it. A user who generates twice and likes
-neither result is locked out until the window rolls.
+A new workspace opens with 300 credits and one whole-artifact generation costs about 95, so a new user
+has **three generations a month**. That single number decides most of the design below, because it
+means the obvious onboarding move, generating something impressive to demonstrate the product, spends a
+third of the user's first month before they have decided whether they want it. A user who generates
+twice and likes neither result is nearly out until the window rolls.
 
-Credits are not a synthetic currency. One credit is about $0.0142 of real provider spend, so an
+Credits are not a synthetic currency. One credit is $0.0025 of real provider spend, so an
 allowance is a dollar liability and a generous first run is a real cost per signup. We can choose to
 pay it, but we should choose it explicitly rather than by leaving a demo generation in the flow.
 
@@ -60,10 +58,10 @@ preloading a matching template in the editor. It counts activation at the first 
 
 The contrast is the useful part. Gamma buys exploration with a large one-time pool and accepts that the
 free tier eventually stops working. Canva avoids needing a pool at all by making the first finished
-artifact free to reach. Galleo's free tier is currently shaped like neither: it is small and it
-refreshes monthly, which suits long-run retention but starves the first session. We propose taking
-Canva's free path to the first artifact and Gamma's front-loaded grant, because the two solve different
-halves of the problem and we have the templates to do the first cheaply.
+artifact free to reach. Galleo's free tier is shaped like neither: it is small and it refreshes
+monthly, which suits long-run retention but leaves the first session on the same budget as every other
+one. We take Canva's route rather than Gamma's, because the templates make the first finished artifact
+free to reach and a front-loaded pool would be real provider spend on every signup, converting or not.
 
 ## The design
 
@@ -83,6 +81,9 @@ this view). What differs inside it is the format: the plate is drawn at that for
 against its own backdrop, at one scale set by the widest, so a doc sits on more backdrop than a deck,
 and a site has no page margin at all and runs to the card's edges the way it runs to a browser's,
 which is read straight off `bleedSections` in the profile rather than a second list of formats.
+The cropped plate itself is `PlateBox`, split out from the card because the library's canvas layout
+draws its own cards from the same one; `PlateCard` is that box plus this screen's hover plate and
+its two labels.
 
 `starterWall` shuffles each format and then deals them round-robin, so consecutive cards are a deck,
 then a doc, then a site. The mix is the argument the screen makes, that one engine renders all three,
@@ -118,36 +119,25 @@ intake is pre-filled with the format they chose and shows example prompts, which
 Gamma's flow that clearly earns its place, because the hardest moment in a prompt-first product is
 knowing what to type.
 
-Spending 42 of 100 credits is defensible when the output is the user's own content and they asked for
-it. It is not defensible when it is a demo we chose for them.
+Spending a deck's ~95 credits out of 300 is defensible when the output is the user's own content and
+they asked for it. It is not defensible when it is a demo we chose for them.
 
-### 4. The signup grant
+### 4. Month one is the monthly allowance, and nothing else
 
-We add a one-time grant on top of the monthly allowance, so that exploring in the first session does not
-consume the first month.
+There is no signup grant. A new workspace opens on its plan's allowance, 300 credits on free, and that
+is the whole first-session budget: exploring costs nothing because the starters are templates, and the
+credits are there for the user's own first brief.
 
-|                    | credits | generations |
-| ------------------ | ------- | ----------- |
-| today, month one   | 100     | 2.4         |
-| proposed grant     | 200     | 4.8         |
-| proposed month one | 300     | 7.1         |
+We did carry a one-time grant for a while, 400 credits released on confirmation, and removed it. A
+granted credit is $0.0025 of real provider spend, so the grant was a dollar per signup paid before
+anyone had shown intent, and it interacted badly with the rollover cap: the cap is two months of the
+plan's grant, so a free workspace that opened at 300 + 400 was already over its 600 ceiling and its
+first monthly grant clipped to zero. The account came out ahead in month one and behind in month two,
+which is the opposite of what a first-session budget should do.
 
-At $0.0142 a credit the 200-credit grant is about **$2.84 of provider spend per signup**, which is a
-customer-acquisition line item rather than a product cost, and should be reviewed as one. The number is
-a starting proposal, not a derived result; we picked it to put month one near seven generations, which
-is enough to try a few real briefs and still have room after a bad one.
+### 5. Confirming the address is a gate, not a favour
 
-Two rules keep it from being farmed. The grant applies to a user's **first** workspace only, not to
-every workspace they create, since a user can own several. And it is released when the address is **confirmed** rather than at row creation, which puts the
-cheapest abuse behind a real mailbox. Confirming is now a gate in its own right (see below), so the
-grant lands at the same moment the account gets in.
-
-Mechanically this is a new ledger reason alongside `monthly-grant`, `renewal-grant`, and
-`upgrade-grant`. It must be idempotent, because a code can be requested more than once, so the insert
-is guarded on the absence of an existing `signup-grant` row for that workspace rather than on a flag
-we could lose.
-
-**The confirmation gate.** A password signup is answered with a session, so the person leaves the auth
+A password signup is answered with a session, so the person leaves the auth
 page at once, but that session is refused by `requireUser` and `requireWorkspace` alike: the only thing
 it reaches is the confirm step, which is step one of this surface. Confirming is a 6-digit code typed
 in the same tab, not a link, so nobody has to leave and come back. `mustConfirmEmail` in
@@ -155,7 +145,12 @@ in the same tab, not a link, so nobody has to leave and come back. `mustConfirmE
 accounts opened before the gate keep the access they already had and get the banner instead. Signing in
 unconfirmed is allowed and lands on the same step, because a code needs a session to be typed into.
 
-### 5. A checklist, not a coachmark tour
+Confirming pays nothing. It used to release the signup grant, which was the argument for gating on it
+at all: it gave verification a job and put the cheapest abuse behind a real mailbox. The gate replaced
+that argument rather than losing it, since an unconfirmed account now reaches nothing whether or not
+there is anything to earn.
+
+### 6. A checklist, not a coachmark tour
 
 We do not build a spotlight tour. Coachmarks anchor to coordinates, and the editor's canvas reflows by
 design: the engine decides every box from text metrics, the three responsive tiers rearrange the
@@ -205,8 +200,7 @@ are the answer we cannot recompute and the dismissal we must respect.
 | a new onboarding view           | the one question, then create-from-template, then redirect to `/edit/:id` |
 | `app/components/Sidebar.tsx`    | the checklist, below the nav items                                        |
 | `app/views/generate/Intake.tsx` | pre-fill the format, keep the example prompts                             |
-| `services/core/ledger.ts`       | the `signup-grant` reason and its idempotent insert                       |
-| `services/core/accounts.ts`     | release the grant on verification, first workspace only                   |
+| `services/core/accounts.ts`     | mark the address confirmed, and report how long it took                   |
 | `model/workspace.ts`            | the `onboarding` branch in prefs, reader and merger                       |
 
 The chrome is built from `@ui` primitives that already exist, `Modal` or `Sheet` from `overlay.tsx` for
@@ -227,15 +221,12 @@ picking one is a query rather than a new event.
 
 ## Planned / deferred
 
-- **The grant amount is a proposal.** 200 credits puts month one near seven generations at $2.84 a
-  signup. We have no conversion data to weigh that against, so it should be revisited once the funnel
-  above reports.
-- **Nothing caps credit rollover.** Rollover is on, so a workspace that never spends banks
-  indefinitely, and the signup grant adds to that. Unrelated to onboarding in origin, but the grant
-  makes the exposure slightly larger.
+- **Three generations may not be enough to decide.** The free allowance is the entire first month and
+  we have no conversion data to say whether that converts or stalls. If the funnel above says people
+  leave without finishing one, the answer is a larger free allowance rather than a one-time grant,
+  since the grant is spend on everyone who signs up and the allowance is spend on everyone who stays.
 - **Teams are out of scope here.** An invited member joins a workspace that already has content and a
-  plan, so their first session is a different problem and probably a different flow. No grant applies to
-  them, since the grant is per first workspace.
+  plan, so their first session is a different problem and probably a different flow.
 - **Attribution is unasked.** If we want to know where users come from, it belongs on the marketing
   site ahead of signup.
 - **No re-onboarding.** A user who dismisses the checklist has no way to bring it back. Probably
