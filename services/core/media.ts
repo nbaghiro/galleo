@@ -11,10 +11,11 @@ import type {
     MediaProvider,
     MediaSource,
 } from "@model/media";
-import { assetIdFromUrl, assetUrl, isEmbedVideoUrl, KIND_PROVIDERS } from "@model/media";
+import { assetIdFromUrl, assetUrl, isEmbedVideoUrl, KIND_PROVIDERS, vimeoRef } from "@model/media";
 import { mapMediaRefs, mediaRefKinds, mediaRefs } from "@model/artifact";
 import type { FeatureOverrides, ModelTier } from "@model/billing";
 import { featuresFor, isUnlimited } from "@model/billing";
+import { imageModelId, videoModelId } from "./models";
 import type { Db } from "@services/db/client";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
@@ -421,6 +422,25 @@ export async function searchStock(
     return searchPixabay(q, page, o, kind);
 }
 
+// A platform video is a link, not a file, so nothing is adopted for it. Its still is the exception:
+// every surface that paints rather than plays (thumbnails, Present, exports) needs one, and Vimeo's
+// lives at an opaque CDN path that cannot be derived from the id the way YouTube's can. oEmbed is
+// keyless but answers 404 whenever a video's privacy settings forbid embedding, so this is
+// best-effort and the caller keeps its dark-plate fallback.
+export async function embedPoster(url: string): Promise<string | null> {
+    if (!vimeoRef(url)) return null;
+    try {
+        const u = new URL("https://vimeo.com/api/oembed.json");
+        u.searchParams.set("url", url);
+        const res = await fetch(u, { headers: UA });
+        if (!res.ok) return null;
+        const json = (await res.json()) as { thumbnail_url?: string };
+        return json.thumbnail_url ?? null;
+    } catch {
+        return null;
+    }
+}
+
 // Unsplash API guidelines require pinging the download-trigger when a photo is used; fire-and-forget
 export async function fireDownloadTrigger(downloadLocation: string | undefined): Promise<void> {
     const key = KEYS.unsplash();
@@ -492,11 +512,10 @@ const STYLE_PREFIX: Record<MediaGenStyle, string> = {
     watercolor: "Loose watercolor painting, soft washes, textured paper, of ",
 };
 
-const BASE_IMAGE_MODEL = "gemini-3.1-flash-image";
-// basic tier always renders on the base model; paid tiers use the (possibly better) env override
-const MODEL = (tier?: ModelTier): string =>
-    tier === "basic" ? BASE_IMAGE_MODEL : process.env.GEMINI_IMAGE_MODEL || BASE_IMAGE_MODEL;
-const VIDEO_MODEL = (): string => process.env.GEMINI_VIDEO_MODEL || "veo-3.1-fast-generate-preview";
+// basic tier always renders on the base model; paid tiers use the (possibly better) env override.
+// Both resolvers live in core/models.ts beside the prices they bill at, so the two cannot drift.
+const MODEL = imageModelId;
+const VIDEO_MODEL = videoModelId;
 
 export function imageGenReady(): boolean {
     return !!process.env.GOOGLE_API_KEY;
