@@ -186,7 +186,7 @@ async function main(): Promise<void> {
         const pool: MediaItem[] = [];
         for (const orientation of ["landscape", "portrait"] as const) {
             if (!rows.some((r) => r.orientation === orientation)) continue;
-            for (const provider of ["unsplash", "pexels"] as const) {
+            for (const provider of ["pexels", "unsplash"] as const) {
                 // a page is 30, and a photo essay can hold more pictures than that; keep paging
                 // until the piece has enough for every slot to get a different one
                 for (let page = 1; page <= 3; page += 1) {

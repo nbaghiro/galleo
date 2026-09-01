@@ -10,7 +10,7 @@ import { warn } from "@services/utils/env";
 const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 // tried in order; openverse (keyless) is the fallback
-const PROVIDER_ORDER: MediaProvider[] = ["unsplash", "pexels", "pixabay", "openverse"];
+const PROVIDER_ORDER: MediaProvider[] = ["pexels", "pixabay", "unsplash", "openverse"];
 
 // stopwords dropped from image phrases — stock search matches keywords, not sentences
 const STOP = new Set([
@@ -40,15 +40,6 @@ const STOP = new Set([
     "up",
     "over",
 ]);
-
-const slug = (s: string): string =>
-    s
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 48) || "img";
-
-const picsum = (phrase: string): string => `https://picsum.photos/seed/${slug(phrase)}/1100/760`;
 
 const orientOf = (aspect: unknown): string => {
     const a = typeof aspect === "number" ? aspect : 1.4;
@@ -161,8 +152,7 @@ export async function resolveImage(
         ? opts.adopt
             ? await opts.adopt(stock).catch(() => stock.url)
             : stock.url
-        : (warn(`[ai:image] no image for "${clip(phrase, 60)}" — using placeholder`),
-          picsum(phrase));
+        : (warn(`[ai:image] no image for "${clip(phrase, 60)}", leaving the frame empty`), "");
     opts.cache?.set(memo, url);
     return url;
 }

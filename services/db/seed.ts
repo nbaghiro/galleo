@@ -515,18 +515,18 @@ async function seedAssets(wsId: string): Promise<void> {
                 workspaceId: wsId,
                 kind: "image",
                 source: a.source,
-                origin: `https://picsum.photos/seed/${a.seed}/${a.w}/${a.h}`,
+                origin: a.url,
                 width: a.w,
                 height: a.h,
                 alt: a.alt,
                 meta: {
-                    thumbUrl: `https://picsum.photos/seed/${a.seed}/500/${Math.round((500 * a.h) / a.w)}`,
+                    thumbUrl: `${a.url}?auto=compress&cs=tinysrgb&w=500`,
                     ...(a.author
                         ? {
                               attribution: {
-                                  provider: "Openverse",
+                                  provider: "Pexels",
                                   author: a.author,
-                                  authorUrl: "https://openverse.org",
+                                  authorUrl: "https://www.pexels.com",
                               },
                           }
                         : {}),

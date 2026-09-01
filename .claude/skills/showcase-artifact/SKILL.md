@@ -73,14 +73,14 @@ outrank feature coverage.
 
 ## Imagery
 
-- Address photos by curated picsum id: `https://picsum.photos/id/N/W/H`, common sizes 1100x900,
-  1400x900, 1700x1100 (novel sizes are slow on first hit; warm with curl). Never seed URLs.
-- Known-good ids by subject: desks/SaaS 0-9, 60, 180, 366, 445, 529, 532, 668; meetings 7, 192,
-  513, 625, 378; craft/workshop 20, 284, 491, 527, 533, 534, 635, 1059; food/hospitality 42, 63,
-  163, 292, 395, 425, 431, 437, 488, 490, 999, 1060; events 117, 158, 452, 453, 590, 639, 819,
-  828; industry/logistics 88, 297, 315, 331, 352, 495, 576, 617, 775, 1078; NYC 43, 57, 221, 249,
-  299, 396, 411, 520, 692, 800, 821, 860, 862, 868; portraits 399, 674, 856, 978, 996, 1027;
-  energy 110, 182, 222, 448, 887. Verify a photo fits its caption; a miscast image is a finding.
+- Source photos from Pexels and address them by their own URL:
+  `https://images.pexels.com/photos/<id>/pexels-photo-<id>.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=W&h=H`,
+  common sizes 1100x900, 1400x900, 1700x1100. picsum is gone: it went down on 2026-08-29 and took
+  every placeholder in the product with it, which is why nothing here may name a placeholder host.
+- Find one with the media picker, or search Pexels directly. Brief the query from the copy the photo
+  sits beside rather than the piece's title: a deck named "Startup Pitch" whose content is a
+  restaurant business wants kitchens, not startups. Vary the subject across a piece so it does not
+  read as one concept repeated. Verify a photo fits its caption; a miscast image is a finding.
 - On insert, `contentColumns` adopts external images into workspace media and rewrites srcs to
   `/api/media/asset/...`. When shooting the stored row from file://, absolutize those to
   `http://localhost:8600/api/media/asset/...`.

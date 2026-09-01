@@ -1,10 +1,10 @@
 // A few pieces of media the demo workspace "chose": what the picker's Library shows. Template
 // placeholders are adopted as `link` and filtered out there, so without these it reads empty.
-// `seed` is the picsum key, which pins the picture across reseeds.
+// `url` is the photograph itself, so a reseed cannot depend on a placeholder host staying up.
 
 export interface AssetSpec {
     source: "stock" | "upload";
-    seed: string;
+    url: string;
     w: number;
     h: number;
     alt: string;
@@ -14,7 +14,7 @@ export interface AssetSpec {
 export const DEMO_ASSETS: AssetSpec[] = [
     {
         source: "stock",
-        seed: "galleo-ridge",
+        url: "https://images.pexels.com/photos/30140363/pexels-photo-30140363.jpeg",
         w: 1600,
         h: 1000,
         alt: "A ridge line at dawn",
@@ -22,16 +22,22 @@ export const DEMO_ASSETS: AssetSpec[] = [
     },
     {
         source: "stock",
-        seed: "galleo-studio",
+        url: "https://images.pexels.com/photos/8143699/pexels-photo-8143699.jpeg",
         w: 1600,
         h: 1100,
         alt: "An empty studio",
         author: "Ines Bahri",
     },
-    { source: "upload", seed: "galleo-flatlay", w: 1200, h: 1200, alt: "Product flat lay" },
+    {
+        source: "upload",
+        url: "https://images.pexels.com/photos/8101513/pexels-photo-8101513.jpeg",
+        w: 1200,
+        h: 1200,
+        alt: "Product flat lay",
+    },
     {
         source: "stock",
-        seed: "galleo-city",
+        url: "https://images.pexels.com/photos/204836/pexels-photo-204836.jpeg",
         w: 1600,
         h: 1000,
         alt: "City skyline at dusk",
@@ -39,7 +45,7 @@ export const DEMO_ASSETS: AssetSpec[] = [
     },
     {
         source: "stock",
-        seed: "galleo-lake",
+        url: "https://images.pexels.com/photos/18171824/pexels-photo-18171824.jpeg",
         w: 1600,
         h: 1000,
         alt: "Mountain lake, still water",
