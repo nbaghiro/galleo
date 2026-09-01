@@ -869,7 +869,9 @@ export function backdropCss(bg: SectionBackground | undefined, tokens: Tokens): 
     if (bg.kind === "tone") return toneGround(bg.tone ?? "tint", tokens);
     if (bg.kind === "image" && bg.image) {
         const s = bg.scrim ?? 0;
-        const url = `url("${bg.image}")`;
+        // framing rides inside the shorthand, since setting `background` resets every longhand: a
+        // caller whose backdrop is reactive would otherwise lose `cover` and paint the photo tiled
+        const url = `url("${bg.image}") center / cover no-repeat`;
         return s ? `linear-gradient(rgba(0,0,0,${s}),rgba(0,0,0,${s})), ${url}` : url;
     }
     if (bg.kind === "gradient" && bg.gradient) {

@@ -145,6 +145,7 @@ export function placeholderSection(plan: SectionBlueprint): Section {
 export function outlineSection(plan: SectionBlueprint & OutlineCopy): {
     section: Section;
     fields: Record<string, OutlineField>;
+    copyId: string; // the column holding the plan's words; every other block renders as a ghost
 } {
     const { kinds, copyAt } = columnPlan(plan);
     const points = plan.points?.length ? plan.points : [""];
@@ -177,5 +178,5 @@ export function outlineSection(plan: SectionBlueprint & OutlineCopy): {
     points.forEach((_, i) => {
         fields[at([...prefix, 2, i])] = { kind: "point", index: i };
     });
-    return { section: assemble(plan, columns), fields };
+    return { section: assemble(plan, columns), fields, copyId: at(prefix) };
 }

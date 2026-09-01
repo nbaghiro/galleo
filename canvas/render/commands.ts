@@ -92,6 +92,34 @@ function ghostColorsFor(theme: Tokens): { bar: string; panel: string; line: stri
     return { bar: mix(theme.surface, theme.ink, 0.2), panel: theme.surface, line: theme.line };
 }
 
+// An outline card: the plan's own words where they will sit, a ghost for every other block, so a
+// stat column reads as "a number lands here" rather than inventing one.
+export function layoutOutline(
+    section: Section,
+    copyId: string,
+    width: number,
+    measure: MeasureText,
+    theme: Tokens = DEFAULT_THEME.tokens,
+    format: FormatDescriptor = DEFAULT_PROFILE,
+): { commands: RenderCommand[]; regions: Region[]; height: number } {
+    const node = composeSection(section, ctxFor(width, theme, format, false, measure));
+    const ghosts = ghostColorsFor(theme);
+    const holds = (n: EngineNode): boolean => n.id === copyId || (n.children?.some(holds) ?? false);
+    // everything off the path to the copy column is shape only
+    const ghostAround = (n: EngineNode): EngineNode =>
+        n.id === copyId
+            ? n
+            : holds(n)
+              ? { ...n, children: n.children?.map(ghostAround) }
+              : skeletonize(n, ghosts);
+    const { commands, regions } = layout(
+        ghostAround(node),
+        { x: 0, y: 0, w: width, h: 100000 },
+        measure,
+    );
+    return { commands, regions, height: bottom(commands) };
+}
+
 // skeletonize the real composed node so the ghost occupies the exact final geometry (can't drift)
 export function layoutSectionSkeleton(
     section: Section,

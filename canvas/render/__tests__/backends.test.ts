@@ -44,11 +44,23 @@ describe("backdropCss", () => {
     });
     it("image with scrim → layered gradient + url", () => {
         expect(backdropCss({ kind: "image", image: "p.png", scrim: 0.4 }, tokens)).toBe(
-            'linear-gradient(rgba(0,0,0,0.4),rgba(0,0,0,0.4)), url("p.png")',
+            'linear-gradient(rgba(0,0,0,0.4),rgba(0,0,0,0.4)), url("p.png") center / cover no-repeat',
         );
     });
-    it("image without scrim → bare url", () => {
-        expect(backdropCss({ kind: "image", image: "p.png" }, tokens)).toBe('url("p.png")');
+
+    // the shorthand resets every longhand, so a caller that re-sets `background` on a change would
+    // lose a separate `background-size: cover` and paint the photograph tiled
+    it("carries its own framing, so no caller can set the shorthand and lose it", () => {
+        for (const bg of [
+            { kind: "image" as const, image: "p.png" },
+            { kind: "image" as const, image: "p.png", scrim: 0.5 },
+        ])
+            expect(backdropCss(bg, tokens)).toContain("center / cover no-repeat");
+    });
+    it("image without scrim → the url, framed", () => {
+        expect(backdropCss({ kind: "image", image: "p.png" }, tokens)).toBe(
+            'url("p.png") center / cover no-repeat',
+        );
     });
 });
 
