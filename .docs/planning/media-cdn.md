@@ -752,3 +752,229 @@ The resolution is to decide by **role**, not by provider:
       growing.
 - [ ] Gates at each stage: typecheck, lint, every `pnpm check:*`, unit and integration, the export
       CORS check, and the provider-outage drill from section 12.
+
+## 15. Solidified execution plan, 2026-09-01
+
+Everything above this line is the research record. This section is the plan of record: it folds in
+what changed between 2026-08-31 and 2026-09-01, corrects one mechanism, and fixes the sequence,
+file placement and conventions for the build. Where this section disagrees with an earlier one,
+this section wins.
+
+### 15.1 What changed since the research was written
+
+1. **The picsum problem no longer exists.** The recuration ran against production on 2026-09-01:
+   every asset was probed afterwards and all 471 resolve. The mix is now 410 Pexels, 55 Unsplash,
+   3 pravatar, 3 holding their own bytes. All four minting sites from section 9 are closed (template
+   bodies, the authoring DSL fallback, the AI image fallback, the marketing site), the seed writes
+   Pexels URLs, and the showcase skill no longer teaches picsum. Section 9's ordering trap is moot:
+   every origin is reachable, so the backfill can run any time.
+2. **The ingestable share went from a quarter to 88%.** The recuration deliberately targeted Pexels
+   (whose licence lets us hold bytes) rather than Unsplash (which forbids it). So the per-provider
+   policy still exists, but it now covers 55 rows rather than most of the library. With the Unsplash
+   beacon exception granted it would cover 465 of 471.
+3. **`galleo.app`'s nameservers are at Squarespace, not Cloudflare.** The topology in 4.2 silently
+   assumed the zone was ours to configure. It is not: the `cf-ray` on today's responses is Render's
+   own Cloudflare account, not a zone we control. An R2 custom domain requires the zone on our
+   account ("The domain being used must have been added as a zone in the same account as the R2
+   bucket"), and the CNAME/partial alternative needs a Business plan. So **moving the zone's
+   nameservers to a free Cloudflare account is a hard prerequisite**, and it is a user-owned step:
+   registrar access, record recreation, everything grey-clouded except `media`.
+4. **pravatar.cc is picsum's failure class and survived the sweep.** 3 production assets, 15 template
+   call sites, and the seed's member avatars all hotlink a free placeholder service with no terms and
+   no SLA. Small, bounded, and worth a follow-up (replace with Pexels portraits), listed in 15.6.
+
+### 15.2 One correction: no stream-through on first view
+
+Section 4.3 said the route should stream an ingestable origin through on the request that triggers
+ingest, "so the edge holds the picture". That reasoning only works with an edge in front of the
+route, and 4.2's own topology keeps `galleo.app` DNS-only. Streaming through Render therefore caches
+nothing anywhere, doubles time-to-first-byte, and pays the worst egress rate on the vendor table for
+the privilege. The corrected branch: **302 to origin and enqueue ingest.** The first view after
+adoption is provider-served exactly as today; every later view is ours.
+
+```
+readAsset(id)
+  ├── storage_key, R2 configured    → 302 https://media.galleo.app/<key>  (immutable, 1y)
+  ├── storage_key, filesystem mode  → serve the file through the existing range-request path
+  ├── data                          → stream from the row (pre-backfill), enqueue ingest
+  ├── origin, policy allows holding → 302 origin, enqueue ingest
+  ├── origin, hotlink-only          → 302 origin (Unsplash, Giphy)
+  └── nothing                       → 404
+```
+
+`?w=` on the first branch redirects to
+`https://media.galleo.app/cdn-cgi/image/width=<w>,format=auto/<key>` (the transform-via-URL format,
+verified: the source may be an absolute path on the same zone). Every other branch ignores `?w=` and
+degrades to the original, which is the same shape as `meta.thumbUrl ?? url` today.
+
+### 15.3 Decisions fixed by this section
+
+| Decision           | Fixed as                                                                                                                               | Why                                                                                                                                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| S3 client          | `aws4fetch` (1.0.20, MIT, zero deps)                                                                                                   | SigV4 over fetch is the whole need; `@aws-sdk/client-s3` is two orders of magnitude more dependency for the same four calls                                                                |
+| Local mode         | Filesystem under `.data/media/`, selected by absent R2 config                                                                          | Matches the "unset key means the feature is off" convention (`RESEND_API_KEY`); tests and CI need no container; MinIO stays optional for parity checks on its reserved ports               |
+| Object key         | `<asset-uuid>.<ext>`, extension from mime, the full key stored in `storage_key`                                                        | The uuid keeps id-to-key trivial; the extension makes Cloudflare's default extension-based caching work even before the Cache Rule exists, and survives the rule being deleted by accident |
+| Cache              | `Cache-Control: public, max-age=31536000, immutable` set as object metadata at put, plus a Cache Everything rule on `media.galleo.app` | Objects are content-addressed by uuid and never rewritten, so immutable is true; two mechanisms because 11 documents extension-only default caching as the likeliest silent failure        |
+| Ingest concurrency | In-process pool, concurrency 3, per-fetch 20s timeout, 25 MB image / 200 MB video caps                                                 | Bounded so a template adoption of 30 images cannot saturate the dyno; read-through covers whatever a deploy drops                                                                          |
+| Failure record     | `meta.ingest = { tries, at, error? }` on the row                                                                                       | Retryable without poisoning; a permanently dead origin stops being retried after 5 tries                                                                                                   |
+| First view         | 302 to origin + enqueue                                                                                                                | 15.2                                                                                                                                                                                       |
+| Variants           | `?w=400` (picker, covers) and `?w=1600` (canvas) via zone transformations                                                              | Contract is the URL shape; mechanism swappable per section 6                                                                                                                               |
+
+### 15.4 File placement, matching the repo's shape
+
+- **`services/core/storage.ts`** — the one new file. One concept: where bytes live. Both backends
+  (R2 over aws4fetch, filesystem) in this file, `storageReady()` in the `stockReady()` idiom,
+  `putObject` / `getObject` / `headObject` / `deleteObject` / `copyObject` / `publicUrl`. Imports
+  nothing above utils. No sibling helper files.
+- **`services/core/media.ts`** — grows the per-provider policy table (beside `KIND_PROVIDERS`, with
+  terms URL and check date per row), the SSRF-safe fetcher, `ingestAsset`, and the post-commit pool.
+  Ingest is media behaviour, not a new concept; it does not get its own file.
+- **`services/api/media.ts`** — the route branch table only. Parse, gate, shape; decisions stay in core.
+- **`model/analytics.ts`** — `media_ingested: { provider, ok, reason?, bytes_bucket, duration_bucket }`,
+  emitted inside `ingestAsset` only, so every caller is measured by construction.
+- **`services/db/schema.ts`** — `storage_key text` plus the partial index on
+  `(origin IS NOT NULL AND storage_key IS NULL)`. Additive; `data` and both checks untouched until 15.6.
+- **`scripts/ingest-media.ts`** + `pnpm media:ingest` — the sweep, in the `media:collect` shape: dry
+  by default, `--write`, idempotent, resumable, per-provider pacing, tolerates dead origins.
+- **`cors.json`** — committed; applied with `wrangler r2 bucket cors set`. GET/HEAD from the app
+  origins, `Access-Control-Expose-Headers: Content-Range, Accept-Ranges` for the video path.
+- **UI: no new components.** The picker change is a removal (stop falling back to provider
+  `thumbUrl`s); `toItem` returning `?w=400` is core. Nothing visual is added anywhere.
+- Comments carry only the why: the policy table's terms dates, the SSRF ranges, why the key has an
+  extension, why immutable is true. No banners, no restatement. Copy: none of this is user-facing.
+
+### 15.5 Sequence, each stage gated on typecheck + lint + `check:*` + tests
+
+- **P0 · prerequisites (user-owned, ~30 min).** Cloudflare account; move `galleo.app` NS from
+  Squarespace, recreate records (`galleo.app` → Render, grey; everything grey); confirm the site
+  still serves. R2 API token; `wrangler r2 bucket create galleo-media`; custom domain
+  `media.galleo.app` (orange); Cache Everything rule on that host; zone transformations on. Send the
+  Unsplash beacon email. Env into Render + `.env`: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
+  `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `MEDIA_CDN_URL`.
+- **P1 · the seam, no behaviour change.** `storage.ts` + unit tests (fs mode round-trip, key
+  derivation, `storageReady` off without config); the migration; env plumbing (`.env.example`,
+  `render.yaml` `sync: false` keys).
+- **P2 · write and read paths.** Policy table, fetcher, `ingestAsset` + pool + event;
+  `assetForBytes`/`storeBytes` writes the object and `storage_key` (keeps `data` during transition);
+  `refImage` reads through the adapter; `ownedElsewhere` becomes `copyObject`; the route branch
+  table. Integration tests cover every branch in fs mode. e2e untouched: local has no R2 config, so
+  fixtures still see provider hosts.
+- **P3 · backfill.** The 3 `data` rows first, then the sweep over Pexels + any other holdable origins;
+  local dry run, then prod. Verify per section 12: export canvas untainted, published pages signed
+  out, cache HIT on second view, ranges seek, then the outage drill (blackhole `images.pexels.com`
+  in `/etc/hosts`, product unaffected).
+- **P4 · variants.** `?w=` on the route; `toItem` returns it; `useItem` stops persisting provider
+  thumbs; picker fallback removed.
+- **P5 · cleanup.** Accounting: `storageFull` counts `source IN ('upload','generated')` and
+  `collectableAssets` drops its `data IS NOT NULL` guard in the same reviewed diff; `deleteAsset` and
+  `media:collect` delete objects, plus an orphaned-object mode; pravatar replaced with Pexels
+  portraits (templates, seed, the 3 prod rows); later, the two-deploy `data` drop with the check
+  constraints moving to `storage_key OR origin`; delete `repicsum.ts`, `recurate.ts`,
+  `retemplate.ts`, `reseed.ts`.
+
+### 15.6 Cost at today's scale
+
+Zero. 471 assets is under 1 GB against R2's 10 GB free month; ~1,000 unique transformations against
+5,000 free; egress is free by policy. The first real money is Images Transformations past 5,000
+uniques (about $0.50/1k), and Bunny's flat $9.50 Optimizer is the recorded fallback if that line is
+ever crossed.
+
+### 15.7 Render as an interim, evaluated 2026-09-01
+
+Asked and answered: Render has no object storage (static sites are build-time git deploys, no
+runtime writes), and its newer web-service edge caching is out four ways: it needs a paid instance
+(`render.yaml` is `plan: free`), its cache does not vary on cookies so one missed `no-store` on the
+single-origin authenticated API is a cross-user leak, a cache with opaque eviction re-creates the
+picsum failure on a cold edge, and every byte bills at Render's $0.15/GB egress against R2's $0. No
+interim: the only user-owned cost of the real plan is the one-time nameserver move.
+
+## 16. Published pages at the edge, designed 2026-09-01
+
+Scope: `/p/:slug` for viewers far from Oregon. Same zone, same principles as media, so it lives here
+and slots into the sequence as P6, with an origin-prep half that can ship before any Cloudflare work.
+
+### 16.1 What serves today, verified
+
+- The public page serves **`draft_content` live**. There is no published snapshot: an editor change
+  is on the public page at the next load. Any cache must reflect that, which is the user-visible
+  meaning of "source of truth".
+- `GET /p/:slug/content` is **impure**: it records the view, captures `link_viewed`, and reads the
+  session cookie to tell an owner preview from a real audience. Cached as-is it would silently stop
+  counting views. The viewer already heartbeats `POST /p/:slug/ping` (`publish/PublicView.tsx:58`),
+  so the view side of the GET has a natural new home.
+- `artifacts.seq` bumps on **every** content write: section ops (`artifacts.ts:452`), whole-document
+  saves (`:490`), and the collab room orders by it. It is a ready-made per-artifact revision key.
+  Workspace theme edits do **not** bump it, so theme tokens must travel outside the version key.
+- **The origin sends no cache headers at all.** Probed live: the publish shell, the hashed
+  `/assets/publish-*.js` bundles and the fonts all arrive with no `Cache-Control` and no `ETag`.
+  Every repeat visit re-downloads the entire viewer. This is an origin bug worth fixing regardless
+  of any CDN.
+
+### 16.2 Design: version-keyed immutability, not purge-on-edit
+
+Purging on every edit would put a Cloudflare API call on the hottest write path. Instead the cache
+key carries the revision, so an edit invalidates nothing:
+
+```
+GET /api/p/:slug/meta                 tiny: gate state, title, theme id + custom tokens, format,
+                                      current seq. Public links: s-maxage=60,
+                                      stale-while-revalidate=600. Gated links: no-store.
+GET /api/p/:slug/content?v=<seq>      the heavy read: content + credits.
+                                      public, max-age=31536000, immutable.
+```
+
+The shell fetches meta, then content at the seq meta names. `v` exists only to make the URL unique
+per revision; the handler serves current content regardless of its value, so a stale `v` self-heals
+on the next meta read. Old revisions age out of the edge untouched. Freshness after an edit is
+bounded by meta's 60 seconds; the author previewing their own link bypasses with a cache-busting
+query the shell adds when a `galleo_session` cookie exists.
+
+Views move to the heartbeat: the first ping records the view (owner detection included, since ping
+is an uncached POST to origin), later pings update progress as today. The content GET becomes pure,
+which is what makes it cacheable at all. The old combined endpoint stays serving one release for any
+shell already in a browser.
+
+Gating stays origin-truth: protected and private links are never edge-cached (their responses are
+`no-store`, and their `pw`/`k` queries would fragment the cache anyway). Only `public` visibility
+caches, which is also the only visibility whose payload is the same for every viewer.
+
+### 16.3 Invalidation matrix
+
+| Change                                                                | How the edge finds out                                       | Latency               |
+| --------------------------------------------------------------------- | ------------------------------------------------------------ | --------------------- |
+| Content edit (editor, AI, collab)                                     | seq bumps; meta names the new `v`                            | ≤ 60 s, 0 purge calls |
+| Theme edited in ThemeEditor                                           | tokens ride in meta                                          | ≤ 60 s                |
+| Link revoked / visibility change / password change / artifact trashed | purge the meta URL at the seam that writes it                | seconds               |
+| Owner plan downgrade                                                  | purge each of the workspace's link meta URLs (rare, bounded) | seconds               |
+| Deploy (new bundle hashes)                                            | server startup purges the publish shell URLs                 | seconds after boot    |
+
+Purge-by-URL is on the Cloudflare free plan; the security events above are the only callers, so the
+hot path never touches the API.
+
+### 16.4 Topology and placement
+
+- **`p.galleo.app`, orange-clouded, same Render origin.** New links are minted on it; existing
+  `galleo.app/p/:slug` URLs keep working and gain a 301 hop to the edge host, so nothing anyone has
+  shared breaks. `galleo.app` stays DNS-only per section 4.2: the SSE and collab surfaces never sit
+  behind the proxy. (Recorded for later: with the zone on Cloudflare, orange-clouding the apex with
+  bypass rules for `/api` would give old URLs the edge too; `HEARTBEAT_MS` 15 s clears the 100 s
+  proxy idle limit, and the open risk is SSE compression buffering. Deferred, not rejected.)
+- Cache Rules on `p.galleo.app`: cache `/assets/*`, `/fonts/*`, the `/p/*` shell, `/api/p/*/meta`
+  and `/api/p/*/content`; bypass everything else.
+- **Origin prep, one middleware in `services/server.ts`**: hashed `/assets/*` and `/fonts/*` get
+  `public, max-age=31536000, immutable`; the publish shell gets `no-cache` + ETag so the edge
+  revalidates rather than serving a shell whose bundles a deploy deleted.
+- **One new file: `services/core/edge.ts`** owning zone purge and the publish URL builders, in the
+  `storageReady()` idiom (unset `CF_ZONE_ID`/`CF_API_TOKEN` means purging is off and everything
+  still works). The purge calls sit inside the existing link/trash seams in `core/links.ts` and
+  `core/artifacts.ts`; the endpoint split lives in `services/api/links.ts`; the view move lives in
+  `core/visits.ts` + `publish/PublicView.tsx`. No new UI anywhere.
+
+### 16.5 Sequence and verification
+
+Origin prep (cache headers, endpoint split, views-to-ping) is CDN-independent and can ship inside
+the P1/P2 window; the edge host and rules are P6, any time after P0. Verify: second view of a
+published page shows `cf-cache-status: HIT` on shell, bundles, meta and content; an edit is visible
+to a fresh viewer within 60 s; a revoked link is dead within seconds; PostHog `link_viewed` counts
+are unchanged across the switch; the media images on the page hit `media.galleo.app` per P3. Cost at
+today's scale: zero.
