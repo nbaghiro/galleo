@@ -153,7 +153,9 @@ export const WORKSPACES: WorkspaceSpec[] = [
         plan: "premium",
         ownerEmail: DEMO_EMAIL, // the one they own: member management is the owner-only surface that works without Stripe
         seats: 5, // the 3 the plan includes plus 2 bought as the seat add-on
-        openingBalance: 3800, // part-way through a 10,500 cycle (6,300 + 2 bought seats)
+        // Well into a 10,500 cycle (6,300 plus 2 bought seats). Kept to roughly a fifth of the
+        // grant so the banked figure reads in the same proportion as Pro's and Free's do.
+        openingBalance: 1600,
         members: [
             { email: "demo+admin@galleo.app", role: "admin" },
             { email: "demo+member@galleo.app", role: "member" },
