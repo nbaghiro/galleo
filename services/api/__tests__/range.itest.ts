@@ -80,4 +80,23 @@ describe("serving stored media", () => {
         });
         expect(res.status).toBe(302);
     });
+
+    it("lets the browser reuse the redirect, briefly for an origin that expires", async () => {
+        const { workspaceId } = await seedUser();
+        const mk = async (origin: string): Promise<string> => {
+            const [row] = await db
+                .insert(schema.assets)
+                .values({ workspaceId, kind: "image", source: "stock", origin })
+                .returning();
+            return row!.id;
+        };
+        const stable = await app.request(
+            `/media/asset/${await mk("https://images.pexels.com/photos/1/a.jpg")}`,
+        );
+        expect(stable.headers.get("cache-control")).toBe("public, max-age=86400");
+        const expiring = await app.request(
+            `/media/asset/${await mk("https://pixabay.com/get/b.jpg")}`,
+        );
+        expect(expiring.headers.get("cache-control")).toBe("public, max-age=3600");
+    });
 });

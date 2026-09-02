@@ -17,6 +17,7 @@ import {
     imageGenReady,
     libraryAssets,
     readAsset,
+    redirectTtl,
     refImage,
     searchIcons,
     searchStock,
@@ -290,7 +291,10 @@ media.get("/media/asset/:id", async (c) => {
     const a = await readAsset(c.req.param("id"));
     if (!a) return c.text("not found", 404);
     if (!a.data) {
-        return a.origin ? c.redirect(a.origin, 302) : c.text("not found", 404);
+        if (!a.origin) return c.text("not found", 404);
+        // cacheable, or the browser re-asks for this address on every paint of every view
+        c.header("cache-control", `public, max-age=${redirectTtl(a.origin)}`);
+        return c.redirect(a.origin, 302);
     }
     const bytes = Buffer.from(a.data, "base64");
     const type = a.mime ?? "image/png";

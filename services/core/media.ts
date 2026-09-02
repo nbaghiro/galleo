@@ -890,6 +890,20 @@ const STOCK_HOSTS =
 const VIDEO_EXT = /\.(mp4|webm|ogg|mov|m4v)(\?|#|$)/i;
 const kindForUrl = (url: string): "image" | "video" => (VIDEO_EXT.test(url) ? "video" : "image");
 
+/**
+ * How long a browser may reuse the redirect to an external origin. Short on purpose: `origin` is
+ * repointed in place (recuration, and later ingest flips the target to our own host), so a cached
+ * redirect is staleness we cannot bust. A day removes the per-view round trip; Pixabay documents its
+ * URLs as valid for 24 hours, so its redirects cap well under that.
+ */
+export function redirectTtl(origin: string): number {
+    try {
+        return /(^|\.)pixabay\.com$/i.test(new URL(origin).hostname) ? 3_600 : 86_400;
+    } catch {
+        return 3_600;
+    }
+}
+
 function sourceForUrl(url: string): MediaSource {
     try {
         return STOCK_HOSTS.test(new URL(url).hostname) ? "stock" : "link";
