@@ -30,6 +30,8 @@ const REJECT = new Set(
         .filter(Boolean),
 );
 const SCRATCH = process.env.SHEET_DIR ?? "/tmp/repicsum";
+// which origins to rematch: picsum by default, or e.g. "unsplash|pexels" to redo an earlier pass
+const ORIGIN_MATCH = new RegExp(process.env.ORIGIN_MATCH ?? "picsum", "i");
 
 const STOP = new Set([
     "the",
@@ -165,7 +167,7 @@ async function main(): Promise<void> {
         ): void => {
             const id = assetIdFromUrl(url);
             const row = id ? byId.get(id) : undefined;
-            if (!row?.origin?.includes("picsum")) return;
+            if (!row?.origin || !ORIGIN_MATCH.test(row.origin)) return;
             if (seen.has(row.id)) return;
             seen.add(row.id);
             const phrase = [...new Set([...fromSeed(row.origin), ...sectionWords])]
@@ -197,13 +199,23 @@ async function main(): Promise<void> {
 
     out(`${jobs.length} picsum assets to rematch\n`);
 
+    // The worklist alone, for when the search belongs to another pass. recurate.ts re-searches from
+    // its own briefed queries, so resolving here would spend the provider ceiling on results it
+    // throws away.
+    if (process.argv.includes("--list")) {
+        mkdirSync(SCRATCH, { recursive: true });
+        writeFileSync(`${SCRATCH}/candidates.json`, JSON.stringify(jobs, null, 2));
+        out(`wrote ${jobs.length} candidates to ${SCRATCH}/candidates.json`);
+        return;
+    }
+
     // Unsplash has the best photography and the tightest ceiling (50/hr), so it is spent on the
     // pictures people see first; Pexels carries the body at 200/hr.
     const claimed = new Map<string, Set<string>>();
     const claim = (ws: string): Set<string> =>
         claimed.get(ws) ?? claimed.set(ws, new Set<string>()).get(ws)!;
     for (const a of assets)
-        if (a.origin && !a.origin.includes("picsum")) claim(a.workspaceId).add(a.origin);
+        if (a.origin && !ORIGIN_MATCH.test(a.origin)) claim(a.workspaceId).add(a.origin);
     // a photo the reviewer rejected is burned, so re-resolving picks something else
     for (const j of jobs)
         if (REJECT.has(j.assetId) && j.wasOffered) claim(j.workspaceId).add(j.wasOffered);

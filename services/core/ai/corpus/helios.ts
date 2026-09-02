@@ -38,7 +38,12 @@ export const helios: ArtifactContent = doc(
                 ),
                 badge("PEER-REVIEWED · 214 CONTRIBUTORS · 41 COUNTRIES"),
             ),
-            { background: bgImage("helios-earth-from-space-blue-marble-night", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/30596239/pexels-photo-30596239.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
 
         section(
@@ -77,7 +82,10 @@ export const helios: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img("helios-glacier-meltwater-stream", 0.82),
+                img(
+                    "https://images.pexels.com/photos/35822229/pexels-photo-35822229.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.82,
+                ),
             ),
         ),
 
@@ -163,7 +171,10 @@ export const helios: ArtifactContent = doc(
             "s11",
             split(
                 40,
-                img("helios-world-night-lights-from-space", 1.1),
+                img(
+                    "https://images.pexels.com/photos/33803484/pexels-photo-33803484.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    1.1,
+                ),
                 group(
                     t("03 — Regional breakdown", "label"),
                     t("A divided ledger", "h2"),
@@ -213,7 +224,10 @@ export const helios: ArtifactContent = doc(
                         "body",
                     ),
                 ),
-                img("helios-coal-plant-cooling-towers-steam", 0.85),
+                img(
+                    "https://images.pexels.com/photos/16705829/pexels-photo-16705829.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.85,
+                ),
             ),
         ),
 
@@ -365,8 +379,16 @@ export const helios: ArtifactContent = doc(
                     "caption",
                 ),
             ),
-            { background: bgImage("helios-sunrise-over-ocean-horizon-hope", 0.55) },
+            {
+                background: bgImage(
+                    "https://images.pexels.com/photos/37306360/pexels-photo-37306360.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+                    0.55,
+                ),
+            },
         ),
     ],
-    bgImage("helios-report-bg", 0.32),
+    bgImage(
+        "https://images.pexels.com/photos/13043109/pexels-photo-13043109.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
+        0.32,
+    ),
 );

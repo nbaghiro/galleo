@@ -1,5 +1,8 @@
 import "dotenv/config";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { anthropic } from "@ai-sdk/anthropic";
+import { generateObject } from "ai";
+import { z } from "zod";
 import { eq } from "drizzle-orm";
 import type { MediaItem } from "@model/media";
 import { db } from "@services/db/client";
@@ -124,6 +127,46 @@ interface Slot extends Prior {
     alternates: MediaItem[];
 }
 
+const BRIEF = z.object({ slots: z.array(z.object({ i: z.number(), query: z.string() })) });
+
+/**
+ * One query per image, written from the copy beside it, which is what the template pass proved out:
+ * one query per artifact gave every picture in a piece the same concept, and a tone suffix drowned
+ * the subject ("series a deck documentary muted" answered with derelict interiors, twenty times).
+ */
+async function brief(artifact: string, rows: Prior[]): Promise<Map<string, string>> {
+    const listed = rows
+        .map((r, i) => `${i}. [${r.orientation}] ${r.section}: ${r.phrase}`)
+        .join("\n");
+    const { object } = await generateObject({
+        model: anthropic("claude-fable-5"),
+        schema: BRIEF,
+        prompt: `Choosing stock photography for one document.
+
+Title: ${artifact}
+Slots, each with the words around that picture:
+${listed}
+
+Write a Pexels search query of three to six words for each slot.
+
+Rules:
+- Beauty first: real scenes, natural or directional light, depth, a composition that holds at full
+  bleed. Well lit; nothing murky or near-black.
+- Read the copy and pick a subject that belongs to what the section is about, including the
+  industry the piece is in, not the generic category its title suggests.
+- Vary the subject across slots. The same concept repeated down a piece is the failure to avoid.
+- No photographs of screens, dashboards, laptops or code, and none of the handshake, whiteboard,
+  sticky-note or thumbs-up stock cliches.
+- A [landscape] slot is often a section backdrop under a dark scrim: atmospheric and open, with
+  room for type.
+
+Return one entry per slot, keyed by its number.`,
+    });
+    const queries = new Map<string, string>();
+    for (const { i, query } of object.slots) if (rows[i]) queries.set(rows[i]!.assetId, query);
+    return queries;
+}
+
 async function main(): Promise<void> {
     const prior = JSON.parse(readFileSync(PRIOR, "utf8")) as Prior[];
     // a targeted re-run keeps every slot the last pass filled
@@ -168,6 +211,7 @@ async function main(): Promise<void> {
         (byArtifact.get(p.artifact) ?? byArtifact.set(p.artifact, []).get(p.artifact)!).push(p);
 
     const slots: Slot[] = [];
+    const claimed = new Set<string>();
     let i = 0;
     for (const [artifact, rows] of byArtifact) {
         i += 1;
@@ -176,40 +220,28 @@ async function main(): Promise<void> {
                 slots.push({ ...row, ...(kept.get(row.assetId) ?? { alternates: [] }) });
             continue;
         }
-        // the slugs the template author wrote are the best art direction available; the title is the
-        // fallback when every picture in the piece came from an id form that carries nothing
+        // the title-and-slug fallback survives only for a failed brief; the queries themselves are
+        // written per image from the copy beside it
         const slugWords = rows.flatMap((r) => words(r.phrase)).filter(Boolean);
         const common = [...new Set(slugWords)].slice(0, 3);
         const subject = (common.length ? common : words(artifact).slice(0, 3)).join(" ");
-        const query = overrides[artifact] ?? `${subject} ${TONE}`.trim();
+        const fallback = overrides[artifact] ?? `${subject} ${TONE}`.trim();
+        const queries = overrides[artifact]
+            ? new Map<string, string>()
+            : await brief(artifact, rows).catch(() => new Map<string, string>());
 
-        const pool: MediaItem[] = [];
-        for (const orientation of ["landscape", "portrait"] as const) {
-            if (!rows.some((r) => r.orientation === orientation)) continue;
-            for (const provider of ["pexels", "unsplash"] as const) {
-                // a page is 30, and a photo essay can hold more pictures than that; keep paging
-                // until the piece has enough for every slot to get a different one
-                for (let page = 1; page <= 3; page += 1) {
-                    const r = await searchStock(provider, query, page, orientation, "photo").catch(
-                        () => null,
-                    );
-                    if (!r?.items.length) break;
-                    pool.push(...r.items);
-                    if (pool.length >= rows.length + 8 || !r.hasMore) break;
-                }
-                if (pool.length) break; // this provider answered; do not spend another call
-            }
-        }
-
-        const used = new Set<string>();
+        let filled = 0;
         for (const row of rows) {
-            const fits = pool.filter(
-                (m) =>
-                    !used.has(m.url) &&
-                    (row.orientation === "portrait" ? m.height >= m.width : m.width >= m.height),
+            const q = queries.get(row.assetId) ?? fallback;
+            const r = await searchStock("pexels", q, 1, row.orientation, "photo").catch(() => null);
+            const pool = (r?.items ?? []).filter(
+                (m) => !/pexels|watermark|logo/i.test(m.alt ?? ""),
             );
-            const pick = fits[0] ?? pool.find((m) => !used.has(m.url));
-            if (pick) used.add(pick.url);
+            const pick = pool.find((m) => !claimed.has(m.url));
+            if (pick) {
+                claimed.add(pick.url);
+                filled += 1;
+            }
             slots.push({
                 ...row,
                 pick,
@@ -217,7 +249,7 @@ async function main(): Promise<void> {
             });
         }
         out(
-            `  ${String(i).padStart(2)}/${byArtifact.size}  ${String(rows.length).padStart(3)} imgs  ${pool.length} candidates  ${query.slice(0, 44)}`,
+            `  ${String(i).padStart(2)}/${byArtifact.size}  ${filled}/${rows.length} imgs  ${artifact.slice(0, 44)}`,
         );
     }
 

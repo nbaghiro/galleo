@@ -29,6 +29,7 @@ const FILES = [
     "services/core/ai/corpus/terra.ts",
     "services/core/ai/corpus/slowweb.ts",
     "services/core/ai/corpus/fieldnotes.ts",
+    "services/core/ai/corpus/helios.ts",
     "canvas/render/__tests__/richdoc.testkit.ts",
     "app/views/theme-demo.ts",
     "services/core/designs.ts",
