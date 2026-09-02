@@ -7,6 +7,7 @@ import {
     chart,
     col,
     diagram,
+    grid,
     img,
     quote,
     row,
@@ -103,9 +104,8 @@ export function designCatalog(deck: PptxDeck): TemplateDesign[] {
             id,
             name,
             kind,
-            // four is the widest row the layout presets can name, so a design that repeats more
-            // than that lends a shape a beat could not ask for
-            columns: Math.min(4, Math.max(1, stated ? Number(stated) : repeated)),
+            // past four the row the presets can name is spent, and the cards case builds a grid
+            columns: Math.min(6, Math.max(1, stated ? Number(stated) : repeated)),
             image: layout.slots.some((s) => s.role === "media"),
         });
     });
@@ -195,9 +195,15 @@ export function designSection(d: TemplateDesign): Section {
                 ),
             );
         case "cards":
+            // one row while it fits; past four, a grid keeps the columns aligned across rows
             return section(
                 d.id,
-                col(t(LABEL.title, "h2"), row(...nOf(Math.max(2, cols), columnCard))),
+                col(
+                    t(LABEL.title, "h2"),
+                    cols > 4
+                        ? grid(3, ...nOf(cols, columnCard))
+                        : row(...nOf(Math.max(2, cols), columnCard)),
+                ),
             );
         case "photo":
             return section(d.id, col(t("EYEBROW", "label"), heading), {

@@ -20,6 +20,7 @@ import {
     faq,
     feature,
     fill,
+    grid,
     fitW,
     group,
     img,
@@ -9462,34 +9463,31 @@ export const wallOfLove: ArtifactContent = web(
         ),
         section(
             "wall",
-            group(
-                row(
-                    testimonial(
-                        "Booked $11K of work the first weekend. I was at my kid's game for all of it.",
-                        "Ray Delgado",
-                        "Delgado Plumbing, San Antonio",
-                        "https://i.pravatar.cc/240?img=53",
-                    ),
-                    testimonial(
-                        "My mother-in-law called to test it. She scheduled a tune-up. She doesn't have a furnace.",
-                        "Kayla Brant",
-                        "Brant Heating & Air, Tulsa",
-                        "https://i.pravatar.cc/240?img=44",
-                    ),
+            grid(
+                2,
+                testimonial(
+                    "Booked $11K of work the first weekend. I was at my kid's game for all of it.",
+                    "Ray Delgado",
+                    "Delgado Plumbing, San Antonio",
+                    "https://i.pravatar.cc/240?img=53",
                 ),
-                row(
-                    testimonial(
-                        "Two years of voicemail guilt, gone in an afternoon.",
-                        "Sam Okafor",
-                        "Okafor Electric, Columbus",
-                        "https://i.pravatar.cc/240?img=15",
-                    ),
-                    testimonial(
-                        "It answers in Spanish better than my dispatcher did. He agrees.",
-                        "Marisol Vega",
-                        "Vega Roofing, Phoenix",
-                        "https://i.pravatar.cc/240?img=47",
-                    ),
+                testimonial(
+                    "My mother-in-law called to test it. She scheduled a tune-up. She doesn't have a furnace.",
+                    "Kayla Brant",
+                    "Brant Heating & Air, Tulsa",
+                    "https://i.pravatar.cc/240?img=44",
+                ),
+                testimonial(
+                    "Two years of voicemail guilt, gone in an afternoon.",
+                    "Sam Okafor",
+                    "Okafor Electric, Columbus",
+                    "https://i.pravatar.cc/240?img=15",
+                ),
+                testimonial(
+                    "It answers in Spanish better than my dispatcher did. He agrees.",
+                    "Marisol Vega",
+                    "Vega Roofing, Phoenix",
+                    "https://i.pravatar.cc/240?img=47",
                 ),
             ),
         ),
@@ -9549,34 +9547,31 @@ export const wallOfLove: ArtifactContent = web(
         ),
         section(
             "wall2",
-            group(
-                row(
-                    testimonial(
-                        "Hired a second crew because the calendar filled. That sentence would've been science fiction last year.",
-                        "Dee Winters",
-                        "Winters & Sons HVAC, Boise",
-                        "https://i.pravatar.cc/240?img=60",
-                    ),
-                    testimonial(
-                        "The after-hours calls it catches paid for the year by February.",
-                        "Aldo Reyes",
-                        "Reyes Septic, Fresno",
-                        "https://i.pravatar.cc/240?img=12",
-                    ),
+            grid(
+                2,
+                testimonial(
+                    "Hired a second crew because the calendar filled. That sentence would've been science fiction last year.",
+                    "Dee Winters",
+                    "Winters & Sons HVAC, Boise",
+                    "https://i.pravatar.cc/240?img=60",
                 ),
-                row(
-                    testimonial(
-                        "I listened to the recordings expecting to cringe. It's more patient than I am before coffee.",
-                        "June Park",
-                        "Park Electric, Portland",
-                        "https://i.pravatar.cc/240?img=20",
-                    ),
-                    testimonial(
-                        "Customers started complimenting 'the new hire.' We don't have a new hire.",
-                        "Curtis Boone",
-                        "Boone Garage Doors, Nashville",
-                        "https://i.pravatar.cc/240?img=41",
-                    ),
+                testimonial(
+                    "The after-hours calls it catches paid for the year by February.",
+                    "Aldo Reyes",
+                    "Reyes Septic, Fresno",
+                    "https://i.pravatar.cc/240?img=12",
+                ),
+                testimonial(
+                    "I listened to the recordings expecting to cringe. It's more patient than I am before coffee.",
+                    "June Park",
+                    "Park Electric, Portland",
+                    "https://i.pravatar.cc/240?img=20",
+                ),
+                testimonial(
+                    "Customers started complimenting 'the new hire.' We don't have a new hire.",
+                    "Curtis Boone",
+                    "Boone Garage Doors, Nashville",
+                    "https://i.pravatar.cc/240?img=41",
                 ),
             ),
         ),

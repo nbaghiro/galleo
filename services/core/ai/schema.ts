@@ -7,6 +7,11 @@ const zElementLayout = z
         width: z.union([z.literal("fit"), z.literal("fill"), z.object({ pct: z.number() })]),
         height: z.union([z.literal("fit"), z.literal("fill")]),
         align: z.union([z.literal("start"), z.literal("center"), z.literal("end")]),
+        span: z
+            .number()
+            .describe(
+                "inside a grid container only: how many of its columns this child takes (2 or more; omit for one). A featured card spanning the full first row of a 2-column grid is `span: 2`",
+            ),
         radius: z.number(),
         pin: z
             .object({

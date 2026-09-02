@@ -535,7 +535,12 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "enum",
                 values: FLEX_DIRECTION,
                 default: "col",
-                desc: "stack children (col) or lay them side by side (row)",
+                desc: "stack children (col), lay them side by side (row), or fill shared-width columns row-major (grid). Reach for grid when parallel items overflow one row: five or more cards, or any 2×N arrangement, where separate stacked rows would not keep their columns aligned",
+            },
+            {
+                key: "columns",
+                type: "number",
+                desc: "grid only: how many columns (2–6). Children fill left to right, top to bottom; a child may take several columns via its layout's `span`",
             },
             {
                 key: "align",

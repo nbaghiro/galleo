@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { ElementInstance } from "@model/artifact";
 import type { PptxDeck, PptxLayout } from "@services/utils/pptx";
 import {
     designCatalog,
@@ -93,6 +94,27 @@ describe("designId", () => {
     it("slugs a name and falls back when there is nothing to slug", () => {
         expect(designId("Section Title_wBackground_2", 0)).toBe("section-title-wbackground-2");
         expect(designId("!!!", 3)).toBe("design-4");
+    });
+});
+
+describe("a design wider than one row", () => {
+    it("keeps the stated count up to six and builds its cards as a grid", () => {
+        const cat = designCatalog(deck(layout("6 Column Icons", "body")));
+        expect(cat[0]!.columns).toBe(6);
+        const sec = designSection(cat[0]!);
+        const kids = (sec.root.data as { children?: ElementInstance[] }).children!;
+        const gridEl = kids[1]!;
+        const g = gridEl.data as { direction?: string; columns?: number; children?: unknown[] };
+        expect(g.direction).toBe("grid");
+        expect(g.columns).toBe(3);
+        expect(g.children).toHaveLength(6);
+    });
+
+    it("stays one row at four and under", () => {
+        const cat = designCatalog(deck(layout("3_Coloumn", "body")));
+        const sec = designSection(cat[0]!);
+        const kids = (sec.root.data as { children?: ElementInstance[] }).children!;
+        expect((kids[1]!.data as { direction?: string }).direction).toBe("row");
     });
 });
 

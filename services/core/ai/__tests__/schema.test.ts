@@ -74,6 +74,28 @@ describe("zSection", () => {
         expect(minimal.success).toBe(true);
     });
 
+    it("carries a grid child's span through the layout, and sheds a malformed one", () => {
+        const ok = zSection.safeParse({
+            id: "s3",
+            root: {
+                type: "container",
+                data: { direction: "grid", columns: 2, children: [] },
+            },
+        });
+        expect(ok.success).toBe(true);
+        const spanned = zSection.safeParse({
+            id: "s4",
+            root: { type: "text", data: { text: "hero" }, layout: { span: 2 } },
+        });
+        expect(spanned.success && spanned.data.root.layout?.span).toBe(2);
+        const bad = zSection.safeParse({
+            id: "s5",
+            root: { type: "text", data: { text: "x" }, layout: { span: "wide" } },
+        });
+        // .catch(undefined) sheds the malformed layout rather than failing the section
+        expect(bad.success && bad.data.root.layout).toBeUndefined();
+    });
+
     it("accepts a recursive root — a group whose data.children nest element trees", () => {
         const ok = zSection.safeParse({
             id: "s2",

@@ -4,7 +4,8 @@
 > (`direction: "grid"`, landed with [`engine-round.md`](engine-round.md)) and the table sits on it,
 > but nothing an author or the model can write reaches it. This doc plans the other half: the
 > container speaks grid, the editor can build and drop into one, the AI is taught when to reach for
-> it, and a spanning cell exists. Status: planned, nothing built.
+> it, and a spanning cell exists. Status: **built, all three phases** — corpus re-measured clean
+> (592 checks), the retrofitted walls verified visually through the shot pipeline.
 
 Companion docs: `engine-gaps.md` (item 4's rationale), `engine-round.md` (what the solver half
 built and what it deliberately deferred), `container-merge.md` (why there is exactly one layout
