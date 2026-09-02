@@ -1,10 +1,10 @@
 import type { Component, JSX } from "solid-js";
-import { createMemo, createSignal, For, onMount, Show } from "solid-js";
+import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import type { ArtifactSummary, SectionSummary } from "@model/artifact";
 import { emptyRegion } from "@model/artifact";
 import type { Template } from "@model/templates";
 import { Eyebrow, IconButton, Spinner } from "@ui/button";
-import { TextField } from "@ui/inputs";
+import { CONTROL_H, TextField } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import { SectionThumb } from "@app/components/previews";
 import {
@@ -33,9 +33,9 @@ export interface PickedShape {
     themeId?: string;
 }
 
-// the template gallery's card metrics, so the two browsers read as one surface
-const THUMB_W = 244;
 const CARD_ASPECT = 16 / 9;
+const CARD_MIN = 220; // narrowest a card gets before a band drops a column
+const CARD_GAP = 20;
 const INSET = "px-5 md:px-9";
 
 const Card: Component<{
@@ -45,7 +45,7 @@ const Card: Component<{
     selected: boolean;
     children: JSX.Element;
 }> = (props) => (
-    <div class="w-61 flex-none">
+    <div class="min-w-0">
         {props.children}
         <div class="mt-2.5 flex items-center gap-2">
             <Eyebrow as="span" size={9} class="text-accent">
@@ -63,7 +63,9 @@ const Card: Component<{
 );
 
 /** One labelled band, the shape the template gallery already uses for a category. */
-const Band: Component<{ title: string; count?: number; children: JSX.Element }> = (props) => (
+const Band: Component<{ title: string; count?: number; cols: number; children: JSX.Element }> = (
+    props,
+) => (
     <section class="border-b border-line py-6">
         <div class={`mb-4 flex items-baseline gap-3 ${INSET}`}>
             <h2 class="text-[15px] font-semibold text-ink">{props.title}</h2>
@@ -72,7 +74,15 @@ const Band: Component<{ title: string; count?: number; children: JSX.Element }> 
             </Show>
         </div>
         <div class={INSET}>
-            <div class="flex flex-wrap gap-5">{props.children}</div>
+            <div
+                class="grid"
+                style={{
+                    "grid-template-columns": `repeat(${props.cols}, minmax(0, 1fr))`,
+                    gap: `${CARD_GAP}px`,
+                }}
+            >
+                {props.children}
+            </div>
         </div>
     </section>
 );
@@ -81,6 +91,7 @@ const Band: Component<{ title: string; count?: number; children: JSX.Element }> 
 // has to be the thing the reader is choosing.
 const YourCard: Component<{
     art: ArtifactSummary;
+    width: number;
     selected: boolean;
     onPick: () => void;
 }> = (props) => {
@@ -104,7 +115,7 @@ const YourCard: Component<{
                 formatId={props.art.formatId}
                 page={props.art.page}
                 label={props.art.title}
-                width={THUMB_W}
+                width={props.width}
                 tile={CARD_ASPECT}
                 selected={props.selected}
                 onOpen={props.onPick}
@@ -115,6 +126,7 @@ const YourCard: Component<{
 
 const TemplateCard: Component<{
     template: Template;
+    width: number;
     selected: boolean;
     onPick: () => void;
 }> = (props) => (
@@ -129,7 +141,7 @@ const TemplateCard: Component<{
             themeId={props.template.content.theme}
             formatId={props.template.content.format}
             label={props.template.name}
-            width={THUMB_W}
+            width={props.width}
             tile={CARD_ASPECT}
             selected={props.selected}
             onOpen={props.onPick}
@@ -147,6 +159,21 @@ export const DesignPane: Component<{
     const [reading, setReading] = createSignal(false);
     const [dropping, setDropping] = createSignal(false);
     let fileInput: HTMLInputElement | undefined;
+
+    // a scaled canvas needs a pixel width, so the column width is computed from the measured band
+    // rather than left to the browser's auto-fill (the library grid's own pattern)
+    const [gridW, setGridW] = createSignal(0);
+    let ro: ResizeObserver | undefined;
+    const measureBand = (el: HTMLElement): void => {
+        ro?.disconnect();
+        ro = new ResizeObserver((es) => setGridW(es[0]?.contentRect.width ?? el.clientWidth));
+        ro.observe(el);
+    };
+    onCleanup(() => ro?.disconnect());
+    const cols = (): number =>
+        Math.max(2, Math.floor((gridW() + CARD_GAP) / (CARD_MIN + CARD_GAP)));
+    const cardW = (): number =>
+        gridW() ? Math.floor((gridW() - CARD_GAP * (cols() - 1)) / cols()) : 0;
 
     onMount(() => {
         void ensureLibrary();
@@ -200,19 +227,17 @@ export const DesignPane: Component<{
                         what this piece should look like
                     </span>
                 </div>
-                <div class="ml-auto w-56 max-w-[45%]">
-                    <TextField
-                        compact
-                        icon="search"
-                        value={q()}
-                        placeholder="Find a design…"
-                        onChange={setQ}
-                    />
-                </div>
+                <TextField
+                    icon="search"
+                    class={`ml-auto w-56 max-w-[45%] ${CONTROL_H}`}
+                    placeholder="Find a design…"
+                    value={q()}
+                    onChange={setQ}
+                />
             </div>
 
             <div class="min-h-0 flex-1 overflow-y-auto">
-                <div class={`border-b border-line py-6 ${INSET}`}>
+                <div ref={measureBand} class={`border-b border-line py-6 ${INSET}`}>
                     <button
                         class="flex w-full items-center gap-3 rounded-xl border border-dashed px-4 py-4 text-left transition-colors"
                         classList={{
@@ -260,12 +285,13 @@ export const DesignPane: Component<{
                     />
                 </div>
 
-                <Show when={yours().length}>
-                    <Band title="Yours" count={yours().length}>
+                <Show when={cardW() > 0 && yours().length}>
+                    <Band title="Yours" count={yours().length} cols={cols()}>
                         <For each={yours()}>
                             {(art) => (
                                 <YourCard
                                     art={art}
+                                    width={cardW()}
                                     selected={props.picked === art.id}
                                     onPick={() =>
                                         props.onPick({
@@ -284,14 +310,14 @@ export const DesignPane: Component<{
                 </Show>
 
                 <Show
-                    when={templates()}
+                    when={cardW() > 0 && templates()}
                     fallback={
                         <div class="flex h-24 items-center justify-center">
                             <Spinner size={16} />
                         </div>
                     }
                 >
-                    <Band title="Galleo templates" count={theirs().length}>
+                    <Band title="Galleo templates" count={theirs().length} cols={cols()}>
                         <Show
                             when={theirs().length}
                             fallback={<p class="text-[12px] text-muted">Nothing matches.</p>}
@@ -300,6 +326,7 @@ export const DesignPane: Component<{
                                 {(template) => (
                                     <TemplateCard
                                         template={template}
+                                        width={cardW()}
                                         selected={props.picked === template.id}
                                         onPick={() =>
                                             props.onPick({
