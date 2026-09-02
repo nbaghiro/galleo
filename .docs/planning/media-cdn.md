@@ -978,3 +978,49 @@ published page shows `cf-cache-status: HIT` on shell, bundles, meta and content;
 to a fresh viewer within 60 s; a revoked link is dead within seconds; PostHog `link_viewed` counts
 are unchanged across the switch; the media images on the page hit `media.galleo.app` per P3. Cost at
 today's scale: zero.
+
+## 17. The app module's media speed, analysed 2026-09-02
+
+The question: does the plan cover media loading and browser caching inside `/app` (library, editor,
+picker, present), or does it need extending? Answer: mostly covered by construction, because the app
+paints the same `/api/media/asset/:id` URLs as every other surface, plus three app-shaped gaps.
+
+### 17.1 Covered by construction, no app changes
+
+- **The bytes.** Once P2 to P4 land, an app `<img>` or canvas paint follows the same 302 to
+  `media.galleo.app` as a published page: edge-close, provider-outage-immune, immutable. The editor
+  canvas, minimap (which repaints already-loaded elements rather than fetching again), present
+  surface and PDF/PNG export all inherit it from the URL shape.
+- **Export CORS.** `loadImages` sets `crossOrigin = "anonymous"` (`canvas/render/backends.ts:784`);
+  the committed `cors.json` on the media host is what keeps exports from silently dropping images.
+- **The app shell itself.** The origin-prep middleware in 16.4 sets immutable caching on hashed
+  `/assets/*`, which today ships with no cache headers at all, so the ~1.3 MB app bundle re-downloads
+  on every visit. Fixing that for publish fixes the app in the same line.
+- **The picker grid.** P4's `toItem` change (thumbUrl becomes `?w=400`) is the picker's fix: today it
+  hotlinks provider thumbnails and falls back to full-size originals.
+
+### 17.2 The gaps, folded into the phases
+
+1. **The redirect is uncached, and that is the app's per-visit tax.** Measured 2026-09-02: the 302
+   carries no `Cache-Control`, so a browser may not reuse it, and twenty library covers cost twenty
+   round trips to Oregon on every open, before any image byte arrives. Browsers cache redirects that
+   ask for it. Fix in the route, policy-aware:
+    - `storage_key` → `media.galleo.app`: `public, max-age=31536000, immutable` (the target never
+      changes for a given id).
+    - hotlink-only origins: a TTL from the per-provider policy table, because the right answer varies:
+      Unsplash URLs are stable (a day is safe), while Pixabay URLs expire in 24 hours, so their
+      redirects must cap below that. The policy table gains a `redirectTtl` column; one more reason it
+      exists in one place.
+      This is an origin-prep item: it pays today, before any Cloudflare work, since current origins are
+      stable Pexels URLs.
+2. **Library covers load full-size.** `ArtifactThumb` (`app/components/previews.tsx:206`) paints
+   `digest.cover.image` raw, roughly 1700x1100 into a card a few hundred pixels wide. Extend P4's
+   `?w=` adoption beyond `toItem`: covers request `?w=400`, and the editor's display paint may take
+   `?w=1600` later while export keeps the original. Degradation stays free: until variants exist,
+   `?w=` serves the original.
+3. **First-connection latency.** The app and publish shells gain
+   `<link rel="preconnect" href="https://media.galleo.app">` so the TLS handshake overlaps the JS
+   boot instead of following it.
+
+Not needed: a service worker (immutable HTTP caching does the job), lazy-loading work (the picker
+already lazy-loads and the library windows its paint per `loading.md`), or any new UI.
