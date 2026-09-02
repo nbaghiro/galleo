@@ -1195,6 +1195,20 @@ describe("sectionForms", () => {
         });
     });
 
+    it("reads a grid container as one cards column", () => {
+        const gridEl: ElementInstance = {
+            type: "container",
+            data: {
+                direction: "grid",
+                columns: 2,
+                children: [leaf("a"), leaf("b"), leaf("c"), leaf("d")],
+            },
+        };
+        expect(one(gridEl).blocks).toEqual(["cards"]);
+        // and inside a section column, the same answer a multi-child row gives
+        expect(one(row(leaf("intro"), gridEl)).blocks).toEqual(["text", "cards"]);
+    });
+
     it("names the nearest preset for a row's own shares", () => {
         const split = rowGroup([leaf("copy"), el("image", { src: "x" })], [0.6, 0.4]);
         expect(one(split).layout).toBe("split-6040");

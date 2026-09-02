@@ -23,6 +23,7 @@ type CrossAlign = Align | "baseline";
 export interface ContainerData {
     children: ElementInstance[];
     direction?: FlexDirection;
+    columns?: number; // grid only: shared-width tracks the children fill row-major
     align?: CrossAlign; // cross-axis; "baseline" applies to rows only
     justify?: FlexJustify; // main-axis: spread the leftover space instead of packing
     // absent = a bare stack (what `group` was). Any style = a surface (what `card` was). Flat rather
@@ -59,19 +60,31 @@ const colAlign = (d: ContainerData): Align | undefined =>
 const unfraction = (n: EngineNode): EngineNode =>
     n.w.mode === "percent" ? { ...n, w: grow() } : n;
 
+const gridCols = (d: ContainerData): number => Math.max(2, Math.min(6, Math.round(d.columns ?? 2)));
+
+/** The clamped column count of a grid container instance, or null for anything else. */
+export const gridColumnsOf = (inst?: ElementInstance): number | null =>
+    inst?.type === "container" && (inst.data as ContainerData).direction === "grid"
+        ? gridCols(inst.data as ContainerData)
+        : null;
+
 const bare = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
-    const stacked = d.direction === "row" && stacksAtWidth(ctx.format, ctx.availWidth);
+    const stacked =
+        (d.direction === "row" || d.direction === "grid") &&
+        stacksAtWidth(ctx.format, ctx.availWidth);
     const dir: FlexDirection = stacked ? "col" : (d.direction ?? "col");
     // a stacked row's explicit `align` was a row-axis instruction, so only the text inference survives
     return {
         w: grow(),
         h: fit(),
         direction: dir,
+        ...(dir === "grid" ? { columns: gridCols(d) } : {}),
         gap: 14,
-        alignX: dir === "row" ? undefined : stacked ? inferredAlign(d) : colAlign(d),
-        alignY: dir === "row" ? d.align : undefined,
-        ...(d.justify ? { distribute: d.justify } : {}),
-        children: stacked ? kids.map(unfraction) : kids,
+        alignX: dir === "col" ? (stacked ? inferredAlign(d) : colAlign(d)) : undefined,
+        alignY: dir === "col" ? undefined : d.align,
+        ...(d.justify && dir === "row" ? { distribute: d.justify } : {}),
+        // tracks own widths in a grid: a member's stale row fraction must never pin one
+        children: stacked || dir === "grid" ? kids.map(unfraction) : kids,
     };
 };
 
@@ -81,14 +94,16 @@ const surfaced = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineN
     const rad = d.shape === "sharp" ? 2 : t.radius;
     const p = 24;
     const inset = { top: p, right: p, bottom: p, left: p };
+    const dir = d.direction ?? "col";
     const stack = (padding: typeof inset): EngineNode => ({
         w: grow(),
         h: fit(),
-        direction: d.direction ?? "col",
+        direction: dir,
+        ...(dir === "grid" ? { columns: gridCols(d) } : {}),
         gap: 12,
         padding,
-        ...(d.justify ? { distribute: d.justify } : {}),
-        children: kids,
+        ...(d.justify && dir === "row" ? { distribute: d.justify } : {}),
+        children: dir === "grid" ? kids.map(unfraction) : kids,
     });
     const style = d.surface ?? "solid";
     if (style === "plain") return stack({ top: 0, right: 0, bottom: 0, left: 0 });
@@ -143,13 +158,23 @@ export const containerElement: ElementSpec<ContainerData> = {
         arrange: arrangeContainer,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    bar: ["direction", "align", "surface"],
+    bar: ["direction", "columns", "align", "surface"],
     controls: [
         {
             key: "direction",
             label: "Direction",
             control: "segmented",
             options: DIRECTION_OPTIONS,
+        },
+        {
+            key: "columns",
+            label: "Columns",
+            control: "slider",
+            min: 2,
+            max: 6,
+            step: 1,
+            icon: "grid",
+            visibleWhen: (d) => d.direction === "grid",
         },
         {
             key: "align",

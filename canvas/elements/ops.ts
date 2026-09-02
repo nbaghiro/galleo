@@ -65,6 +65,9 @@ const isEmptyContainer = (inst: ElementInstance): boolean => {
 const isRow = (inst: ElementInstance): boolean =>
     inst.type === "container" && (inst.data as { direction?: string }).direction === "row";
 
+const isGrid = (inst: ElementInstance): boolean =>
+    inst.type === "container" && (inst.data as { direction?: string }).direction === "grid";
+
 const widthPct = (inst: ElementInstance): number | undefined => {
     const w = inst.layout?.width;
     return w && typeof w === "object" ? w.pct : undefined;
@@ -242,10 +245,15 @@ export function insertChild(
     return updateElementAt(art, parentAddr, (parent) => {
         const kids = childrenOf(parent);
         if (!kids) return parent;
-        // width invariant: a row's columns are all width-less (even split) or all summing to 100%
+        // width invariant: a row's columns are all width-less (even split) or all summing to 100%;
+        // in a grid, tracks own widths, so a member never carries one at all
         const row = isRow(parent);
         const next = [...kids];
-        next.splice(clamp(index, next.length), 0, row ? stripWidth(element) : element);
+        next.splice(
+            clamp(index, next.length),
+            0,
+            row || isGrid(parent) ? stripWidth(element) : element,
+        );
         return withChildren(parent, row ? renormalizeWidths(next) : next);
     });
 }

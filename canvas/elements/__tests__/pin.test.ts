@@ -164,3 +164,22 @@ describe("section overhang", () => {
         expect(band.box.h).toBeCloseTo(height, 5);
     });
 });
+
+describe("layout.span through applyLayout", () => {
+    it("copies a span onto the node, rounded, and drops span 1", () => {
+        const gridInst = inst("container", {
+            direction: "grid",
+            columns: 2,
+            children: [
+                { ...inst("text", { text: "hero" }), layout: { span: 2.4 } },
+                inst("text", { text: "a" }),
+                { ...inst("text", { text: "b" }), layout: { span: 1 } },
+            ],
+        });
+        const node = composeElement(gridInst, ctx, addr);
+        const spans = node.children!.map((c) => c.span);
+        expect(spans[0]).toBe(2);
+        expect(spans[1]).toBeUndefined();
+        expect(spans[2]).toBeUndefined();
+    });
+});

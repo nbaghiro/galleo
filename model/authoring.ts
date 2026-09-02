@@ -179,6 +179,18 @@ export const split = (
     right: ElementInstance,
 ): ElementInstance => rowGroup([left, right], [leftPct / 100, 1 - leftPct / 100]);
 
+/** Shared-width tracks the children fill row-major, so cells align across rows. */
+export const grid = (
+    cols: number,
+    ...args: (ContainerOpts | ElementInstance)[]
+): ElementInstance => {
+    const built = container("col", args); // reuses the opts split; "col" writes no direction key
+    return {
+        ...built,
+        data: { ...(built.data as Record<string, unknown>), direction: "grid", columns: cols },
+    };
+};
+
 export { emptyRegion };
 
 export const section = (

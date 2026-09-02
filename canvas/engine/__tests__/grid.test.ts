@@ -206,3 +206,51 @@ describe("grid — shared column tracks", () => {
         near(boxOf(reg(host, 400, 400), "g").w, 106); // 32 + 64 + one 10px gap
     });
 });
+
+describe("grid — column spans", () => {
+    // gap 0 defaults keep the track math readable: tracks from single-span members only
+    const spanned = (extra?: Partial<EngineNode>): EngineNode =>
+        gridNode(
+            [cell("hero", 4, { span: 2 }), cell("a", 4), cell("b", 8), cell("c", 2), cell("d", 2)],
+            2,
+            extra,
+        );
+
+    it("a spanning cell takes its tracks plus the gaps between them", () => {
+        const r = reg(spanned({ gap: 10 }));
+        // tracks: col 0 = max(a 32, c 16) = 32; col 1 = max(b 64, d 16) = 64
+        near(boxOf(r, "a").w, 32);
+        near(boxOf(r, "b").w, 64);
+        near(boxOf(r, "hero").w, 32 + 64 + 10);
+    });
+
+    it("fill advances by span: the spanner owns its row, the rest fill on after it", () => {
+        const r = reg(spanned());
+        const heroY = boxOf(r, "hero").y;
+        expect(boxOf(r, "a").y).toBeGreaterThan(heroY); // pushed to the next row
+        near(boxOf(r, "a").y, boxOf(r, "b").y); // a and b share row 2
+        near(boxOf(r, "c").y, boxOf(r, "d").y); // c and d share row 3
+        near(boxOf(r, "b").x, 32); // track x unchanged by the spanner
+    });
+
+    it("a span too wide for the space left in its row wraps to the next row's start", () => {
+        const r = reg(gridNode([cell("a", 4), cell("wide", 4, { span: 2 }), cell("b", 4)], 2));
+        expect(boxOf(r, "wide").y).toBeGreaterThan(boxOf(r, "a").y);
+        near(boxOf(r, "wide").x, 0);
+        expect(boxOf(r, "b").y).toBeGreaterThan(boxOf(r, "wide").y);
+    });
+
+    it("span clamps to the column count, and span 1 is exactly today's grid", () => {
+        const r = reg(gridNode([cell("all", 4, { span: 9 }), cell("a", 4), cell("b", 4)], 2));
+        near(boxOf(r, "all").w, 64); // both 32px tracks, gap 0
+        const plain = reg(gridNode([cell("a", 4, { span: 1 }), cell("b", 8)], 2));
+        near(boxOf(plain, "a").w, 32);
+        near(boxOf(plain, "b").x, 32);
+    });
+
+    it("a spanner never sizes a track: a track with only spanners over it sizes as empty", () => {
+        // col 1 has no single-span member, so it stays at 0 and the spanner gets col 0's width
+        const r = reg(gridNode([cell("wide", 20, { span: 2 }), cell("a", 4)], 2));
+        near(boxOf(r, "wide").w, boxOf(r, "a").w);
+    });
+});

@@ -232,9 +232,12 @@ function presetFor(kids: ElementInstance[]): string {
  * label above a headline above a paragraph is a text column; a nested row of two or more is a set of
  * cards however its cells are built.
  */
+const isGridEl = (el: ElementInstance): boolean =>
+    (el.data as { direction?: string }).direction === "grid" && (childrenRaw(el)?.length ?? 0) > 0;
+
 function blockOf(el: ElementInstance): string {
     const kids = childrenRaw(el);
-    if (isRow(el) && (kids?.length ?? 0) > 1) return "cards";
+    if ((isRow(el) || isGridEl(el)) && (kids?.length ?? 0) > 1) return "cards";
     // only a visual outranks the leading heading, since a paragraph over bullets is still text
     if (el.type === "container" && kids?.length) {
         const blocks = kids.map(blockOf);

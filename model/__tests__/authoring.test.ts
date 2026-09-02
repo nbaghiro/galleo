@@ -3,6 +3,7 @@ import type { ElementInstance } from "@model/artifact";
 import { childrenRaw } from "@model/artifact";
 import {
     bgImage,
+    grid,
     bgTone,
     clampLines,
     img,
@@ -60,6 +61,18 @@ describe("bgTone", () => {
         expect(bgTone("tint")).toEqual({ kind: "tone", tone: "tint" });
         expect(bgTone("contrast")).toEqual({ kind: "tone", tone: "contrast" });
         expect(bgTone("accent")).toEqual({ kind: "tone", tone: "accent" });
+    });
+});
+
+describe("grid", () => {
+    it("builds a grid container with its column count and a leading options object", () => {
+        const g = grid(3, { gap: 8 }, t("a", "body"), t("b", "body"), t("c", "body"));
+        const d = g.data as { direction?: string; columns?: number; gap?: number };
+        expect(g.type).toBe("container");
+        expect(d.direction).toBe("grid");
+        expect(d.columns).toBe(3);
+        expect(d.gap).toBe(8);
+        expect(childrenRaw(g)?.map(textOf)).toEqual(["a", "b", "c"]);
     });
 });
 

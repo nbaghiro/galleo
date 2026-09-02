@@ -64,7 +64,8 @@ export type CardStyle = (typeof CARD_STYLES)[number];
 export const CARD_SHAPES = ["sharp", "rounded"] as const;
 export type CardShape = (typeof CARD_SHAPES)[number];
 
-export const FLEX_DIRECTION = ["row", "col"] as const;
+// "grid" fills `columns` shared-width tracks row-major, so cells align across rows
+export const FLEX_DIRECTION = ["row", "col", "grid"] as const;
 export type FlexDirection = (typeof FLEX_DIRECTION)[number];
 
 // main-axis distribution of leftover space; absent = pack the children and align them

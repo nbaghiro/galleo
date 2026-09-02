@@ -169,6 +169,9 @@ export interface EngineNode {
     direction?: "row" | "col" | "grid";
     columns?: number;
     rowGap?: number; // grid only; defaults to `gap`
+    // columns this cell takes under a grid parent (absent = 1); sized by its tracks, never sizing
+    // them (see trackMembers in layout.ts)
+    span?: number;
     padding?: BoxInsets;
     gap?: number;
     alignX?: Align;

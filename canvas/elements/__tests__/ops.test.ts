@@ -147,6 +147,18 @@ describe("insertion", () => {
         expect(fr.reduce((a, b) => a + b, 0)).toBeLessThan(1.02);
     });
 
+    it("insertChild into a grid strips the newcomer's width and leaves the rest alone", () => {
+        const gridRoot: ElementInstance = {
+            type: "container",
+            data: { direction: "grid", columns: 2, children: [txt("a"), txt("b"), txt("c")] },
+        };
+        const art = insertChild(artOf(gridRoot), at([]), 1, withWidth(txt("x"), 90));
+        const kids = childrenRaw(rootOf(art))!;
+        expect(kids.map(textOf)).toEqual(["a", "x", "b", "c"]);
+        // a member width would pin its track; none may survive the insert or be invented for others
+        expect(kids.every((k) => k.layout?.width === undefined)).toBe(true);
+    });
+
     it("wrapWith wraps a leaf and a new element into a group (after → [self, new])", () => {
         const art = wrapWith(artOf(txt("a")), at([]), txt("x"), false, "row");
         expect(rootOf(art).type).toBe("container");

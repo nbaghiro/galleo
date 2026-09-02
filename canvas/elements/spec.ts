@@ -308,6 +308,7 @@ export function skeletonize(node: EngineNode, colors: GhostColors = DEFAULT_GHOS
         direction: node.direction,
         columns: node.columns,
         rowGap: node.rowGap,
+        span: node.span,
         padding: node.padding,
         gap: node.gap,
         alignX: node.alignX,

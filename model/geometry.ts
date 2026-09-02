@@ -23,6 +23,7 @@ export interface ElementLayout {
     width?: "fit" | "fill" | { pct: number }; // pct = percent of the row
     height?: "fit" | "fill"; // fill = stretch to the row's cross-height
     align?: "start" | "center" | "end"; // self cross-axis alignment
+    span?: number; // grid parents only: how many columns this cell takes (≥2; absent = 1)
     radius?: number; // corner radius override on the element's frame (fill/image)
     // section chrome: lifted out of the content flow and anchored to the section's own band, so a
     // topbar hugs a hero's top edge while the content centres below it

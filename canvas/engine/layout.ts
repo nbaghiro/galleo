@@ -32,15 +32,50 @@ const isRow = (n: EngineNode): boolean => n.direction === "row";
 const isGrid = (n: EngineNode): boolean => n.direction === "grid";
 const colCount = (n: EngineNode): number => Math.max(1, Math.round(n.columns ?? 1));
 
-// Row-major fill: flow child k sits in column k % cols, row floor(k / cols).
-function columnsOf<T>(flow: T[], cols: number): T[][] {
-    const out: T[][] = Array.from({ length: cols }, () => []);
-    flow.forEach((c, k) => out[k % cols]!.push(c));
+const spanOf = (n: EngineNode, cols: number): number =>
+    Math.max(1, Math.min(cols, Math.round(n.span ?? 1)));
+
+interface Placed<T> {
+    item: T;
+    row: number;
+    col: number;
+    span: number;
+}
+
+// Row-major fill: a cell takes `span` consecutive tracks and wraps to the next row when the
+// current one cannot hold it. With no spans this is exactly column k % cols, row floor(k / cols).
+function placeGrid<T>(flow: T[], cols: number, span: (t: T) => number): Placed<T>[] {
+    const out: Placed<T>[] = [];
+    let row = 0;
+    let col = 0;
+    for (const item of flow) {
+        const s = span(item);
+        if (col + s > cols) {
+            row++;
+            col = 0;
+        }
+        out.push({ item, row, col, span: s });
+        col += s;
+        if (col >= cols) {
+            row++;
+            col = 0;
+        }
+    }
     return out;
 }
-function rowsOf<T>(flow: T[], cols: number): T[][] {
-    const out: T[][] = [];
-    for (let i = 0; i < flow.length; i += cols) out.push(flow.slice(i, i + cols));
+
+// Track membership for sizing: single-track cells only. A spanner is sized by its tracks and never
+// sizes them — the rule that keeps track solving single-pass — so a track populated only by
+// spanners sizes as empty, which is visible and author-fixable rather than a silent wrong answer.
+function trackMembers<T>(placed: Placed<T>[], cols: number): T[][] {
+    const out: T[][] = Array.from({ length: cols }, () => []);
+    for (const p of placed) if (p.span === 1) out[p.col]!.push(p.item);
+    return out;
+}
+
+function placedRows<T>(placed: Placed<T>[]): Placed<T>[][] {
+    const out: Placed<T>[][] = [];
+    for (const p of placed) (out[p.row] ??= []).push(p);
     return out;
 }
 const clamp = (v: number, s: Size): number => {
@@ -100,11 +135,15 @@ export function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
     if (kids.length === 0) return 0; // a fill/surface (or a sizeless image) has no intrinsic width
     if (isGrid(n)) {
         const cols = colCount(n);
-        const tracks = columnsOf(
+        const placed = placeGrid(
             kids.filter((c) => !c.float),
             cols,
+            (c) => spanOf(c, cols),
         );
-        const sum = tracks.reduce((a, m) => a + columnSpan(m, 0, measure).base, 0);
+        const sum = trackMembers(placed, cols).reduce(
+            (a, m) => a + columnSpan(m, 0, measure).base,
+            0,
+        );
         return padX(n) + (n.gap ?? 0) * (cols - 1) + sum;
     }
     const childW = (c: EngineNode): number =>
@@ -185,17 +224,24 @@ function layoutWidths(node: EngineNode, w: number, measure: MeasureText): Layout
 
     const contentW = Math.max(0, w - padX(node));
     if (isGrid(node)) {
-        // One shared track per column, solved by the same distribute() a row uses.
+        // One shared track per column, solved by the same distribute() a row uses; a spanning
+        // cell's width is its tracks plus the gaps between them.
         const cols = colCount(node);
+        const gap = node.gap ?? 0;
         const flow = kids.filter((c) => !c.float);
-        const avail = Math.max(0, contentW - (node.gap ?? 0) * (cols - 1));
+        const avail = Math.max(0, contentW - gap * (cols - 1));
+        const placed = placeGrid(flow, cols, (c) => spanOf(c, cols));
         const widths = distribute(
-            columnsOf(flow, cols).map((m) => columnSpan(m, avail, measure)),
+            trackMembers(placed, cols).map((m) => columnSpan(m, avail, measure)),
             avail,
         );
-        let fi = 0;
+        const at = new Map<EngineNode, Placed<EngineNode>>(placed.map((p) => [p.item, p]));
         for (const c of kids) {
-            const cw = c.float ? crossWidth(c, contentW, measure) : widths[fi++ % cols]!;
+            const p = at.get(c);
+            const cw = !p
+                ? crossWidth(c, contentW, measure)
+                : widths.slice(p.col, p.col + p.span).reduce((a, b) => a + b, 0) +
+                  gap * (p.span - 1);
             ln.children.push(layoutWidths(c, cw, measure));
         }
     } else if (isRow(node)) {
@@ -261,13 +307,14 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText, 
         h.mode === "fixed" ? h.value : h.mode === "percent" ? assignedH * h.value : assignedH;
     const contentH = Math.max(0, ownH - padY(node));
     if (isGrid(node)) {
+        const cols = colCount(node);
         const flow = ln.children.filter((c) => !c.node.float);
-        const gridRows = rowsOf(flow, colCount(node));
+        const gridRows = placedRows(placeGrid(flow, cols, (c) => spanOf(c.node, cols)));
         let total = (node.rowGap ?? node.gap ?? 0) * Math.max(0, gridRows.length - 1);
         for (const members of gridRows) {
             let rowH = 0;
             const growKids: LayoutNode[] = [];
-            for (const c of members) {
+            for (const { item: c } of members) {
                 if (c.node.h.mode === "grow") {
                     // measured as fit first: a row of only grow members has nothing else to stretch to
                     layoutHeights(c, contentH, measure, {
@@ -395,20 +442,28 @@ function layoutPositions(ln: LayoutNode, x: number, y: number, measure: MeasureT
 
     if (isGrid(node)) {
         const cols = colCount(node);
-        const colW = columnsOf(flow, cols).map((m) => m.reduce((mx, c) => Math.max(mx, c.w), 0));
-        const rowH = rowsOf(flow, cols).map((m) => m.reduce((mx, c) => Math.max(mx, c.h), 0));
+        const placed = placeGrid(flow, cols, (c) => spanOf(c.node, cols));
+        // a laid-out single-span member's width IS its track's solved width
+        const colW = trackMembers(placed, cols).map((m) =>
+            m.reduce((mx, c) => Math.max(mx, c.w), 0),
+        );
+        const lead = (col: number): number => {
+            let o = 0;
+            for (let i = 0; i < col; i++) o += colW[i]! + gap;
+            return o;
+        };
         const rg = node.rowGap ?? gap;
         let cy = y + ct;
-        for (let r = 0; r < rowH.length; r++) {
-            let cx = x + cl;
-            for (let i = 0; i < cols; i++) {
-                const c = flow[r * cols + i];
-                if (!c) break;
-                const off = mainOffset(rowH[r]! - c.h, asBoxAlign(c.node.alignSelf ?? node.alignY));
-                layoutPositions(c, cx, cy + off, measure);
-                cx += colW[i]! + gap;
+        for (const members of placedRows(placed)) {
+            const rowH = members.reduce((mx, p) => Math.max(mx, p.item.h), 0);
+            for (const p of members) {
+                const off = mainOffset(
+                    rowH - p.item.h,
+                    asBoxAlign(p.item.node.alignSelf ?? node.alignY),
+                );
+                layoutPositions(p.item, x + cl + lead(p.col), cy + off, measure);
             }
-            cy += rowH[r]! + rg;
+            cy += rowH + rg;
         }
     } else if (isRow(node)) {
         const totalW = flow.reduce((s, c) => s + c.w, 0) + gap * Math.max(0, flow.length - 1);

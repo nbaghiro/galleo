@@ -5,6 +5,7 @@ import { elementRegionId } from "@model/artifact";
 import { capture } from "@ui/analytics";
 import { getElementAt, setElementLayout, sharedParent, updateDataAt } from "@elements/ops";
 import { getElement } from "@elements/spec";
+import { gridColumnsOf } from "@elements/composite/container";
 import { runCommand } from "@ui/keys";
 import { commit, editor, regions, selectedAddresses } from "@editor/core/store";
 import { deleteSelectedElements } from "@editor/core/commands";
@@ -104,6 +105,20 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         );
     };
 
+    // a cell under a grid parent may take several of its columns
+    const gridParentCols = createMemo((): number | null =>
+        props.address.path.length === 0
+            ? null
+            : gridColumnsOf(getElementAt(editor.artifact, parentAddress(props.address))),
+    );
+    const setSpan = (n: number): void => {
+        const { span: _span, ...rest } = inst()?.layout ?? {};
+        commit(
+            setElementLayout(editor.artifact, props.address, n > 1 ? { ...rest, span: n } : rest),
+            { coalesce: `panel:${elementRegionId(props.address)}:span` },
+        );
+    };
+
     const pin = createMemo((): Pin | undefined => inst()?.layout?.pin);
     const setPin = (key: "z" | "rotate" | "dx" | "dy", value: number): void => {
         const cur = inst();
@@ -180,6 +195,19 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                         onChange={setRadius}
                     />
                 </FieldRow>
+            </Show>
+            <Show when={gridParentCols()}>
+                {(cols) => (
+                    <FieldRow label="Column span">
+                        <SliderRow
+                            value={inst()?.layout?.span ?? 1}
+                            min={1}
+                            max={cols()}
+                            step={1}
+                            onChange={setSpan}
+                        />
+                    </FieldRow>
+                )}
             </Show>
             <Show when={pinnable(editor.artifact, props.address)}>
                 <FieldRow label="Pin in place">

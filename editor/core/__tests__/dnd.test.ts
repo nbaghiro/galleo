@@ -172,6 +172,49 @@ describe("slot resolution — leaf inside a container", () => {
     });
 });
 
+describe("slot resolution — grid container", () => {
+    const gridArt = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(
+                inst("container", {
+                    direction: "grid",
+                    columns: 2,
+                    children: [txt("a"), txt("b"), txt("c"), txt("d")],
+                }),
+                { id: "s1" },
+            ),
+        ]);
+    // 2×2 cells inside a 400×220 root
+    const gridRegions = (): Region[] => [
+        reg("section:s1", 0, 0, 400, 220),
+        reg("el:s1", 0, 0, 400, 220),
+        reg("el:s1:0", 20, 20, 170, 80),
+        reg("el:s1:1", 210, 20, 170, 80),
+        reg("el:s1:2", 20, 120, 170, 80),
+        reg("el:s1:3", 210, 120, 170, 80),
+    ];
+    const idx = (px: number, py: number): number | undefined =>
+        targetAt(gridArt(), gridRegions(), px, py)?.index;
+
+    it("inserts at the flat row-major index the cursor's cell gap names", () => {
+        expect(idx(200, 60)).toBe(1); // between a and b
+        expect(idx(30, 60)).toBe(0); // before a (clear of the outer column band)
+        expect(idx(200, 160)).toBe(3); // between c and d
+    });
+
+    it("appending past a row inserts before the next row's first cell", () => {
+        expect(idx(350, 60)).toBe(2); // after b = before c
+        expect(idx(350, 160)).toBe(4); // after d = true append
+    });
+
+    it("no point inside the grid is a dead zone, the row gaps included", () => {
+        const slots = computeDropSlots(gridArt(), gridRegions(), NEW);
+        for (let px = 25; px < 375; px += 25)
+            for (let py = 25; py < 195; py += 25)
+                expect(activeSlot(slots, px, py, null), `${px},${py}`).not.toBeNull();
+    });
+});
+
 describe("slot resolution — the section-root leaf wraps", () => {
     it("nearest vertical edge → wrap into a row, side from the edge", () => {
         expect(targetAt(leafArt(), leafRegions(), 330, 110)).toEqual({

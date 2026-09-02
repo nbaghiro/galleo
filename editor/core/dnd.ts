@@ -16,6 +16,7 @@ import {
 } from "@elements/ops";
 import { addressesEqual } from "@model/artifact";
 import { getElement } from "@elements/spec";
+import { gridColumnsOf as gridColumns } from "@elements/composite/container";
 import { setRightTab } from "./store";
 
 // reordering co-parented siblings as one block; cross-parent multi-move is deferred
@@ -152,12 +153,13 @@ const regionBox = (regions: Region[], sid: string, path: number[]): Rect | null 
     return (content ?? regions.find((r) => r.id === id))?.box ?? null;
 };
 
-// sorted along the axis; groups lay out in order, so sorted order is tree order
+// sorted along the axis; groups lay out in order, so sorted order is tree order. A grid sorts by
+// index instead: placement is row-major, so storage order is the geometry.
 function childBoxes(
     regions: Region[],
     sid: string,
     parentPath: number[],
-    axis: "row" | "col",
+    axis: "row" | "col" | "grid",
 ): { index: number; box: Rect }[] {
     const depth = parentPath.length + 1;
     const out: { index: number; box: Rect }[] = [];
@@ -168,7 +170,9 @@ function childBoxes(
         if (path.length !== depth || parentPath.some((v, i) => v !== path[i])) continue;
         out.push({ index: path[depth - 1]!, box: r.box });
     }
-    return out.sort((a, b) => (axis === "row" ? a.box.x - b.box.x : a.box.y - b.box.y));
+    return out.sort((a, b) =>
+        axis === "row" ? a.box.x - b.box.x : axis === "col" ? a.box.y - b.box.y : a.index - b.index,
+    );
 }
 
 const instKids = (inst?: ElementInstance): ElementInstance[] =>
@@ -180,9 +184,13 @@ const flowOnly = (
     kids: ElementInstance[],
 ): { index: number; box: Rect }[] => boxes.filter((b) => !kids[b.index]?.layout?.pin);
 
-// the root row's flow children, else the whole root as one column
+// the root row's flow children, else the whole root as one column; a grid root's cells are
+// tracks, not section columns, so it counts as one
 function sectionColumns(regions: Region[], sid: string, root?: ElementInstance): Rect[] {
-    const cols = flowOnly(childBoxes(regions, sid, [], "row"), instKids(root));
+    const cols =
+        gridColumns(root) === null
+            ? flowOnly(childBoxes(regions, sid, [], "row"), instKids(root))
+            : [];
     if (cols.length) return cols.map((c) => c.box);
     const box = regions.find((r) => r.id === `el:${sid}`)?.box;
     return box ? [box] : [];
@@ -356,6 +364,40 @@ function gapSlot(
     };
 }
 
+// A grid's slots: one band of vertical gaps per visual row. The flow list chunked by the column
+// count IS the geometry (placement is row-major), so no banding inference is needed; each band is
+// handed to gapSlot as its own row. Gap g flanks flow positions g-1 and g, so `skip` suppresses
+// the no-op gaps beside a dragged member exactly as the axis path does.
+function gridGapSlots(
+    sid: string,
+    path: number[],
+    flow: { index: number; box: Rect }[],
+    cols: number,
+    container: Rect,
+    end: number,
+    skip: (gap: number) => boolean,
+): DropSlot[] {
+    const rows: { index: number; box: Rect }[][] = [];
+    for (let r = 0; r * cols < flow.length; r++) rows.push(flow.slice(r * cols, (r + 1) * cols));
+    const tops = rows.map((row) => Math.min(...row.map((b) => b.box.y)));
+    const bottoms = rows.map((row) => Math.max(...row.map((b) => b.box.y + b.box.h)));
+    const out: DropSlot[] = [];
+    for (let r = 0; r < rows.length; r++) {
+        // bands meet at the row-gap midpoints so no point between rows is a dead zone
+        const lo = r === 0 ? container.y : (bottoms[r - 1]! + tops[r]!) / 2;
+        const hi =
+            r === rows.length - 1 ? container.y + container.h : (bottoms[r]! + tops[r + 1]!) / 2;
+        const band = { x: container.x, y: lo, w: container.w, h: hi - lo };
+        // appending past this row inserts before the next row's first cell
+        const rowEnd = rows[r + 1] ? rows[r + 1]![0]!.index : end;
+        for (let k = 0; k <= rows[r]!.length; k++) {
+            if (skip(r * cols + k)) continue;
+            out.push(gapSlot(sid, path, "row", k, rows[r]!, band, rowEnd));
+        }
+    }
+    return out;
+}
+
 // a leaf that is the section root wraps into a new row/col; four edge slots share the leaf's box
 // and the nearest indicator wins, reproducing the old axis-from-cursor-offset behavior
 function wrapSlots(sid: string, box: Rect): DropSlot[] {
@@ -424,8 +466,9 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
                 return;
             }
 
+            const cols = gridColumns(inst);
             const axis = groupAxis(inst);
-            const boxes = childBoxes(regions, sid, path, axis);
+            const boxes = childBoxes(regions, sid, path, cols !== null ? "grid" : axis);
             const flow = flowOnly(boxes, kids);
             if (!flow.length) {
                 // every child pinned: the reserved band is one droppable region, appending in flow
@@ -448,10 +491,16 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
                         ? srcPath[path.length]!
                         : null;
                 const srcPos = srcIndex !== null ? flow.findIndex((b) => b.index === srcIndex) : -1;
-                for (let k = 0; k <= flow.length; k++) {
-                    // the gaps flanking the source in its own parent are no-op moves
-                    if (srcPos >= 0 && (k === srcPos || k === srcPos + 1)) continue;
-                    out.push(gapSlot(sid, path, axis, k, flow, box, kids.length));
+                // the gaps flanking the source in its own parent are no-op moves
+                const noop = (k: number): boolean =>
+                    srcPos >= 0 && (k === srcPos || k === srcPos + 1);
+                if (cols !== null) {
+                    out.push(...gridGapSlots(sid, path, flow, cols, box, kids.length, noop));
+                } else {
+                    for (let k = 0; k <= flow.length; k++) {
+                        if (noop(k)) continue;
+                        out.push(gapSlot(sid, path, axis, k, flow, box, kids.length));
+                    }
                 }
             }
             for (const kb of boxes) visit([...path, kb.index]);
@@ -489,18 +538,26 @@ function parentGapSlots(
     if (!spec?.container || spec.container.closed) return [];
     const box = regionBox(regions, parent.section, parent.path);
     if (!box) return [];
+    const cols = gridColumns(inst);
     const axis = groupAxis(inst);
     const children = instKids(inst);
-    const kids = flowOnly(childBoxes(regions, parent.section, parent.path, axis), children);
+    const kids = flowOnly(
+        childBoxes(regions, parent.section, parent.path, cols !== null ? "grid" : axis),
+        children,
+    );
     if (!kids.length) return [];
     const sorted = [...indices].sort((a, b) => a - b);
     const pos = (i: number): number => kids.findIndex((b) => b.index === i);
     const lo = pos(sorted[0]!);
     const hi = pos(sorted[sorted.length - 1]!);
     const contiguous = sorted.every((v, i) => i === 0 || v === sorted[i - 1]! + 1);
+    // the block already sits there
+    const noop = (k: number): boolean => contiguous && lo >= 0 && k >= lo && k <= hi + 1;
+    if (cols !== null)
+        return gridGapSlots(parent.section, parent.path, kids, cols, box, children.length, noop);
     const out: DropSlot[] = [];
     for (let k = 0; k <= kids.length; k++) {
-        if (contiguous && lo >= 0 && k >= lo && k <= hi + 1) continue; // the block already sits there
+        if (noop(k)) continue;
         out.push(gapSlot(parent.section, parent.path, axis, k, kids, box, children.length));
     }
     return out;

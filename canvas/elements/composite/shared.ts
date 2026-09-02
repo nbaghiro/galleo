@@ -3,7 +3,6 @@ import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import { getElement } from "@elements/spec";
 import { fit, grow } from "@model/geometry";
-import { FLEX_DIRECTION } from "@model/elements";
 import type { FlexDirection } from "@model/elements";
 
 export interface CompositeData {
@@ -61,9 +60,11 @@ export function composite(
     };
 }
 
-// UI order Stack (col) then Row — reverse of FLEX_DIRECTION
-const DIRECTION_LABEL: Record<FlexDirection, string> = { col: "Stack", row: "Row" };
-const DIRECTION_ICON: Record<FlexDirection, string> = { col: "stack", row: "row" };
-export const DIRECTION_OPTIONS: NonNullable<ControlField["options"]> = [...FLEX_DIRECTION]
-    .reverse()
-    .map((v) => ({ label: DIRECTION_LABEL[v], value: v, icon: DIRECTION_ICON[v] }));
+const DIRECTION_LABEL: Record<FlexDirection, string> = { col: "Stack", row: "Row", grid: "Grid" };
+const DIRECTION_ICON: Record<FlexDirection, string> = { col: "stack", row: "row", grid: "grid" };
+const DIRECTION_ORDER: readonly FlexDirection[] = ["col", "row", "grid"]; // UI order, Stack first
+export const DIRECTION_OPTIONS: NonNullable<ControlField["options"]> = DIRECTION_ORDER.map((v) => ({
+    label: DIRECTION_LABEL[v],
+    value: v,
+    icon: DIRECTION_ICON[v],
+}));

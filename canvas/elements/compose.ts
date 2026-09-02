@@ -52,6 +52,24 @@ export const PRESETS: Preset[] = [
             },
         }),
     },
+    {
+        id: "grid",
+        label: "Grid",
+        previewType: "cards",
+        build: () => ({
+            type: "container",
+            data: {
+                direction: "grid",
+                columns: 2,
+                children: [
+                    card("First idea", "A short supporting line."),
+                    card("Second idea", "A short supporting line."),
+                    card("Third idea", "A short supporting line."),
+                    card("Fourth idea", "A short supporting line."),
+                ],
+            },
+        }),
+    },
 ];
 
 export const GUTTER = 14; // inset around a section column's top-level element (content width = colW - 2*GUTTER)
@@ -175,6 +193,7 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
         node.aspect = undefined;
     }
     if (layout.align) node.alignSelf = layout.align;
+    if (layout.span && layout.span > 1) node.span = Math.round(layout.span);
     if (layout.dock === "top") {
         node.float = { x: "start", y: "start", z: 1 };
         node.docked = true;
