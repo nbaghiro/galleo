@@ -56,3 +56,18 @@ describe("media presets", () => {
         expect(s.background?.scrim).toBe(0.4);
     });
 });
+
+describe("media presets after the media merge", () => {
+    const media = (): ElementInstance => inst("media", { kind: "photo", src: "harbor.png" });
+
+    it("media-bleed applies to a stored (normalized) photo, not only the legacy type", () => {
+        const s = sectionOf(colGroup([txt("over"), media()]));
+        expect(preset("media-bleed").applies(s)).toBe(true);
+    });
+
+    it("and its transform finds the stored photo for the background", () => {
+        const s = preset("media-bleed").transform(sectionOf(colGroup([txt("over"), media()])));
+        expect(s.background?.kind).toBe("image");
+        expect(s.background?.image).toBe("harbor.png");
+    });
+});

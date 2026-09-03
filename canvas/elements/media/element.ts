@@ -382,15 +382,7 @@ const CONTROLS: ControlField[] = [
     },
 ];
 
-const BAR: Record<MediaElementKind, string[]> = {
-    photo: ["src", "fit"],
-    gif: ["src", "fit"],
-    illustration: ["src", "fit"],
-    sticker: ["src", "fit"],
-    video: ["src"],
-    icon: ["glyph", "color"],
-    graphic: ["doc"],
-};
+const BAR_KEYS = ["src", "fit", "glyph", "color", "doc"];
 
 const FRAME_RESIZE: ResizeSpec = { aspect: { min: 0.4, max: 2.6 } };
 const SIDE_RESIZE: ResizeSpec = {
@@ -416,9 +408,10 @@ function mediaSpec(type: string, kind: MediaElementKind, preset: Partial<MediaDa
         // only a clip mounts a player; the rest of what this element covers is painted, not played
         live: (d) => kindOf(d, kind) === "video",
         fallback: (d) => d,
-        get bar() {
-            return BAR[kind];
-        },
+        // one static union: each key's own kind-gated visibleWhen carves the per-kind bar, so a
+        // stored icon (normalized to `media`) keeps its glyph controls instead of an empty bar
+        bar: BAR_KEYS,
+        labelFor: (d) => KIND_LABEL[kindOf(d, kind)],
         controls: CONTROLS,
     };
     return spec;

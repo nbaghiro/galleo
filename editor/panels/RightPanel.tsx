@@ -4,7 +4,7 @@ import { createMemo, For, Show } from "solid-js";
 import { elementRegionId } from "@model/artifact";
 import { capture } from "@ui/analytics";
 import { getElementAt, setElementLayout, sharedParent, updateDataAt } from "@elements/ops";
-import { getElement } from "@elements/spec";
+import { getElement, labelOf } from "@elements/spec";
 import { gridColumnsOf } from "@elements/composite/container";
 import { runCommand } from "@ui/keys";
 import { commit, editor, regions, selectedAddresses } from "@editor/core/store";
@@ -157,7 +157,7 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
     return (
         <div>
             <PanelHeader
-                title={spec()?.label ?? "Element"}
+                title={(spec() && labelOf(spec()!, data())) ?? "Element"}
                 action={
                     <Button variant="link" onClick={del}>
                         Delete

@@ -38,6 +38,10 @@ export function getElement(type: string): ElementSpec | undefined {
 export const resizeOf = (spec: ElementSpec, data: unknown): ResizeSpec | undefined =>
     typeof spec.resize === "function" ? spec.resize(data) : spec.resize;
 
+/** The name a person sees for this data; `labelFor` wins where one element covers several kinds. */
+export const labelOf = (spec: ElementSpec, data: unknown): string =>
+    spec.labelFor?.(data) ?? spec.label;
+
 /** Whether this data mounts a live overlay. */
 export const isLiveData = (spec: ElementSpec, data: unknown): boolean =>
     spec.tier === "interactive" ||
@@ -137,6 +141,9 @@ export interface ElementSpec<Data = unknown> {
     // A function when one element covers shapes that resize differently: media frames a picture by
     // aspect but sizes an icon by its side.
     resize?: ResizeSpec | ((data: Data) => ResizeSpec | undefined);
+    // the inspector title when one element covers kinds a person names differently (media's Icon
+    // vs Image); absent = the static `label`
+    labelFor?: (data: Data) => string;
     fallback?: (data: Data) => Data; // interactive -> static for paged/export
     // playback mounts a live overlay over this element without giving up the editing its tier buys
     live?: boolean | ((data: Data) => boolean);

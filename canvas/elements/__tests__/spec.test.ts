@@ -140,3 +140,31 @@ describe("skeletonize", () => {
         expect(g.children).toHaveLength(1);
     });
 });
+
+describe("shape kinds", () => {
+    it("every offered kind draws something, so the picker can never offer an invisible shape", async () => {
+        const { SHAPE_KINDS } = await import("@model/elements");
+        const { shapeVector } = await import("@elements/media/vector");
+        for (const kind of SHAPE_KINDS) {
+            const v = shapeVector(kind, 200, 120, { fill: { color: "#123456" } });
+            expect(v.nodes.length, kind).toBeGreaterThan(0);
+        }
+    });
+});
+
+describe("stored media keeps its per-kind chrome", () => {
+    const iconData = { kind: "icon", glyph: { id: "search", body: "", vb: 24 }, color: "accent" };
+
+    it("an icon normalized to `media` still gets a visible format bar", () => {
+        const spec = getElement("media")!;
+        const visible = (spec.bar ?? [])
+            .map((k) => spec.controls.find((c) => c.key === k))
+            .filter((c) => !!c && (!c.visibleWhen || c.visibleWhen(iconData)));
+        expect(visible.map((c) => c!.key)).toContain("glyph");
+    });
+
+    it("and its inspector title says Icon, not Image", () => {
+        const spec = getElement("media")!;
+        expect(spec.labelFor?.(iconData) ?? spec.label).toBe("Icon");
+    });
+});

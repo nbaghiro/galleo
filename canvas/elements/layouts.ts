@@ -1,5 +1,5 @@
 import type { ElementInstance, Section, SectionBackground } from "@model/artifact";
-import { LAYOUT_PRESETS, childrenRaw, colGroup, rowGroup } from "@model/artifact";
+import { LAYOUT_PRESETS, childrenRaw, colGroup, mediaKindOf, rowGroup } from "@model/artifact";
 import { getElement } from "@elements/spec";
 import { columnFractions, splitSection, stripWidth } from "@elements/ops";
 
@@ -64,8 +64,12 @@ function twoUp(section: Section, dir: "row" | "col", a: Role, b: Role): boolean 
     return kids.length === 2 && columnRole(kids[0]!) === a && columnRole(kids[1]!) === b;
 }
 
-const imageSrc = (inst: ElementInstance): string | undefined =>
-    inst.type === "image" ? (inst.data as { src?: string }).src || undefined : undefined;
+// a background wants a raster with a src: stored `media` photos and the legacy picture types alike
+const imageSrc = (inst: ElementInstance): string | undefined => {
+    const kind = mediaKindOf(inst);
+    if (!kind || kind === "icon" || kind === "graphic" || kind === "video") return undefined;
+    return (inst.data as { src?: string }).src || undefined;
+};
 
 const SPLIT_LABELS: Record<string, string> = {
     full: "Full",

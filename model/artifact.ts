@@ -1059,9 +1059,11 @@ const SRC_ONLY = ["src"] as const;
 const SRC_AND_POSTER = ["src", "poster"] as const;
 const NO_MEDIA: readonly string[] = [];
 
-// `media` carries its kind in data; the legacy types carried it in the type name
-const mediaKindOf = (el: RawEl): string | undefined =>
-    el.type === "media" ? str(el.data?.kind) : LEGACY_MEDIA_KINDS[el.type ?? ""];
+/** The media kind of an element: stored (`media` + data.kind) or legacy (the pre-merge type name). */
+export const mediaKindOf = (el: { type?: string; data?: unknown }): string | undefined =>
+    el.type === "media"
+        ? str((el.data as { kind?: unknown } | undefined)?.kind)
+        : LEGACY_MEDIA_KINDS[el.type ?? ""];
 
 const mediaKeysOf = (el: RawEl): readonly string[] => {
     const kind = mediaKindOf(el);
@@ -1243,6 +1245,9 @@ function sectionsOf(draft: unknown): SectionSummary[] {
             // structural wrappers never name a section's kind; group/card are pre-migration aliases
             if (el.type && !["text", "container", "group", "card"].includes(el.type))
                 kinds.add(el.type);
+            // a stored picture is `media` + data.kind; the legacy names resolve to the same kinds
+            const mk = mediaKindOf(el);
+            if (mk && mk !== "icon" && mk !== "graphic") kinds.add("visual-media");
         });
         let kind = "cover";
         if (idx > 0) {
@@ -1250,12 +1255,7 @@ function sectionsOf(draft: unknown): SectionSummary[] {
             if (kinds.has("chart")) kind = "chart";
             else if (kinds.has("table")) kind = "table";
             else if (kinds.has("diagram")) kind = "diagram";
-            else if (
-                kinds.has("image") ||
-                kinds.has("video") ||
-                kinds.has("embed") ||
-                sec.background?.image
-            )
+            else if (kinds.has("visual-media") || kinds.has("embed") || sec.background?.image)
                 kind = "media";
             else if (kinds.has("stat")) kind = "stat";
             else if (kinds.has("quote")) kind = "quote";

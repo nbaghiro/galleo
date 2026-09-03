@@ -1258,3 +1258,28 @@ describe("sectionForms", () => {
         expect(forms.map((f) => f.layout)).toEqual(["full", "two-col"]);
     });
 });
+
+describe("artifactDigest section kinds after the media merge", () => {
+    it("a stored media photo digests as a media section, not content", () => {
+        const digest = artifactDigest({
+            format: "deck",
+            theme: "studio",
+            sections: [
+                { id: "s1", root: leaf("Cover") },
+                {
+                    id: "s2",
+                    root: {
+                        type: "container",
+                        data: {
+                            children: [
+                                leaf("A caption"),
+                                { type: "media", data: { kind: "photo", src: "x.png" } },
+                            ],
+                        },
+                    },
+                },
+            ],
+        });
+        expect(digest.sections[1]?.kind).toBe("media");
+    });
+});
