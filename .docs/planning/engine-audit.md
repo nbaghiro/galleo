@@ -25,7 +25,9 @@ section. "Direction" is one sentence, not a design.
 
 # Verified bugs
 
-The correctness list: each of these misbehaves today on a shipped path.
+The correctness list: each of these misbehaved on a shipped path when audited. **All eleven fixed
+2026-09-02 — the round is recorded in [`engine-bugs.md`](engine-bugs.md), each fix pinned by a
+test that was run red first.**
 
 **B1 ✔ The measure cache poisons paint-only run attributes.** `measureKey`
 (`canvas/render/commands.ts:744`) keys on the metric-affecting run fields only (bold/italic/code +
@@ -261,6 +263,19 @@ multi-select block moves are confined to their parent with no hint why targets v
 ---
 
 # Performance
+
+**Measured 2026-09-02** (Node + happy-dom, real measure machinery, the 7 corpus artifacts; a
+follow-up quantification of the entries below): layout is essentially free — warm glyph calls are
+zero, layout-everything at 200 sections is ~18ms, a keystroke's _layout_ share is 0.04ms, present's
+worst slide advance at N=60 is 3.8ms, ghosts are 1.3ms at 200 pending, the measure cache reaches
+~2.7k of its 6k cap in a heavy session. The costs that survive measurement are DOM and bytes:
+**P4** (512KB pdf-lib parsed eagerly, the largest single number), **P7** (tiles fetch editor-grade
+assets, the only network-side item), **P2** (the minimap's unbounded second DOM copy, ~216ms
+cumulative build and ~3,750 retained nodes at 200 sections), **P1's Thumb teardown** (~1.3ms DOM
+rebuild per keystroke where a reconcile would be ~0.07ms), and **P5** (promoted: publish keeps
+_wrong_ fallback-metric layouts all session, a correctness item). P3/P6/P8 and the resize case are
+demoted to hygiene — worth doing only when touching those files. The entries below keep the
+original evidence.
 
 **P1 A keystroke costs three composes and 2-3 layouts of the edited section.** The stack repaints
 once (per-section cache holds), but the minimap Thumb re-lays-out and full-teardown repaints
