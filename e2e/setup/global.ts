@@ -24,5 +24,5 @@ export default async function globalSetup(): Promise<void> {
     }
     const env = { ...process.env, DATABASE_URL: E2E_DB };
     execSync("pnpm exec drizzle-kit push --force", { stdio: "inherit", env });
-    execSync("pnpm seed", { stdio: "inherit", env });
+    execSync("pnpm seed --full", { stdio: "inherit", env }); // the suite's fixtures are the seeded artifacts
 }

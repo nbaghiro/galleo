@@ -241,6 +241,8 @@ async function seedInvites(
     inviterId: string,
     spec: WorkspaceSpec,
 ): Promise<string[]> {
+    // tokens are deterministic per (slug, email), so a rerun must clear before it re-inserts
+    await db.delete(schema.invites).where(eq(schema.invites.workspaceId, wsId));
     const urls: string[] = [];
     for (const i of spec.invites ?? []) {
         const raw = inviteToken(spec.slug, i.email);
@@ -403,6 +405,7 @@ async function seedLedger(
     spec: WorkspaceSpec,
     ids: Map<string, string>,
 ): Promise<{ balance: number }> {
+    await db.delete(schema.credits).where(eq(schema.credits.workspaceId, ws.id));
     const grant = monthlyGrantFor(ws);
     let balance = spec.openingBalance ?? grant;
     const rows: (typeof schema.credits.$inferInsert)[] = [];
@@ -461,13 +464,19 @@ async function seedThemes(wsId: string, spec: WorkspaceSpec): Promise<void> {
     for (const t of spec.themes ?? []) {
         const base = THEMES[t.from];
         if (!base) throw new Error(`no built-in theme "${t.from}"`);
-        await db.insert(schema.themes).values({
+        const values = {
             workspaceId: wsId,
             name: t.name,
             tokens: { ...base.tokens, accent: t.accent },
             mood: t.mood,
             isDark: base.dark,
-        });
+        };
+        const [found] = await db
+            .select({ id: schema.themes.id })
+            .from(schema.themes)
+            .where(and(eq(schema.themes.workspaceId, wsId), eq(schema.themes.name, t.name)));
+        if (found) await db.update(schema.themes).set(values).where(eq(schema.themes.id, found.id));
+        else await db.insert(schema.themes).values(values);
     }
 }
 
@@ -507,8 +516,18 @@ async function seedVisits(
 }
 
 async function seedAssets(wsId: string): Promise<void> {
+    // (workspace, origin) is unique for external rows, so a merge run inserts only what is missing
+    const have = new Set(
+        (
+            await db
+                .select({ origin: schema.assets.origin })
+                .from(schema.assets)
+                .where(eq(schema.assets.workspaceId, wsId))
+        ).map((r) => r.origin),
+    );
     const now = Date.now();
-    for (const [i, a] of DEMO_ASSETS.entries())
+    for (const [i, a] of DEMO_ASSETS.entries()) {
+        if (have.has(a.url)) continue;
         await db
             .insert(schema.assets)
             .values({
@@ -534,6 +553,7 @@ async function seedAssets(wsId: string): Promise<void> {
                 usedAt: new Date(now - i * HOUR), // newest first in the grid
             })
             .onConflictDoNothing();
+    }
 }
 
 // re-ingested through the real path (chunk → embed → pgvector), so demo retrieval behaves like
@@ -602,6 +622,13 @@ async function reapRetired(): Promise<void> {
     if (gone.length) log(`• reaped ${gone.length} retired accounts`);
 }
 
+// Two modes. The default merges into whatever the database already holds: workspaces, members,
+// invites, themes and the credit ledger are (re)written, and artifacts are never created, touched,
+// or wiped, so demo content made by hand or by the generation tooling survives a rerun. --full (or
+// SEED_FULL=1) is the destructive fixture build the e2e suite runs against: wipe each demo
+// workspace and rebuild everything, artifacts and published links included.
+const FULL = process.argv.includes("--full") || process.env.SEED_FULL === "1";
+
 async function seed(): Promise<void> {
     assertDatabaseUrl();
     await reapRetired();
@@ -619,19 +646,23 @@ async function seed(): Promise<void> {
         const ownerId = userIds.get(spec.ownerEmail);
         if (!ownerId) throw new Error(`no seeded user "${spec.ownerEmail}"`);
         const ws = await upsertWorkspace(spec, ownerId);
-        await wipeWorkspace(ws.id);
+        if (FULL) await wipeWorkspace(ws.id);
         await syncMembers(ws.id, ownerId, spec, userIds);
         invites.push(...(await seedInvites(ws.id, ownerId, spec)));
 
-        const docs = await seedArtifacts(ws.id, ownerId, spec);
+        if (FULL) {
+            const docs = await seedArtifacts(ws.id, ownerId, spec);
+            links.push(...(await seedLinks(spec, docs)));
+            await seedVisits(spec, docs, userIds);
+            if (spec.contexts && embed) await seedContexts(ws.id, ownerId, docs);
+        }
         await seedThemes(ws.id, spec);
-        links.push(...(await seedLinks(spec, docs)));
-        await seedVisits(spec, docs, userIds);
         if (spec.assets) await seedAssets(ws.id);
-        if (spec.contexts && embed) await seedContexts(ws.id, ownerId, docs);
         const { balance } = await seedLedger(ws, spec, userIds);
 
-        const live = (spec.folders ?? []).reduce((n, g) => n + g.docs.length, 0);
+        const live = FULL
+            ? (spec.folders ?? []).reduce((n, g) => n + g.docs.length, 0)
+            : await db.$count(schema.artifacts, eq(schema.artifacts.workspaceId, ws.id));
         const role =
             spec.ownerEmail === DEMO_EMAIL
                 ? "owner"

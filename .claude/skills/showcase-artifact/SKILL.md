@@ -66,8 +66,9 @@ outrank feature coverage.
 - Container `surface`: solid | outline | sideline | topline | plain. Button `variant`: filled |
   outline | soft | ghost. Text `style`: from `TEXT_STYLES` in `model/elements.ts`.
 - `pin.dx/dy` are compose-scale px. Width on a pinned element: `"fit"` or `{pct}` , never full.
-- Section ids unique per artifact. `bleed: true` only where a band is meant (site sections, doc
-  heroes with painted backgrounds; never needed on decks).
+- Section ids unique per artifact. `bleed: true` on site sections only: a doc section with bleed
+  renders as a full-width site band in the editor, so a doc hero keeps its reading column even with
+  a painted background. Never needed on decks.
 - Copy: no em-dashes anywhere user-visible, no AI-smell phrasing ("delve", "seamless", hedged
   hype), vary sentence construction across sibling blurbs, numbers that could be real.
 
@@ -177,7 +178,7 @@ void main();
 
 - Postgres: `postgres://galleo:galleo@localhost:8602/galleo` (docker compose up -d). Dev server at
   8600 for media urls and manual review at `localhost:8600/app`.
-- A sibling session's `pnpm seed` wipes and rebuilds the workspace's artifacts; if a row vanishes,
-  re-insert.
+- `pnpm seed` merges and never touches artifacts, so inserted rows survive a reseed. Only
+  `pnpm seed --full` (the e2e fixture build) wipes and rebuilds; if a row vanishes, re-insert.
 - Never commit or push. Never touch repo source for a generation task. Temp scripts at repo root,
   deleted after; screenshots in the session scratchpad.

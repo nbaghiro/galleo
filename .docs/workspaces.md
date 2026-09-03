@@ -700,9 +700,18 @@ be read without importing an entry point that would run the seed on import, and 
 reach into `core/`: a document is named in the data and resolved to content by `seed.ts`, which is the
 one file allowed to reach for the corpus and template bodies that live in `core/`.
 
+The seed has two modes. `pnpm seed` merges into whatever the database already holds: accounts,
+workspaces, members, invites, themes, library assets and the credit ledger are written or replayed
+(the ledger resets to the spec on every run), and **artifacts are never created, touched, or wiped**,
+so demo content made by hand or by generation tooling survives a rerun, and a spec change (a renamed
+workspace, a different plan) lands without collateral. `pnpm seed --full` (or `SEED_FULL=1`) is the
+destructive fixture build: wipe each demo workspace and rebuild everything, artifacts, published
+links, visits and contexts included. The e2e suite runs `--full`, because its specs assert against
+exactly that fixture set.
+
 The three are named for the plan they demonstrate (Premium, Pro, Free) and the demo login owns all
 three, so the switcher is the plan ladder and every limit is reachable from one account: Premium runs
-5 seats (3 included plus 2 bought) with an admin, a member and a pending invite; Pro is the single-seat
+its 3 included seats, fully occupied, with an admin, a member and a pending invite; Pro is the single-seat
 solo library with the artifact cap lifted; Free sits at its 10-artifact cap with 61 credits left
 and a storage override that puts the wall within reach.
 
@@ -741,9 +750,9 @@ spec that outspends its plan rather than clamping into a state no request path c
 barely spent would bank several months, which reads as a bug rather than as a demo. Invite tokens are derived (`<slug>-<handle>-demo`) rather than
 random, so an accept URL survives a reseed and can be pasted into `/invite/:token`.
 
-Verified against the live seeded database (container `galleo-pg`): `demo` is premium with 5 seats
-(3 included plus 2 bought) and a 10,500 monthly grant, banking 4,240 after its ledger and a 2,000
-credit top-up; `pro` is Pro with one seat, a 1,200 grant and 168 banked; `free` is Free with one seat,
+Verified against the live seeded database (container `galleo-pg`): `demo` is premium with its 3
+included seats and a 6,300 monthly grant, banking 2,040 after its ledger and a 2,000 credit
+top-up; `pro` is Pro with one seat, a 1,200 grant and 168 banked; `free` is Free with one seat,
 a 300 grant and 61 banked, which is under a deck's ~95 credits so `generate-artifact` takes the 402
 branch. The ledger's `balance_after` column tracks the replay exactly.
 

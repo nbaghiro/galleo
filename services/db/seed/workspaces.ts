@@ -152,9 +152,9 @@ export const WORKSPACES: WorkspaceSpec[] = [
         name: "Premium Workspace",
         plan: "premium",
         ownerEmail: DEMO_EMAIL, // the one they own: member management is the owner-only surface that works without Stripe
-        seats: 5, // the 3 the plan includes plus 2 bought as the seat add-on
-        // Well into a 10,500 cycle (6,300 plus 2 bought seats). Kept to roughly a fifth of the
-        // grant so the banked figure reads in the same proportion as Pro's and Free's do.
+        seats: 3, // exactly the plan's included seats, so the grant reads as the plan's own number
+        // Well into a 6,300 cycle. Kept low enough that the meter visibly has room, high enough
+        // for a demo to generate freely.
         openingBalance: 1600,
         members: [
             { email: "demo+admin@galleo.app", role: "admin" },
@@ -259,6 +259,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
         ],
         ledger: [
             { at: 9, kind: "topup", credits: 2000 },
+            { at: 2, kind: "topup", credits: 5000 },
             {
                 at: 26,
                 kind: "spend",
