@@ -152,9 +152,12 @@ export const WORKSPACES: WorkspaceSpec[] = [
         name: "Premium Workspace",
         plan: "premium",
         ownerEmail: DEMO_EMAIL, // the one they own: member management is the owner-only surface that works without Stripe
-        seats: 3, // exactly the plan's included seats, so the grant reads as the plan's own number
-        // Well into a 6,300 cycle. Kept low enough that the meter visibly has room, high enough
-        // for a demo to generate freely.
+        // 3 included plus 2 bought: the fixture itself holds four seats (three members and the
+        // pinned invite the roles suite accepts), so the plan's bare 3 leaves it over capacity and
+        // the join is refused for no-seats.
+        seats: 5,
+        // Well into a 10,500 cycle (6,300 plus two bought seats). Kept to roughly a fifth of the
+        // grant so the banked figure reads in the same proportion as Pro's and Free's do.
         openingBalance: 1600,
         members: [
             { email: "demo+admin@galleo.app", role: "admin" },
