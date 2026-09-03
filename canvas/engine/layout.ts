@@ -329,9 +329,9 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText, 
             for (const c of growKids) layoutHeights(c, rowH, measure);
             total += rowH;
         }
-        for (const c of ln.children) if (c.node.float) layoutHeights(c, contentH, measure);
         ln.h = resolveHeight(h, assignedH, total + padY(node));
         if (ln.h + 0.5 < total + padY(node)) ln.clip = mergeClip(ln.clip, { y: true });
+        layoutFloats(ln, measure);
         return;
     }
     if (isRow(node)) {
@@ -339,10 +339,7 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText, 
         let maxH = 0;
         const growKids: LayoutNode[] = [];
         for (const c of ln.children) {
-            if (c.node.float) {
-                layoutHeights(c, contentH, measure); // independent of the row's cross height
-                continue;
-            }
+            if (c.node.float) continue;
             if (c.node.h.mode === "grow") {
                 growKids.push(c);
                 continue;
@@ -357,6 +354,7 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText, 
         }
         ln.h = resolveHeight(h, assignedH, maxH + padY(node));
         if (ln.h + 0.5 < maxH + padY(node)) ln.clip = mergeClip(ln.clip, { y: true });
+        layoutFloats(ln, measure);
         return;
     }
 
@@ -382,11 +380,18 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText, 
     flow.forEach((c, i) => {
         if (c.node.h.mode === "grow") layoutHeights(c, heights[i]!, measure);
     });
-    for (const c of ln.children) if (c.node.float) layoutHeights(c, contentH, measure);
 
     const childrenH = flow.reduce((sum, c) => sum + c.h, 0) + gaps;
     ln.h = resolveHeight(h, assignedH, childrenH + padY(node));
     if (ln.h + 0.5 < childrenH + padY(node)) ln.clip = mergeClip(ln.clip, { y: true });
+    layoutFloats(ln, measure);
+}
+
+// Floats resolve against the RESOLVED height, never the assignment: at a fit-height section root
+// the assignment is the unbounded sentinel, and a grow-height float must not swallow it.
+function layoutFloats(ln: LayoutNode, measure: MeasureText): void {
+    const inner = Math.max(0, ln.h - padY(ln.node));
+    for (const c of ln.children) if (c.node.float) layoutHeights(c, inner, measure);
 }
 
 // "baseline" resolves before this is called; a grid or column treats it as start
@@ -722,6 +727,33 @@ function lineSlice(
     };
 }
 
+/** The command's painted vertical extent: a rotated box's turned corners, else the box itself. */
+export function rotatedExtent(c: RenderCommand): { top: number; bottom: number } {
+    const b = c.box;
+    if (!c.rotate) return { top: b.y, bottom: b.y + b.h };
+    const rad = (c.rotate.deg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    const ys = (
+        [
+            [b.x, b.y],
+            [b.x + b.w, b.y],
+            [b.x + b.w, b.y + b.h],
+            [b.x, b.y + b.h],
+        ] as const
+    ).map(([px, py]) => c.rotate!.cy + (px - c.rotate!.cx) * sin + (py - c.rotate!.cy) * cos);
+    return { top: Math.min(...ys), bottom: Math.max(...ys) };
+}
+
+// Emit order is z-order, so pages are assembled in it and never re-sorted; the extents exist only
+// to find breaks, and a rotated command breaks by its painted (turned) extent, not its flat box.
+interface Win {
+    c: RenderCommand;
+    top: number;
+    bottom: number;
+}
+const win = (c: RenderCommand): Win => ({ c, ...rotatedExtent(c) });
+
 export function fragment(
     commands: RenderCommand[],
     totalHeight: number,
@@ -729,7 +761,7 @@ export function fragment(
 ): RenderCommand[][] {
     if (totalHeight <= pageHeight + EPS || pageHeight <= 0) return [commands.map((c) => c)];
 
-    const sorted = [...commands].sort((a, b) => a.box.y - b.box.y);
+    let wins = commands.map(win);
     const pages: RenderCommand[][] = [];
     let top = 0;
     let guard = 0;
@@ -740,15 +772,15 @@ export function fragment(
         let atLine = false;
 
         if (limit < totalHeight) {
-            const cands = sorted
-                .map((c) => c.box.y + c.box.h)
+            const cands = wins
+                .map((w) => w.bottom)
                 .filter((y) => y > top + EPS && y <= limit + EPS);
             cands.push(limit); // hard-break fallback
             cands.sort((a, b) => b - a);
             breakY = limit;
             for (const y of cands) {
                 if (y <= top + EPS) continue;
-                const splits = sorted.some((c) => c.box.y < y - EPS && c.box.y + c.box.h > y + EPS);
+                const splits = wins.some((w) => w.top < y - EPS && w.bottom > y + EPS);
                 if (!splits) {
                     breakY = y;
                     break;
@@ -756,17 +788,24 @@ export function fragment(
                 if (y >= limit - EPS) {
                     // the hard limit would slice glyphs: prefer the lowest line boundary that
                     // splits only text commands, cutting each between lines instead
-                    const lines = sorted
-                        .flatMap((c) => lineBreaks(c, top, limit))
+                    const lines = wins
+                        .flatMap((w) => (w.c.rotate ? [] : lineBreaks(w.c, top, limit)))
                         .sort((a, b) => b - a);
-                    for (const ly of lines) {
-                        const bad = sorted.some(
-                            (c) =>
-                                c.box.y < ly - EPS &&
-                                c.box.y + c.box.h > ly + EPS &&
-                                lineCount(c) < KEEP_LINES * 2,
+                    // a candidate must land on EVERY crossing paragraph's own grid with the guard
+                    // kept on both sides, or the cut mis-windows the ones it wasn't derived from
+                    const cleanCut = (w: Win, ly: number): boolean => {
+                        if (w.top >= ly - EPS || w.bottom <= ly + EPS) return true; // not crossing
+                        if (w.c.kind !== "text" || !w.c.lines || w.c.rotate) return false;
+                        const lh = lineHeightOf(w.c);
+                        const cut = Math.round((ly - w.c.box.y) / lh);
+                        return (
+                            Math.abs(w.c.box.y + cut * lh - ly) <= EPS &&
+                            cut >= KEEP_LINES &&
+                            cut <= lineCount(w.c) - KEEP_LINES
                         );
-                        if (!bad) {
+                    };
+                    for (const ly of lines) {
+                        if (wins.every((w) => cleanCut(w, ly))) {
                             breakY = ly;
                             atLine = true;
                             break;
@@ -777,29 +816,29 @@ export function fragment(
         }
 
         const pageCmds: RenderCommand[] = [];
-        for (const c of sorted) {
-            if (c.box.y >= breakY - EPS || c.box.y + c.box.h <= top + EPS) continue;
-            const crosses = c.box.y < breakY - EPS && c.box.y + c.box.h > breakY + EPS;
-            if (atLine && crosses && c.kind === "text" && c.lines) {
-                const cut = Math.round((breakY - c.box.y) / lineHeightOf(c));
-                if (cut > 0 && cut < lineCount(c))
-                    pageCmds.push(shiftY(lineSlice(c, 0, cut), -top));
+        for (const w of wins) {
+            if (w.top >= breakY - EPS || w.bottom <= top + EPS) continue;
+            const crosses = w.top < breakY - EPS && w.bottom > breakY + EPS;
+            if (atLine && crosses && w.c.kind === "text" && w.c.lines && !w.c.rotate) {
+                const cut = Math.round((breakY - w.c.box.y) / lineHeightOf(w.c));
+                if (cut > 0 && cut < lineCount(w.c))
+                    pageCmds.push(shiftY(lineSlice(w.c, 0, cut), -top));
                 continue;
             }
-            pageCmds.push(shiftY(c, -top));
+            pageCmds.push(shiftY(w.c, -top));
         }
         pages.push(pageCmds);
 
         if (atLine) {
             // the next page carries each cut command's remaining window
-            for (let i = 0; i < sorted.length; i++) {
-                const c = sorted[i]!;
-                if (!(c.box.y < breakY - EPS && c.box.y + c.box.h > breakY + EPS)) continue;
-                if (c.kind !== "text" || !c.lines) continue;
-                const cut = Math.round((breakY - c.box.y) / lineHeightOf(c));
-                if (cut > 0 && cut < lineCount(c)) sorted[i] = lineSlice(c, cut, lineCount(c));
-            }
-            sorted.sort((a, b) => a.box.y - b.box.y);
+            wins = wins.map((w) => {
+                if (!(w.top < breakY - EPS && w.bottom > breakY + EPS)) return w;
+                if (w.c.kind !== "text" || !w.c.lines || w.c.rotate) return w;
+                const cut = Math.round((breakY - w.c.box.y) / lineHeightOf(w.c));
+                return cut > 0 && cut < lineCount(w.c)
+                    ? win(lineSlice(w.c, cut, lineCount(w.c)))
+                    : w;
+            });
         }
         top = breakY > top + EPS ? breakY : limit; // always make progress
     }

@@ -78,3 +78,22 @@ describe("fragment at line boundaries", () => {
         expect(ranges[2]).toEqual({ start: 12, end: 15 });
     });
 });
+
+describe("a line cut against two offset paragraphs", () => {
+    // A at y=0 and B at y=12: 16px grids that never coincide (0 mod 16 vs 12 mod 16), both
+    // forced past the hard limit, so any line candidate lies off one paragraph's grid.
+    it("takes no line break when the candidate is off a crossing paragraph's grid", () => {
+        const a = para(20, 0, { box: { x: 0, y: 0, w: 38, h: 160 }, id: "a" }); // 10 lines
+        const b = para(20, 12, { box: { x: 42, y: 12, w: 38, h: 160 }, id: "b" }); // 10 lines
+        const pages = fragment([a, b], 200, 100);
+        for (const page of pages)
+            for (const c of page) {
+                if (c.kind !== "text" || !c.lineRange) continue; // whole crossers window via clip
+                // a slice is a precise window: it must start on its own page, never above it
+                expect(c.box.y).toBeGreaterThanOrEqual(-0.5);
+            }
+        // stronger: with grids that share no boundary, no slice may exist at all
+        const sliced = pages.flat().filter((c) => c.kind === "text" && c.lineRange);
+        expect(sliced).toHaveLength(0);
+    });
+});

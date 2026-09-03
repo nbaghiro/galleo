@@ -641,3 +641,53 @@ describe("decor — negative-z floats are out of the reading order", () => {
         expect(decorOf("wash", 2)).toBeUndefined();
     });
 });
+
+describe("float heights and the unbounded sentinel", () => {
+    const SENTINEL = 100000; // what layoutSection passes as the container height
+
+    it("a grow-height float in a fit-height root takes the flow's height, not the sentinel", () => {
+        const root: EngineNode = {
+            w: fixed(200),
+            h: fit(),
+            children: [
+                textNode("xxxx xxxx xxxx", { h: fit() }),
+                boxNode("badge", fixed(40), grow(), { float: { x: "end", y: "start" } }),
+            ],
+        };
+        const { regions } = runLayout(root, 200, SENTINEL);
+        const flowH = boxOf(regions, "badge").h;
+        expect(flowH).toBeLessThan(200);
+    });
+
+    it("a fixed-height parent still stretches a grow float to its content box", () => {
+        const root: EngineNode = {
+            w: fixed(200),
+            h: fixed(120),
+            children: [
+                textNode("xxxx", { h: fit() }),
+                boxNode("wash", fixed(40), grow(), { float: { x: "start", y: "start", z: -1 } }),
+            ],
+        };
+        const { regions } = runLayout(root, 200, SENTINEL);
+        near(boxOf(regions, "wash").h, 120);
+    });
+
+    it("the same guard holds for row and grid parents", () => {
+        const float = boxNode("f", fixed(30), grow(), { float: { x: "end", y: "end" } });
+        const row: EngineNode = {
+            w: fixed(200),
+            h: fit(),
+            direction: "row",
+            children: [textNode("xxxx xxxx"), float],
+        };
+        const grid: EngineNode = {
+            w: fixed(200),
+            h: fit(),
+            direction: "grid",
+            columns: 2,
+            children: [textNode("xx"), textNode("xx"), { ...float }],
+        };
+        expect(boxOf(runLayout(row, 200, SENTINEL).regions, "f").h).toBeLessThan(200);
+        expect(boxOf(runLayout(grid, 200, SENTINEL).regions, "f").h).toBeLessThan(200);
+    });
+});
