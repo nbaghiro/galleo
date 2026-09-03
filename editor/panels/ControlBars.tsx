@@ -126,8 +126,9 @@ export const ContextBar: Component = () => {
         const parent = parentTarget({ kind: "element", address: a });
         if (parent?.kind === "element") {
             const pInst = getElementAt(editor.artifact, parent.address);
-            if ((pInst?.data as { direction?: string } | undefined)?.direction === "row")
-                return false;
+            const dir = (pInst?.data as { direction?: string } | undefined)?.direction;
+            // in a grid the cell IS its track, so there is no horizontal slack either
+            if (dir === "row" || dir === "grid") return false;
         }
         const w = i.layout?.width;
         if (w === "fill") return false;

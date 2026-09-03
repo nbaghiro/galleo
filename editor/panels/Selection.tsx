@@ -11,7 +11,7 @@ import {
     setSectionBackground,
     clearBackgroundImage,
 } from "@elements/ops";
-import { getElement, resizeOf } from "@elements/spec";
+import { getElement, labelOf, resizeOf } from "@elements/spec";
 import { profileFor } from "@engine/profile";
 import {
     addSectionAfter,
@@ -185,7 +185,9 @@ function beginPinMove(address: ElementAddress, sx: number, sy: number): void {
             ev.preventDefault();
             cancel();
             togglePin(address, "drag");
-            const label = getElement(getElementAt(editor.artifact, address)?.type ?? "")?.label;
+            const dragged = getElementAt(editor.artifact, address);
+            const spec = dragged && getElement(dragged.type);
+            const label = spec ? labelOf(spec, dragged.data) : undefined;
             startDrag({ kind: "move", from: address }, last.x, last.y, label || "Element");
         }
     };
@@ -236,7 +238,8 @@ export function beginElementMove(address: ElementAddress, sx: number, sy: number
     }
     const a = movableAncestor(editor.artifact, address);
     const inst = getElementAt(editor.artifact, a);
-    const label = (inst && getElement(inst.type)?.label) || "Element";
+    const spec = inst && getElement(inst.type);
+    const label = (spec && inst && labelOf(spec, inst.data)) || "Element";
     const block = moveManyPayload(a, selectedAddresses());
     if (block) {
         startDrag(block, sx, sy, `${block.indices.length} elements`);
@@ -516,6 +519,10 @@ function siblingDividers(sid: string, regs: Region[]): Divider[] {
         let slotted = false;
         const parentAddr: ElementAddress = { section: sid, path: g.parentPath };
         const parentInst = getElementAt(editor.artifact, parentAddr);
+        // tracks own widths in a grid: a member width is stripped at compose, so a divider's
+        // write would be dead even when one row of cells shares a band
+        if (parentInst && (parentInst.data as { direction?: string }).direction === "grid")
+            continue;
         const container = parentInst ? getElement(parentInst.type)?.container : undefined;
         if (container?.closed) {
             const slots = container.slots?.(parentInst!.data);

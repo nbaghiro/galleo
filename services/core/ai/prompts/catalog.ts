@@ -546,7 +546,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "align",
                 type: "enum",
                 values: [...TEXT_ALIGN, "baseline"],
-                desc: 'cross-axis alignment of children; "baseline" (rows only) sits mixed type sizes on one shared text baseline, the way a big number and its caption read as one line',
+                desc: 'cross-axis alignment of children; in a grid it aligns each cell vertically within its row band. "baseline" (rows only) sits mixed type sizes on one shared text baseline, the way a big number and its caption read as one line',
             },
             {
                 key: "justify",
