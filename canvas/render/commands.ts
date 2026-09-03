@@ -16,7 +16,7 @@ import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { composeSection } from "@elements/compose";
 import { skeletonize } from "@elements/spec";
-import { fragment, layout } from "@engine/layout";
+import { fragment, layout, rotatedExtent } from "@engine/layout";
 import { DEFAULT_PROFILE, FIT_FLOOR, MIN_TEXT_PX, sectionFrame } from "@engine/profile";
 import { fixed, grow } from "@model/geometry";
 import { DEFAULT_THEME, mix } from "@themes";
@@ -44,22 +44,7 @@ export function ctxFor(
 }
 
 // a rotated command's painted extent is its turned corners, not its flat box
-function lowest(c: RenderCommand): number {
-    const b = c.box;
-    if (!c.rotate) return b.y + b.h;
-    const rad = (c.rotate.deg * Math.PI) / 180;
-    const cos = Math.cos(rad);
-    const sin = Math.sin(rad);
-    const ys = (
-        [
-            [b.x, b.y],
-            [b.x + b.w, b.y],
-            [b.x + b.w, b.y + b.h],
-            [b.x, b.y + b.h],
-        ] as const
-    ).map(([px, py]) => c.rotate!.cy + (px - c.rotate!.cx) * sin + (py - c.rotate!.cy) * cos);
-    return Math.max(...ys);
-}
+const lowest = (c: RenderCommand): number => rotatedExtent(c).bottom;
 
 function bottom(commands: RenderCommand[]): number {
     return commands.reduce((m, c) => Math.max(m, lowest(c)), 0);
@@ -311,7 +296,7 @@ function prepareSlideNode(
 ): { node: EngineNode; targetH: number; fitScale: number } {
     const fitScale = freeze ?? 1;
     const node = composeSlideNode(section, w, fitScale, measure, theme, format, plain);
-    let natural = naturalHeight(node, w, measure);
+    const natural = naturalHeight(node, w, measure);
     // Splitting a section AND shrinking its type is the worst of both, so a section headed for
     // pagination composes at full size. An "fit" format never splits, so it always gets the search.
     const paginates = (hh: number): boolean => format.overflow !== "fit" && hh > h * PAGINATE_ABOVE;
@@ -351,7 +336,12 @@ function prepareSlideNode(
                     };
                 }
             }
-            natural = Math.min(natural, minH); // still overflowing (long text) → less to scale down
+            // The cover-fit could not be committed, and `node` is already mutated by the probe
+            // (aspects stripped, media grown): recompose clean rather than let it escape, and
+            // paginate at the clean natural height so the photo keeps its aspect on every page.
+            const clean = compose(fitScale);
+            const cleanH = Math.max(h, naturalHeight(clean, w, measure));
+            return { node: centreInFrame(clean, cleanH), targetH: cleanH, fitScale };
         } else if (freeze === undefined && !paginates(natural)) {
             const best: { at: { node: EngineNode; height: number } | null } = { at: null };
             const solved = solveFitScale(h, natural, fitFloor(node), (f) => {
@@ -745,12 +735,16 @@ function measureKey(leaf: TextLeaf, maxWidth: number): string {
     const mw = leaf.wrap === "none" || !Number.isFinite(maxWidth) ? "*" : maxWidth;
     const base = `${leaf.size};${leaf.weight ?? 400};${leaf.lineHeight ?? 0};${leaf.wrap};${mw};${leaf.maxLines ?? 0};${leaf.overflow ?? ""};${leaf.fontId}`;
     if (leaf.runs && leaf.runs.length > 0) {
+        // Paint-only attrs are in the key because the cached lines carry painted frags: two runs
+        // identical in metrics but different in colour, link or decoration must not share an
+        // entry. The length prefix keeps run boundaries unambiguous with printable delimiters,
+        // and the R/T branch markers keep a plain leaf from ever aliasing a runs leaf.
         let r = "";
         for (const run of leaf.runs)
-            r += `${run.bold ? 1 : 0}${run.italic ? 1 : 0}${run.code ? 1 : 0}${run.text}`;
-        return `${base} R${r}`;
+            r += `${run.text.length}:${run.bold ? 1 : 0}${run.italic ? 1 : 0}${run.code ? 1 : 0}${run.underline ? 1 : 0}${run.strike ? 1 : 0};${run.color ?? ""};${run.highlight ?? ""};${run.link ?? ""}|${run.text}`;
+        return `${base} R${r}`;
     }
-    return `${base} ${leaf.text}`;
+    return `${base} T${leaf.text}`;
 }
 
 export function clearMeasureCache(): void {

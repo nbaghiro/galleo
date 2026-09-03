@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@elements/register";
 import { beforeAll, describe, expect, it } from "vitest";
-import { sectionSlides } from "@canvas/render/commands";
+import { layoutSlide, measureText, sectionSlides } from "@canvas/render/commands";
 import { resolveProfile } from "@engine/profile";
 import { colGroup } from "@model/artifact";
 import { inst, installCanvas2D, sectionOf, tokens } from "@canvas/testkit";
@@ -42,5 +42,41 @@ describe("a photo + caption section fills its slide", () => {
         const [page] = sectionSlides(photoWithCaption, tokens, deck);
         const bottom = page!.commands.reduce((m, c) => Math.max(m, c.box.y + c.box.h), 0);
         expect(bottom).toBeGreaterThan(deck.height === 720 ? 300 : 300);
+    });
+});
+
+// Text long enough that even with the media collapsed the section overflows the frame, which is
+// the branch where the solve cannot commit and the fall-through decides what the caller gets.
+const LONG = Array.from(
+    { length: 220 },
+    (_, i) => `Sentence ${i + 1} of a very long caption that keeps going well past one slide.`,
+).join(" ");
+const photoWithEssay = sectionOf(
+    colGroup([inst("image", { src: "dune.png" }), inst("text", { style: "body", text: LONG })]),
+);
+
+describe("the cover-fit fall-through keeps the photo", () => {
+    it("a paginating media section still paints its image with real height", () => {
+        const pages = sectionSlides(photoWithEssay, tokens, deck);
+        expect(pages.length).toBeGreaterThan(1); // long enough that the solve cannot commit
+        const images = pages.flatMap((p) => p.commands.filter((c) => c.kind === "image"));
+        expect(images.length).toBeGreaterThan(0);
+        expect(Math.max(...images.map((c) => c.box.h))).toBeGreaterThan(100);
+    });
+
+    it("a frozen inline edit of the same section keeps the photo too", () => {
+        const { commands } = layoutSlide(
+            photoWithEssay,
+            1280,
+            720,
+            measureText,
+            tokens,
+            deck,
+            false,
+            1,
+        );
+        const images = commands.filter((c) => c.kind === "image");
+        expect(images.length).toBeGreaterThan(0);
+        expect(Math.max(...images.map((c) => c.box.h))).toBeGreaterThan(100);
     });
 });

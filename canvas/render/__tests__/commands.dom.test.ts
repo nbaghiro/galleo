@@ -38,3 +38,34 @@ describe("sectionSlides", () => {
         expect(sectionSlides(section, tokens, deck).length).toBeGreaterThan(1);
     });
 });
+
+describe("the measure cache and paint-only run attributes", () => {
+    const base: TextLeaf = { text: "hello", fontId: "f", size: 12, wrap: "words" };
+
+    it("two leaves differing only in run color each keep their own frag color", () => {
+        clearMeasureCache();
+        measureText({ ...base, runs: [{ text: "hello", color: "#ff0000" }] }, 400);
+        const blue = measureText({ ...base, runs: [{ text: "hello", color: "#0000ff" }] }, 400);
+        expect(blue.lines?.[0]?.frags?.[0]?.color).toBe("#0000ff");
+    });
+
+    it("toggling underline on the same text re-measures instead of serving stale frags", () => {
+        clearMeasureCache();
+        measureText({ ...base, runs: [{ text: "hello" }] }, 400);
+        const marked = measureText({ ...base, runs: [{ text: "hello", underline: true }] }, 400);
+        expect(marked.lines?.[0]?.frags?.[0]?.underline).toBe(true);
+    });
+
+    it("run boundaries key unambiguously when digits align with the flag triples", () => {
+        // "a"+bold"00b" serializes as 000a10000b under flags+text concatenation, exactly the
+        // one-run "a10000b" — different text, different metrics, one key without a delimiter
+        clearMeasureCache();
+        const twoRuns = measureText(
+            { ...base, text: "a00b", runs: [{ text: "a" }, { text: "00b", bold: true }] },
+            400,
+        );
+        const oneRun = measureText({ ...base, text: "a10000b", runs: [{ text: "a10000b" }] }, 400);
+        expect(oneRun).not.toBe(twoRuns);
+        expect(oneRun.lines?.[0]?.frags?.[0]?.text).toBe("a10000b");
+    });
+});
