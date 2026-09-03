@@ -193,6 +193,7 @@ export const tableElement: ElementSpec<TableData> = {
                 lines: g.lines,
                 zebra: g.zebra,
                 density: g.density,
+                ...(g.clamp !== undefined ? { clamp: g.clamp } : {}),
                 cells,
             };
         },

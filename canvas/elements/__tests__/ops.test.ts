@@ -462,3 +462,37 @@ describe("batch ops", () => {
         expect(moveChildrenTo(art, at([]), [0, 9], 2).content).toBe(art);
     });
 });
+
+describe("replaceAt and the row-width invariant", () => {
+    it("the drop inherits the slot's column share and sheds its own stale width", () => {
+        const row = rowGroup([txt("keep"), txt("slot")], [0.6, 0.4]);
+        const art = replaceAt(artOf(row), at([1]), withWidth(txt("new"), 90));
+        const fr = columnFractions(art.sections[0]!);
+        expect(fr).toEqual([0.6, 0.4]);
+        expect(textOf(getElementAt(art, at([1])))).toBe("new");
+    });
+
+    it("a width-less slot leaves the newcomer width-less", () => {
+        const row = rowGroup([txt("a"), txt("b")]); // even split, no widths
+        const art = replaceAt(artOf(row), at([0]), withWidth(txt("new"), 90));
+        expect(getElementAt(art, at([0]))?.layout?.width).toBeUndefined();
+    });
+});
+
+describe("table cell edits", () => {
+    it("editing one cell carries the table's clamp through withChildren", () => {
+        const table = inst("table", {
+            cols: 2,
+            rows: 2,
+            header: true,
+            lines: "rows",
+            zebra: false,
+            density: "cozy",
+            clamp: 1,
+            cells: Array.from({ length: 4 }, (_, i) => txt(`c${i}`)),
+        });
+        const art = updateDataAt(artOf(table), at([2]), { text: "edited" });
+        const d = rootOf(art).data as { clamp?: number };
+        expect(d.clamp).toBe(1);
+    });
+});

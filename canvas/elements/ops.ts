@@ -272,13 +272,19 @@ export function wrapWith(
     });
 }
 
-// used to drop into an empty region (the placeholder becomes the dropped element)
+// Used to drop into an empty region (the placeholder becomes the dropped element). The slot's
+// column share belongs to the slot, not to what fills it: the drop inherits it, and a newcomer's
+// stale width dies here so a 60/40 row cannot silently reset to an even split.
 export function replaceAt(
     art: ArtifactContent,
     addr: ElementAddress,
     element: ElementInstance,
 ): ArtifactContent {
-    return updateElementAt(art, addr, () => element);
+    return updateElementAt(art, addr, (prev) => {
+        const width = prev.layout?.width;
+        if (width === undefined) return stripWidth(element);
+        return { ...element, layout: { ...element.layout, width } };
+    });
 }
 
 export function duplicateAt(art: ArtifactContent, addr: ElementAddress): ArtifactContent {

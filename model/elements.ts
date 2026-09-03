@@ -64,6 +64,18 @@ export type CardStyle = (typeof CARD_STYLES)[number];
 export const CARD_SHAPES = ["sharp", "rounded"] as const;
 export type CardShape = (typeof CARD_SHAPES)[number];
 
+// what the Shape element can draw; the picker offers exactly this list, guarded by a render test
+export const SHAPE_KINDS = [
+    "rectangle",
+    "ellipse",
+    "triangle",
+    "diamond",
+    "star",
+    "line",
+    "arrow",
+] as const;
+export type ShapeKind = (typeof SHAPE_KINDS)[number];
+
 // "grid" fills `columns` shared-width tracks row-major, so cells align across rows
 export const FLEX_DIRECTION = ["row", "col", "grid"] as const;
 export type FlexDirection = (typeof FLEX_DIRECTION)[number];

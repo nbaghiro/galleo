@@ -626,8 +626,10 @@ export function drawIcon(
     });
 }
 
-// shape presets, authored in box coords
-export type ShapeKind = "rectangle" | "ellipse" | "triangle" | "star" | "line" | "arrow";
+// shape presets, authored in box coords; the kind list is the model's value-set
+export type { ShapeKind } from "@model/elements";
+import { SHAPE_KINDS } from "@model/elements";
+import type { ShapeKind } from "@model/elements";
 const isStroked = (k: ShapeKind): boolean => k === "line" || k === "arrow";
 
 interface ShapeOpts {
@@ -674,6 +676,18 @@ export function shapeVector(kind: ShapeKind, w: number, h: number, o: ShapeOpts)
                 [w / 2, i],
                 [w - i, h - i],
                 [i, h - i],
+            ],
+            closed: true,
+            style,
+        });
+    } else if (kind === "diamond") {
+        nodes.push({
+            t: "poly",
+            pts: [
+                [w / 2, i],
+                [w - i, h / 2],
+                [w / 2, h - i],
+                [i, h / 2],
             ],
             closed: true,
             style,
@@ -857,14 +871,10 @@ interface ShapeData {
     radius?: number; // rectangle only
     height?: number;
 }
-const SHAPE_KINDS: { label: string; value: string }[] = [
-    { label: "Rectangle", value: "rectangle" },
-    { label: "Ellipse", value: "ellipse" },
-    { label: "Triangle", value: "triangle" },
-    { label: "Diamond", value: "diamond" },
-    { label: "Line", value: "line" },
-    { label: "Arrow", value: "arrow" },
-];
+const SHAPE_OPTIONS = SHAPE_KINDS.map((v) => ({
+    label: v[0]!.toUpperCase() + v.slice(1),
+    value: v,
+}));
 register(
     vectorSpec<ShapeData>({
         type: "shape",
@@ -890,7 +900,7 @@ register(
         resize: { height: { key: "height", min: 24, max: 600, step: 8 } },
         bar: ["kind", "fill"],
         controls: [
-            { key: "kind", label: "Shape", control: "select", options: SHAPE_KINDS },
+            { key: "kind", label: "Shape", control: "select", options: SHAPE_OPTIONS },
             { key: "fill", label: "Fill", control: "color" },
             {
                 key: "radius",
