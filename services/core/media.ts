@@ -13,7 +13,8 @@ import type {
 } from "@model/media";
 import { assetIdFromUrl, assetUrl, isEmbedVideoUrl, KIND_PROVIDERS, vimeoRef } from "@model/media";
 import { mapMediaRefs, mediaRefKinds, mediaRefs } from "@model/artifact";
-import type { FeatureOverrides, ModelTier } from "@model/billing";
+import type { FeatureOverrides, Features, ModelTier } from "@model/billing";
+import type { ImageOptions } from "./ai/images";
 import { featuresFor, isUnlimited } from "@model/billing";
 import { imageModelId, videoModelId } from "./models";
 import type { Db } from "@services/db/client";
@@ -1316,4 +1317,56 @@ export async function readAsset(
         .from(schema.assets)
         .where(eq(schema.assets.id, id));
     return a ?? null;
+}
+
+export interface AiImages {
+    image: ImageOptions;
+    made: () => number; // AI pictures generated so far, for the settle
+}
+
+// The one place a run's image strategy is built: sourced pictures are adopted into the workspace
+// library so attribution survives, and an AI picture is generated, stored and counted when the
+// brief asked for it and the model is wired. Stock stays free and uncounted.
+export function aiImageOptions(
+    ws: { id: string },
+    feats: Pick<Features, "imageModelTier">,
+    source: "stock" | "ai" | undefined,
+): AiImages {
+    let made = 0;
+    const adopt = async (item: MediaItem): Promise<string> => (await useItem(ws.id, item)).url;
+    const wantsAi = source === "ai" && imageGenReady();
+    const image: ImageOptions = {
+        adopt,
+        ...(wantsAi
+            ? {
+                  source: "ai" as const,
+                  generate: async (phrase: string, orientation: string, refUrl?: string) => {
+                      const aspect =
+                          orientation === "portrait"
+                              ? "3:4"
+                              : orientation === "square"
+                                ? "1:1"
+                                : "16:9";
+                      // a ref only resolves for an image we hold bytes for
+                      const refId = assetIdFromUrl(refUrl);
+                      const ref = refId ? ((await refImage(ws.id, refId)) ?? undefined) : undefined;
+                      const img = await generateImage(
+                          phrase,
+                          aspect,
+                          "photo",
+                          feats.imageModelTier,
+                          ref,
+                      );
+                      if (!img) return null;
+                      const item = await storeGenerated(ws.id, "image", img, phrase, {
+                          style: "photo",
+                          ...(refId ? { refId } : {}),
+                      });
+                      made++;
+                      return item.url;
+                  },
+              }
+            : {}),
+    };
+    return { image, made: () => made };
 }

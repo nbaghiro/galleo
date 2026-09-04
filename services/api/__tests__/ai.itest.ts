@@ -16,7 +16,10 @@ afterAll(() => {
     for (const k of PROVIDER_KEYS) if (saved[k] !== undefined) process.env[k] = saved[k];
 });
 
-const generateBody = jsonInit("POST", { kind: "generate", input: { prompt: "Build a deck" } });
+const generateBody = jsonInit("POST", {
+    tool: "generate-artifact",
+    input: { prompt: "Build a deck" },
+});
 
 describe("AI routes — unconfigured provider", () => {
     it("POST /ai/turn 401s without a session", async () => {

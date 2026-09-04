@@ -56,7 +56,7 @@ import {
     onCommentResolve,
 } from "@editor/core/comments";
 import { clearCollabHandlers } from "@editor/core/collab";
-import { api, streamNarration, streamSpeakerNotes, streamTurn } from "@app/api";
+import { api, streamNarration, streamSpeakerNotes, streamTool } from "@app/api";
 import { asFormat, charsBucket } from "@model/analytics";
 import type { MusicPresetInfo, NarrationTrack } from "@model/speech";
 import { DEFAULT_PRESET } from "@model/speech";
@@ -167,8 +167,8 @@ export const EditorView: Component = () => {
             if (params.id) openShare({ artifactId: params.id, title: currentTitle() });
         });
         // the editor stays app-free, so the app supplies the SSE transport
-        onSectionStream(async (req, onEvent, signal) => {
-            await streamTurn(req, onEvent, signal);
+        onSectionStream(async (call, onEvent, signal) => {
+            await streamTool(call.tool, call.input, onEvent, { artifact: call.artifact, signal });
             void loadBilling();
         });
         // unmetered, so no meter refresh

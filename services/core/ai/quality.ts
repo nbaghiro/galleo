@@ -151,6 +151,7 @@ interface Found {
     unknown: Set<string>;
     missing: Map<string, number>;
     rows: Set<string>;
+    raggedTables: number;
     emptyContainers: number;
     h1s: number;
 }
@@ -160,6 +161,7 @@ function scan(section: Section): Found {
         unknown: new Set(),
         missing: new Map(),
         rows: new Set(),
+        raggedTables: 0,
         emptyContainers: 0,
         h1s: 0,
     };
@@ -176,6 +178,13 @@ function scan(section: Section): Found {
 
         const row = rowIssue(el);
         if (row) f.rows.add(row);
+
+        // cells split on commas, so a "2,720" thousands separator silently misaligns every column
+        if (el.type === "table" && typeof data.data === "string") {
+            const rows = (data.data as string).split("\n").filter((r) => r.trim() !== "");
+            const cols = rows[0]?.split(",").length ?? 0;
+            if (cols > 1 && rows.some((r) => r.split(",").length !== cols)) f.raggedTables += 1;
+        }
 
         if (spec.container && !filled(data.children)) {
             f.emptyContainers += 1;
@@ -212,6 +221,10 @@ export function renderIssues(section: Section): string[] {
             `${plural(n, `a \`${type}\``, `\`${type}\` elements`)} with no \`${field}\`, so nothing renders there`,
         );
     }
+    if (f.raggedTables)
+        issues.push(
+            `${plural(f.raggedTables, "a table", "tables")} whose rows disagree with the header's column count: cells split on commas, so a comma inside a cell (a thousands separator like "2,720") breaks the grid. Write "2720", and join a label to a value with a middot`,
+        );
     issues.push(...f.rows);
     return issues;
 }

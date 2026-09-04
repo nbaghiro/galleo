@@ -1,6 +1,6 @@
 import { recordParts } from "@services/core/ai/meter";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
-import type { GenerateInput } from "@model/ai";
+import type { GenerateInput, Generation } from "@model/ai";
 
 // Imports no capability file, so there's no cycle.
 export interface PromptParts {
@@ -58,7 +58,7 @@ export function briefContext(input: GenerateInput): string {
     return heading("The brief", lines.join("\n"));
 }
 
-function firstText(section: Section): string {
+export function firstText(section: Section): string {
     let found = "";
     const visit = (el?: ElementInstance): void => {
         if (found || !el) return;
@@ -204,3 +204,63 @@ For side-by-side columns, make "root" a container with direction "row"; each chi
   "background": { "kind": "image", "image": "<vivid photo description>", "scrim": 0.5 }
 }
 For a full-width section, "root" is a single element (e.g. a container of stacked elements, or one image). Column widths (\`layout.width.pct\`) should sum to ~100; match the planned layout's column count + split. Stack several elements with a container (direction "col"); go side-by-side with direction "row". The "background" key is optional, include it only for a cover, divider, or closing section (omit it entirely otherwise). Every string is real, finished copy. Never placeholder text.`;
+
+// every text and label in the tree, one per line: what a repurposed artifact hands the planner and
+// what the context library indexes
+export function extractArtifactText(content: ArtifactContent): string {
+    const parts: string[] = [];
+    const visit = (el: ElementInstance | undefined): void => {
+        if (!el) return;
+        const d = el.data as { text?: string; label?: string; children?: ElementInstance[] };
+        if (typeof d.text === "string" && d.text.trim()) parts.push(d.text.trim());
+        if (typeof d.label === "string" && d.label.trim()) parts.push(d.label.trim());
+        for (const k of d.children ?? []) visit(k);
+    };
+    for (const s of content.sections) visit(s.root);
+    return parts.join("\n");
+}
+
+// the generation as the agent reads it: the brief, the standing note, and every beat with whether
+// it is written, by id, since ids are what the tools take
+export function generationDigest(gen: Generation): string {
+    const b = gen.brief;
+    const brief = [
+        `Prompt: “${b.prompt}”`,
+        `Format: ${b.surface}${b.length ? ` · ${b.length}` : ""}`,
+        b.goal && `Goal: ${b.goal}`,
+        b.audience && `Audience: ${b.audience}`,
+        b.tone && `Tone: ${b.tone}`,
+        b.mustInclude?.length && `Must cover: ${b.mustInclude.join(" · ")}`,
+        gen.steer.trim() &&
+            `Standing note on every section still to be written: “${gen.steer.trim()}”`,
+        gen.clarify && `Open question to the person: ${gen.clarify}`,
+    ]
+        .filter(Boolean)
+        .join("\n");
+    const beats = gen.outline?.beats ?? [];
+    const rows = beats.length
+        ? beats
+              .map((x, i) => {
+                  const state = gen.beats[x.id]?.status ?? "queued";
+                  const head = `${i + 1}. [${x.id}] “${x.label}” (${x.role}), ${state === "done" ? "WRITTEN" : state === "failed" ? "failed, still to write" : "not yet written"}`;
+                  const body = [
+                      x.takeaway && `   takeaway: ${x.takeaway}`,
+                      x.brief && `   job: ${x.brief}`,
+                      x.points?.length && `   points: ${x.points.join(" | ")}`,
+                  ]
+                      .filter(Boolean)
+                      .join("\n");
+                  return body ? `${head}\n${body}` : head;
+              })
+              .join("\n")
+        : "No beats planned yet.";
+    const written = beats.filter((x) => gen.beats[x.id]?.status === "done").length;
+    const stale =
+        gen.outline && gen.plannedAgainst !== null && gen.plannedAgainst < gen.briefVersion
+            ? "\nThe brief changed after this outline was planned; plan-outline again to match."
+            : "";
+    return heading(
+        `The generation ${gen.id}`,
+        `A ${b.surface} at the "${gen.stage}" stage, ${written} of ${beats.length} sections written.\n\n${brief}\n\nThe outline:\n${rows}${stale}`,
+    );
+}

@@ -1,6 +1,9 @@
-import type { ModelSpan, PromptPart } from "@model/ai";
+import type { ModelSpan, PromptPart } from "@model/trace";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getModel } from "@services/core/models";
+import { noteModel, tracing } from "@services/core/traces";
+
+export { tracing };
 
 // What a turn actually did. Every model call reports here through the provider middleware, so
 // nothing has to be threaded down through RunOpts or remembered at a call site: a new call site is
@@ -24,7 +27,6 @@ export interface Meter {
     parts: Map<string, PromptPart[]>;
     // model spend that has no per-token registry price (embeddings); folded into the settle as-is
     extraUsd: number;
-    trace: boolean;
 }
 
 const scope = new AsyncLocalStorage<Meter>();
@@ -32,8 +34,8 @@ const scope = new AsyncLocalStorage<Meter>();
 const stepScope = new AsyncLocalStorage<string>();
 
 /** Runs `fn` with a fresh meter in scope and hands it back alongside the result. */
-export async function withMeter<T>(fn: (meter: Meter) => Promise<T>, trace = false): Promise<T> {
-    const meter: Meter = { uses: [], extraUsd: 0, parts: new Map(), trace };
+export async function withMeter<T>(fn: (meter: Meter) => Promise<T>): Promise<T> {
+    const meter: Meter = { uses: [], extraUsd: 0, parts: new Map() };
     return await scope.run(meter, () => fn(meter));
 }
 
@@ -42,12 +44,10 @@ export function withStep<T>(step: string, fn: () => Promise<T>): Promise<T> {
     return stepScope.run(step, fn);
 }
 
-export const tracing = (): boolean => scope.getStore()?.trace ?? false;
-
 /** Called by the prompt builders when tracing; the assembled text is the key. */
 export function recordParts(assembled: string, parts: PromptPart[]): void {
     const meter = scope.getStore();
-    if (meter?.trace && assembled) meter.parts.set(assembled, parts);
+    if (meter && tracing() && assembled) meter.parts.set(assembled, parts);
 }
 
 /** The fragments a given system prompt was assembled from, if its builder labelled them. */
@@ -60,9 +60,11 @@ export function recordTokens(modelId: string, input: number, output: number, cac
 
 /** The full record for one call; `recordTokens` is the billing-only shorthand. */
 export function record(span: Span): void {
-    const meter = scope.getStore();
-    if (!meter || (!span.input && !span.output)) return;
-    meter.uses.push({ ...span, step: span.step || (stepScope.getStore() ?? "") });
+    if (!span.input && !span.output) return;
+    const full = { ...span, step: span.step || (stepScope.getStore() ?? "") };
+    // billed only inside a meter; recorded on the trace whenever one is open
+    scope.getStore()?.uses.push(full);
+    noteModel(full);
 }
 
 /** Spend priced at the call site (embeddings — no registry entry to price their tokens). */

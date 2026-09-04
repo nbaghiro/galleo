@@ -12,7 +12,6 @@ import { thread } from "@app/stores/chat";
 import {
     builtCount,
     closeGenerate,
-    hasUnsavedWork,
     gen,
     generateOpen,
     pauseBuild,
@@ -47,7 +46,6 @@ import { railMode } from "./layout";
 export const Studio: Component = () => {
     const navigate = useNavigate();
     const [saving, setSaving] = createSignal(false);
-    const [confirmingClose, setConfirmingClose] = createSignal(false);
 
     const panelVars = createMemo(
         (): JSX.CSSProperties =>
@@ -70,10 +68,10 @@ export const Studio: Component = () => {
         }
         return "Ask for a change…";
     };
-    const building = (): boolean => gen.stage === "building";
+    const building = (): boolean => gen.stage === "writing";
     const planned = (): boolean => gen.beats.length > 0;
 
-    // the draft becomes a library artifact only here, never mid-run
+    // the draft is in the library from the first call; this closes the run and moves to it
     const openInEditor = async (): Promise<void> => {
         if (saving()) return;
         setSaving(true);
@@ -88,13 +86,8 @@ export const Studio: Component = () => {
         }
     };
 
-    const requestClose = (): void => {
-        if (hasUnsavedWork() && !confirmingClose()) {
-            setConfirmingClose(true);
-            return;
-        }
-        closeGenerate();
-    };
+    // built work is already saved as a draft, so closing never asks
+    const requestClose = (): void => closeGenerate();
 
     // the prompt is a compact dialog over the library (wide when a pane swaps in);
     // the studio takes the screen once a run starts
@@ -240,30 +233,6 @@ export const Studio: Component = () => {
                 </Show>
             </div>
 
-            <Show when={confirmingClose()}>
-                <div class="flex flex-none items-center gap-3 border-t border-line bg-canvas px-4 py-2">
-                    <span class="min-w-0 flex-1 text-[12.5px] text-ink">
-                        {gen.content.sections.length} section
-                        {gen.content.sections.length > 1 ? "s" : ""} built and not saved yet.
-                        Discard them?
-                    </span>
-                    <Button variant="ghost" size="sm" onClick={() => setConfirmingClose(false)}>
-                        Keep working
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={saving()}
-                        onClick={() => void openInEditor()}
-                    >
-                        Save + open
-                    </Button>
-                    <Button variant="dangerGhost" size="sm" onClick={() => closeGenerate()}>
-                        Discard
-                    </Button>
-                </div>
-            </Show>
-
             <Show when={!intake()}>
                 <div class="flex flex-none flex-wrap items-center gap-x-2 gap-y-1.5 border-t border-line bg-panel px-3 md:gap-x-3 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 md:px-4 md:pb-2.5">
                     {/* the one bar that is always there, so on a phone it also owns the pane switch */}
@@ -283,7 +252,7 @@ export const Studio: Component = () => {
                         </Button>
                     </Show>
                     <div class="flex min-w-0 flex-none flex-wrap items-center gap-1.5">
-                        <Show when={gen.stage === "outline"}>
+                        <Show when={gen.stage === "outlined"}>
                             <Button
                                 variant="primary"
                                 size="sm"
@@ -346,7 +315,7 @@ export const Studio: Component = () => {
                                     <Button
                                         variant="primary"
                                         size="sm"
-                                        disabled={!!gen.activeSection}
+                                        disabled={gen.writing}
                                         onClick={resumeBuild}
                                     >
                                         ▶ Write the rest
@@ -388,7 +357,7 @@ export const Studio: Component = () => {
                         {/* pause lands at the next section boundary, so say which side of it we're on */}
                         <span class="flex-none rounded-full bg-accent/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent">
                             <Show
-                                when={!gen.activeSection}
+                                when={!gen.writing}
                                 fallback={
                                     <>
                                         Pausing

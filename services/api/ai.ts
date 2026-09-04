@@ -2,28 +2,25 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { streamSSE } from "hono/streaming";
 import { getCookie } from "hono/cookie";
-import type { Beat, BriefDraft, GenerateInput, TurnEvent, TurnRequest } from "@model/ai";
+import type { ChatInput, GenerateInput, TurnEvent } from "@model/ai";
+import { threadKey } from "@model/ai";
 import type { Section } from "@model/artifact";
 import { elementAt } from "@services/core/ai/locate";
-import { applyPatch, isKind } from "@model/ai";
 import type { ToolId } from "@model/tools";
+import { TOOLS, isChatInput } from "@model/tools";
 import { runTool } from "@services/core/ai/execute";
 import type { RunToolOptions, ToolOutcome } from "@services/core/ai/execute";
-import type { Meter } from "@services/core/ai/meter";
 import {
     gateArtifact,
     gateShared,
     isResponse,
     overridesFrom,
     requireWorkspace,
+    streamRun,
     type WorkspaceEnv,
 } from "./middleware";
-import type { ModelOverrides } from "@services/core/models";
 import type { ArtifactContent } from "@model/artifact";
-import type { ModelTier } from "@model/billing";
 import { featuresFor } from "@model/billing";
-import type { MediaItem } from "@model/media";
-import { assetIdFromUrl } from "@model/media";
 import { currentMembership, currentUser } from "@services/core/accounts";
 import { SESSION_COOKIE } from "@services/utils/auth";
 import { z } from "zod";
@@ -31,25 +28,12 @@ import { isArtifactContent } from "@services/core/artifacts";
 import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
 import type { WorkspaceRow } from "@services/core/accounts";
 import type { WorkspaceRole } from "@model/workspace";
-import { warn } from "@services/utils/env";
-import { ACTION_FOR, IMPLEMENTED, meterFor, pricesFor, reserve } from "@services/core/spend";
-import {
-    generateImage,
-    imageGenReady,
-    refImage,
-    storeGenerated,
-    useItem,
-} from "@services/core/media";
-import { isEvalAdmin, recordRun } from "@services/core/ai/eval/runs";
-import { runChecks } from "@services/core/ai/eval/checks";
-import type { EvalConfig, EvalStatus } from "@model/eval";
-import { AI_TASKS } from "@model/credits";
-import { modelFor } from "@services/core/models";
+import { aiImageOptions } from "@services/core/media";
 import { aiReady, embeddingReady } from "@services/core/ai/provider";
 import { mintVoiceToken, voiceReady, VoiceError } from "@services/core/ai/voice";
-import { runTurn } from "@services/core/ai/run";
-import type { ImageOptions } from "@services/core/ai/images";
 import { makeWorkspaceReader } from "@services/core/ai/reader";
+import { makeGenerationStore } from "@services/core/generations";
+import { appendExchange } from "@services/core/threads";
 import {
     makeContextRetriever,
     recallConversation,
@@ -57,87 +41,21 @@ import {
 } from "@services/core/context";
 import type { RefineKind } from "@services/core/ai/prompts/refine";
 import type { WrittenNotes } from "@services/core/ai/tools/notes";
-import type { BriefRead } from "@services/core/ai/prompts/brief";
-
-// What the run was asked to do, in the same shape an artifact stores in ai_meta. The models
-// recorded are the ones that actually ran, not the overrides that were requested.
-// the models that will actually run, not the overrides that were asked for
-function modelMap(overrides: ModelOverrides, tier: ModelTier): Record<string, string> {
-    const models: Record<string, string> = {};
-    for (const task of AI_TASKS) models[task] = modelFor(task, tier, overrides);
-    return models;
-}
-
-/**
- * `beats` is the outline's own reading of the arc, and it only exists once the plan step has run, so
- * the caller folds it in from the stream. Without it a visual check cannot ask what a section's
- * position was supposed to do, which is most of what makes a section right or wrong.
- */
-// the starter a run borrowed its shapes from, wherever the brief for this turn kind lives
-function shapeOf(req: TurnRequest): string | undefined {
-    if (req.kind === "build") return req.input.brief.shapeTemplateId;
-    return req.kind === "generate" || req.kind === "plan" ? req.input.shapeTemplateId : undefined;
-}
-
-function configOf(
-    req: TurnRequest,
-    overrides: ModelOverrides,
-    tier: ModelTier,
-    beats?: Beat[],
-): EvalConfig {
-    const models = modelMap(overrides, tier);
-    const input = req.kind === "build" ? req.input.brief : "input" in req ? req.input : undefined;
-    const g = input as Partial<GenerateInput> | undefined;
-    return {
-        kind: req.kind,
-        meta: {
-            at: new Date().toISOString(),
-            models,
-            prompt: g?.prompt ?? "",
-            surface: g?.surface ?? "deck",
-            theme: g?.theme,
-            length: g?.length,
-            imageSource: g?.imageSource,
-            goal: g?.goal,
-            audience: g?.audience,
-            tone: g?.tone,
-            mustInclude: g?.mustInclude,
-            ...(beats?.length
-                ? { beats: beats.map((b) => ({ id: b.id, label: b.label, role: b.role })) }
-                : {}),
-        },
-    };
-}
-
-// A traced run rebuilds the artifact from its own patch stream. A build turn only patches the one
-// section it writes, so it has to start from the artifact so far or the run would record a
-// one-section piece.
-const seedContent = (req: TurnRequest): ArtifactContent => {
-    const input = "input" in req ? (req.input as { content?: ArtifactContent }) : undefined;
-    if (input?.content?.sections) return input.content;
-    const g = ("input" in req ? req.input : undefined) as Partial<GenerateInput> | undefined;
-    return { format: g?.surface ?? "deck", theme: g?.theme ?? "studio", sections: [] };
-};
 
 export const ai = new Hono<WorkspaceEnv>();
 
-// A refused reserve is either the workspace running dry or this member hitting their own ceiling;
-// only the first has an upgrade or a top-up to offer.
-
-// The turn union and its per-kind inputs live in @model/ai; restating them here would be a second
-// copy to keep in sync, and every route below narrows what it reads anyway. z.custom validates
-// without rebuilding, so nothing the client sent is dropped on the way through.
+// The tool's own schema parses `input` inside the executor; this states only the envelope, so
+// nothing the client sent is dropped on the way through.
 const isObject = (v: unknown): boolean => !!v && typeof v === "object";
-const zTurn = z.custom<TurnRequest>(isObject);
 const zArtifactContent = z.custom<ArtifactContent>(isArtifactContent);
-
-const zBrief = z.looseObject({
-    prompt: z.string().optional(),
-    surface: z.enum(["deck", "doc", "web"]).optional(),
-    previous: z.custom<BriefRead>(isObject).optional(),
-    trace: z.boolean().optional(),
-    traceSession: z.string().optional(),
+const zTurn = z.object({
+    tool: z.string(),
+    input: z.custom<Record<string, unknown>>(isObject),
+    // the document the browser holds, for a tool that acts on it; a generation's draft is loaded
+    // server-side instead
+    artifact: zArtifactContent.optional(),
 });
+
 const zSuggest = z.object({ content: zArtifactContent.optional() });
 // The path, not the element: the client has a selection and the server should revise what the
 // stored tree holds at that address rather than whatever node the client pasted into the body.
@@ -170,213 +88,166 @@ const zNotesReq = z.object({
     guidance: z.string().optional(),
 });
 
-// Sourced pictures are adopted at the turn rather than at the write, so the attribution the provider
-// sent survives into the row and the turn streams canonical urls to the client.
-const adoptInto =
-    (wsId: string) =>
-    async (item: MediaItem): Promise<string> =>
-        (await useItem(wsId, item)).url;
+// the brief a streamed call is about: its own, its generation's, or the chat's
+const briefOf = (
+    tool: ToolId,
+    input: Record<string, unknown>,
+    gen: { brief: GenerateInput } | null,
+): Partial<GenerateInput> | undefined => {
+    if (gen) return gen.brief;
+    if (tool === "generate-artifact" || tool === "start-generation")
+        return input as Partial<GenerateInput>;
+    return undefined;
+};
 
+/**
+ * One streamed tool call. The executor does the gate, the hold, the generation and the patches; this
+ * route only names the tool, builds the context the workspace lends it, and frames the events as SSE.
+ */
 ai.post("/ai/turn", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     if (!aiReady()) return c.json({ error: "AI is not configured on this server" }, 503);
     const req = await readJson(c, zTurn);
-    if (!req || !isKind(req.kind)) return c.json({ error: "a valid turn kind is required" }, 400);
-    if (!IMPLEMENTED.includes(req.kind))
-        return c.json({ error: `${req.kind} turns aren’t available yet` }, 501);
-    if ((req.kind === "generate" || req.kind === "plan") && !req.input?.prompt?.trim())
-        return c.json({ error: "a prompt is required" }, 400);
-    if (req.kind === "section" && (!req.input?.instruction?.trim() || !req.input?.content))
-        return c.json({ error: "an instruction and the current artifact are required" }, 400);
-    if (req.kind === "chat" && !req.input?.message?.trim())
+    if (!req || !(req.tool in TOOLS)) return c.json({ error: "a valid tool is required" }, 400);
+    const tool = req.tool as ToolId;
+    if (!TOOLS[tool].surfaces.includes("direct"))
+        return c.json({ error: "that tool is not available here" }, 400);
+    const input = req.input;
+    if (tool === "ask-assistant" && (!isChatInput(input) || !input.message.trim()))
         return c.json({ error: "a message is required" }, 400);
-    if (
-        req.kind === "build" &&
-        (!req.input?.brief?.prompt?.trim() ||
-            !req.input?.beat?.id ||
-            !req.input?.outline?.beats?.length ||
-            !req.input?.content)
-    )
-        return c.json(
-            { error: "a brief, outline, beat, and the artifact so far are required" },
-            400,
-        );
+    const chat: ChatInput | null = tool === "ask-assistant" && isChatInput(input) ? input : null;
 
-    // The only turn that names an artifact server-side. The others are content-in/content-out, so
-    // what protects them is the gate on the save plus the per-member spend cap, not a check here.
-    if (req.kind === "chat" && req.input.context.artifactId) {
-        const gate = await gateArtifact(c, req.input.context.artifactId, "view");
+    // The only call that names an artifact server-side without a generation. The others are
+    // content-in/content-out, so what protects them is the gate on the save plus the per-member
+    // spend cap, not a check here.
+    if (chat?.context.artifactId && !chat.context.generationId) {
+        const gate = await gateArtifact(c, chat.context.artifactId, "view");
         if (isResponse(gate)) return gate;
     }
 
-    // Reserve before the billable model calls; 402 when spent.
     const feats = featuresFor(ws);
-    // a step pinned to a heavier model costs us more, so the reserve and the settle both price the
-    // models this turn will actually run on
     const overrides = overridesFrom(c);
-    // a client asking to trace changes nothing on its own; only an eval admin gets a run recorded
-    const traced = !!req.trace && isEvalAdmin(c.get("user"));
-    const held = await reserve(ws, c.get("user").id, ACTION_FOR[req.kind], {
-        size: meterFor(req, feats.maxSectionsPerGeneration),
-        prices: pricesFor(ws, overrides),
-        trace: traced,
-        role: c.get("role"),
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
+    const generations = makeGenerationStore(ws.id, c.get("user").id);
 
-    // AI images are counted so the settle can reconcile the estimate to the real count; stock is free.
-    const imageSource =
-        req.kind === "generate"
-            ? req.input.imageSource
-            : req.kind === "build"
-              ? req.input.brief.imageSource
-              : req.kind === "chat"
-                ? req.input.context.imageSource // so a re-sourced image matches the rest of the piece
-                : undefined;
-    const wantsAiImages = imageSource === "ai" && imageGenReady();
-    let aiImages = 0;
-    const image: ImageOptions = {
-        adopt: adoptInto(ws.id),
-        ...(wantsAiImages
-            ? {
-                  source: "ai" as const,
-                  generate: async (phrase: string, orientation: string, refUrl?: string) => {
-                      const aspect =
-                          orientation === "portrait"
-                              ? "3:4"
-                              : orientation === "square"
-                                ? "1:1"
-                                : "16:9";
-                      // a ref only resolves for an image we hold bytes for
-                      const refId = assetIdFromUrl(refUrl);
-                      const ref = refId ? ((await refImage(ws.id, refId)) ?? undefined) : undefined;
-                      const img = await generateImage(
-                          phrase,
-                          aspect,
-                          "photo",
-                          feats.imageModelTier,
-                          ref,
-                      );
-                      if (!img) return null;
-                      const item = await storeGenerated(ws.id, "image", img, phrase, {
-                          style: "photo",
-                          ...(refId ? { refId } : {}),
-                      });
-                      aiImages++;
-                      return item.url;
-                  },
-              }
-            : {}),
-    };
+    // The generation a call is about decides its image strategy and its attached contexts. Read
+    // once here for those; the executor loads it again for the body, which is what keeps this
+    // route free of anything the body depends on.
+    const generationId =
+        (typeof input.generationId === "string" ? input.generationId : undefined) ??
+        chat?.context.generationId;
+    const gen = generationId ? await generations.read(generationId) : null;
+    if (generationId && !gen) return c.json({ error: "that generation was not found" }, 404);
+    const brief = briefOf(tool, input, gen?.generation ?? null);
+    const imageSource = chat ? chat.context.imageSource : brief?.imageSource;
+    const images = aiImageOptions(ws, feats, imageSource);
 
     // attached context collections ground the turn; absent (or no embedding model) they cost nothing
-    const contextIds =
-        req.kind === "generate" || req.kind === "plan"
-            ? req.input.contextIds
-            : req.kind === "build"
-              ? req.input.brief.contextIds
-              : req.kind === "chat"
-                ? req.input.context.contextIds
-                : undefined;
+    const contextIds = chat ? chat.context.contextIds : brief?.contextIds;
     const retriever =
         embeddingReady() && contextIds?.length ? makeContextRetriever(ws.id, contextIds) : null;
     // conversation memory is keyed to the piece being discussed; a draft with no id yet is "library"
-    const chatKey = req.kind === "chat" ? (req.input.context.artifactId ?? null) : null;
+    const chatKey = chat ? (chat.context.generationId ?? chat.context.artifactId ?? null) : null;
 
     const ctrl = new AbortController();
-    return streamSSE(c, async (stream) =>
-        held.settle(async (produced, meter) => {
-            stream.onAbort(() => ctrl.abort());
-            const startedAt = Date.now();
-            let status: EvalStatus = "ok";
-            let failure: string | undefined;
-            let built: ArtifactContent | undefined;
-            let beats: Beat[] | undefined;
-            let seq = 0;
-            const send = (event: TurnEvent): Promise<void> =>
-                stream.writeSSE({ data: JSON.stringify({ seq: seq++, event }) });
-            try {
-                const workspace = makeWorkspaceReader(ws.id, {
-                    userId: c.get("user").id,
-                    role: c.get("role"),
-                    workspaceDefault: ws.defaultArtifactAccess,
-                });
-                let reply = "";
-                for await (const ev of runTurn(req, {
+    let seq = 0;
+    let reply = "";
+    const streamed: TurnEvent[] = []; // a chat turn's record, appended to the thread at the end
+    const workspace = makeWorkspaceReader(ws.id, {
+        userId: c.get("user").id,
+        role: c.get("role"),
+        workspaceDefault: ws.defaultArtifactAccess,
+    });
+    return streamRun(c, {
+        abort: ctrl,
+        head: [{ seq: seq++, event: { type: "turn.start", tool } }],
+        frame: (event) => ({ seq: seq++, event }),
+        refused: (out) => refused(c, out),
+        run: ({ onHeld, onEvent }) =>
+            runTool(
+                { id: tool, surface: "direct", input },
+                // no `scopes`: a session-authenticated person holds the whole surface, which is
+                // the difference between them and a delegated token
+                { userId: c.get("user").id, ws, role: c.get("role") },
+                {
+                    ctx: {
+                        image: images.image,
+                        workspace,
+                        generations,
+                        signal: ctrl.signal,
+                        models: overrides,
+                        maxSections: feats.maxSectionsPerGeneration,
+                        pack: retriever ? retriever.pack : undefined,
+                        recall:
+                            chat && embeddingReady()
+                                ? (q) => recallConversation(ws.id, chatKey, q)
+                                : undefined,
+                        // the document the browser holds rides in the body; the executor loads a
+                        // generation's draft instead when the call names one
+                        ...(chat && chat.context.content && !chat.context.generationId
+                            ? { artifact: chat.context.content }
+                            : req.artifact && !generationId
+                              ? { artifact: req.artifact }
+                              : {}),
+                        ...(chat?.context.pending ? { pending: chat.context.pending } : {}),
+                    },
                     models: overrides,
-                    signal: ctrl.signal,
-                    workspace,
-                    // no `scopes`: a session-authenticated person holds the whole surface, which is
-                    // the difference between them and a delegated token
-                    principal: { userId: c.get("user").id, ws, role: c.get("role") },
-                    image,
-                    tier: feats.textModelTier,
-                    maxSections: feats.maxSectionsPerGeneration,
-                    pack: retriever ? retriever.pack : undefined,
-                    recall:
-                        req.kind === "chat" && embeddingReady()
-                            ? (q) => recallConversation(ws.id, chatKey, q)
-                            : undefined,
-                })) {
-                    if (ev.type === "chat.text") reply += ev.delta;
-                    // the run's own copy of the result, so checks do not depend on the client
-                    if (traced && ev.type === "patch")
-                        built = applyPatch(built ?? seedContent(req), ev.ops);
-                    if (traced && ev.type === "plan") beats = ev.beats;
-                    await send(ev);
+                    // tokens are metered for us; images are flat-priced, so their count is ours to report
+                    produced: () => ({ image: images.made() }),
+                    onHeld,
+                    onEvent: (ev) => {
+                        if (ev.type === "chat.text") reply += ev.delta;
+                        if (chat) streamed.push(ev);
+                        onEvent(ev);
+                    },
+                },
+            ),
+        tail: async (out) => {
+            const frames: unknown[] = [];
+            if (out instanceof Error) {
+                if (!ctrl.signal.aborted)
+                    frames.push({
+                        seq: seq++,
+                        event: { type: "error", message: out.message || "the turn failed" },
+                    });
+            } else if (!out.ok) {
+                // held, then refused mid-run (a sub-tool's refusal): a line is all that is left
+                frames.push({ seq: seq++, event: { type: "error", message: refusalText(out) } });
+            } else
+                frames.push({
+                    seq: seq++,
+                    event: {
+                        type: "turn.done",
+                        result: out.result,
+                        ...(out.traceId ? { traceId: out.traceId } : {}),
+                    },
+                });
+            // memory is best-effort: a failed write must never fail the turn it remembers
+            if (chat) {
+                try {
+                    await appendExchange(
+                        ws.id,
+                        c.get("user").id,
+                        threadKey(chat.context),
+                        chat.message,
+                        streamed,
+                    );
+                } catch {
+                    /* the turn already served; the dock just won't reopen this exchange */
                 }
-                // memory is best-effort: a failed write must never fail the turn it remembers
-                if (req.kind === "chat" && embeddingReady()) {
+                if (embeddingReady())
                     try {
                         await recordChatExchange(ws.id, chatKey, [
-                            { role: "user", text: req.input.message },
+                            { role: "user", text: chat.message },
                             { role: "assistant", text: reply },
                         ]);
                     } catch {
                         /* the turn already served; recall just won't see this exchange */
                     }
-                }
-            } catch (e) {
-                failure = e instanceof Error ? e.message : "the turn failed";
-                status = ctrl.signal.aborted ? "aborted" : "error";
-                if (!ctrl.signal.aborted) await send({ type: "error", message: failure });
-            } finally {
-                // tokens are metered for us; images are flat-priced, so their count is ours to report
-                produced({ image: aiImages });
-                // a trace is a dev record, never worth failing a turn the user already received
-                if (traced)
-                    try {
-                        await recordRun({
-                            workspaceId: ws.id,
-                            userId: c.get("user").id,
-                            sessionId: req.traceSession ?? null,
-                            config: configOf(req, overrides, feats.textModelTier, beats),
-                            spans: meter.uses,
-                            content: built ?? null,
-                            checks: built
-                                ? runChecks(built, {
-                                      surface: built.format,
-                                      length: configOf(req, overrides, feats.textModelTier).meta
-                                          .length,
-                                      shapeTemplateId: shapeOf(req),
-                                  })
-                                : [],
-                            status: ctrl.signal.aborted ? "aborted" : status,
-                            error: failure,
-                            credits: 0, // settled after this block; the run row records tokens
-                            ms: Date.now() - startedAt,
-                        });
-                    } catch (e) {
-                        warn(`[eval] run not recorded: ${e instanceof Error ? e.message : "?"}`);
-                    }
             }
-        }),
-    );
+            return frames;
+        },
+    });
 });
-
-// Metered like any other model call; `previous` marks a re-read, so the model rules that out and
-// comes back with another angle.
 
 //
 // Every route below runs its tool through the executor rather than calling the body and reserving
@@ -407,7 +278,7 @@ const runDirect = <R>(
         {
             models: overridesFrom(c),
             ...rest,
-            ctx: { image: { adopt: adoptInto(ws.id) }, ...rest.ctx },
+            ctx: { image: aiImageOptions(ws, featuresFor(ws), undefined).image, ...rest.ctx },
         },
     );
 };
@@ -441,63 +312,6 @@ function refused(
     // a route naming a tool that is not on its own surface is a wiring bug, not a caller's mistake
     return c.json({ error: "that action is not available" }, 500);
 }
-
-ai.post("/ai/brief", requireWorkspace, async (c) => {
-    const ws = c.get("ws");
-    if (!aiReady()) return c.json({ brief: null });
-    const body = await readJson(c, zBrief);
-    if (!body?.prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
-    const prompt = body.prompt.trim();
-    const traced = !!body.trace && isEvalAdmin(c.get("user"));
-
-    const startedAt = Date.now();
-    const meters: Meter[] = [];
-    let failed = false;
-    const out = await runDirect<BriefDraft>(
-        c,
-        "draft-brief",
-        { prompt, surface: body.surface, previous: body.previous },
-        {
-            trace: traced,
-            onMeter: (m) => meters.push(m),
-        },
-    ).catch((e: unknown) => {
-        warn(`[ai:brief] ${e instanceof Error ? e.message : "failed"}`.slice(0, 400));
-        failed = true;
-        return null;
-    });
-    if (out && !out.ok) return refused(c, out);
-
-    // the brief opens the session's run; the turns that follow append to it
-    const meter = meters[0];
-    if (traced && meter)
-        try {
-            await recordRun({
-                workspaceId: ws.id,
-                userId: c.get("user").id,
-                sessionId: body.traceSession ?? null,
-                config: {
-                    kind: "brief",
-                    meta: {
-                        at: new Date().toISOString(),
-                        models: modelMap(overridesFrom(c), featuresFor(ws).textModelTier),
-                        prompt,
-                        surface: body.surface ?? "deck",
-                    },
-                },
-                spans: meter.uses,
-                status: failed ? "error" : "ok",
-                credits: 0,
-                ms: Date.now() - startedAt,
-            });
-        } catch (e) {
-            warn(`[eval] brief not recorded: ${e instanceof Error ? e.message : "?"}`);
-        }
-
-    // a brief that could not be written is not an error the caller acts on: the studio falls back
-    // to the raw prompt, which is what it did before there was a brief step at all
-    return failed || !out ? c.json({ brief: null }) : c.json({ brief: out.result });
-});
 
 // Unmetered: one tiny call, client-cached per artifact; empty on failure (the client falls back).
 ai.post("/ai/suggest", async (c) => {

@@ -19,6 +19,7 @@ import {
     TOOLS,
     costRange,
     estimateCost,
+    gateCost,
     isMetered,
     reserveCost,
     sectionsForLength,
@@ -182,6 +183,11 @@ describe("studio tools", () => {
         expect(t.live).toBe(true);
         expect(estimateCost("plan-outline", {}, P)).toBe(8);
     });
+    it("start-generation is free but gated on the plan step it opens the door to", () => {
+        expect(estimateCost("start-generation", {}, P)).toBe(0);
+        expect(gateCost("start-generation", P)).toBe(estimateCost("plan-outline", {}, P));
+        expect(gateCost("plan-outline", P)).toBe(0); // priced tools hold, they do not gate
+    });
     it("keeps the composition primitives off every caller-facing surface", () => {
         for (const id of ["plan-section", "write-section", "check-section", "pick-arc"] as const)
             expect(TOOLS[id].surfaces).toEqual(["internal"]);
@@ -239,7 +245,6 @@ describe("the credits table", () => {
             "audition-voice",
             "compose-soundtrack",
             "design-voice",
-            "draft-brief",
             "edit-artifact",
             "generate-artifact",
             "generate-image",
@@ -247,7 +252,6 @@ describe("the credits table", () => {
             "generate-video",
             "narrate-artifact",
             "plan-outline",
-            // a vision pass over a scan; the text-layer branch beside it stays free
             "read-file",
             "refine-prompt",
             "revise-element",
@@ -255,9 +259,10 @@ describe("the credits table", () => {
             "rewrite-section",
             "rewrite-text",
             "suggest-section-layouts",
-            // it calls a model on every use; it billed nothing until the free-by-omission fix
             "suggest-sections",
             "translate-text",
+            "write-beat",
+            "write-beats",
             "write-speaker-notes",
         ]);
     });

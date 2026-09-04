@@ -3,15 +3,23 @@ import { implement } from "@services/core/ai/tools";
 import { artifactDigest, artifactSpine } from "@services/core/ai/prompts/system";
 import { TEMPLATE_INDEX } from "@model/templates";
 
-export const findArtifactsTool = implement(
+implement(
     "find-artifacts",
     async function* (input, ctx): AsyncGenerator<TurnEvent, ArtifactRef[]> {
         if (!ctx.workspace) return [];
         return ctx.workspace.find(input.query?.trim() || undefined);
     },
+    {
+        present: (items) => (items.length ? { type: "artifacts", items } : null),
+        // the note is the model's tool result: it MUST carry ids so a follow-up targets the right one
+        note: (items) =>
+            items.length
+                ? `Found ${items.length}:\n${items.map((i) => `- ${i.id} — “${i.title}” (${i.format})`).join("\n")}`
+                : "No matching artifacts in the library.",
+    },
 );
 
-export const readArtifactTool = implement(
+implement(
     "read-artifact",
     async function* (input, ctx): AsyncGenerator<TurnEvent, string> {
         if (!ctx.workspace) return "There is no library access in this context.";
@@ -20,6 +28,7 @@ export const readArtifactTool = implement(
         const { ref, content } = found;
         return `“${ref.title}” (${ref.format})\n\n${artifactSpine(content)}\n\n${artifactDigest(content)}`;
     },
+    { present: () => null },
 );
 
 export const findTemplatesTool = implement(
@@ -33,6 +42,13 @@ export const findTemplatesTool = implement(
                 t.category.toLowerCase().includes(q) ||
                 t.description.toLowerCase().includes(q),
         ).map((t) => ({ id: t.id, name: t.name, category: t.category }));
+    },
+    {
+        present: (items) => (items.length ? { type: "templates", items } : null),
+        note: (items) =>
+            items.length
+                ? `Templates: ${items.map((t) => `${t.name} (${t.category})`).join(", ")}. The user can pick one to start from.`
+                : "No matching templates.",
     },
 );
 

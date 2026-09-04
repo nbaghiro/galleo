@@ -1,15 +1,17 @@
 import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { TurnEvent } from "@model/ai";
 import { TOOLS } from "@model/tools";
 import type { Transport } from "@services/utils/analytics";
 import { initAnalytics, shutdownAnalytics } from "@services/utils/analytics";
-import type { ReserveOptions } from "@services/core/spend";
-import { reserve } from "@services/core/spend";
+import { implement } from "@services/core/ai/tools";
+import { runTool } from "@services/core/ai/execute";
 
-// Every metered action passes through `reserve`, so this is where a new tool becomes measured
-// without anyone remembering to instrument it. A free tool takes the path that never reaches the
+// Every metered action passes through `reserve`, which reports that it started, and every call
+// closes a trace, which reports what it did. A free tool takes the path that never reaches the
 // ledger, which is what lets this run without a database.
-const FREE_TOOL = "set-theme";
+const FREE_TOOL = "show-sections";
+const THROWING_TOOL = "find-templates"; // free too, and public
 
 interface WireEvent {
     event: string;
@@ -17,6 +19,14 @@ interface WireEvent {
 }
 
 const ws = { id: "ws_1", plan: "free", seats: 1 };
+const principal = { userId: "user_1", ws, role: "owner" as const };
+
+implement(FREE_TOOL, async function* (): AsyncGenerator<TurnEvent, number> {
+    return 0;
+});
+implement(THROWING_TOOL, async function* (input): AsyncGenerator<TurnEvent, never> {
+    throw new Error((input as { query?: string }).query ?? "failed");
+});
 
 describe("the metered-run seam", () => {
     let events: WireEvent[];
@@ -44,14 +54,11 @@ describe("the metered-run seam", () => {
 
     const named = (event: string): WireEvent | undefined => events.find((e) => e.event === event);
 
-    const run = async (body: () => Promise<string>, opts: ReserveOptions = {}): Promise<void> => {
-        const held = await reserve(ws, "user_1", FREE_TOOL, opts);
-        if (!held.ok) throw new Error("a free tool must not be refused");
-        await held.settle(body);
-    };
-
     it("reports a run starting and completing, with the tool it was", async () => {
-        await run(async () => "done");
+        const out = await runTool({ id: FREE_TOOL, surface: "direct", input: {} }, principal, {
+            ctx: { image: {} },
+        });
+        expect(out.ok).toBe(true);
         await shutdownAnalytics();
 
         const started = named("ai_action_started");
@@ -63,6 +70,7 @@ describe("the metered-run seam", () => {
         // a tool we chose to give away must never reach the ledger, so it settles at nothing
         expect(done?.properties.credits_charged).toBe(0);
         expect(done?.properties.input_tokens).toBe(0);
+        expect(done?.properties.cached).toBe(false);
         expect(typeof done?.properties.ms).toBe("number");
         expect(named("ai_action_failed")).toBeUndefined();
     });
@@ -71,24 +79,25 @@ describe("the metered-run seam", () => {
     // server exposes, so a run from a desktop client was indistinguishable from one in the chat rail.
     it("reports the surface the call arrived on, not the first one the catalog declares", async () => {
         expect(TOOLS[FREE_TOOL].surfaces[0]).toBe("agent");
-        await run(async () => "done", { surface: "mcp" });
+        await runTool({ id: FREE_TOOL, surface: "mcp", input: {} }, principal, {
+            ctx: { image: {} },
+        });
         await shutdownAnalytics();
 
         expect(named("ai_action_started")?.properties.tool_surface).toBe("mcp");
     });
 
-    it("calls a run whose caller named no surface a direct one", async () => {
-        await run(async () => "done");
-        await shutdownAnalytics();
-
-        expect(named("ai_action_started")?.properties.tool_surface).toBe("direct");
-    });
-
     it("classifies a provider refusal as retryable and lets the error through", async () => {
         await expect(
-            run(async () => {
-                throw new Error("429 rate limit exceeded, try again");
-            }),
+            runTool(
+                {
+                    id: THROWING_TOOL,
+                    surface: "direct",
+                    input: { query: "429 rate limit exceeded" },
+                },
+                principal,
+                { ctx: { image: {} } },
+            ),
         ).rejects.toThrow(/rate limit/);
         await shutdownAnalytics();
 
@@ -101,9 +110,15 @@ describe("the metered-run seam", () => {
     // A user closing the tab is not a reliability problem, so it must not read as one.
     it("does not count a cancelled run as a retryable failure", async () => {
         await expect(
-            run(async () => {
-                throw new Error("The operation was aborted");
-            }),
+            runTool(
+                {
+                    id: THROWING_TOOL,
+                    surface: "direct",
+                    input: { query: "The operation was aborted" },
+                },
+                principal,
+                { ctx: { image: {} } },
+            ),
         ).rejects.toThrow();
         await shutdownAnalytics();
 
@@ -111,11 +126,26 @@ describe("the metered-run seam", () => {
         expect(named("ai_action_failed")?.properties.retryable).toBe(false);
     });
 
+    it("says nothing about a run that was refused before it ran", async () => {
+        // rewrite-text is priced, so the ledger would be needed; a wrong surface refuses first
+        const out = await runTool(
+            { id: "rewrite-text", surface: "mcp", input: { text: "hi", instruction: "shorter" } },
+            principal,
+            { ctx: { image: {} } },
+        );
+        expect(out.ok).toBe(false);
+        await shutdownAnalytics();
+        expect(named("ai_action_completed")).toBeUndefined();
+        expect(named("ai_action_failed")).toBeUndefined();
+    });
+
     it("says nothing at all when no key is configured", async () => {
         await shutdownAnalytics();
         delete process.env.POSTHOG_KEY;
         initAnalytics();
-        await run(async () => "done");
+        await runTool({ id: FREE_TOOL, surface: "direct", input: {} }, principal, {
+            ctx: { image: {} },
+        });
         await shutdownAnalytics();
         expect(events).toHaveLength(0);
     });

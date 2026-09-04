@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { creditsForUsd } from "@model/credits";
-import { tokensOf } from "@model/eval";
+import { tokensOf } from "@model/trace";
 import { recordTokens, usdOf, withMeter } from "@services/core/ai/meter";
 
 const FLASH = "google:gemini-3.5-flash"; // $1.50 in / $9.00 out per 1M

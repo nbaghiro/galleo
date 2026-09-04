@@ -10,7 +10,7 @@ import { isCoarsePointer } from "@ui/viewport";
 import { Credits } from "@app/components/Credits";
 import { artifactSearchText } from "@model/artifact";
 import { api } from "@app/api";
-import { closeGenerate, planCost, startSession, type Surface } from "@app/stores/generate";
+import { closeGenerate, gen, planCost, startSession, type Surface } from "@app/stores/generate";
 import { unitPrices } from "@app/stores/model-usage";
 import { estimateCost, sectionsForLength } from "@model/tools";
 import { limitOf } from "@app/stores/features";
@@ -53,7 +53,9 @@ export const intakeExpanded = (): boolean => browsing() || managing() || choosin
 
 export const Intake: Component = () => {
     let field!: HTMLTextAreaElement;
-    const [prompt, setPrompt] = createSignal("");
+    // a run bounced back here (an out-of-credits start) keeps the brief it was launched with
+    const bounced = gen.brief.prompt && gen.brief.prompt !== PLACEHOLDER ? gen.brief.prompt : "";
+    const [prompt, setPrompt] = createSignal(bounced);
     const [fmt, setFmt] = createSignal<Surface>("deck");
     const [length, setLength] = createSignal("Standard");
     const [imageSource, setImageSource] = createSignal("stock");
@@ -182,6 +184,7 @@ export const Intake: Component = () => {
     const touch = isCoarsePointer;
     const navigate = useNavigate();
     const [blanking, setBlanking] = createSignal(false);
+    const [launching, setLaunching] = createSignal(false);
     // a fresh open starts on the prompt, never on a pane left over from the last session
     onMount(() => {
         setBrowsing(false);
@@ -204,7 +207,9 @@ export const Intake: Component = () => {
     };
 
     const launch = (): void => {
-        if (!ready()) return;
+        // the intake stays mounted until the server opens the draft, so guard the roundtrip
+        if (!ready() || launching()) return;
+        setLaunching(true);
         setPreviewFormat(fmt());
         void startSession({
             prompt: prompt().trim() || PLACEHOLDER,
@@ -215,7 +220,7 @@ export const Intake: Component = () => {
             source: mergeAttachments(items()),
             shapeTemplateId: shape()?.id,
             contextIds: ctxIds(),
-        });
+        }).finally(() => setLaunching(false));
     };
 
     return (
@@ -411,7 +416,7 @@ export const Intake: Component = () => {
                                             rounded="xl"
                                             size="sm"
                                             class="whitespace-nowrap"
-                                            disabled={!ready()}
+                                            disabled={!ready() || launching()}
                                             onClick={launch}
                                         >
                                             Plan the outline → · <Credits n={planCost()} />

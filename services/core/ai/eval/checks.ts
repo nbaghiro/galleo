@@ -156,6 +156,59 @@ export const CHECKS: Check[] = [
             return empty ? `${empty} section(s) with no copy` : null;
         },
     },
+    {
+        id: "no-photo-twice",
+        dimension: "variety",
+        describe: "no image appears twice in one piece",
+        // its own counting walk: mediaRefs returns DISTINCT urls, which can never show a repeat
+        artifact: (c) => {
+            const seen = new Map<string, number>();
+            const note = (v: unknown): void => {
+                if (typeof v === "string" && v.startsWith("http"))
+                    seen.set(v, (seen.get(v) ?? 0) + 1);
+            };
+            const walk = (el: ElementInstance): void => {
+                const d = el.data as {
+                    src?: unknown;
+                    poster?: unknown;
+                    children?: ElementInstance[];
+                };
+                note(d.src);
+                note(d.poster);
+                for (const k of d.children ?? []) walk(k);
+            };
+            for (const sec of c.sections) {
+                walk(sec.root);
+                if (sec.background?.kind === "image") note(sec.background.image);
+            }
+            const dupe = [...seen.entries()].find(([, n]) => n > 1);
+            return dupe ? `"${dupe[0].slice(0, 60)}" appears ${dupe[1]} times` : null;
+        },
+    },
+    {
+        // a profile or testimonial without a face renders the ghost avatar circle
+        id: "every-person-has-a-face",
+        dimension: "content",
+        section: (s) => {
+            let ghosts = 0;
+            const walk = (el: ElementInstance): void => {
+                const d = el.data as { children?: ElementInstance[]; src?: string };
+                if (el.type === "profile" || el.type === "testimonial") {
+                    const face = (d.children ?? []).some((k) => {
+                        const kd = k.data as { src?: string; kind?: string };
+                        const avatarish =
+                            k.type === "avatar" || (k.type === "media" && kd.kind === "photo");
+                        return avatarish && typeof kd.src === "string" && kd.src.trim() !== "";
+                    });
+                    if (!face) ghosts += 1;
+                }
+                for (const k of d.children ?? []) walk(k);
+            };
+            walk(s.root);
+            return ghosts ? `${ghosts} person card(s) with no face, the ghost avatar` : null;
+        },
+        describe: "every profile/testimonial carries a face image",
+    },
 ];
 
 export function runChecks(content: ArtifactContent, ctx: CheckCtx): CheckResult[] {

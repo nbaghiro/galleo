@@ -57,6 +57,7 @@ const THEME_RULES = stack(
             "- Avoid highlighter yellow, chartreuse, and lime-green accents entirely. They read cheap and vanish on light backgrounds. For a warm/sunny mood use a deep gold or amber; for a fresh mood use emerald or teal.",
             "- radius: 0 for sharp/brutalist/editorial, 4–8 for classic, 14–26 for soft/organic. headingWeight: 400 for elegant serifs, 600–800 for bold/grotesque.",
             "- border: 0–1 for soft themes, 2–4 for blocky/brutalist. shadow: 'none', a soft lift, a hard offset (brutalist), or an accent glow.",
+            "- Pair the palette to the subject, the way a printed piece would: luxe goods take cream and near-black with a gold or oxblood accent; machines and concrete take graphite and steel; heritage and night take parchment or deep navy; editorial daylight takes paper white with one sharp accent; textile and craft take warm naturals.",
         ].join("\n"),
     ),
     heading(

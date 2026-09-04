@@ -572,6 +572,25 @@ describe("reserving a priced action", () => {
         expect(held.ok === false && held.remaining).toBe(0);
         expect((await getWs(workspaceId)).aiCreditsBalance).toBe(0);
     });
+
+    // start-generation is free but gated on the plan step behind it, so an out-of-credits
+    // refusal lands before the doorway opens a draft nothing can afford to fill
+    it("refuses a free doorway when the priced step behind it could not be paid for", async () => {
+        const { userId, workspaceId } = await seedUser();
+        await setWs(workspaceId, { aiCreditsBalance: 0, creditsResetAt: future() });
+        const held = await reserve(await getWs(workspaceId), userId, "start-generation");
+        expect(held.ok).toBe(false);
+        expect(held.ok === false && held.remaining).toBe(0);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(0);
+    });
+
+    it("holds nothing for a free doorway whose step is affordable", async () => {
+        const { userId, workspaceId } = await seedUser();
+        await setWs(workspaceId, { aiCreditsBalance: 100, creditsResetAt: future() });
+        const held = await reserve(await getWs(workspaceId), userId, "start-generation");
+        expect(held.ok).toBe(true);
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(100);
+    });
 });
 
 describe("POST /billing/webhook", () => {

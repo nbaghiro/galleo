@@ -289,11 +289,9 @@ const BOARDS: Board[] = [
                 ),
             },
             {
-                name: "Steers per completed generation",
+                name: "Steers mid-run",
                 description: "How often people redirect a run mid-flight rather than accepting it.",
-                query: trend([
-                    event("generation_completed", { math: "avg", math_property: "steer_count" }),
-                ]),
+                query: trend([event("generation_steered", { math: "total" })]),
             },
         ],
     },

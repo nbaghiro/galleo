@@ -39,43 +39,87 @@ test("a picked shape reaches the plan turn, and says so on the way", async ({ pa
     await page.locator("textarea").first().fill("A launch deck for a calm operating system");
 
     // Answered rather than aborted: a killed request logs a console error, and the fixture fails a
-    // spec that leaves any behind. Three frames is a whole plan turn as far as the client cares.
-    const frames = [
-        { seq: 0, event: { type: "turn.start", kind: "plan" } },
-        {
-            seq: 1,
-            event: {
-                type: "plan",
-                title: "A scripted plan",
-                beats: [{ id: "s1", label: "Cover", role: "scene", layout: "full" }],
-            },
-        },
-        { seq: 2, event: { type: "turn.done", summary: "planned" } },
-    ];
+    // spec that leaves any behind. Planning is two tool calls, start-generation and then plan-outline,
+    // and each is answered with the frames its caller reads: the started generation as the first
+    // call's result, the outline as a patch on the second.
+    const generation = {
+        id: "g-e2e",
+        workspaceId: "w",
+        artifactId: "a-e2e",
+        stage: "briefed",
+        brief: { prompt: "A launch deck", surface: "deck", theme: "studio", set: {} },
+        briefVersion: 1,
+        outline: null,
+        plannedAgainst: null,
+        steer: "",
+        clarify: null,
+        beats: {},
+        seq: 1,
+    };
+    const framesFor = (tool: string) =>
+        tool === "start-generation"
+            ? [
+                  { seq: 0, event: { type: "turn.start", tool } },
+                  { seq: 1, event: { type: "turn.done", result: generation } },
+              ]
+            : [
+                  { seq: 0, event: { type: "turn.start", tool } },
+                  {
+                      seq: 1,
+                      event: {
+                          type: "patch",
+                          seq: 2,
+                          patch: {
+                              generation: [
+                                  {
+                                      op: "setOutline",
+                                      title: "A scripted plan",
+                                      beats: [
+                                          {
+                                              id: "s1",
+                                              label: "Cover",
+                                              role: "scene",
+                                              layout: "full",
+                                          },
+                                      ],
+                                  },
+                                  { op: "setStage", stage: "outlined" },
+                              ],
+                          },
+                      },
+                  },
+                  { seq: 2, event: { type: "turn.done", summary: "planned" } },
+              ];
     // Typed where it is captured rather than re-asserted at the read: postDataJSON() hands back
     // `any`, so one assertion here is the whole narrowing, and no second cast is needed below.
-    interface SentTurn {
-        kind: string;
+    interface SentCall {
+        tool: string;
         input: Record<string, unknown>;
     }
-    let body: SentTurn | null = null;
+    const sent: SentCall[] = [];
     await page.route("**/api/ai/turn", async (route) => {
-        body = route.request().postDataJSON() as SentTurn;
+        const call = route.request().postDataJSON() as SentCall;
+        sent.push(call);
         await route.fulfill({
             status: 200,
             contentType: "text/event-stream",
-            body: frames.map((f) => `data: ${JSON.stringify(f)}\n\n`).join(""),
+            body: framesFor(call.tool)
+                .map((f) => `data: ${JSON.stringify(f)}\n\n`)
+                .join(""),
         });
     });
     await page.getByRole("button", { name: /Plan the outline/ }).click();
 
-    await expect.poll(() => body).not.toBeNull();
-    const sent = body!;
-    expect(sent.kind).toBe("plan");
-    expect(sent.input.shapeTemplateId).toBe("startup-pitch");
-    expect(sent.input.length).toBe("Standard");
+    await expect.poll(() => sent.length).toBeGreaterThanOrEqual(1);
+    const started = sent[0]!;
+    expect(started.tool).toBe("start-generation");
+    expect(started.input.shapeTemplateId).toBe("startup-pitch");
+    expect(started.input.length).toBe("Standard");
     // the shape travels as an id, never as the starter's copy: that is the whole difference
-    expect(sent.input.source).toBeFalsy();
+    expect(started.input.source).toBeFalsy();
+    // and the plan is asked for on the generation the first call opened
+    await expect.poll(() => sent[1]?.tool).toBe("plan-outline");
+    expect(sent[1]!.input.generationId).toBe("g-e2e");
 
     // and the run leaves the intake for the board, so the pick is not a dead end
     await expect(page.getByText("What are we making?")).toBeHidden();

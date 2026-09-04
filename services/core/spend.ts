@@ -1,39 +1,21 @@
-import type { TurnKind, TurnRequest } from "@model/ai";
 import type { CostUnit, UnitPrices, Usage } from "@model/credits";
 import type { MeterParams, ToolId, ToolSurface } from "@model/tools";
 import type { PlanBearer } from "@model/billing";
 import type { WorkspaceRole } from "@model/workspace";
 import { creditsForUsd, DEFAULT_UNIT_PRICES, taskForUsage, usdOfUsage } from "@model/credits";
-import { ACTION_FOR, reserveCost, sectionsForLength, usageFor } from "@model/tools";
-export { ACTION_FOR };
+import { gateCost, reserveCost, usageFor } from "@model/tools";
 import { canTopUp, canUpgradeFrom, featuresFor, planFor } from "@model/billing";
-import type { AiFailureReason } from "@model/analytics";
 import { capture } from "@services/utils/analytics";
 import { unitPricesFor, type ModelOverrides } from "./models";
 import type { WorkspaceCreditFields } from "./ledger";
-import { chargeCredits, settleCredits, spendThisCycle } from "./ledger";
+import { chargeCredits, creditBalance, settleCredits, spendThisCycle } from "./ledger";
 import type { Meter, TokenUse } from "./ai/meter";
 import { usdOf, withMeter } from "./ai/meter";
+import { noteCredits } from "./traces";
 
 // AI spend policy: what a turn or a tool costs, and the reserve-then-settle protocol around it.
 // The balance mechanics underneath are core/ledger.ts; the measurement it settles against is
 // core/ai/meter.ts.
-
-// Others 501 before any charge (blocking here avoids reserving credits for an unbuildable kind).
-export const IMPLEMENTED: readonly TurnKind[] = ["generate", "section", "chat", "plan", "build"];
-
-// Only generate scales; the plan's section cap clamps the metered size, so a Free "In-depth" brief
-// is billed for (and gets) 10 sections.
-export const meterFor = (req: TurnRequest, maxSections?: number): MeterParams =>
-    req.kind === "generate"
-        ? {
-              length: req.input.length,
-              imageSource: req.input.imageSource,
-              ...(maxSections
-                  ? { sections: Math.min(sectionsForLength(req.input.length), maxSections) }
-                  : {}),
-          }
-        : {};
 
 // The dollar price of every unit for this caller's picks, text and media alike. Every metered route
 // reserves and settles through it, so the model that served the work is what the credits reflect.
@@ -67,27 +49,6 @@ interface Runner {
     surface: ToolSurface;
 }
 
-// The model that did most of the writing. A turn can touch several, and output tokens are what the
-// work actually was, so the biggest producer is the one a latency or failure belongs to.
-const dominantModel = (uses: readonly TokenUse[]): string | undefined =>
-    uses.reduce<TokenUse | undefined>((a, b) => (!a || b.output > a.output ? b : a), undefined)
-        ?.modelId;
-
-// Provider wording is all we get back, so the reason is read off it. Order matters: first match wins.
-const REASONS: [RegExp, AiFailureReason, boolean][] = [
-    [/abort|cancell?ed/i, "aborted", false],
-    [/rate.?limit|429|overloaded|quota exceeded/i, "rate_limited", true],
-    [/timed out|timeout|ETIMEDOUT|deadline/i, "timeout", true],
-    [/did not match schema|no object generated|grammar compilation/i, "invalid_output", true],
-    [/no credits|insufficient[_ ]quota|payment/i, "no_credits", false],
-];
-
-const failure = (e: unknown): [AiFailureReason, boolean] => {
-    const message = e instanceof Error ? e.message : String(e);
-    const hit = REASONS.find(([re]) => re.test(message));
-    return hit ? [hit[1], hit[2]] : ["provider_error", true];
-};
-
 const context = (r: Runner) => ({ userId: r.userId, workspaceId: r.ws.id });
 
 // One of the two places the product tells a user no. A member over their own ceiling is a different
@@ -105,19 +66,17 @@ function exhausted(r: Runner, remaining: number, offer: boolean): void {
 }
 
 /**
- * Wrap one metered run so it reports start, completion and failure.
- *
- * Every priced action passes through here, including the free ones, so a tool added later is
- * measured the moment it runs rather than when somebody remembers to instrument it. `charged`
- * reads the settled cost after the fact, since a run only owes what it really did.
+ * Report that a metered run started, then run it. Every priced action passes through here,
+ * including the free ones, so a tool added later is measured the moment it runs. What the run did
+ * is reported from its trace when it closes (core/traces.ts), where the settled cost and the real
+ * tokens are known; this is the one place the estimate is.
  */
-async function measured<T>(
+function measured<T>(
     r: Runner,
     estimate: number,
     usage: Usage,
     body: (meter: Meter) => Promise<T>,
     meter: Meter,
-    charged: () => number,
 ): Promise<T> {
     const task = taskForUsage(usage);
     capture(context(r), "ai_action_started", {
@@ -126,36 +85,7 @@ async function measured<T>(
         estimated_credits: estimate,
         ...(task ? { task } : {}),
     });
-    const startedAt = Date.now();
-    try {
-        const result = await body(meter);
-        const tokens = meter.uses.reduce(
-            (a, u) => ({ input: a.input + u.input, output: a.output + u.output }),
-            { input: 0, output: 0 },
-        );
-        capture(context(r), "ai_action_completed", {
-            tool_id: r.tool,
-            credits_charged: charged(),
-            ms: Date.now() - startedAt,
-            input_tokens: tokens.input,
-            output_tokens: tokens.output,
-            cached: false,
-            ...(task ? { task } : {}),
-            ...(dominantModel(meter.uses) ? { model_id: dominantModel(meter.uses) } : {}),
-        });
-        return result;
-    } catch (e) {
-        const [reason, retryable] = failure(e);
-        capture(context(r), "ai_action_failed", {
-            tool_id: r.tool,
-            ms: Date.now() - startedAt,
-            reason,
-            retryable,
-            ...(task ? { task } : {}),
-            ...(dominantModel(meter.uses) ? { model_id: dominantModel(meter.uses) } : {}),
-        });
-        throw e;
-    }
+    return body(meter);
 }
 
 // A free tool never reaches the ledger: no row to write, no balance to lock, and nothing to settle
@@ -164,15 +94,8 @@ async function measured<T>(
 const free = (r: Runner): Reservation => ({
     ok: true,
     settle: (run) => {
-        const meter: Meter = { uses: [], extraUsd: 0, parts: new Map(), trace: false };
-        return measured(
-            r,
-            0,
-            {},
-            () => run(() => {}, meter),
-            meter,
-            () => 0,
-        );
+        const meter: Meter = { uses: [], extraUsd: 0, parts: new Map() };
+        return measured(r, 0, {}, () => run(() => {}, meter), meter);
     },
 });
 
@@ -182,8 +105,6 @@ export interface ReserveOptions {
     size?: MeterParams;
     /** prices the estimate against the models this caller pinned */
     prices?: UnitPrices;
-    /** an eval admin asked for this run to be recorded */
-    trace?: boolean;
     /** members are capped, admins and owners are not */
     role?: WorkspaceRole;
     /**
@@ -213,14 +134,16 @@ export async function reserve(
         size = {},
         // a caller that forgets still bills the default model's real cost, not the bare floor
         prices = DEFAULT_UNIT_PRICES,
-        trace = false,
         role = "member",
         surface = "direct",
     } = opts;
     const runner: Runner = { ws, userId, tool, surface };
     const usage = usageFor(tool, size);
     const cost = reserveCost(tool, size, prices);
-    if (cost === 0) return free(runner);
+    // What must be payable for the run to start: its own hold, or for a free doorway
+    // (ToolMeta.gate) the priced step behind it, refused here before the doorway creates anything.
+    const need = cost || gateCost(tool, prices);
+    if (need === 0) return free(runner);
     // The per-member ceiling, checked before the balance: the pool is shared and the owner is the
     // only one who can refill it, so one member cannot spend the whole month. Admins run the
     // workspace and are not capped. Checked against the estimate, so a run that would cross the cap
@@ -231,11 +154,21 @@ export async function reserve(
             { id: ws.id, creditsStartedAt: ws.creditsStartedAt },
             userId,
         );
-        if (spent + cost > cap) {
+        if (spent + need > cap) {
             const remaining = Math.max(0, cap - spent);
             exhausted(runner, remaining, false);
             return { ok: false, remaining, capped: cap };
         }
+    }
+    if (cost === 0) {
+        // gate only: answer the way a charge would, but hold nothing — the priced step
+        // re-checks atomically when it runs, so a stale read here cannot overspend
+        const balance = await creditBalance(ws);
+        if (need > balance) {
+            exhausted(runner, balance, true);
+            return { ok: false, remaining: balance };
+        }
+        return free(runner);
     }
     const held = await chargeCredits(ws, cost, tool, userId, usage);
     if (!held.ok || !held.entryId) {
@@ -251,28 +184,24 @@ export async function reserve(
                 for (const [unit, n] of Object.entries(units) as [CostUnit, number][])
                     made[unit] = (made[unit] ?? 0) + n;
             };
-            // What the run really owed, read after the settle rather than recomputed, so analytics
-            // and the ledger cannot disagree and the ledger is the one customers see.
-            let settled = cost;
-            return withMeter(
-                (meter) =>
-                    measured(
-                        runner,
-                        cost,
-                        usage,
-                        async () => {
-                            try {
-                                return await run(produced, meter);
-                            } finally {
-                                const delta = owed(meter.uses, made, meter.extraUsd, prices) - cost;
-                                settled = cost + delta;
-                                await settleCredits(ws, entryId, delta, settledUsage(usage, made));
-                            }
-                        },
-                        meter,
-                        () => settled,
-                    ),
-                trace,
+            return withMeter((meter) =>
+                measured(
+                    runner,
+                    cost,
+                    usage,
+                    async () => {
+                        try {
+                            return await run(produced, meter);
+                        } finally {
+                            // what the run really owed reaches the trace, so the event a reader sees
+                            // and the ledger row cannot disagree
+                            const delta = owed(meter.uses, made, meter.extraUsd, prices) - cost;
+                            noteCredits(cost + delta);
+                            await settleCredits(ws, entryId, delta, settledUsage(usage, made));
+                        }
+                    },
+                    meter,
+                ),
             );
         },
     };

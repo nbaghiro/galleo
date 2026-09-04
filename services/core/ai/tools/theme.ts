@@ -15,10 +15,7 @@ interface ThemeOpts {
     signal?: AbortSignal;
 }
 
-export async function generateThemeFromPrompt(
-    prompt: string,
-    opts: ThemeOpts = {},
-): Promise<ThemeGen> {
+async function generateThemeFromPrompt(prompt: string, opts: ThemeOpts = {}): Promise<ThemeGen> {
     const parts = themeFromPromptParts(prompt, opts.isDark);
     const { object } = await generateObject({
         ...modelCall(modelFor("theme", opts.tier, opts.models), 0.7),
@@ -30,10 +27,24 @@ export async function generateThemeFromPrompt(
     return { ...object, tokens: finalizeTheme(object.tokens) };
 }
 
-export const generateThemeTool = implement("generate-theme", async function* (input, ctx) {
-    return await generateThemeFromPrompt(input.prompt, {
-        isDark: input.isDark,
-        tier: ctx.tier,
-        models: ctx.models,
-    });
-});
+implement(
+    "generate-theme",
+    async function* (input, ctx) {
+        return await generateThemeFromPrompt(input.prompt, {
+            isDark: input.isDark,
+            tier: ctx.tier,
+            models: ctx.models,
+        });
+    },
+    {
+        present: (t) => ({
+            type: "theme",
+            name: t.name,
+            mood: t.mood,
+            isDark: t.isDark,
+            tokens: t.tokens,
+        }),
+        note: (t) =>
+            `Designed “${t.name}” (${t.mood}, ${t.isDark ? "dark" : "light"}). The user applies it; it isn't saved until they do.`,
+    },
+);

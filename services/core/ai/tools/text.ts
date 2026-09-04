@@ -29,7 +29,7 @@ function clean(out: string, original: string): string {
     return t;
 }
 
-export async function rewriteText(
+async function rewriteText(
     text: string,
     instruction: string,
     opts: TextOpts = {},
@@ -45,11 +45,7 @@ export async function rewriteText(
     return clean(out, text);
 }
 
-export async function translateText(
-    text: string,
-    language: string,
-    opts: TextOpts = {},
-): Promise<string> {
+async function translateText(text: string, language: string, opts: TextOpts = {}): Promise<string> {
     const parts = translateTextParts(text, language, opts.context);
     const modelId = modelFor("translate", opts.tier, opts.models);
     const { text: out } = await generateText({
@@ -61,26 +57,34 @@ export async function translateText(
     return clean(out, text);
 }
 
-export const rewriteTextTool = implement("rewrite-text", async function* (input, ctx) {
-    return await rewriteText(input.text, input.instruction, {
-        signal: ctx.signal,
-        tier: ctx.tier,
-        models: ctx.models,
-        ...(input.context ? { context: input.context } : {}),
-    });
-});
+implement(
+    "rewrite-text",
+    async function* (input, ctx) {
+        return await rewriteText(input.text, input.instruction, {
+            signal: ctx.signal,
+            tier: ctx.tier,
+            models: ctx.models,
+            ...(input.context ? { context: input.context } : {}),
+        });
+    },
+    { present: () => null, note: (rewritten) => `Rewritten: ${rewritten}` },
+);
 
-export const translateTextTool = implement("translate-text", async function* (input, ctx) {
-    return await translateText(input.text, input.language, {
-        signal: ctx.signal,
-        tier: ctx.tier,
-        models: ctx.models,
-        ...(input.context ? { context: input.context } : {}),
-    });
-});
+implement(
+    "translate-text",
+    async function* (input, ctx) {
+        return await translateText(input.text, input.language, {
+            signal: ctx.signal,
+            tier: ctx.tier,
+            models: ctx.models,
+            ...(input.context ? { context: input.context } : {}),
+        });
+    },
+    { present: () => null, note: (translated) => `Translated: ${translated}` },
+);
 
 // unlike rewrite-text's bare string, this returns the section with the passage already replaced
-export const rewritePassageTool = implement(
+implement(
     "rewrite-passage",
     async function* (input, ctx): AsyncGenerator<never, Section> {
         const section = ctx.artifact?.sections.find((s) => s.id === input.sectionId);
@@ -101,5 +105,11 @@ export const rewritePassageTool = implement(
         });
         return replacePassage(section, hit.path, rewritten.trim() || hit.text);
     },
-    (section, input) => [{ op: "replaceSection", id: input.sectionId, section }],
+    {
+        patch: (section, input) => ({
+            artifact: [{ op: "replaceSection", id: input.sectionId, section }],
+        }),
+        note: (_section, input) =>
+            `Proposed a reword of that passage in ${input.sectionId}; the rest of the section is untouched.`,
+    },
 );

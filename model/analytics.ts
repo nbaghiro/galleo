@@ -1,4 +1,4 @@
-import type { BeatRole, Surface } from "./ai";
+import type { BeatRole, Generation, Surface } from "./ai";
 import { BEAT_ROLES } from "./ai";
 import type { ArtifactAccess, SectionTone } from "./artifact";
 import type { AddOnId, ExportFormat, FeatureKey, Interval, PlanId } from "./billing";
@@ -27,15 +27,8 @@ import type { AuthProvider, OnboardingStep, WorkspaceRole } from "./workspace";
 /** Mirrors `Tier` in `@ui/viewport`. */
 export type DeviceTier = "phone" | "tablet" | "desktop";
 
-/** Mirrors `Stage` in `app/stores/generate.ts`. */
-export type GenerationStage =
-    | "idle"
-    | "intake"
-    | "planning"
-    | "outline"
-    | "building"
-    | "done"
-    | "error";
+/** Mirrors `Stage` in `app/stores/generate.ts`: the generation's own stages plus the studio's. */
+export type GenerationStage = "idle" | "intake" | "error" | Generation["stage"];
 
 /** Mirrors the `category` a registered element declares in `@elements/spec`. */
 export type ElementCategory =
@@ -304,14 +297,14 @@ export interface Events {
         template_format: Surface;
         run_format: Surface;
     };
+    // Emitted by the server at the end of plan-outline, so a run driven over MCP counts too. The
+    // cost rides the same call's ai_action_completed rather than being repeated here.
     generation_planned: {
         format: Surface;
         length: string;
         beat_count: number;
         ms: number;
-        first_beat_ms?: number;
         model_id?: string;
-        credits_charged: number;
         // present when the run borrowed a starter's shapes, so plan quality can be read apart
         shape_template_id?: string;
     };
@@ -322,13 +315,13 @@ export interface Events {
     generation_build_started: { mode: "all" | "one"; beat_count: number };
     // `archetype` is layout-derived: classifying a section needs a real text measurer and a full
     // layout pass, which the studio does not hold and should not run per section to label an event.
+    // Emitted by the server as a beat lands (write-beat, write-beats), whoever asked for it.
     generation_section_built: {
         index: number;
         beat_role?: BeatRole;
         archetype?: SectionArchetype;
         ms: number;
         images_ms?: number;
-        credits_charged: number;
         element_count: number;
     };
     // a landed section failed the client-side layout triage (measured in the browser's engine)
@@ -343,14 +336,13 @@ export interface Events {
     generation_section_failed: { index: number; beat_role?: BeatRole; attempts: number };
     generation_steered: { at_index: number; beat_count: number };
     generation_paused: { at_index: number };
+    // Emitted by the server at finish-generation. Pauses, steers and outline edits are their own
+    // events (generation_paused is the studio's; the other two the server's), joined by session.
     generation_completed: {
         format: Surface;
         section_count: number;
-        total_credits: number;
-        total_ms: number;
-        steer_count: number;
-        was_paused: boolean;
-        outline_edited: boolean;
+        total_credits: number; // what the run's traces settled, summed
+        total_ms: number; // from the generation opening to its finish
     };
     generation_abandoned: { stage: GenerationStage; sections_built: number; ms: number };
     generation_failed: { stage: GenerationStage; reason: string };

@@ -2,13 +2,12 @@ import { getContext } from "@ui/keys";
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
-import type { ChatBlock, GenBrief, WorkspaceAction } from "@model/ai";
-import type { Section } from "@model/artifact";
-import { estimateCost } from "@model/tools";
+import type { ChatBlock, WorkspaceAction } from "@model/ai";
+import { TOOLS } from "@model/tools";
+import type { ToolId } from "@model/tools";
 import { Credits } from "@app/components/Credits";
 import type { Tokens } from "@themes";
 import { resolveTheme, themeCssVars } from "@themes";
-import { placeholderSection } from "@canvas/elements/blueprint";
 import { AgentIcon, Icon, UiThemeProvider } from "@ui/icons";
 import { Markdown } from "@ui/markdown";
 import { MiniCanvas } from "@app/components/previews";
@@ -18,46 +17,81 @@ import { editor } from "@editor/core/store";
 import { appTheme, appThemeOverride, appThemeVars, customThemes } from "@app/stores/theme";
 import { formatLabel } from "@app/stores/library";
 import { OUTPUT_BLOCKS, type ChatMsg, type UIBlock } from "@app/stores/chat-blocks";
+import { builtCount, gen, generateOpen, openStudio } from "@app/stores/generate";
 
 type Proposal = Extract<ChatBlock, { type: "proposal" }>;
 type Suggestions = Extract<ChatBlock, { type: "suggestions" }>;
 type Sections = Extract<ChatBlock, { type: "sections" }>;
 type Artifacts = Extract<ChatBlock, { type: "artifacts" }>;
 type Templates = Extract<ChatBlock, { type: "templates" }>;
+type GenerationRef = Extract<ChatBlock, { type: "generation" }>;
 import {
     actionLabel,
-    applyOutline,
-    applyPlanRequest,
-    applyWrite,
     applyProposal,
     applyTheme,
     busy,
     chatContextIds,
     chatOpen,
-    clearSteer,
     closeChat,
     confirmAction,
-    discardDraft,
     discardProposal,
     dismissAction,
-    drafts,
     editorActive,
-    startBrief,
+    generationHost,
     openChat,
-    persistDraft,
     previewSource,
     resetThread,
     sendChat,
     setChatContextIds,
     shareArtifactAction,
-    startDraftFromTemplate,
+    startFromTemplate,
     stopChat,
     thread,
     toggleChat,
 } from "@app/stores/chat";
-import { generateOpen } from "@app/stores/generate";
 import { AttachMenu, ContextChips } from "@app/components/context-attach";
 
+// the verb a card's button wears for a call the person starts; the tool's title otherwise
+const START_LABEL: Partial<Record<ToolId, string>> = {
+    "start-generation": "Start",
+    "plan-outline": "Plan the outline",
+    "write-beat": "Write it",
+    "write-beats": "Write them",
+    "create-artifact": "Save it",
+    "generate-artifact": "Generate",
+};
+
+const OP_VERB: Record<string, string> = {
+    setBrief: "Brief",
+    setOutline: "Outline",
+    addBeat: "Add",
+    updateBeat: "Rewrite",
+    removeBeat: "Remove",
+    moveBeat: "Move",
+    setSteer: "Steer",
+    setBeat: "Mark",
+    pushVersion: "Write",
+    pickVersion: "Pick",
+    setClarify: "Ask",
+    setStage: "Stage",
+};
+
+const Verdict: Component<{ applied: "applied" | "discarded"; call: boolean }> = (props) => (
+    <span
+        class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
+        classList={{
+            "text-accent": props.applied === "applied",
+            "text-muted": props.applied === "discarded",
+        }}
+    >
+        <Show when={props.applied === "applied"} fallback="Discarded">
+            <Icon name="check" size={12} /> {props.call ? "Started" : "Applied"}
+        </Show>
+    </span>
+);
+
+// One card for everything a tool proposes: a change already made, shown with its preview and
+// applied on click, or a call the person starts, shown with its price.
 const ProposalCard: Component<{
     msgId: number;
     blockId: string;
@@ -78,6 +112,31 @@ const ProposalCard: Component<{
         props.proposal.targetArtifactId && props.proposal.theme && props.proposal.format
             ? { theme: props.proposal.theme, format: props.proposal.format }
             : previewSource();
+    const call = (): boolean => !!props.proposal.call;
+    const ops = (): { verb: string; what: string }[] =>
+        (props.proposal.patch?.generation ?? []).map((op) => ({
+            verb: OP_VERB[op.op] ?? op.op,
+            what:
+                op.op === "addBeat"
+                    ? op.beat.label
+                    : op.op === "updateBeat"
+                      ? (op.patch.label ?? op.id)
+                      : op.op === "setSteer"
+                        ? op.note || "cleared"
+                        : op.op === "setBrief"
+                          ? Object.keys(op.patch).join(", ")
+                          : "id" in op
+                            ? op.id
+                            : "",
+        }));
+    const brief = (): string | undefined => {
+        const input = props.proposal.call?.input as { prompt?: string } | undefined;
+        return input?.prompt;
+    };
+    const label = (): string =>
+        START_LABEL[props.proposal.tool as ToolId] ??
+        TOOLS[props.proposal.tool as ToolId]?.title ??
+        "Run";
     return (
         <div ref={box} class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
             <Show when={props.proposal.preview}>
@@ -90,23 +149,35 @@ const ProposalCard: Component<{
                     />
                 )}
             </Show>
+            <Show when={brief()}>
+                {(text) => (
+                    <div class="px-3 pt-3">
+                        <Eyebrow as="div" class="pb-1.5">
+                            Brief
+                        </Eyebrow>
+                        <p class="text-[13px] leading-relaxed text-ink">{text()}</p>
+                    </div>
+                )}
+            </Show>
+            <Show when={ops().length}>
+                <div class="flex flex-col gap-1 px-3 py-2">
+                    <For each={ops()}>
+                        {(op) => (
+                            <span class="flex items-baseline gap-1.5 text-[11.5px] text-muted">
+                                <span class="font-mono text-[9.5px] uppercase tracking-[0.12em] text-accent">
+                                    {op.verb}
+                                </span>
+                                <span class="min-w-0 truncate">{op.what}</span>
+                            </span>
+                        )}
+                    </For>
+                </div>
+            </Show>
             <div class="flex items-center justify-between gap-2 border-t border-line px-3 py-2">
                 <span class="truncate text-[12px] text-soft">{props.proposal.summary}</span>
                 <Show
                     when={!props.applied}
-                    fallback={
-                        <span
-                            class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
-                            classList={{
-                                "text-accent": props.applied === "applied",
-                                "text-muted": props.applied === "discarded",
-                            }}
-                        >
-                            <Show when={props.applied === "applied"} fallback="Discarded">
-                                <Icon name="check" size={12} /> Applied
-                            </Show>
-                        </span>
-                    }
+                    fallback={<Verdict applied={props.applied!} call={call()} />}
                 >
                     <span class="flex flex-none gap-1.5">
                         <Button
@@ -114,14 +185,20 @@ const ProposalCard: Component<{
                             size="sm"
                             onClick={() => discardProposal(props.msgId, props.blockId)}
                         >
-                            Discard
+                            {call() ? "Not now" : "Discard"}
                         </Button>
                         <Button
                             variant="primary"
                             size="sm"
-                            onClick={() => applyProposal(props.msgId, props.blockId)}
+                            onClick={() => void applyProposal(props.msgId, props.blockId)}
                         >
-                            Apply
+                            <Show when={call()} fallback="Apply">
+                                {label()}
+                                <Show when={props.proposal.cost}>
+                                    {" · "}
+                                    <Credits n={props.proposal.cost!} />
+                                </Show>
+                            </Show>
                         </Button>
                     </span>
                 </Show>
@@ -165,19 +242,7 @@ const ThemeCard: Component<{
             <div class="flex items-center justify-end gap-2 border-t border-line bg-canvas px-3 py-2">
                 <Show
                     when={!props.applied}
-                    fallback={
-                        <span
-                            class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
-                            classList={{
-                                "text-accent": props.applied === "applied",
-                                "text-muted": props.applied === "discarded",
-                            }}
-                        >
-                            <Show when={props.applied === "applied"} fallback="Discarded">
-                                <Icon name="check" size={12} /> Applied
-                            </Show>
-                        </span>
-                    }
+                    fallback={<Verdict applied={props.applied!} call={false} />}
                 >
                     <Button
                         variant="ghost"
@@ -198,220 +263,6 @@ const ThemeCard: Component<{
         </div>
     );
 };
-
-type Steer = Extract<ChatBlock, { type: "steer" }>;
-
-// the standing note is already in force by the time this renders; the card is the record of it
-const SteerCard: Component<{
-    msgId: number;
-    blockId: string;
-    applied?: "applied" | "discarded";
-    steer: Steer;
-}> = (props) => (
-    <div class="mt-1 flex items-center gap-2 rounded-xl border border-accent/40 bg-accent/5 px-3 py-2">
-        <Icon name="sparkle" size={12} />
-        <span class="min-w-0 flex-1 text-[12px] leading-snug text-ink">
-            <Show when={props.steer.note} fallback="Steering note cleared.">
-                Steering the rest: {props.steer.note}
-            </Show>
-        </span>
-        <Show when={props.steer.note && props.applied !== "discarded"}>
-            <Button
-                variant="ghost"
-                size="sm"
-                class="flex-none"
-                onClick={() => clearSteer(props.msgId, props.blockId)}
-            >
-                Clear
-            </Button>
-        </Show>
-    </div>
-);
-
-type PlanRequest = Extract<ChatBlock, { type: "plan" }>;
-
-// planning is metered (the studio's plan turn), so the card prices it and waits for a go
-const PlanCard: Component<{
-    msgId: number;
-    blockId: string;
-    applied?: "applied" | "discarded";
-    plan: PlanRequest;
-}> = (props) => (
-    <div class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
-        <div class="flex flex-col gap-0.5 px-3 py-2">
-            <span class="text-[12px] text-ink">{props.plan.summary}</span>
-            <Show when={props.plan.guidance}>
-                <span class="text-[11.5px] leading-snug text-muted">“{props.plan.guidance}”</span>
-            </Show>
-            <Show when={props.plan.andWrite}>
-                <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                    then every section, {estimateCost("add-section")} credits each
-                </span>
-            </Show>
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-line px-3 py-2">
-            <Show
-                when={!props.applied}
-                fallback={
-                    <span
-                        class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
-                        classList={{
-                            "text-accent": props.applied === "applied",
-                            "text-muted": props.applied === "discarded",
-                        }}
-                    >
-                        <Show when={props.applied === "applied"} fallback="Discarded">
-                            <Icon name="check" size={12} /> Planning
-                        </Show>
-                    </span>
-                }
-            >
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => discardProposal(props.msgId, props.blockId)}
-                >
-                    Not now
-                </Button>
-                <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => applyPlanRequest(props.msgId, props.blockId)}
-                >
-                    {props.plan.andWrite ? "Plan + write all" : "Plan the outline"} ·{" "}
-                    <Credits n={estimateCost("plan-outline")} />
-                </Button>
-            </Show>
-        </div>
-    </div>
-);
-
-type WriteRequest = Extract<ChatBlock, { type: "write" }>;
-
-// writing beats is metered, so the card prices it and waits for a go
-const WriteCard: Component<{
-    msgId: number;
-    blockId: string;
-    applied?: "applied" | "discarded";
-    write: WriteRequest;
-}> = (props) => {
-    const cost = (): number => props.write.beatIds.length * estimateCost("add-section");
-    return (
-        <div class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
-            <div class="flex flex-col gap-0.5 px-3 py-2">
-                <span class="text-[12px] text-ink">{props.write.summary}</span>
-                <span class="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
-                    {props.write.beatIds.length} section
-                    {props.write.beatIds.length === 1 ? "" : "s"} ·{" "}
-                    {props.write.beatIds.join(" · ")}
-                </span>
-            </div>
-            <div class="flex items-center justify-end gap-2 border-t border-line px-3 py-2">
-                <Show
-                    when={!props.applied}
-                    fallback={
-                        <span
-                            class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
-                            classList={{
-                                "text-accent": props.applied === "applied",
-                                "text-muted": props.applied === "discarded",
-                            }}
-                        >
-                            {props.applied === "applied" ? "Writing" : "Discarded"}
-                        </span>
-                    }
-                >
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => discardProposal(props.msgId, props.blockId)}
-                    >
-                        Not now
-                    </Button>
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => applyWrite(props.msgId, props.blockId)}
-                    >
-                        Write {props.write.beatIds.length} · <Credits n={cost()} />
-                    </Button>
-                </Show>
-            </div>
-        </div>
-    );
-};
-
-type OutlineRevision = Extract<ChatBlock, { type: "outline" }>;
-
-const OP_VERB: Record<string, string> = {
-    addBeat: "Add",
-    updateBeat: "Rewrite",
-    removeBeat: "Remove",
-    moveBeat: "Move",
-};
-
-// an outline revision has nothing to preview, so the ops list is the card
-const OutlineCardProposal: Component<{
-    msgId: number;
-    blockId: string;
-    applied?: "applied" | "discarded";
-    outline: OutlineRevision;
-}> = (props) => (
-    <div class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
-        <div class="flex flex-col gap-1 px-3 py-2">
-            <span class="text-[12px] text-ink">{props.outline.summary}</span>
-            <For each={props.outline.ops}>
-                {(op) => (
-                    <span class="flex items-baseline gap-1.5 text-[11.5px] text-muted">
-                        <span class="font-mono text-[9.5px] uppercase tracking-[0.12em] text-accent">
-                            {OP_VERB[op.op] ?? op.op}
-                        </span>
-                        <span class="min-w-0 truncate">
-                            {op.op === "addBeat"
-                                ? op.beat.label
-                                : op.op === "updateBeat"
-                                  ? (op.patch.label ?? op.id)
-                                  : op.id}
-                        </span>
-                    </span>
-                )}
-            </For>
-        </div>
-        <div class="flex items-center justify-end gap-2 border-t border-line px-3 py-2">
-            <Show
-                when={!props.applied}
-                fallback={
-                    <span
-                        class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
-                        classList={{
-                            "text-accent": props.applied === "applied",
-                            "text-muted": props.applied === "discarded",
-                        }}
-                    >
-                        <Show when={props.applied === "applied"} fallback="Discarded">
-                            <Icon name="check" size={12} /> Applied
-                        </Show>
-                    </span>
-                }
-            >
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => discardProposal(props.msgId, props.blockId)}
-                >
-                    Discard
-                </Button>
-                <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => applyOutline(props.msgId, props.blockId)}
-                >
-                    Update the outline
-                </Button>
-            </Show>
-        </div>
-    </div>
-);
 
 // bumped each reveal frame so the scroll container can track the newest text
 const [revealPulse, setRevealPulse] = createSignal(0);
@@ -509,70 +360,18 @@ const ThinkingBlock: Component<{ steps: string[]; done: boolean }> = (props) => 
     );
 };
 
-const SURFACE_VERB: Record<string, string> = { deck: "deck", doc: "doc", web: "site" };
-const BriefCard: Component<{
-    msgId: number;
-    blockId: string;
-    brief: GenBrief;
-    state: "pending" | "started" | "superseded";
-}> = (props) => {
-    const cost = (): number => estimateCost("generate-artifact", { length: props.brief.length });
-    return (
-        <div class="mt-1 rounded-xl border border-line bg-canvas p-3">
-            <Eyebrow as="div" class="pb-1.5">
-                Brief · {formatLabel(props.brief.surface)}
-                {props.brief.length ? ` · ${props.brief.length}` : ""}
-            </Eyebrow>
-            <p class="text-[13px] leading-relaxed text-ink">{props.brief.prompt}</p>
-            <div class="mt-2.5 flex items-center gap-2.5">
-                <Show
-                    when={props.state === "pending"}
-                    fallback={
-                        <span
-                            class="text-[11px] font-semibold uppercase tracking-[0.1em]"
-                            classList={{
-                                "text-accent": props.state === "started",
-                                "text-muted": props.state === "superseded",
-                            }}
-                        >
-                            {props.state === "superseded"
-                                ? "Superseded"
-                                : busy()
-                                  ? "Generating…"
-                                  : "Generated"}
-                        </span>
-                    }
-                >
-                    <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => startBrief(props.msgId, props.blockId)}
-                    >
-                        Generate {SURFACE_VERB[props.brief.surface] ?? "artifact"} →
-                    </Button>
-                    <span class="text-[11px] text-muted">~{cost()} credits</span>
-                </Show>
-            </div>
-        </div>
-    );
-};
-
 const DRAFT_SECTION_W = 168;
 const prefersReduced = (): boolean =>
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-// engine-rendered placeholder so its frame dims match the real sections exactly
-const LOADING_SECTION: Section = placeholderSection({
-    id: "loading",
-    layout: "split-6040",
-    blocks: ["text", "text"],
-});
-const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
+
+// A run started from the chat. The card is a view of the same mirror the studio paints from, so
+// what the person sees here is what they would see there, smaller.
+const GenerationCard: Component<{ ref: GenerationRef }> = (props) => {
     const navigate = useNavigate();
-    const d = (): (typeof drafts)[string] | undefined => drafts[props.draftId];
+    const live = (): boolean => gen.generation?.id === props.ref.generationId;
     let strip!: HTMLDivElement;
     createEffect(() => {
-        void d()?.content.sections.length;
-        void d()?.status;
+        void gen.content.sections.length;
         queueMicrotask(() =>
             strip?.scrollTo({
                 left: strip.scrollWidth,
@@ -580,118 +379,89 @@ const ArtifactDraftCard: Component<{ draftId: string }> = (props) => {
             }),
         );
     });
-    const open = async (): Promise<void> => {
-        const id = await persistDraft(props.draftId);
-        if (id) {
-            closeChat();
-            navigate(`/edit/${id}`);
-        }
+    const working = (): boolean => live() && (gen.planning || gen.writing);
+    const status = (): string => {
+        if (!live()) return "Opened elsewhere";
+        if (gen.planning) return "planning";
+        if (gen.writing) return `writing ${builtCount() + 1}/${gen.beats.length}`;
+        if (gen.stage === "done") return "done";
+        return gen.beats.length ? `${builtCount()}/${gen.beats.length} written` : "no outline yet";
+    };
+    const openInStudio = async (): Promise<void> => {
+        const host = generationHost();
+        if (!live() && host) await host.adopt(props.ref.generationId);
+        openStudio();
+        closeChat();
+    };
+    const openInEditor = (): void => {
+        closeChat();
+        navigate(`/edit/${props.ref.artifactId}`);
     };
     return (
         <div class="mt-1 overflow-hidden rounded-xl border border-line bg-canvas">
-            <Show when={d()}>
-                {(draft) => (
-                    <>
-                        <div class="flex items-center gap-2 border-b border-line px-3 py-2">
-                            <Show
-                                when={draft().status === "building"}
-                                fallback={<Icon name="sparkle" size={13} />}
-                            >
-                                <Spinner size={12} tone="accent" />
-                            </Show>
-                            <span class="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">
-                                {draft().title}
-                            </span>
-                            <Show when={draft().status === "building"}>
-                                <span class="flex-none font-mono text-[10px] text-muted">
-                                    {draft().total
-                                        ? `${draft().done}/${draft().total}`
-                                        : (draft().phase ?? "…")}
-                                </span>
-                            </Show>
-                        </div>
-                        <div ref={strip} class="flex gap-2.5 overflow-x-auto px-3 py-3">
-                            <For each={draft().content.sections}>
-                                {(sec, i) => (
-                                    <div class="flex-none">
-                                        <MiniCanvas
-                                            section={sec}
-                                            themeId={draft().content.theme}
-                                            formatId={draft().content.format}
-                                            width={DRAFT_SECTION_W}
-                                            class="rounded-lg border border-line"
-                                        />
-                                        <div class="mt-1 text-center font-mono text-[9px] text-muted">
-                                            {String(i() + 1).padStart(2, "0")}
-                                        </div>
-                                    </div>
-                                )}
-                            </For>
-                            <Show when={draft().status === "building"}>
-                                <div class="flex-none">
-                                    <div class="relative animate-pulse">
-                                        <MiniCanvas
-                                            section={LOADING_SECTION}
-                                            themeId={draft().content.theme}
-                                            formatId={draft().content.format}
-                                            width={DRAFT_SECTION_W}
-                                            class="rounded-lg border border-dashed border-accent/40 opacity-25"
-                                        />
-                                        <div class="absolute inset-0 grid place-items-center">
-                                            <Spinner size={14} tone="accent" />
-                                        </div>
-                                    </div>
+            <div class="flex items-center gap-2 border-b border-line px-3 py-2">
+                <Show when={working()} fallback={<Icon name="sparkle" size={13} />}>
+                    <Spinner size={12} tone="accent" />
+                </Show>
+                <span class="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">
+                    {live() ? gen.title || gen.brief.prompt || "Untitled" : "A generation"}
+                </span>
+                <span class="flex-none font-mono text-[10px] text-muted">{status()}</span>
+            </div>
+            <Show when={live() && (gen.beats.length || gen.content.sections.length)}>
+                <div ref={strip} class="flex gap-2.5 overflow-x-auto px-3 py-3">
+                    <For each={gen.beats}>
+                        {(beat, i) => {
+                            const section = (): (typeof gen.content.sections)[number] | undefined =>
+                                gen.content.sections.find((s) => s.id === beat.id);
+                            return (
+                                <div class="flex-none" style={{ width: `${DRAFT_SECTION_W}px` }}>
+                                    <Show
+                                        when={section()}
+                                        fallback={
+                                            <div class="flex h-24 flex-col justify-center rounded-lg border border-dashed border-line px-2 text-center">
+                                                <span class="truncate text-[11px] text-ink">
+                                                    {beat.label}
+                                                </span>
+                                                <span class="text-[9.5px] uppercase tracking-wide text-muted">
+                                                    {beat.role}
+                                                </span>
+                                            </div>
+                                        }
+                                    >
+                                        {(sec) => (
+                                            <MiniCanvas
+                                                section={sec()}
+                                                themeId={gen.content.theme}
+                                                formatId={gen.content.format}
+                                                width={DRAFT_SECTION_W}
+                                                class="rounded-lg border border-line"
+                                            />
+                                        )}
+                                    </Show>
                                     <div class="mt-1 text-center font-mono text-[9px] text-muted">
-                                        {draft().content.sections.length ? "writing" : "planning"}
+                                        {String(i() + 1).padStart(2, "0")}
                                     </div>
                                 </div>
-                            </Show>
-                        </div>
-                        <div class="flex items-center justify-between gap-2 border-t border-line px-3 py-2">
-                            <span class="min-w-0 truncate text-[11px] text-muted">
-                                <Show
-                                    when={draft().status === "error"}
-                                    fallback={`${draft().content.sections.length} section${draft().content.sections.length === 1 ? "" : "s"}`}
-                                >
-                                    <span class="text-[#e5484d]">{draft().error}</span>
-                                </Show>
-                            </span>
-                            <Show
-                                when={draft().state === "live"}
-                                fallback={
-                                    <span
-                                        class="flex-none text-[11px] font-semibold uppercase tracking-[0.1em]"
-                                        classList={{
-                                            "text-accent": draft().state === "opened",
-                                            "text-muted": draft().state === "discarded",
-                                        }}
-                                    >
-                                        {draft().state === "opened" ? "Opened" : "Discarded"}
-                                    </span>
-                                }
-                            >
-                                <span class="flex flex-none gap-1.5">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => discardDraft(props.draftId)}
-                                    >
-                                        Discard
-                                    </Button>
-                                    <Button
-                                        variant="primary"
-                                        size="sm"
-                                        disabled={draft().status !== "ready"}
-                                        onClick={() => void open()}
-                                    >
-                                        Open in editor →
-                                    </Button>
-                                </span>
-                            </Show>
-                        </div>
-                    </>
-                )}
+                            );
+                        }}
+                    </For>
+                </div>
             </Show>
+            <div class="flex items-center justify-end gap-1.5 border-t border-line px-3 py-2">
+                <Show when={!generateOpen()}>
+                    <Button variant="ghost" size="sm" onClick={() => void openInStudio()}>
+                        Open in studio
+                    </Button>
+                </Show>
+                <Button
+                    variant={live() && gen.stage === "done" ? "primary" : "outline"}
+                    size="sm"
+                    onClick={openInEditor}
+                >
+                    Open in editor →
+                </Button>
+            </div>
         </div>
     );
 };
@@ -770,7 +540,7 @@ const ActionCard: Component<{
                                 size="sm"
                                 onClick={() => confirmAction(props.msgId, props.blockId)}
                             >
-                                Move to Trash
+                                {props.action.kind === "trash" ? "Move to Trash" : "Do it"}
                             </Button>
                             <Button
                                 variant="ghost"
@@ -796,41 +566,41 @@ const ActionCard: Component<{
     );
 };
 
-const TemplatesList: Component<{ items: Templates["items"] }> = (props) => (
-    <div class="mt-1 flex flex-col gap-1">
-        <For each={props.items}>
-            {(t) => (
-                <button
-                    class="flex icon-row gap-2.5 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left transition-colors hover:border-accent"
-                    onClick={() => void startDraftFromTemplate(t.id)}
-                >
-                    <Icon name="sparkle" size={13} />
-                    <span class="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
-                        {t.name}
-                    </span>
-                    <span class="flex-none font-mono text-[9.5px] uppercase tracking-[0.1em] text-muted">
-                        {t.category}
-                    </span>
-                </button>
-            )}
-        </For>
-    </div>
-);
+const TemplatesList: Component<{ items: Templates["items"] }> = (props) => {
+    const navigate = useNavigate();
+    const start = async (id: string): Promise<void> => {
+        const created = await startFromTemplate(id);
+        if (created) {
+            closeChat();
+            navigate(`/edit/${created}`);
+        }
+    };
+    return (
+        <div class="mt-1 flex flex-col gap-1">
+            <For each={props.items}>
+                {(t) => (
+                    <button
+                        class="flex icon-row gap-2.5 rounded-lg border border-line bg-canvas px-2.5 py-2 text-left transition-colors hover:border-accent"
+                        onClick={() => void start(t.id)}
+                    >
+                        <Icon name="sparkle" size={13} />
+                        <span class="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">
+                            {t.name}
+                        </span>
+                        <span class="flex-none font-mono text-[9.5px] uppercase tracking-[0.1em] text-muted">
+                            {t.category}
+                        </span>
+                    </button>
+                )}
+            </For>
+        </div>
+    );
+};
 
 const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
     <>
         <Show when={props.b.k === "thinking" ? props.b : null}>
             {(b) => <ThinkingBlock steps={b().steps} done={b().done} />}
-        </Show>
-        <Show when={props.b.k === "brief" ? props.b : null}>
-            {(b) => (
-                <BriefCard
-                    msgId={props.msgId}
-                    blockId={b().blockId}
-                    brief={b().brief}
-                    state={b().state}
-                />
-            )}
         </Show>
         <Show when={props.b.k === "action" ? props.b : null}>
             {(b) => (
@@ -841,9 +611,6 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
                     state={b().state}
                 />
             )}
-        </Show>
-        <Show when={props.b.k === "draft" ? props.b : null}>
-            {(b) => <ArtifactDraftCard draftId={b().draftId} />}
         </Show>
         <Show when={props.b.k === "text" ? props.b : null}>
             {(b) => <SmoothText text={b().text} render={(s) => <Markdown text={s} />} />}
@@ -870,45 +637,8 @@ const BlockView: Component<{ msgId: number; b: UIBlock }> = (props) => (
                 />
             )}
         </Show>
-        <Show when={props.b.k === "widget" && props.b.block.type === "steer" ? props.b : null}>
-            {(b) => (
-                <SteerCard
-                    msgId={props.msgId}
-                    blockId={b().blockId}
-                    applied={b().applied}
-                    steer={b().block as Steer}
-                />
-            )}
-        </Show>
-        <Show when={props.b.k === "widget" && props.b.block.type === "write" ? props.b : null}>
-            {(b) => (
-                <WriteCard
-                    msgId={props.msgId}
-                    blockId={b().blockId}
-                    applied={b().applied}
-                    write={b().block as WriteRequest}
-                />
-            )}
-        </Show>
-        <Show when={props.b.k === "widget" && props.b.block.type === "plan" ? props.b : null}>
-            {(b) => (
-                <PlanCard
-                    msgId={props.msgId}
-                    blockId={b().blockId}
-                    applied={b().applied}
-                    plan={b().block as PlanRequest}
-                />
-            )}
-        </Show>
-        <Show when={props.b.k === "widget" && props.b.block.type === "outline" ? props.b : null}>
-            {(b) => (
-                <OutlineCardProposal
-                    msgId={props.msgId}
-                    blockId={b().blockId}
-                    applied={b().applied}
-                    outline={b().block as OutlineRevision}
-                />
-            )}
+        <Show when={props.b.k === "widget" && props.b.block.type === "generation" ? props.b : null}>
+            {(b) => <GenerationCard ref={b().block as GenerationRef} />}
         </Show>
         <Show when={props.b.k === "widget" && props.b.block.type === "proposal" ? props.b : null}>
             {(b) => (
@@ -1035,7 +765,7 @@ export const ChatPanel: Component = () => {
     // the studio hosts the same thread in its console, so the dock stands down while it is open;
     // the eval views are an operator tool where a product chat bubble is only in the way, and the
     // welcome screen has no artifact to talk about yet
-    const hidden = (): boolean => generateOpen() || getContext("eval") || getContext("welcome");
+    const hidden = (): boolean => generateOpen() || getContext("welcome");
     let list!: HTMLDivElement;
     let field!: HTMLTextAreaElement;
 

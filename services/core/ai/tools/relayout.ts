@@ -38,7 +38,7 @@ export function arrangementBriefs(section: Section, count: number): string[] {
         .map((a) => a.brief);
 }
 
-export const suggestSectionLayoutsTool = implement(
+implement(
     "suggest-section-layouts",
     async function* (input, ctx): AsyncGenerator<never, Section[]> {
         if (!ctx.artifact) throw new Error("no artifact is open");
@@ -59,5 +59,20 @@ export const suggestSectionLayoutsTool = implement(
                 ).then((s) => resolveImages(s, ctx.image)),
             ),
         );
+    },
+    {
+        present: (sections, input) =>
+            sections.map((section, i) => ({
+                type: "proposal" as const,
+                id: crypto.randomUUID(),
+                tool: "suggest-section-layouts",
+                summary: `Layout option ${i + 1} of ${sections.length}`,
+                patch: {
+                    artifact: [{ op: "replaceSection" as const, id: input.sectionId, section }],
+                },
+                preview: section,
+            })),
+        note: (sections, input) =>
+            `Proposed ${sections.length} layout options for ${input.sectionId}; the copy is unchanged in each, and the user applies at most one.`,
     },
 );

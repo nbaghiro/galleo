@@ -3,7 +3,7 @@ import { streamObject } from "ai";
 import { sectionForms } from "@model/artifact";
 import type { GenerateInput } from "@model/ai";
 import { drain, makeContext } from "@services/core/ai/tools";
-import { outlineProblem, planOutlineTool } from "@services/core/ai/tools/plan";
+import { outlineProblem, planOutlineFor } from "@services/core/ai/tools/plan";
 import { templateBody } from "@services/core/templates";
 
 // The one seam is the model call, so what runs under it is the real planner: this proves the design
@@ -84,7 +84,7 @@ const brief = (extra: Partial<GenerateInput> = {}): GenerateInput => ({
 });
 
 const plan = (input: GenerateInput): Promise<{ beats: unknown[] }> =>
-    drain(makeContext({ image: {} }).use(planOutlineTool, input)) as Promise<{ beats: unknown[] }>;
+    drain(planOutlineFor(input, makeContext({ image: {} }))) as Promise<{ beats: unknown[] }>;
 
 describe("the designs a picked starter lends the plan", () => {
     beforeEach(() => {
@@ -188,7 +188,7 @@ describe("the designs a picked starter lends the plan", () => {
         }) as typeof streamObject);
         await expect(
             drain(
-                makeContext({ image: {}, signal: ac.signal }).use(planOutlineTool, brief()),
+                planOutlineFor(brief(), makeContext({ image: {}, signal: ac.signal })),
             ) as Promise<unknown>,
         ).rejects.toThrow(/hung up/);
         expect(vi.mocked(streamObject)).toHaveBeenCalledTimes(1);
@@ -255,5 +255,67 @@ describe("an outline with nothing in it", () => {
         vi.mocked(streamObject).mockReturnValue(bare(3) as ReturnType<typeof streamObject>);
         await expect(plan(brief())).rejects.toThrow(/could not be planned.*different model/s);
         expect(vi.mocked(streamObject)).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe("the early backdrop", () => {
+    // partials the way the provider streams the object: the phrase grows, then holds while the
+    // beats keep arriving
+    const streaming = (
+        marks: string[],
+    ): { partialObjectStream: AsyncIterable<unknown>; object: Promise<unknown> } => {
+        const beat = (i: number) => ({
+            id: `s${i}`,
+            label: `Beat ${i}`,
+            role: "proof",
+            layout: "two-col",
+            blocks: ["bullets", "bullets"],
+            image: false,
+            brief: "the scripted job",
+            takeaway: "the scripted point",
+            points: ["one", "two"],
+        });
+        const parts: unknown[] = [
+            { title: "A scripted plan" },
+            { title: "A scripted plan", backdrop: "a quiet har" },
+            { title: "A scripted plan", backdrop: "a quiet harbour at dusk", beats: [beat(1)] },
+            {
+                title: "A scripted plan",
+                backdrop: "a quiet harbour at dusk",
+                beats: [beat(1), beat(2)],
+            },
+            {
+                title: "A scripted plan",
+                backdrop: "a quiet harbour at dusk",
+                beats: [beat(1), beat(2), beat(3)],
+            },
+        ];
+        return {
+            partialObjectStream: (async function* (): AsyncGenerator<unknown> {
+                for (const [i, p] of parts.entries()) {
+                    marks.push(`partial ${i}`);
+                    yield p;
+                }
+                marks.push("stream done");
+            })(),
+            object: Promise.resolve(parts[parts.length - 1]),
+        };
+    };
+
+    it("hands the backdrop phrase over once it has settled, while beats are still streaming", async () => {
+        const marks: string[] = [];
+        vi.mocked(streamObject).mockReturnValue(streaming(marks) as never);
+        await drain(
+            planOutlineFor(brief(), makeContext({ image: {} }), {
+                onBackdrop: (phrase) => marks.push(`backdrop: ${phrase}`),
+            }),
+        );
+        const at = marks.indexOf("backdrop: a quiet harbour at dusk");
+        expect(at).toBeGreaterThan(-1);
+        // fired after the phrase held across two partials with beats present, before the stream ended
+        expect(at).toBeLessThan(marks.indexOf("stream done"));
+        expect(at).toBeGreaterThan(marks.indexOf("partial 3"));
+        // once, whatever the phrase said while it was still growing
+        expect(marks.filter((m) => m.startsWith("backdrop:"))).toHaveLength(1);
     });
 });

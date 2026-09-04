@@ -288,3 +288,20 @@ describe("rows the engine cannot lay out as written", () => {
         expect(structureIssues(row(col(50, true), col(50)))).toEqual([]);
     });
 });
+
+describe("ragged tables — a comma inside a cell splits it", () => {
+    const tableSection = (data: string): Section => ({
+        id: "s1",
+        root: { type: "table", data: { data, header: true } },
+    });
+
+    it("flags a row whose cell count disagrees with the header", () => {
+        const s = tableSection("Trip,Price\nCoastal,2,720 GBP\nInland,940 GBP");
+        expect(renderIssues(s).join(" ")).toMatch(/rows disagree with the header/);
+    });
+
+    it("passes a clean table, and a single-column one whatever its text holds", () => {
+        expect(renderIssues(tableSection("Trip,Price\nCoastal,2720 GBP"))).toEqual([]);
+        expect(renderIssues(tableSection("Note\nOne line\nAnother"))).toEqual([]);
+    });
+});

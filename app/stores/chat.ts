@@ -1,19 +1,16 @@
 import type {
     ChatContext,
     ChatFocus,
-    ChatGeneration,
     ChatLibrary,
-    GenBrief,
-    GenerateInput,
-    OutlinePatch,
+    ChatThread,
     Patch,
+    ProposalMark,
     TurnEvent,
-    TurnRequest,
     WorkspaceAction,
 } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section, Target } from "@model/artifact";
-import type { Template } from "@model/templates";
-import { applyPatch } from "@model/ai";
+import type { ToolId } from "@model/tools";
+import { applyContentOps, threadKey } from "@model/ai";
 import { addressesEqual } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { createStore, produce } from "solid-js/store";
@@ -26,14 +23,13 @@ import {
     selectedAddresses,
     selection,
 } from "@editor/core/store";
-import { api, streamTurn } from "@app/api";
+import { api, streamTool } from "@app/api";
 import { charsBucket } from "@model/analytics";
 import { capture } from "@ui/analytics";
-import { appTheme, saveCustomTheme } from "./theme";
+import { saveCustomTheme } from "./theme";
 import { openShare } from "./share";
 import { billing, loadBilling } from "./billing";
 import {
-    artifactTitle,
     artifacts,
     duplicateArtifact,
     formatLabel,
@@ -50,7 +46,7 @@ import { reportError } from "./errors";
 import { noteStep } from "./model-usage";
 import {
     discardSuperseded,
-    resolveBriefs,
+    pendingProposals,
     textInsertAt,
     type ChatMsg,
     type UIBlock,
@@ -69,41 +65,19 @@ export { chatOpen };
 const [editorActive, setEditorActive] = createSignal(false);
 export { editorActive, setEditorActive };
 
-export interface Draft {
-    id: string;
-    content: ArtifactContent;
-    title: string;
-    status: "building" | "ready" | "error";
-    total: number; // planned section count
-    done: number; // sections placed so far
-    phase?: string;
-    error?: string;
-    templateId?: string; // provenance when started from a starter; feeds template popularity
-    state: "live" | "opened" | "discarded"; // live = the current refine target; terminal once opened/discarded
-}
-const [drafts, setDrafts] = createStore<Record<string, Draft>>({});
-export { drafts };
-const [activeDraftId, setActiveDraftId] = createSignal<string | null>(null);
-
-export function activeDraft(): Draft | null {
-    const id = activeDraftId();
-    const d = id ? drafts[id] : undefined;
-    return d && d.state === "live" ? d : null;
-}
-
-// the agent's subject: the editor by default, or the studio's live draft while it's open
+// the agent's subject: the editor by default, or the generation while one is bound
 export interface ChatTarget {
     content: () => ArtifactContent;
-    apply: (patch: Patch) => void;
+    apply: (patch: Patch) => void | Promise<void>;
     focus?: () => ChatFocus | undefined;
     artifactId?: () => string | undefined;
     label?: string; // what the composer calls it ("this draft")
-    // its presence switches the agent onto the generate surface, where the outline is the subject
-    generation?: () => ChatGeneration | undefined;
-    applyBeats?: (ops: OutlinePatch) => void;
-    writeBeats?: (beatIds: string[]) => void;
-    requestPlan?: (req: { guidance?: string; andWrite?: boolean }) => void;
-    setSteer?: (note: string) => void;
+    // its presence puts the agent on the generate surface, where the plan is the subject
+    generationId?: () => string | undefined;
+    // runs a proposed call, or apply-patch, through the target's own mirror
+    run?: (tool: ToolId, input: Record<string, unknown>, cost?: number) => Promise<unknown>;
+    // a patch the server already applied for a never-confirm tool, so the mirror follows it
+    mirror?: (patch: Patch) => void;
     imageSource?: () => "stock" | "ai" | undefined;
 }
 const [chatTarget, setChatTarget] = createSignal<ChatTarget | null>(null);
@@ -115,17 +89,41 @@ export function bindChatTarget(t: ChatTarget): () => void {
     return () => setChatTarget((cur) => (cur === t ? null : cur));
 }
 
+// How a generation is started or adopted from the dock. The studio store installs this at load,
+// since importing it here would be a cycle.
+export interface GenerationHost {
+    start: (input: {
+        prompt: string;
+        surface: "deck" | "doc" | "web";
+        theme: string;
+        length?: string;
+        imageSource?: "stock" | "ai";
+        source?: string;
+        sourceArtifactId?: string;
+        shapeTemplateId?: string;
+        contextIds?: string[];
+        artifactId?: string;
+    }) => Promise<void>;
+    adopt: (id: string) => Promise<void>;
+    active: () => string | undefined;
+    open: () => void;
+}
+let host: GenerationHost | null = null;
+export const setGenerationHost = (h: GenerationHost): void => {
+    host = h;
+};
+export const generationHost = (): GenerationHost | null => host;
+
 export function previewSource(): { theme: string; format: string } {
     const t = chatTarget();
     if (t) return { theme: t.content().theme, format: t.content().format };
-    const d = activeDraft();
-    if (d) return { theme: d.content.theme, format: d.content.format };
     return { theme: editor.artifact.theme, format: editor.artifact.format };
 }
 export const openChat = (from = "editor"): void => {
     capture("chat_opened", { from });
     setChatOpen(true);
     void loadBilling(); // warm the credit balance
+    void loadThread();
 };
 export const closeChat = (): void => {
     setChatOpen(false);
@@ -200,19 +198,20 @@ export { chatContextIds, setChatContextIds };
 
 function buildContext(): ChatContext {
     const attached = chatContextIds().length ? { contextIds: chatContextIds() } : {};
+    const pending = pendingProposals(thread.messages);
+    const shared = { ...attached, ...(pending.length ? { pending } : {}), ...meta() };
     // a bound target outranks the editor: it's what's on screen
     const t = chatTarget();
     if (t) {
-        const generation = t.generation?.();
+        const generationId = t.generationId?.();
         return {
-            surface: generation ? "generate" : "editor",
+            surface: generationId ? "generate" : "editor",
             artifactId: t.artifactId?.(),
-            content: t.content(),
+            // a generation's draft is loaded server-side; the editor's document rides along
+            ...(generationId ? { generationId } : { content: t.content() }),
             focus: t.focus?.(),
-            ...(generation && { generation }),
             ...(t.imageSource?.() === "ai" && { imageSource: "ai" as const }),
-            ...attached,
-            ...meta(),
+            ...shared,
         };
     }
     const id = currentArtifactId();
@@ -222,12 +221,9 @@ function buildContext(): ChatContext {
             artifactId: id,
             content: editor.artifact,
             focus: deriveFocus(),
-            ...attached,
-            ...meta(),
+            ...shared,
         };
-    const d = activeDraft();
-    if (d) return { surface: "editor", content: d.content, ...attached, ...meta() };
-    return { surface: "library", library: buildLibrary(), ...attached, ...meta() };
+    return { surface: "library", library: buildLibrary(), ...shared };
 }
 
 function updateMsg(id: number, fn: (m: ChatMsg) => void): void {
@@ -264,7 +260,19 @@ function pushText(id: number, delta: string): void {
     });
 }
 
-function dispatch(ev: TurnEvent, aid: number): void {
+const shellOf = (m: ChatMsg, blockId: string): Extract<UIBlock, { k: "tool" }> | undefined =>
+    m.blocks.find(
+        (b): b is Extract<UIBlock, { k: "tool" }> => b.k === "tool" && b.blockId === blockId,
+    );
+
+// a card the agent applied on a spoken approval is retired everywhere it appears
+function retireProposal(proposalId: string): void {
+    setMark(proposalId, "applied");
+    void api.markProposal(currentKey(), proposalId, "applied").catch(() => undefined);
+}
+
+// `replay` = the turn already happened: actions ran and generations were adopted at the time
+function dispatch(ev: TurnEvent, aid: number, replay = false): void {
     switch (ev.type) {
         case "chat.thinking":
             pushThinking(aid, ev.label);
@@ -275,10 +283,7 @@ function dispatch(ev: TurnEvent, aid: number): void {
         case "chat.tool":
             // sent twice (open the shell, then done), so a tool with nothing to show still closes
             updateMsg(aid, (m) => {
-                const shell = m.blocks.find(
-                    (b): b is Extract<UIBlock, { k: "tool" }> =>
-                        b.k === "tool" && b.blockId === ev.blockId,
-                );
+                const shell = shellOf(m, ev.blockId);
                 if (shell) shell.done = shell.done || !!ev.done;
                 else
                     m.blocks.push({
@@ -291,50 +296,39 @@ function dispatch(ev: TurnEvent, aid: number): void {
             });
             break;
         case "chat.nested": {
-            // a capability's own progress line, shown under its shell
             const inner = ev.event;
+            // a change the server already applied for this call: the mirror follows it
+            if (inner.type === "patch") {
+                chatTarget()?.mirror?.(inner.patch);
+                break;
+            }
+            // a capability's own progress line, shown under its shell
             if (inner.type !== "narration") break;
             updateMsg(aid, (m) => {
-                const shell = m.blocks.find(
-                    (b): b is Extract<UIBlock, { k: "tool" }> =>
-                        b.k === "tool" && b.blockId === ev.blockId,
-                );
+                const shell = shellOf(m, ev.blockId);
                 if (shell && !shell.done) shell.detail = inner.text;
             });
             break;
         }
-        case "chat.block":
+        case "chat.block": {
+            const block = ev.block;
             // action blocks have side effects (library stores) → handled outside the store updater
-            if (ev.block.type === "action") {
-                handleActionBlock(aid, ev.blockId, ev.block.action);
+            if (block.type === "action") {
+                handleActionBlock(aid, ev.blockId, block.action, block.confirm, replay);
                 break;
             }
-            if (ev.block.type === "steer") chatTarget()?.setSteer?.(ev.block.note);
+            if (block.type === "applied") {
+                retireProposal(block.proposal);
+                break;
+            }
+            if (block.type === "generation" && !replay) void host?.adopt(block.generationId);
             updateMsg(aid, (m) => {
-                const shell = m.blocks.find(
-                    (b): b is Extract<UIBlock, { k: "tool" }> =>
-                        b.k === "tool" && b.blockId === ev.blockId,
-                );
+                const shell = shellOf(m, ev.blockId);
                 if (shell) shell.done = true;
-                if (ev.block.type === "brief") {
-                    m.blocks.push({
-                        k: "brief",
-                        blockId: ev.blockId,
-                        brief: ev.block.brief,
-                        state: "pending",
-                    });
-                    // spoken/typed approval: the build starts once this turn's stream closes
-                    if (ev.block.brief.approved)
-                        approvedBrief = { msgId: aid, blockId: ev.blockId };
-                } else {
-                    m.blocks.push({ k: "widget", blockId: ev.blockId, block: ev.block });
-                    // spoken/typed approval: applied once this turn's stream closes
-                    const t = ev.block.type;
-                    if ((t === "outline" || t === "write" || t === "plan") && ev.block.approved)
-                        approvedApply = { msgId: aid, blockId: ev.blockId, type: t };
-                }
+                m.blocks.push({ k: "widget", blockId: ev.blockId, block });
             });
             break;
+        }
         case "error":
             pushText(aid, `\n\n_(${ev.message})_`);
             break;
@@ -346,6 +340,7 @@ function dispatch(ev: TurnEvent, aid: number): void {
 export async function sendChat(text: string): Promise<void> {
     const t = text.trim();
     if (!t || busy()) return;
+    await loadThread();
     // The message never travels, only how long it was and how deep into the thread we are: a first
     // question and a tenth follow-up are different acts.
     capture("chat_message_sent", {
@@ -379,19 +374,19 @@ export async function sendChat(text: string): Promise<void> {
     setBusy(true);
     noteStep("chat"); // lands on the studio's run when one is open, ignored otherwise
     abort = new AbortController();
-    const request: TurnRequest = {
-        kind: "chat",
-        input: { message: t, context: buildContext(), history },
-    };
     try {
-        await streamTurn(request, (ev) => dispatch(ev, aid), abort.signal);
+        await streamTool(
+            "ask-assistant",
+            { message: t, context: buildContext(), history },
+            (ev) => dispatch(ev, aid),
+            { signal: abort.signal },
+        );
     } catch (e) {
         if (!abort?.signal.aborted) {
             pushText(aid, `\n\n_(${e instanceof Error ? e.message : "The chat failed."})_`);
             reportError(e, "The chat couldn’t finish");
         }
     } finally {
-        const aborted = abort?.signal.aborted ?? false;
         setBusy(false);
         updateMsg(aid, (m) => {
             m.streaming = false;
@@ -400,18 +395,6 @@ export async function sendChat(text: string): Promise<void> {
         });
         abort = null;
         void loadBilling();
-        // an in-message approval starts the build now that the chat turn is off the wire
-        const auto = approvedBrief;
-        approvedBrief = null;
-        if (auto && !aborted) startBrief(auto.msgId, auto.blockId);
-        // same for an approved generate-surface proposal: apply its card without a click
-        const apply = approvedApply;
-        approvedApply = null;
-        if (apply && !aborted) {
-            if (apply.type === "outline") applyOutline(apply.msgId, apply.blockId);
-            else if (apply.type === "write") applyWrite(apply.msgId, apply.blockId);
-            else applyPlanRequest(apply.msgId, apply.blockId);
-        }
     }
 }
 
@@ -419,186 +402,88 @@ export function stopChat(): void {
     abort?.abort();
 }
 
+// the subject the thread belongs to: a generation, an open artifact, or the library
+export function currentKey(): string {
+    const t = chatTarget();
+    if (t) return threadKey({ generationId: t.generationId?.(), artifactId: t.artifactId?.() });
+    const id = currentArtifactId();
+    return threadKey({ artifactId: editorActive() && id ? id : undefined });
+}
+
+let loadedKey: string | null = null;
+let loading: Promise<void> | null = null;
+
+// the server's copy of the thread for the current subject, replayed through the same reducer that
+// painted it live, then marked the way the person left it
+export function loadThread(): Promise<void> {
+    const key = currentKey();
+    if (loadedKey === key && !loading) return Promise.resolve();
+    if (loading && loadedKey === key) return loading;
+    loadedKey = key;
+    loading = (async () => {
+        let stored: ChatThread | null = null;
+        try {
+            stored = await api.chatThread(key);
+        } catch {
+            stored = null; // an unreachable server leaves the thread empty rather than stale
+        }
+        if (currentKey() !== key) return; // the subject moved on while this was in flight
+        replay(stored);
+    })().finally(() => {
+        loading = null;
+    });
+    return loading;
+}
+
+function replay(stored: ChatThread | null): void {
+    setThread("messages", []);
+    if (!stored) return;
+    for (const m of stored.messages) {
+        const id = ++mid;
+        if (m.role === "user") {
+            setThread("messages", (arr) => [
+                ...arr,
+                { id, role: "user", blocks: [{ k: "text", text: m.text }], streaming: false },
+            ]);
+            continue;
+        }
+        setThread("messages", (arr) => [
+            ...arr,
+            { id, role: "assistant", blocks: [], streaming: false },
+        ]);
+        for (const ev of m.events) dispatch(ev, id, true);
+        updateMsg(id, (msg) => {
+            closeThinking(msg);
+            for (const b of msg.blocks) if (b.k === "tool") b.done = true;
+        });
+    }
+    for (const [proposal, mark] of Object.entries(stored.marks)) setMark(proposal, mark);
+}
+
+function setMark(proposalId: string, mark: ProposalMark): void {
+    for (const m of thread.messages)
+        updateMsg(m.id, (mm) => {
+            for (const b of mm.blocks)
+                if (b.k === "widget" && b.block.type === "proposal" && b.block.id === proposalId)
+                    b.applied = mark;
+        });
+}
+
 export function resetThread(): void {
     abort?.abort();
     setThread("messages", []);
+    const key = currentKey();
+    loadedKey = key;
+    void api.clearThread(key).catch(() => undefined);
 }
 
-function draftDispatch(id: string, ev: TurnEvent): void {
-    if (!drafts[id]) return;
-    switch (ev.type) {
-        case "plan":
-            setDrafts(id, "total", ev.beats.length);
-            break;
-        case "phase":
-            setDrafts(id, "phase", ev.name);
-            break;
-        case "section.status":
-            if (ev.status === "done") setDrafts(id, "done", (n) => n + 1);
-            break;
-        case "patch": {
-            const next = applyPatch(drafts[id].content, ev.ops);
-            setDrafts(id, "content", next);
-            setDrafts(id, "title", artifactTitle(next));
-            break;
-        }
-        case "turn.done":
-            setDrafts(id, { status: "ready", title: artifactTitle(drafts[id].content) });
-            break;
-        case "error":
-            setDrafts(id, { status: "error", error: ev.message });
-            break;
-        default:
-            break;
-    }
-}
-
-let draftSeq = 0;
-
-// set while a turn streams a brief the user already approved in their message
-let approvedBrief: { msgId: number; blockId: string } | null = null;
-
-// same, for an approved outline/write/plan card on the generate surface (last-wins)
-let approvedApply: { msgId: number; blockId: string; type: "outline" | "write" | "plan" } | null =
-    null;
-
-/** Start a brief's build (button click or in-message approval) and resolve every pending card. */
-export function startBrief(msgId: number, blockId: string): void {
-    const msg = thread.messages.find((m) => m.id === msgId);
-    const b = msg?.blocks.find(
-        (x): x is Extract<UIBlock, { k: "brief" }> => x.k === "brief" && x.blockId === blockId,
-    );
-    if (!b || b.state !== "pending" || busy()) return;
-    const brief = b.brief;
-    for (const m of thread.messages)
-        if (m.blocks.some((x) => x.k === "brief" && x.state === "pending"))
-            updateMsg(m.id, (mm) => resolveBriefs(mm.blocks, mm.id === msgId ? blockId : null));
-    void generateFromBrief(brief);
-}
-
-function lastUserText(): string | undefined {
-    for (let i = thread.messages.length - 1; i >= 0; i--) {
-        const m = thread.messages[i]!;
-        if (m.role === "user") {
-            const t = m.blocks
-                .map((b) => (b.k === "text" ? b.text : ""))
-                .join(" ")
-                .trim();
-            return t || undefined;
-        }
-    }
-    return undefined;
-}
-
-export async function generateFromBrief(brief: GenBrief): Promise<void> {
-    if (busy()) return;
-    const id = `d-${++draftSeq}`;
-    const theme = appTheme();
-    const input: GenerateInput = {
-        prompt: brief.prompt,
-        surface: brief.surface,
-        theme,
-        length: brief.length,
-        goal: brief.goal,
-        audience: brief.audience,
-        tone: brief.tone,
-        source: brief.sourceFromMessage ? lastUserText() : undefined,
-        sourceArtifactId: brief.sourceArtifactId,
-    };
-    setDrafts(id, {
-        id,
-        content: { format: brief.surface, theme, sections: [] },
-        title: "Generating…",
-        status: "building",
-        total: 0,
-        done: 0,
-        state: "live",
-    });
-    setActiveDraftId(id);
-    const aid = ++mid;
-    setThread("messages", (arr) => [
-        ...arr,
-        { id: aid, role: "assistant", blocks: [{ k: "draft", draftId: id }], streaming: true },
-    ]);
-
-    setBusy(true);
-    abort = new AbortController();
-    try {
-        await streamTurn({ kind: "generate", input }, (ev) => draftDispatch(id, ev), abort.signal);
-        // a stream that closes without turn.done (an instance swap mid-deploy, a proxy timeout)
-        // must fail the card loudly instead of leaving it generating forever
-        if (drafts[id]?.status === "building")
-            setDrafts(id, {
-                status: "error",
-                error: "The connection dropped mid-build. Try again.",
-            });
-    } catch (e) {
-        if (!abort?.signal.aborted) {
-            setDrafts(id, {
-                status: "error",
-                error: e instanceof Error ? e.message : "Generation failed.",
-            });
-            reportError(e, "Couldn’t build that artifact");
-        }
-    } finally {
-        setBusy(false);
-        updateMsg(aid, (m) => (m.streaming = false));
-        abort = null;
-        void loadBilling();
-    }
-}
-
-export async function startDraftFromTemplate(templateId: string): Promise<void> {
-    if (busy()) return;
-    let all: Template[];
-    try {
-        all = await templatesOnce();
-    } catch {
-        return;
-    }
-    const t = all.find((x) => x.id === templateId);
-    if (!t) return;
-    const id = `d-${++draftSeq}`;
-    setDrafts(id, {
-        id,
-        content: t.content,
-        title: artifactTitle(t.content),
-        status: "ready",
-        total: t.content.sections.length,
-        done: t.content.sections.length,
-        templateId,
-        state: "live",
-    });
-    setActiveDraftId(id);
-    const aid = ++mid;
-    setThread("messages", (arr) => [
-        ...arr,
-        { id: aid, role: "assistant", blocks: [{ k: "draft", draftId: id }], streaming: false },
-    ]);
-}
-
-// the one point an in-chat draft becomes a library artifact
-export async function persistDraft(id: string): Promise<string | null> {
-    const d = drafts[id];
-    if (!d) return null;
-    const newId = await persistArtifact(
-        d.content,
-        d.title || artifactTitle(d.content),
-        null,
-        undefined,
-        d.templateId,
-    );
-    if (newId) {
-        setDrafts(id, "state", "opened");
-        if (activeDraftId() === id) setActiveDraftId(null);
-    }
-    return newId;
-}
-
-export function discardDraft(id: string): void {
-    capture("chat_proposal_dismissed", { kind: "draft" });
-    if (drafts[id]) setDrafts(id, "state", "discarded");
-    if (activeDraftId() === id) setActiveDraftId(null);
+// a template picked in the chat opens as a piece of the person's own, in the editor
+export async function startFromTemplate(templateId: string): Promise<string | null> {
+    if (busy()) return null;
+    const all = await templatesOnce().catch(() => null);
+    const t = all?.find((x) => x.id === templateId);
+    if (!t) return null;
+    return persistArtifact(t.content, t.name, null, undefined, templateId);
 }
 
 function runAction(a: WorkspaceAction): void {
@@ -659,20 +544,22 @@ export function shareArtifactAction(id: string): void {
     openShare({ artifactId: id, title: art?.title ?? "Untitled" });
 }
 
-// trash waits for a confirm; share/export route via the component; everything else runs on arrival
-const needsConfirm = (a: WorkspaceAction): boolean => a.kind === "trash";
+// share/export route via the component; a confirmed action waits for a click; the rest run on arrival
 const isRouting = (a: WorkspaceAction): boolean => a.kind === "share" || a.kind === "export";
 
-function handleActionBlock(msgId: number, blockId: string, action: WorkspaceAction): void {
-    const confirm = needsConfirm(action);
+function handleActionBlock(
+    msgId: number,
+    blockId: string,
+    action: WorkspaceAction,
+    confirm: boolean,
+    replay = false,
+): void {
     updateMsg(msgId, (m) => {
-        const shell = m.blocks.find(
-            (b): b is Extract<UIBlock, { k: "tool" }> => b.k === "tool" && b.blockId === blockId,
-        );
+        const shell = shellOf(m, blockId);
         if (shell) shell.done = true;
         m.blocks.push({ k: "action", blockId, action, state: confirm ? "pending" : "done" });
     });
-    if (!confirm && !isRouting(action)) runAction(action);
+    if (!confirm && !isRouting(action) && !replay) runAction(action);
 }
 
 export function confirmAction(msgId: number, blockId: string): void {
@@ -701,10 +588,11 @@ function findWidget(msgId: number, blockId: string): Extract<UIBlock, { k: "widg
     return b && b.k === "widget" ? b : undefined;
 }
 
-async function saveProposalToArtifact(id: string, patch: Patch): Promise<void> {
+async function saveProposalToArtifact(id: string, ops: Patch["artifact"]): Promise<void> {
+    if (!ops?.length) return;
     try {
         const { artifact } = await api.getArtifact(id);
-        const next = applyPatch(artifact.draftContent, patch);
+        const next = applyContentOps(artifact.draftContent, ops);
         await api.saveArtifact(id, { draftContent: next });
         void loadLibrary();
     } catch {
@@ -712,31 +600,33 @@ async function saveProposalToArtifact(id: string, patch: Patch): Promise<void> {
     }
 }
 
-function markApplied(msgId: number, blockId: string, state: "applied" | "discarded"): void {
-    const type = findWidget(msgId, blockId)?.block.type;
+function markApplied(msgId: number, blockId: string, state: ProposalMark): void {
+    const w = findWidget(msgId, blockId);
     updateMsg(msgId, (m) => {
         const b = m.blocks.find((x) => x.k === "widget" && x.blockId === blockId);
         if (b && b.k === "widget") b.applied = state;
     });
-    // applying an outline/write/plan card (click or auto-approval) retires every earlier
-    // still-unapplied card of its kind, so no stale actionable card remains
-    if (state !== "applied" || (type !== "outline" && type !== "write" && type !== "plan")) return;
+    if (w?.block.type === "proposal")
+        void api.markProposal(currentKey(), w.block.id, state).catch(() => undefined);
+    // applying a card that changes the plan or writes it retires every earlier still-unapplied
+    // card of the same tool, so no stale actionable card remains
+    if (state !== "applied" || !w || w.block.type !== "proposal") return;
+    const tool = w.block.tool;
+    if (!SUPERSEDING.has(tool)) return;
     for (const m of thread.messages) {
         if (m.id > msgId) break;
         updateMsg(m.id, (mm) =>
-            discardSuperseded(mm.blocks, type, mm.id === msgId ? blockId : null),
+            discardSuperseded(mm.blocks, tool, mm.id === msgId ? blockId : null),
         );
     }
 }
 
-// only the bound target holds the beats, so an outline revision has nowhere else to go
-export function applyOutline(msgId: number, blockId: string): void {
-    capture("chat_proposal_applied", { kind: "outline" });
-    const w = findWidget(msgId, blockId);
-    if (!w || w.block.type !== "outline" || w.applied) return;
-    chatTarget()?.applyBeats?.(w.block.ops);
-    markApplied(msgId, blockId, "applied");
-}
+const SUPERSEDING = new Set<string>([
+    "start-generation",
+    "plan-outline",
+    "write-beats",
+    "revise-outline",
+]);
 
 // a designed theme must exist in the workspace before an artifact can point at it: save, then patch
 export async function applyTheme(msgId: number, blockId: string): Promise<void> {
@@ -750,58 +640,51 @@ export async function applyTheme(msgId: number, blockId: string): Promise<void> 
         dark: b.isDark,
     });
     if (!saved) return; // leave it applyable rather than marking it done
-    const patch: Patch = [{ op: "setMeta", theme: saved.id }];
+    const patch: Patch = { artifact: [{ op: "setMeta", theme: saved.id }] };
     const t = chatTarget();
-    if (t) t.apply(patch);
-    else {
-        const d = activeDraft();
-        if (d) setDrafts(d.id, "content", applyPatch(d.content, patch));
-        else commit(applyPatch(editor.artifact, patch));
-    }
+    if (t) await t.apply(patch);
+    else if (editorActive()) commit(applyContentOps(editor.artifact, patch.artifact!));
+    capture("chat_proposal_applied", { kind: "theme" });
     markApplied(msgId, blockId, "applied");
 }
 
-// writing runs through the studio's own build turns, so the console and the board share one path
-export function applyWrite(msgId: number, blockId: string): void {
-    capture("chat_proposal_applied", { kind: "write" });
-    const w = findWidget(msgId, blockId);
-    if (!w || w.block.type !== "write" || w.applied) return;
-    chatTarget()?.writeBeats?.(w.block.beatIds);
-    markApplied(msgId, blockId, "applied");
-}
-
-// planning runs the studio's own plan turn, for the same reason
-export function applyPlanRequest(msgId: number, blockId: string): void {
-    capture("chat_proposal_applied", { kind: "plan" });
-    const w = findWidget(msgId, blockId);
-    if (!w || w.block.type !== "plan" || w.applied) return;
-    chatTarget()?.requestPlan?.({ guidance: w.block.guidance, andWrite: w.block.andWrite });
-    markApplied(msgId, blockId, "applied");
-}
-
-export function applyProposal(msgId: number, blockId: string): void {
-    capture("chat_proposal_applied", { kind: "proposal" });
+// A proposal is either a call the person starts or a change they land. A call with no target bound
+// is a start-generation from the dock, which the studio store opens; everything else runs through
+// the bound target's mirror, a named library artifact, or the open editor.
+export async function applyProposal(msgId: number, blockId: string): Promise<void> {
     const w = findWidget(msgId, blockId);
     if (!w || w.block.type !== "proposal" || w.applied) return;
     const p = w.block;
-    const t = chatTarget();
-    if (p.targetArtifactId) {
-        void saveProposalToArtifact(p.targetArtifactId, p.patch);
-    } else if (t) {
-        t.apply(p.patch);
-    } else {
-        const d = activeDraft();
-        if (d) setDrafts(d.id, "content", applyPatch(d.content, p.patch));
-        else commit(applyPatch(editor.artifact, p.patch));
-    }
+    capture("chat_proposal_applied", { kind: p.tool });
     markApplied(msgId, blockId, "applied");
-}
-
-export function clearSteer(msgId: number, blockId: string): void {
-    chatTarget()?.setSteer?.("");
-    markApplied(msgId, blockId, "discarded");
+    const t = chatTarget();
+    try {
+        if (p.call) {
+            const input = (p.call.input ?? {}) as Record<string, unknown>;
+            if (t?.run) await t.run(p.tool as ToolId, input, p.cost);
+            else if (p.tool === "start-generation" && host)
+                await host.start(input as Parameters<GenerationHost["start"]>[0]);
+            else {
+                await streamTool(p.tool as ToolId, input, () => undefined);
+                void loadLibrary();
+            }
+        } else if (p.patch) {
+            if (p.targetArtifactId)
+                await saveProposalToArtifact(p.targetArtifactId, p.patch.artifact);
+            else if (t) await t.apply(p.patch);
+            else if (editorActive() && p.patch.artifact?.length)
+                commit(applyContentOps(editor.artifact, p.patch.artifact));
+        }
+    } catch (e) {
+        reportError(e, "Couldn’t apply that");
+        updateMsg(msgId, (m) => {
+            const b = m.blocks.find((x) => x.k === "widget" && x.blockId === blockId);
+            if (b && b.k === "widget") b.applied = undefined;
+        });
+    }
 }
 
 export function discardProposal(msgId: number, blockId: string): void {
+    capture("chat_proposal_dismissed", { kind: findWidget(msgId, blockId)?.block.type ?? "card" });
     markApplied(msgId, blockId, "discarded");
 }

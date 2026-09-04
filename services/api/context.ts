@@ -5,8 +5,8 @@ import { z } from "zod";
 import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
 import { fetchWebpage } from "@services/utils/webpage";
 import { embeddingReady } from "@services/core/ai/provider";
-import { pricesFor, reserve } from "@services/core/spend";
-import { ExtractError, extractUpload, geminiRead, type ImageReader } from "@services/core/extract";
+import { ExtractError, extractUpload, type ImageReader } from "@services/core/extract";
+import { runTool } from "@services/core/ai/execute";
 import {
     addArtifactItem,
     addLinkItem,
@@ -90,16 +90,16 @@ context.post("/extract", requireWorkspace, extractLimiter, extractBody, async (c
     // tokens were not merely unbilled but unrecorded.
     let refused: { remaining: number; capped?: number } | null = null;
     const metered: ImageReader = async (file) => {
-        const held = await reserve(ws, c.get("user").id, "read-file", {
-            prices: pricesFor(ws, {}),
-            role: c.get("role"),
-            surface: "direct",
-        });
-        if (!held.ok) {
-            refused = held;
+        const out = await runTool<string>(
+            { id: "read-file", surface: "direct", input: { mime: file.mime, data: file.data } },
+            { userId: c.get("user").id, ws, role: c.get("role") },
+            { ctx: { image: {} } },
+        );
+        if (!out.ok) {
+            if (out.reason === "credits") refused = out;
             throw new ExtractError("reading this file needs credits", 400);
         }
-        return await held.settle(() => geminiRead(file));
+        return out.result;
     };
     try {
         const out = await extractUpload(

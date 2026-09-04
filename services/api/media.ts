@@ -1,18 +1,17 @@
 import { Hono } from "hono";
-import { streamSSE } from "hono/streaming";
+import type { Context } from "hono";
 import type { MediaItem, MediaKind, MediaProvider, MediaSource } from "@model/media";
-import { featuresFor } from "@model/billing";
 import { z } from "zod";
 import { assetUrl } from "@model/media";
 import { BAD_BODY, creditRefusal, readJson } from "@services/utils/http";
-import { pricesFor, reserve } from "@services/core/spend";
+import { runTool } from "@services/core/ai/execute";
+import type { ToolOutcome } from "@services/core/ai/execute";
 import {
     adoptUrls,
     adoptable,
     assetForBytes,
     deleteAsset,
     embedPoster,
-    generateVideo,
     getIcon,
     imageGenReady,
     libraryAssets,
@@ -23,14 +22,11 @@ import {
     searchStock,
     stockReady,
     storageFull,
-    storeGenerated,
     storeUpload,
-    streamImages,
-    type GenRef,
     useItem,
     videoGenReady,
 } from "@services/core/media";
-import { requireWorkspace, type WorkspaceEnv } from "./middleware";
+import { requireWorkspace, streamRun, type WorkspaceEnv } from "./middleware";
 
 export const media = new Hono<WorkspaceEnv>();
 
@@ -103,6 +99,19 @@ const zUse = z.object({
         .optional(),
 });
 
+// what a media route answers when the executor refused before the body ran
+function refused(
+    c: Context<WorkspaceEnv>,
+    out: Extract<ToolOutcome<unknown>, { ok: false }>,
+): Response {
+    const ws = c.get("ws");
+    if (out.reason === "credits") return c.json(creditRefusal(ws, out), 402);
+    if (out.reason === "entitlement")
+        return c.json({ error: "That needs a higher plan.", upgrade: true }, 402);
+    if (out.reason === "bad-input") return c.json({ error: out.issues.join("; ") }, 400);
+    return c.json({ error: "that action is not available" }, 500);
+}
+
 // Metered per image: reserved up front, reconciled down so failed variations aren't charged.
 media.post("/media/generate", requireWorkspace, async (c) => {
     const ws = c.get("ws");
@@ -111,56 +120,56 @@ media.post("/media/generate", requireWorkspace, async (c) => {
     if (!body) return c.json(BAD_BODY, 400);
     const { prompt, aspect, n, style, refId } = body;
     if (!prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
-    const p = prompt.trim();
 
-    // resolve the refinement base before reserving credits, so a bad ref fails uncharged
-    let ref: GenRef | undefined;
-    if (refId) {
-        const found = await refImage(ws.id, refId);
-        if (!found) return c.json({ error: "reference image not found" }, 400);
-        ref = found;
-    }
-
+    // resolve the refinement base before anything is held, so a bad ref fails uncharged
+    if (refId && !(await refImage(ws.id, refId)))
+        return c.json({ error: "reference image not found" }, 400);
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
     const want = Math.max(1, Math.min(4, n ?? 1));
+
+    let produced = 0;
     // prices, not the defaults: the picture runs on the tier's image model, so a workspace on a
     // dearer one has to be quoted and billed at that model's price rather than the base model's
-    const held = await reserve(ws, c.get("user").id, "generate-image", {
-        size: { variations: want },
-        prices: pricesFor(ws, {}),
-        role: c.get("role"),
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
-
-    return streamSSE(c, (stream) =>
-        held.settle(async (billed) => {
-            const send = (data: unknown): Promise<void> =>
-                stream.writeSSE({ data: JSON.stringify(data) });
-            let produced = 0;
-            try {
-                for await (const img of streamImages(
-                    p,
-                    aspect,
-                    want,
-                    style ?? "photo",
-                    ref,
-                    featuresFor(ws).imageModelTier,
-                )) {
-                    if (!img) {
-                        await send({ type: "fail" });
-                        continue;
-                    }
-                    const item = await storeGenerated(ws.id, "image", img, p);
-                    produced++;
-                    await send({ type: "image", item });
-                }
-            } finally {
-                billed({ image: produced });
-                await send({ type: "done", produced });
+    return streamRun(c, {
+        refused: (out) => refused(c, out),
+        frame: (ev) => {
+            if (ev.type === "media") {
+                produced++;
+                return { type: "image", item: ev.item };
             }
-        }),
-    );
+            return ev.type === "media.failed" ? { type: "fail" } : null;
+        },
+        tail: (out) => [
+            ...(out instanceof Error
+                ? [{ type: "fail", error: out.message }]
+                : !out.ok
+                  ? [{ type: "fail", error: refusalLine(out) }]
+                  : []),
+            { type: "done", produced },
+        ],
+        run: ({ onHeld, onEvent }) =>
+            runTool(
+                {
+                    id: "generate-image",
+                    surface: "direct",
+                    input: {
+                        prompt: prompt.trim(),
+                        aspect,
+                        variations: want,
+                        style: style ?? "photo",
+                        ...(refId ? { ref: refId } : {}),
+                    },
+                },
+                { userId: c.get("user").id, ws, role: c.get("role") },
+                {
+                    ctx: { image: {} },
+                    size: { variations: want },
+                    produced: () => ({ image: produced }),
+                    onHeld,
+                    onEvent,
+                },
+            ),
+    });
 });
 
 // One 8s clip per request; progress heartbeats keep the stream alive while Veo is polled.
@@ -171,40 +180,58 @@ media.post("/media/generate-video", requireWorkspace, async (c) => {
     if (!body) return c.json(BAD_BODY, 400);
     const { prompt, aspect } = body;
     if (!prompt?.trim()) return c.json({ error: "a prompt is required" }, 400);
-    const p = prompt.trim();
     const ar = aspect === "9:16" ? "9:16" : "16:9";
 
     if (await storageFull(ws)) return c.json(STORAGE_FULL, 402);
-    const held = await reserve(ws, c.get("user").id, "generate-video", {
-        prices: pricesFor(ws, {}),
-        role: c.get("role"),
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
-    return streamSSE(c, (stream) =>
-        held.settle(async (billed) => {
-            const send = (data: unknown): Promise<void> =>
-                stream.writeSSE({ data: JSON.stringify(data) });
-            let produced = 0;
-            try {
-                const vid = await generateVideo(p, ar, () => send({ type: "progress" }));
-                if (!vid) {
-                    await send({ type: "fail", error: "generation timed out" });
-                } else {
-                    const item = await storeGenerated(ws.id, "video", vid, p);
-                    produced = 1;
-                    await send({ type: "video", item });
-                }
-            } catch (e) {
-                await send({ type: "fail", error: e instanceof Error ? e.message : "failed" });
-            } finally {
-                billed({ video: produced });
-                await send({ type: "done", produced });
+    let produced = 0;
+    return streamRun(c, {
+        refused: (out) => refused(c, out),
+        frame: (ev) => {
+            if (ev.type === "media") {
+                produced = 1;
+                return { type: "video", item: ev.item };
             }
-        }),
-    );
+            if (ev.type === "media.failed") return { type: "fail", error: ev.reason ?? "failed" };
+            // the render is one long call with nothing to say until it lands; the beat below keeps
+            // the connection open through it
+            return ev.type === "narration" ? { type: "progress" } : null;
+        },
+        tail: (out) => [
+            ...(out instanceof Error
+                ? [{ type: "fail", error: out.message }]
+                : !out.ok
+                  ? [{ type: "fail", error: refusalLine(out) }]
+                  : []),
+            { type: "done", produced },
+        ],
+        run: ({ onHeld, onEvent }) => {
+            const beat = setInterval(
+                () => onEvent({ type: "narration", text: "Rendering the clip" }),
+                5000,
+            );
+            return runTool(
+                {
+                    id: "generate-video",
+                    surface: "direct",
+                    input: { prompt: prompt.trim(), aspect: ar },
+                },
+                { userId: c.get("user").id, ws, role: c.get("role") },
+                { ctx: { image: {} }, produced: () => ({ video: produced }), onHeld, onEvent },
+            ).finally(() => clearInterval(beat));
+        },
+    });
 });
+
+// a stream has already sent its headers, so a refusal arrives as a line rather than a status
+const refusalLine = (out: Extract<ToolOutcome<unknown>, { ok: false }>): string =>
+    out.reason === "credits"
+        ? "Not enough credits."
+        : out.reason === "entitlement"
+          ? "That needs a higher plan."
+          : out.reason === "bad-input"
+            ? out.issues.join("; ")
+            : "that action is not available";
 
 media.post("/media/upload", requireWorkspace, async (c) => {
     const ws = c.get("ws");

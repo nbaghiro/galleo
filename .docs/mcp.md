@@ -11,7 +11,7 @@ Companion docs: `ai.md` (the turn protocol, the tool catalog and its pricing, th
 
 ## Status
 
-Running and connectable. Built: the tool executor, the authorization server (registration, consent,
+Running and connectable. Built: the tool executor (which now also serves the studio's generation tools, so an external client can run a generation beat by beat), the authorization server (registration, consent,
 code exchange, refresh rotation with family revocation on replay), per-call workspace resolution, the
 MCP endpoint over Streamable HTTP, the effect path that lets a write take effect with no client to
 apply it, the interactive component, and vendored fonts.
@@ -40,6 +40,7 @@ the seeded demo account. The token lands in `.mcp/`, which is gitignored.
 | file                             | what it holds                                                        |
 | -------------------------------- | -------------------------------------------------------------------- |
 | `services/core/ai/execute.ts`    | `runTool`: the surface check, the scope, the schema, the credit hold |
+| `services/core/generations.ts`   | the `GenerationStore`: the run's row, its draft, the writer lease    |
 | `services/core/ai/effects.ts`    | load, apply, commit, and the room resync                             |
 | `services/core/authorization.ts` | clients, codes, tokens, PKCE, rotation, families, connected apps     |
 | `services/api/authorize.ts`      | the two metadata documents, `/oauth/*`, the consent page             |
@@ -246,178 +247,138 @@ because it is the single exception to an otherwise uniform rule.
 
 ## One executor, three transports
 
-The tool bodies are already shared. Each tool file exports a plain function and a registered tool
-wrapping it (`reviseElement` and `reviseElementTool` in `tools/element.ts`), and `services/api/ai.ts`
-imports the function while `chat.ts` imports the tool. What is not shared is the envelope around a
-call, and MCP would be the third copy of it.
-
-Four seams have already drifted:
-
-- **Input contracts are inconsistent.** Some routes duplicate a tool: `/ai/theme` takes
-  `{prompt, isDark}`, which is exactly `generate-theme`'s input. Some are a different operation
-  sharing an inner function: `/ai/element` is handed the element object, while `revise-element`
-  locates one by type and ordinal, because an LLM can name a type but cannot hand over a node. And
-  `/ai/text` multiplexes two tools behind an `op` field. Only the first kind is duplication, so this
-  seam closes per route rather than by a sweep.
-- **Metering is inconsistent.** `/ai/element` calls `reserve(ws, userId, "revise-element", …)` itself,
-  naming the tool id as a string literal in the route, while a tool called inside an agent turn
-  reserves nothing: `/ai/turn` holds one reservation and settles against measured usage. The same
-  tool is billed differently depending on the caller.
-- **The surface field is decorative.** `toolsFor()` is referenced only in its own file and one test.
-  `chat.ts` hand-assembles its toolset from twenty named imports, so a tool declaring
-  `surfaces: ["agent"]` is not offered to the agent unless somebody also remembers the import.
-  Nothing checks at runtime that a caller may have the tool it asked for.
-- **Results are shaped per route.**
-
-### The envelope
-
-One executor in `services/core/ai/execute.ts`:
+Every tool body is a plain generator registered with `implement()` in `services/core/ai/tools/`,
+and every caller reaches it through one function, `runTool` in `services/core/ai/execute.ts`:
 
 ```ts
-export async function* runTool(
-    call: { id: ToolId; surface: ToolSurface; input: unknown },
-    principal: { user; ws; role },
-    opts: { ctx; meter?; models?; reservation? },
-): AsyncGenerator<TurnEvent, ToolOutcome>;
+runTool(
+    { id, surface, input },           // input is untrusted; the tool's own zod schema parses it
+    principal,                        // { userId, ws, role, scopes? }, or null for a public tool
+    { ctx, holds?, apply?, size?, onEvent?, onHeld?, produced?, trace? },
+): Promise<ToolOutcome>;
 ```
 
-In order: resolve the tool, check the surface permits this caller, parse the input with the tool's own
-schema, apply the `featuresFor(ws)` entitlement, reserve, run while forwarding events, settle, return.
-Step two is what turns `surfaces` from a comment into a rule.
+In order: the catalog lists the surface the call arrived on; the granted scope covers the tool
+(a session has no scopes and skips this); the workspace's plan carries the entitlement the tool
+names; the input parses; a `generationId` in the input loads the run and its draft into the
+context; a write to a generation claims its writer lease; the credits are held, sized off the
+generation for a write; the body runs, and every patch it yields is applied through the
+`GenerationStore` as it arrives; the hold settles against what ran. The outcome is `{ ok, result,
+patches, artifactId?, generationId? }` or a typed refusal.
 
-It is a separate file from `tools.ts` rather than an addition to it, on the grounds that the registry
-says what a tool **is** and the executor says what happens **around a call**. Keeping billing out of
-the registry is also what lets the registry stay unit-testable without a ledger.
+It is a separate file from the registry, on the grounds that the registry says what a tool **is**
+and the executor says what happens **around a call**. Keeping billing out of the registry is what
+lets a body run against the in-memory store in a unit test or an eval with no ledger.
 
-### The reservation seam
+### The hold
 
-`opts.reservation` is what makes one executor serve all three surfaces. Absent, the executor reserves
-and settles for itself, which is what a one-off direct call or an MCP call wants. Present, the
-enclosing turn already holds credits, so the executor runs the body and bills nothing, preserving what
-`/ai/turn` does today.
+`holds` is what makes one executor serve every surface without double-charging. Absent (or
+`"self"`), the executor reserves and settles for itself, which is what a direct route, an MCP call
+or an API call wants. `"caller"` means the enclosing turn already holds credits, which is how the
+chat agent's sub-tools run: one reservation per turn, settled for the reply and every tool it ran.
 
-Without that seam, unifying would silently double-charge every agent turn. It is the single most
-important line in this section.
+`onHeld` fires once the credits are held and before the body runs. A streaming route
+(`streamRun` in `services/api/middleware.ts`) waits for it before opening the SSE body, so a
+refusal is still a status rather than a line smuggled down a 200.
 
-### What each surface becomes
+### The patch
 
-- **agent**: builds its toolset from `toolsFor("agent")` instead of twenty imports, so adding a tool
-  to the catalog stops being a two-file edit where forgetting the second file fails silently.
-- **direct**: the existing routes keep their URLs, and keep their own body schemas, which
-  `check:validation` requires at the HTTP boundary whatever runs underneath. What they drop is the
-  `reserve` call naming a tool id as a string literal, which is the fork that actually matters.
-- **mcp**: `tools/list` from `toolsFor("mcp")`, with JSON Schema derived from the same zod schema that
-  validates the call (zod is on `^4.4.3`, which has `z.toJSONSchema()` natively, so there is no second
-  description of the inputs). `tools/call` goes through the executor.
+`apply` decides whether the patches a body yields persist. True (the default) is what every
+delegated call wants: the change lands in the draft or the target as it is yielded. False is the
+chat agent's `confirm: "after"` policy: the patches are collected onto a card and land only when
+the user presses it, through `apply-patch`.
+
+### What each surface is
+
+- **agent**: the toolset is `offeredTo(ctx)`, the catalog's `agent` surface filtered by what the
+  context holds (`needs` / `without`). Adding a tool to the catalog and implementing it is the
+  whole job.
+- **direct**: the routes keep their URLs and their own body schemas at the HTTP boundary, as
+  `check:validation` requires, and hand the call to the executor. `POST /ai/turn { tool, input }`
+  streams any tool on the surface; the JSON one-shots name theirs.
+- **mcp** and **api**: `tools/list` from the `mcp` surface, with JSON Schema derived from the same
+  zod schema that validates the call; `tools/call` and the REST vocabulary both go through
+  `services/core/delegated.ts` and then the executor.
 
 ### Keeping it unified
 
-Unifying the code once is the smaller half of the problem, since the four seams above drifted apart
-without anyone deciding they should. This repo already answers that pattern with guards that plant
-violations to prove they still report, so `pnpm check:tools` asserts:
+`pnpm check:tools` asserts, planting a violation first so a quiet run is a failure:
 
-- no file under `services/api/` imports a tool body, which is the regression that re-forks
-  validation (a type-only import of a result shape is not a body and does not count),
-- no file outside the executor calls `reserve` with a tool id, which is the regression that re-forks
-  metering, except the handful in the script's `ALLOW`: narration, voice audition and voice design
-  price a provider call the catalog names but no registered body runs, and `/ai/turn` holds the one
-  reservation a whole agent turn settles against,
+- no file under `services/api/` imports a tool body (a type-only import of a result shape is not a
+  body),
+- no file outside the executor calls `reserve` with a tool id; the script's `ALLOW` is empty,
+- every tool reachable by the agent declares a confirm policy,
 - every tool reachable on a non-internal surface resolves to a scope,
-- every tool that is **live** on the `mcp` surface has an implementation, since `tools/list` is built
-  from the registry and would otherwise leave a declared tool silently out; a planned one (no `live`)
-  may name where it will land,
-- every `mcp` tool name is at most 64 characters, which is the Claude directory's limit.
+- every tool that is **live** on the `mcp` surface has an implementation,
+- every `mcp` tool name is at most 64 characters, the Claude directory's limit.
 
 A `TOOL_SPEC` entry is not checked here because `implement()` already throws at import for a
 reachable tool without one, which is earlier and louder than a guard.
 
 ## The tool surface
 
-The `mcp` surface is 19 tools, and the `api` surface is the same 19, because what an external AI
+The `mcp` surface is 29 tools, and the `api` surface is the same 29, because what an external AI
 client may do and what an integration may do are the same list: the difference between them is how
 they authenticated, not what they are allowed to reach. `OVER_MCP` in `model/tools.ts` is
 `["agent", "direct", "mcp", "api"]`, so the delegated surfaces move together by construction.
 
 Five reads let a client find its way around (`find-artifacts`, `read-artifact`, `show-sections`,
-`find-templates`, `list-workspaces`), eleven writes change stored state, and three are destructive or
-undo something destructive (`trash-artifact`, `remove-section`, `restore-artifact`). The reads are the
-lowest risk and the ones a store reviewer can exercise without spending credits, and `find-templates`
-is `public`, so it answers with no token at all.
+`find-templates`, `list-workspaces`, the last two `public` or account-level). The **generation's
+tools** are all here (`start-generation`, `plan-outline`, `revise-brief`, `revise-outline`,
+`steer-generation`, `write-beat`, `write-beats`, `pick-version`, `read-generation`,
+`finish-generation`), so an external client can run the studio's flow, beat by beat, with the
+person steering between calls; `generate-artifact` is the same flow in one call for a client that
+wants the piece whole. The content edits (`add-section`, `rewrite-section`, `edit-artifact`,
+`revise-element`, the structure tools) and the workspace verbs (`create-artifact`, `rename-`,
+`move-`, `trash-`, `restore-artifact`) complete it.
 
-The writes are gated by scope rather than by absence: a token granted `artifacts:read` still sees them
-in `tools/list` and is told what to step up to, which is what makes the read-only case genuinely
-read-only rather than merely undiscoverable.
+The writes are gated by scope rather than by absence: a token granted `artifacts:read` still sees
+them in `tools/list` and is told what to step up to, which is what makes the read-only case
+genuinely read-only rather than merely undiscoverable.
 
-An earlier version of this surface was four tools, all reads, because a write could not take effect
-with no client to apply it. The section below is no longer the gap it describes; the effect path is
-built, and the rest of the catalog joined once it was.
+Off the surface by decision: `apply-patch` (a delegated caller's changes land through the tools
+that make them, not through a raw patch), `ask-assistant` (a client brings its own model),
+`share-artifact` and `export-artifact` (both route to guarded UI), `duplicate-artifact`,
+`create-folder`, the media and speech calls (a client's own picture pipeline is not Galleo's to
+bill), `read-file`, `refine-prompt`, `search-context`, `rewrite-passage` and `reimage` (the last
+two target by a find string the agent copies, which needs the agent).
 
-`apply-patch` is declared `["mcp", "direct"]` and still has no implementation, so it never appears in
-`tools/list`. `check:tools` tolerates that deliberately, because it is marked planned rather than
-live; a live tool with no body is a failure, since the list is built from the registry and would
-quietly leave it out. The agent-loop tools (`propose-generation`, `request-write`, `steer-sections`,
-`revise-outline`, `search-context`) never join, being inner-loop affordances of Galleo's own chat that
-hand a block back to a client to apply.
+Two fields on `ToolMeta` carry the review annotations: **`effect`** (`read` / `write` /
+`destructive`, absent meaning `write`) becomes `readOnlyHint` and `destructiveHint`; **`public`**
+marks a tool that runs with no account and no workspace, today `find-templates` alone.
 
-Two fields were added to `ToolMeta` in `model/tools.ts`, since that file is already the one catalog:
-
-- **`effect`**, one of `read` / `write` / `destructive`, absent meaning `write`. The MCP layer turns
-  it into the `readOnlyHint` and `destructiveHint` annotations both directories check at review, and
-  Anthropic's guidance names a wrong hint as a common rejection. One field rather than three
-  booleans, because the three are not independent and the catalog should not be able to state a
-  combination that means nothing.
-- **`public`**, for a tool that runs with no account and no workspace, which today is
-  `find-templates` alone. A curated catalog is not somebody's content, and letting it answer
-  unauthenticated is what lets a person, or a reviewer, see what Galleo offers before deciding to
-  sign in.
-
-**Output schemas are still absent.** Both hosts want one, and the work is real rather than
-mechanical, because tools return heterogeneous values: a string, an `ArtifactRef[]`, a `Section`, an
-`ElementInstance`. `structuredContent` is already returned; the declared schema is the missing half.
+**Output schemas.** Every tool on the `mcp` and `api` surfaces declares an `output` zod schema in
+`TOOL_SPEC` beside its `input`, structural rather than exhaustive: a section or an artifact is
+described to its envelope and the element tree inside stays open, the way the section schema
+leaves `data` open. `tools/list` publishes it as `outputSchema`, wrapped in the same
+`{ workspace?, artifact?, result }` envelope `structuredContent` carries; `GET /api/v1/tools`
+publishes the same schemas as JSON Schema beside the scope each tool takes. Both surfaces check an
+answer against the declared shape and report a mismatch as a server fault rather than failing the
+call, since the contract broken is ours. `check:tools` fails a tool published to either surface
+without one.
 
 ## The effect path
 
-An external caller has no browser, and Galleo's AI server was built on the assumption that it always
-does. That assumption is worth stating, because it is why this path had to exist before the surface
-could carry anything but reads.
+An external caller has no browser. The product's own surfaces hold the document in the browser
+and apply patches there, which keeps the AI server stateless for an artifact; a delegated caller
+needs the server to do that for it.
 
-**The AI server never persists anything.** `services/core/ai/run.ts` contains no database write.
-`runGenerate` streams `{ type: "patch", ops }` and the browser does the work:
+`services/core/delegated.ts` is the one function both delegated surfaces call. It decides the
+workspace a call lands in, runs the tool through the executor, and turns the outcome's `patches`
+into an effect: for a tool acting on an artifact it loads the stored tree (`loadContent`) and
+lands the patch with `commitPatch`, which writes it as the section ops the REST route writes
+(`toSectionOps` in `@model/ai`: apply the patch, diff, and the ops fall out), in the same
+transaction that bumps `artifacts.seq`, and publishes those ops to the room, so someone editing
+live sees the change arrive as ops rather than as a resync. A patch that names a section the
+stored document no longer has is a conflict, answered as a refusal rather than an overwrite. It
+performs a `WorkspaceAction` rather than describing one. `create-artifact` (`CREATES`) commits a piece that
+did not exist before with `commitNew`. A generation needs none of that: the executor applied its
+patches through the `GenerationStore` as they were yielded, so a `write-beat` over MCP has already
+landed in the draft by the time the outcome comes back, and `read-generation` reads the same row
+the studio would.
 
-```ts
-const next = applyPatch(drafts[id].content, ev.ops); // app/stores/chat.ts
-```
-
-**The artifact arrives from the client, not from the database.** `zElementEdit` and `zSuggest` take
-`content: zArtifactContent` in the request body, so the browser sends the document it is already
-holding. There is no server-side load step for editing in that path.
-
-**Management tools return intentions rather than effects.** `tools/manage.ts` imports no database.
-Its tools return a `WorkspaceAction`, and the comment on that type in `model/ai.ts` is explicit:
-
-```ts
-// client ROUTES to the guarded UI (Share modal / export), never publishes/downloads directly
-| { kind: "share"; id: string }
-| { kind: "export"; id: string }
-```
-
-None of that is a defect. It is a coherent design for a product whose only client is its own editor,
-and it keeps the AI server stateless. It simply does not survive contact with a caller that has no
-browser.
-
-What closes the gap is `services/core/delegated.ts`, one function that both delegated surfaces call.
-It loads the stored tree (`loadContent`), applies a tool's result through the same section-op write
-the REST route uses (`applyToContent` then `commitContent`, which bumps `artifacts.seq` so the
-collaboration room can order it), and performs a `WorkspaceAction` rather than describing one. A tool
-that creates rather than patches gathers its stream into a `Built` and commits it with `commitNew`.
-`share-artifact` and `export-artifact` are still absent from the surface, because both genuinely
-route to guarded UI and have no server-side path to run.
-
-Three sets decide what a call does with an artifact, and they are not the same question:
-`tool.patch` marks a tool that writes one back, `INSPECTS` marks a read that needs the tree handed to
-its body, and `RENDERS` marks a result worth painting rather than describing. `show-sections` was
-broken for exactly this reason before `INSPECTS` existed: it was neither a patching tool nor a plain
-read, so it was never handed the artifact and answered with an empty list every time.
+`INSPECTS` marks a read that needs the tree handed to its body (`show-sections`), and `RENDERS` a
+result worth painting rather than describing, which is what the component below is for.
 
 ## Widgets
 
@@ -529,12 +490,10 @@ work and the only one that fails a submission outright.
 
 ## Build order
 
-1. ~~The executor.~~ Built, and every direct route now runs through it: `/ai/brief`, `/ai/suggest`,
-   `/ai/element`, `/ai/text`, `/ai/refine`, `/ai/notes` and `/ai/theme` call `runTool` rather than a
-   tool body beside their own `reserve`. `check:tools` enforces both halves. The reserves that
-   remain outside it are in that script's ALLOW: narration, voice audition and design price a
-   provider call the catalog names but no registered tool body runs, and `/ai/turn` holds the one
-   reservation a whole agent turn settles against.
+1. ~~The executor.~~ Built, and every route runs through it: `/ai/turn` streams any tool, and
+   `/ai/suggest`, `/ai/element`, `/ai/text`, `/ai/refine`, `/ai/notes`, `/ai/theme`, the media,
+   narration, voice and context routes call `runTool` rather than a tool body beside their own
+   `reserve`. `check:tools` enforces both halves and its ALLOW list is empty.
 2. ~~The `mcp` surface membership and the `effect` annotation.~~ Built. Output schemas are not.
 3. ~~The authorization server.~~ Built, and hardened: the consent screen validates the session
    through `currentUser` so a password reset revokes it, the consent form is signed against the

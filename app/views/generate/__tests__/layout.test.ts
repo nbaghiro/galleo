@@ -70,15 +70,15 @@ describe("hitRegion", () => {
 });
 
 describe("outlineEditable", () => {
-    it("stays true after the first write parks the run at 'building'", () => {
-        // buildSectionNow sets { stage: "building", paused: true }, so runLocked stays false;
-        // gating on stage === "outline" is what hid the controls on every unwritten beat
-        expect(outlineEditable("outline", false)).toBe(true);
-        expect(outlineEditable("building", false)).toBe(true);
+    it("stays true after the first write parks the run at 'writing'", () => {
+        // buildSectionNow sets { stage: "writing", paused: true }, so runLocked stays false;
+        // gating on stage === "outlined" is what hid the controls on every unwritten beat
+        expect(outlineEditable("outlined", false)).toBe(true);
+        expect(outlineEditable("writing", false)).toBe(true);
     });
 
     it("freezes while the queue is actually running", () => {
-        expect(outlineEditable("building", true)).toBe(false);
+        expect(outlineEditable("writing", true)).toBe(false);
     });
 
     it("still allows writing a beat left unwritten at the end of a run", () => {

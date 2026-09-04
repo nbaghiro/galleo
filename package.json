@@ -53,6 +53,7 @@
         "fonts:vendor": "tsx scripts/fonts-vendor.ts",
         "check:fonts": "tsx scripts/check-fonts.ts",
         "mcp": "tsx scripts/mcp.ts",
+        "traces": "tsx scripts/traces.ts",
         "posthog:dashboards": "tsx scripts/posthog-dashboards.ts",
         "media:elements": "tsx scripts/migrate-media-elements.ts"
     },

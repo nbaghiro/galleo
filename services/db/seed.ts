@@ -175,7 +175,7 @@ async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<Wo
 }
 
 // FK-safe order. visits.ref has no FK (it spans artifacts and templates), so those rows are dropped
-// by hand, the way core/artifacts.ts does on a real delete. eval_runs are left alone: the eval
+// by hand, the way core/artifacts.ts does on a real delete. traces are left alone: the
 // seeder owns them, and a workspace reseed must not destroy them.
 async function wipeWorkspace(wsId: string): Promise<void> {
     const owned = await db
@@ -595,10 +595,9 @@ async function reapRetired(): Promise<void> {
         await wipeWorkspace(ws.id);
         await db.delete(schema.invites).where(eq(schema.invites.workspaceId, ws.id));
         await db.delete(schema.members).where(eq(schema.members.workspaceId, ws.id));
-        // wipeWorkspace spares eval_runs on purpose, because a reseed must not destroy what the eval
-        // seeder owns. A retirement is not a reseed: the row is going, and its runs reference it, so
-        // they go with it or the delete below fails on the foreign key.
-        await db.delete(schema.evalRuns).where(eq(schema.evalRuns.workspaceId, ws.id));
+        // wipeWorkspace spares traces on purpose, because a reseed must not destroy the record of
+        // what ran. A retirement is not a reseed: the row is going, so they go with it.
+        await db.delete(schema.traces).where(eq(schema.traces.workspaceId, ws.id));
         await db.delete(schema.workspaces).where(eq(schema.workspaces.id, ws.id));
     }
     if (stale.length) log(`• reaped ${stale.length} retired workspaces`);

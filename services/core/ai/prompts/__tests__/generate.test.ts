@@ -354,3 +354,18 @@ describe("the shape a picked starter lends the outline", () => {
         expect(outlineParts(input, { forms }).prompt).toContain("rather than inventing data");
     });
 });
+
+describe("the stack order", () => {
+    const input: GenerateInput = { prompt: "p", surface: "deck", theme: "studio" };
+    it("puts what every section call shares before the surface and theme lines", () => {
+        const system = sectionParts(input, outline.beats[0]!, outline).system;
+        const at = (s: string): number => system.indexOf(s);
+        expect(at("## Elements")).toBeGreaterThan(-1);
+        expect(at("## Elements")).toBeLessThan(at("This is a DECK"));
+        expect(at("This is a DECK")).toBeLessThan(at("The active theme is"));
+        expect(at("The active theme is")).toBeLessThan(at("## Output, return ONE JSON object"));
+    });
+    it("lists the catalog's presets in the planner's job, four-up included", () => {
+        expect(outlineParts(input).system).toContain("four-up");
+    });
+});

@@ -1,19 +1,12 @@
-import { DEMO_EMAIL } from "@services/db/seed/workspaces";
 import { z } from "zod";
 import type { GenerateInput } from "@model/ai";
-import { applyPatch } from "@model/ai";
+import { applyContentOps } from "@model/ai";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import { eq } from "drizzle-orm";
-import { db } from "@services/db/client";
-import { schema } from "@services/db/schema";
-import { withMeter } from "@services/core/ai/meter";
-import { runGenerate } from "@services/core/ai/run";
-import { expandBrief } from "@services/core/ai/tools/plan";
-import { recordRun, saveJudgements } from "./runs";
-import { runChecks } from "./checks";
-import { judgeRun } from "./judge";
+import { runTool } from "@services/core/ai/execute";
+import "@services/core/ai/tools/register";
+import { memoryGenerationStore } from "@services/core/generations";
 import { GEN_CASES, type GenCase } from "./gen-cases";
-import { arg, avg, hasFlag, int, judge, list, log, pool, reporter, shortModel } from "./kit";
+import { arg, avg, int, judge, list, log, pool, reporter, shortModel } from "./kit";
 
 const RUNS = int("runs", 1);
 const GEN_MODELS = list("gen-models", "google:gemini-2.5-flash");
@@ -22,26 +15,6 @@ const LENGTH = arg("length", "Short");
 const FILTER = arg("filter", "");
 const CONCURRENCY = int("concurrency", 2); // generation is heavy
 const OUT = arg("out", "");
-// --save writes each generation into eval_runs so the playground has something to show; --judge
-// adds the checklist verdict, which is what makes the matrix legible
-const SAVE = hasFlag("save");
-const CHECKLIST = hasFlag("judge");
-
-/** The account the playground reads as; runs are written against its workspace. */
-async function demoOwner(): Promise<{ userId: string; workspaceId: string }> {
-    const [u] = await db
-        .select({ id: schema.users.id })
-        .from(schema.users)
-        .where(eq(schema.users.email, DEMO_EMAIL));
-    if (!u) throw new Error(`no ${DEMO_EMAIL} user — run \`pnpm db:seed\` first`);
-    const [m] = await db
-        .select({ ws: schema.members.workspaceId })
-        .from(schema.members)
-        .where(eq(schema.members.userId, u.id));
-    if (!m) throw new Error(`${DEMO_EMAIL} has no workspace`);
-    return { userId: u.id, workspaceId: m.ws };
-}
-
 function collect(el: ElementInstance | undefined, kinds: string[], texts: string[]): void {
     if (!el) return;
     if (el.type !== "container") kinds.push(el.type); // scaffolding names no kind
@@ -61,100 +34,44 @@ function describe(content: ArtifactContent): string {
     return `Format: ${content.format} · ${content.sections.length} sections\n\n${secs.join("\n\n")}`;
 }
 
-/** Runs one generation, records it as an eval run when --save, and returns what the report needs. */
-async function generateAndSave(
-    model: string,
-    c: GenCase,
-    owner: { userId: string; workspaceId: string } | null,
-): Promise<{ content: ArtifactContent; ms: number; error?: string }> {
-    if (!owner) return generate(model, c);
-    // Only the generation runs inside the meter. The judge is a separate act of measurement, and
-    // metering it here would record its checklist calls as spans of the run it is judging.
-    const { g, checks, spans } = await withMeter(async (meter) => {
-        const gen = await generate(model, c);
-        return {
-            g: gen,
-            checks: gen.content.sections.length
-                ? runChecks(gen.content, { surface: c.surface, length: c.length ?? LENGTH })
-                : [],
-            spans: meter.uses,
-        };
-    }, true);
-
-    let judgements = undefined;
-    if (CHECKLIST && g.content.sections.length && !g.error) {
-        try {
-            judgements = await judgeRun(g.content, { reference: c.reference });
-        } catch (e) {
-            log(`  judge failed for ${c.id}: ${e instanceof Error ? e.message : String(e)}`);
-        }
-    }
-
-    {
-        const id = await recordRun({
-            workspaceId: owner.workspaceId,
-            userId: owner.userId,
-            config: {
-                kind: "generate",
-                meta: {
-                    at: new Date().toISOString(),
-                    models: { generate: model, outline: model, section: model },
-                    prompt: c.prompt,
-                    surface: c.surface,
-                    length: c.length ?? LENGTH,
-                    theme: "studio",
-                },
-            },
-            spans,
-            checks,
-            content: g.content,
-            status: g.error ? "error" : "ok",
-            error: g.error,
-            credits: 0,
-            ms: g.ms,
-        });
-        if (judgements && id) await saveJudgements(owner.workspaceId, id, judgements);
-    }
-    return g;
-}
-
 async function generate(
     model: string,
     c: GenCase,
 ): Promise<{ content: ArtifactContent; ms: number; error?: string }> {
-    // The studio expands the raw prompt into a brief before it plans, so the batch does too:
-    // otherwise a batch run is one model call shorter than the flow it is supposed to measure.
-    const brief = await expandBrief(c.prompt, c.surface, { models: { brief: model } }).catch(
-        () => null,
-    );
+    // the planner reads the brief itself, so the batch runs exactly the calls the studio runs
     const input: GenerateInput = {
         prompt: c.prompt,
         surface: c.surface,
         theme: "studio",
-        length: brief?.length ?? c.length ?? LENGTH,
-        ...(brief?.goal ? { goal: brief.goal } : {}),
-        ...(brief?.audience ? { audience: brief.audience } : {}),
-        ...(brief?.tone ? { tone: brief.tone } : {}),
-        ...(brief?.mustInclude?.length ? { mustInclude: brief.mustInclude } : {}),
+        length: c.length ?? LENGTH,
     };
     let content: ArtifactContent = { format: c.surface, theme: "studio", sections: [] };
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 300_000);
     const t0 = Date.now();
+    // no database and no account: the executor still runs the whole flow, applying each patch
+    // into the in-memory store the way the route applies it into a row
     try {
-        for await (const ev of runGenerate(input, {
-            models: { generate: model, outline: model, section: model },
-            signal: ctrl.signal,
-        })) {
-            if (ev.type === "patch") content = applyPatch(content, ev.ops);
-            else if (ev.type === "error") throw new Error(ev.message);
-        }
+        const out = await runTool({ id: "generate-artifact", surface: "direct", input }, null, {
+            ctx: {
+                image: { source: "stock" },
+                generations: memoryGenerationStore(),
+                models: { generate: model, outline: model, section: model },
+                signal: ctrl.signal,
+            },
+            onEvent: (ev) => {
+                if (ev.type === "patch" && ev.patch.artifact?.length)
+                    content = applyContentOps(content, ev.patch.artifact);
+                else if (ev.type === "error") throw new Error(ev.message);
+            },
+        });
+        if (!out.ok) throw new Error(`the run was refused: ${out.reason}`);
+        clearTimeout(timer);
+        return { content, ms: Date.now() - t0 };
     } catch (e) {
         clearTimeout(timer);
         return { content, ms: Date.now() - t0, error: e instanceof Error ? e.message : String(e) };
     }
-    clearTimeout(timer);
-    return { content, ms: Date.now() - t0 };
 }
 
 const JUDGE_SCHEMA = z.object({
@@ -201,17 +118,12 @@ export async function runGenEval(): Promise<void> {
     const tasks = GEN_MODELS.flatMap((model) =>
         cases.flatMap((c) => Array.from({ length: RUNS }, () => ({ model, c }))),
     );
-    const owner = SAVE ? await demoOwner() : null;
     log(
         `Gen eval: ${cases.length} briefs × ${RUNS} runs × ${GEN_MODELS.length} gen-model(s) = ${tasks.length} generations · judge ${shortModel(JUDGE_MODEL)}`,
     );
-    if (owner)
-        log(
-            `Saving runs to the playground (workspace ${owner.workspaceId})${CHECKLIST ? " with checklist verdicts" : ""}`,
-        );
     let done = 0;
     const results = await pool(tasks, CONCURRENCY, async (t): Promise<Result> => {
-        const g = await generateAndSave(t.model, t.c, owner);
+        const g = await generate(t.model, t.c);
         let j: Judgement | undefined;
         let error = g.error;
         if (!error) {

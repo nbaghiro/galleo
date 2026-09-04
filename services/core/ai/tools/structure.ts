@@ -7,39 +7,43 @@ interface StructureEdit {
     summary: string;
 }
 
+const edit = { patch: (e: StructureEdit) => e.patch, note: (e: StructureEdit) => e.summary };
+
 const FORMAT_NAME: Record<string, string> = { deck: "Deck", doc: "Doc", web: "Site" };
 
 export const reorderSectionTool = implement(
     "reorder-section",
     async function* (input): AsyncGenerator<TurnEvent, StructureEdit> {
         return {
-            patch: [{ op: "moveSection", id: input.sectionId, afterId: input.afterId }],
+            patch: {
+                artifact: [{ op: "moveSection", id: input.sectionId, afterId: input.afterId }],
+            },
             summary: `Move “${input.label ?? "section"}”${input.afterId ? "" : " to the front"}`,
         };
     },
-    (edit) => edit.patch,
+    edit,
 );
 
 export const removeSectionTool = implement(
     "remove-section",
     async function* (input): AsyncGenerator<TurnEvent, StructureEdit> {
         return {
-            patch: [{ op: "removeSection", id: input.sectionId }],
+            patch: { artifact: [{ op: "removeSection", id: input.sectionId }] },
             summary: `Remove “${input.label ?? "this section"}”`,
         };
     },
-    (edit) => edit.patch,
+    edit,
 );
 
 export const setFormatTool = implement(
     "set-format",
     async function* (input): AsyncGenerator<TurnEvent, StructureEdit> {
         return {
-            patch: [{ op: "setMeta", format: input.format }],
+            patch: { artifact: [{ op: "setMeta", format: input.format }] },
             summary: `Switch to ${FORMAT_NAME[input.format] ?? input.format}`,
         };
     },
-    (edit) => edit.patch,
+    edit,
 );
 
 export const setThemeTool = implement(
@@ -48,9 +52,9 @@ export const setThemeTool = implement(
         const t = THEMES[input.theme];
         if (!t) throw new Error(`there is no built-in theme "${input.theme}"`);
         return {
-            patch: [{ op: "setMeta", theme: input.theme }],
+            patch: { artifact: [{ op: "setMeta", theme: input.theme }] },
             summary: `Switch theme to ${t.name}`,
         };
     },
-    (edit) => edit.patch,
+    edit,
 );

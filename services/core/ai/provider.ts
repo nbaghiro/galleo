@@ -3,7 +3,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createXai } from "@ai-sdk/xai";
 import type { EmbeddingModel, LanguageModel } from "ai";
-import type { PromptPart } from "@model/ai";
+import type { PromptPart } from "@model/trace";
 import type { LanguageModelMiddleware } from "ai";
 import { wrapLanguageModel } from "ai";
 import { partsOf, record, recordTokens, tracing } from "./meter";

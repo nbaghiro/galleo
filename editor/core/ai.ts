@@ -1,7 +1,7 @@
 import type { ArtifactContent, ElementInstance, Section, ElementAddress } from "@model/artifact";
-import type { Beat as PlanBeat, TurnEvent, TurnRequest } from "@model/ai";
+import type { Beat as PlanBeat, TurnEvent } from "@model/ai";
 import { createStore } from "solid-js/store";
-import { applyPatch } from "@model/ai";
+import { applyContentOps } from "@model/ai";
 import { getElementAt, setElementAt, insertSection } from "@elements/ops";
 import { placeholderSection } from "@canvas/elements/blueprint";
 import { replaceTextRange, textSelection } from "./text";
@@ -192,10 +192,6 @@ export async function runSectionGen(instruction: string): Promise<void> {
     ctrl = new AbortController();
     // holder, not a bare `let`: CFA can't see the callback assignment and would narrow it to `never`
     const out: { section: Section | null } = { section: null };
-    const request: TurnRequest = {
-        kind: "section",
-        input: { instruction: text, afterId, content: baseContent },
-    };
 
     const onEvent = (ev: TurnEvent): void => {
         switch (ev.type) {
@@ -217,7 +213,8 @@ export async function runSectionGen(instruction: string): Promise<void> {
                 break;
             }
             case "patch":
-                for (const op of ev.ops) if (op.op === "addSection") out.section = op.section;
+                for (const op of ev.patch.artifact ?? [])
+                    if (op.op === "addSection") out.section = op.section;
                 break;
             case "error":
                 setSectionGen({ stage: "error", error: ev.message });
@@ -226,7 +223,11 @@ export async function runSectionGen(instruction: string): Promise<void> {
     };
 
     try {
-        await streamer(request, onEvent, ctrl.signal);
+        await streamer(
+            { tool: "add-section", input: { instruction: text, afterId }, artifact: baseContent },
+            onEvent,
+            ctrl.signal,
+        );
     } catch (e) {
         if (ctrl?.signal.aborted) {
             removePlaceholder();
@@ -254,7 +255,7 @@ export async function runSectionGen(instruction: string): Promise<void> {
         setArtifactLive(baseContent);
         commitOver(
             baseContent,
-            applyPatch(baseContent, [{ op: "addSection", afterId, section: landed }]),
+            applyContentOps(baseContent, [{ op: "addSection", afterId, section: landed }]),
         );
         setSelection({ kind: "section", section: landed.id });
         setSectionGen({ stage: null, afterId: null, beat: null, caption: "", error: null });

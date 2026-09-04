@@ -1,6 +1,6 @@
 // grounded in the demo library — run `pnpm seed` first so `find-artifacts` resolves
 
-type EvalSurface = "library" | "editor";
+type EvalSurface = "library" | "editor" | "generate";
 
 interface ExpectArgs {
     targetArtifact?: string; // proposal.targetArtifactId === the artifact whose title contains this
@@ -9,8 +9,9 @@ interface ExpectArgs {
     actionFolder?: string; // move → action.folderId === the folder with this name
     actionTitleContains?: string; // rename → action.title contains this
     actionName?: string; // create-folder → action.name contains this
-    briefSurface?: string;
-    briefSource?: string; // repurpose → brief.sourceArtifactId === the artifact whose title contains this
+    briefSurface?: string; // start-generation → the proposed call's surface
+    briefSource?: string; // repurpose → the proposed call's sourceArtifactId === the artifact whose title contains this
+    proposalTool?: string; // a proposal card for this tool must appear
 }
 
 type JudgeWhat = "reply" | "proposalSection" | "brief";
@@ -47,7 +48,7 @@ export const EVAL_CASES: EvalCase[] = [
         message: "Summarize my Series A deck in two sentences.",
         intent: "find it, read it, summarize from real content",
         expectTools: ["find-artifacts", "read-artifact"],
-        forbidBlocks: ["proposal", "action", "brief"],
+        forbidBlocks: ["proposal", "action"],
         judge: {
             what: "reply",
             rubric: "A crisp ≤2-sentence summary of the Series A deck, grounded in its real content — no invented facts, no filler.",
@@ -60,7 +61,7 @@ export const EVAL_CASES: EvalCase[] = [
         message: "What is my Aria artifact actually about?",
         intent: "find + read Aria, answer from content",
         expectTools: ["find-artifacts", "read-artifact"],
-        forbidBlocks: ["proposal", "action", "brief"],
+        forbidBlocks: ["proposal", "action"],
         judge: {
             what: "reply",
             rubric: "Accurately describes what the Aria artifact is about, grounded in its content (not a guess from the title).",
@@ -73,7 +74,7 @@ export const EVAL_CASES: EvalCase[] = [
         message: "Which of my artifacts is a fundraising pitch?",
         intent: "search the library",
         expectTools: ["find-artifacts"],
-        forbidBlocks: ["proposal", "action", "brief"],
+        forbidBlocks: ["proposal", "action"],
     },
     {
         id: "edit-title",
@@ -162,8 +163,9 @@ export const EVAL_CASES: EvalCase[] = [
         category: "generate",
         surface: "library",
         message: "Make me a short deck about a coffee subscription startup for busy professionals.",
-        intent: "propose-generation → a deck brief",
-        expectBlocks: ["brief"],
+        intent: "start-generation → a deck brief card",
+        expectTools: ["start-generation"],
+        expectBlocks: ["proposal"],
         expectArgs: { briefSurface: "deck" },
         judge: {
             what: "brief",
@@ -176,16 +178,16 @@ export const EVAL_CASES: EvalCase[] = [
         surface: "library",
         message: "I'd like to make something new today.",
         intent: "too vague to build — ask ONE clarifying question, do NOT propose a brief",
-        forbidBlocks: ["brief", "proposal", "action"],
+        forbidBlocks: ["proposal", "action"],
     },
     {
         id: "repurpose",
         category: "generate",
         surface: "library",
         message: "Turn my Series A deck into a one-page document.",
-        intent: "find → propose-generation grounded in the RIGHT deck, as a doc",
-        expectTools: ["find-artifacts"],
-        expectBlocks: ["brief"],
+        intent: "find → start-generation grounded in the RIGHT deck, as a doc",
+        expectTools: ["find-artifacts", "start-generation"],
+        expectBlocks: ["proposal"],
         expectArgs: { briefSurface: "doc", briefSource: "Series A" },
     },
     {
@@ -239,7 +241,7 @@ export const EVAL_CASES: EvalCase[] = [
         surface: "library",
         message: "How many AI credits do I have left this month?",
         intent: "answer from context, don't act",
-        forbidBlocks: ["proposal", "action", "brief"],
+        forbidBlocks: ["proposal", "action"],
     },
     {
         id: "count",
@@ -247,7 +249,7 @@ export const EVAL_CASES: EvalCase[] = [
         surface: "library",
         message: "How many artifacts do I have in total?",
         intent: "answer from context/find, don't act",
-        forbidBlocks: ["proposal", "action", "brief"],
+        forbidBlocks: ["proposal", "action"],
     },
     {
         id: "refine-add",
@@ -326,7 +328,7 @@ export const EVAL_CASES: EvalCase[] = [
         turns: [
             {
                 message: "Can you fix my deck?",
-                forbidBlocks: ["proposal", "action", "brief"],
+                forbidBlocks: ["proposal", "action"],
             },
             {
                 message: "The Series A one — tighten the opening.",
@@ -335,5 +337,63 @@ export const EVAL_CASES: EvalCase[] = [
                 expectArgs: { targetArtifact: "Series A" },
             },
         ],
+    },
+    {
+        id: "gen-write-planned",
+        category: "generate",
+        surface: "generate",
+        message: "Write the cover and the problem section.",
+        intent: "planned beats are written with write-beats, never add-section",
+        expectTools: ["write-beats"],
+        forbidTools: ["add-section", "write-beat"],
+        expectBlocks: ["proposal"],
+        expectArgs: { proposalTool: "write-beats" },
+    },
+    {
+        id: "gen-revise-outline",
+        category: "generate",
+        surface: "generate",
+        message: "Move the ask before traction, and add a pricing beat after the product.",
+        intent: "structure is revise-outline, proposed as a card",
+        expectTools: ["revise-outline"],
+        forbidTools: ["plan-outline", "add-section"],
+        expectBlocks: ["proposal"],
+        expectArgs: { proposalTool: "revise-outline" },
+    },
+    {
+        id: "gen-steer",
+        category: "generate",
+        surface: "generate",
+        message: "Keep every remaining section under forty words.",
+        intent: "an instruction meant to hold across the run is steer-generation, applied on arrival",
+        expectTools: ["steer-generation"],
+        forbidBlocks: ["proposal"],
+    },
+    {
+        id: "gen-rebrief",
+        category: "generate",
+        surface: "generate",
+        message: "Actually this is for enterprise buyers, not investors.",
+        intent: "re-framing the piece is revise-brief, and the reply offers the replan",
+        expectTools: ["revise-brief"],
+        forbidTools: ["start-generation"],
+    },
+    {
+        id: "gen-replan-refused",
+        category: "restraint",
+        surface: "generate",
+        message: "Plan it again from scratch with a completely different arc.",
+        intent: "nothing is written, so a replan is plan-outline offered as a card",
+        expectTools: ["plan-outline"],
+        expectBlocks: ["proposal"],
+        expectArgs: { proposalTool: "plan-outline" },
+    },
+    {
+        id: "gen-no-new-piece",
+        category: "restraint",
+        surface: "generate",
+        message: "Make me a landing page for the same product.",
+        intent: "inside a run there is no starting something new",
+        forbidTools: ["start-generation", "generate-artifact"],
     },
 ];

@@ -72,6 +72,15 @@ export type WorkspaceCreditFields = {
 
 // One person's net spend since the window opened: charges minus refunds. Only spends and settles
 // carry a user, so grants and resets (system rows) net out of this by construction.
+/** The pool as it stands, for a gate that must answer without charging (ToolMeta.gate). */
+export async function creditBalance(ws: { id: string }): Promise<number> {
+    const [row] = await db
+        .select({ balance: schema.workspaces.aiCreditsBalance })
+        .from(schema.workspaces)
+        .where(eq(schema.workspaces.id, ws.id));
+    return row?.balance ?? 0;
+}
+
 export async function spendThisCycle(
     ws: { id: string; creditsStartedAt: Date },
     userId: string,

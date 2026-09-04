@@ -13,12 +13,11 @@ import type {
     SectionNotes,
     SharedArtifact,
 } from "@model/artifact";
-import { ACTION_FOR } from "@model/tools";
+import type { ToolId } from "@model/tools";
 import { REQUEST_ID_HEADER } from "@model/analytics";
 import { capture, setRequestId } from "@ui/analytics";
 import type { CommentCreateBody, CommentDto, CommentEditBody } from "@model/comments";
 import type { Usage } from "@model/credits";
-import type { EvalCheck, EvalJudgement, EvalRun, EvalRunSummary, Rubric } from "@model/eval";
 import type {
     AccountConnection,
     ConnectedApp,
@@ -44,7 +43,7 @@ import type {
     Features,
     ScheduledChange,
 } from "@model/billing";
-import type { BriefDraft, TurnEvent, TurnRequest } from "@model/ai";
+import type { ChatThread, ProposalMark, TurnEvent } from "@model/ai";
 import type {
     DesignedCandidate,
     LibraryVoice,
@@ -594,25 +593,6 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ content }),
         }).then((r) => r.suggestions),
-    // `previous` asks for a different reading of the same prompt
-    draftBrief: (
-        prompt: string,
-        surface?: string,
-        previous?: { goal: string; audience: string; tone: string; mustInclude?: string[] },
-    ) =>
-        req<{ brief: BriefDraft | null }>("/ai/brief", {
-            method: "POST",
-            body: JSON.stringify({
-                prompt,
-                surface,
-                previous,
-                // the brief is the first call of a session; without this the run would start at
-                // the outline and hide a real model call
-                ...(traceTurns()
-                    ? { trace: true, ...(session ? { traceSession: session } : {}) }
-                    : {}),
-            }),
-        }).then((r) => r.brief),
     // The path rather than the element: the server revises what the tree holds at that address, so
     // it runs the same tool the agent does instead of trusting a node pasted into the body.
     reviseElement: (
@@ -642,6 +622,18 @@ export const api = {
             method: "POST",
             body: JSON.stringify(req_),
         }).then((r) => r.prompt),
+    // the chat thread per subject, as the server keeps it; marks retire cards the person acted on
+    chatThread: (key: string) =>
+        req<{ thread: ChatThread | null }>(`/chat/thread?key=${encodeURIComponent(key)}`).then(
+            (r) => r.thread,
+        ),
+    markProposal: (key: string, proposal: string, mark: ProposalMark) =>
+        req<{ ok: true }>("/chat/thread/mark", {
+            method: "POST",
+            body: JSON.stringify({ key, proposal, mark }),
+        }),
+    clearThread: (key: string) =>
+        req<{ ok: true }>(`/chat/thread?key=${encodeURIComponent(key)}`, { method: "DELETE" }),
     // voice dictation: probe once to decide whether the mic renders; each hold mints its own
     // single-use socket url and streams audio browser → provider directly
     voiceStatus: () => req<{ ready: boolean }>("/ai/voice"),
@@ -836,25 +828,6 @@ export const api = {
             method: "DELETE",
         }),
 
-    // the eval playground; 404s for anyone who is not an eval admin
-    listEvalRuns: (before?: string | null) =>
-        req<{ runs: EvalRunSummary[]; nextCursor: string | null }>(
-            `/eval/runs${before ? `?before=${encodeURIComponent(before)}` : ""}`,
-        ),
-    getEvalRun: (id: string) => req<{ run: EvalRun }>(`/eval/runs/${id}`),
-    getEvalRubric: () => req<{ rubric: Rubric }>("/eval/rubric"),
-    judgeEvalRun: (id: string) =>
-        req<{ judgements: EvalJudgement[] }>(`/eval/runs/${id}/judge`, { method: "POST" }),
-    judgeEvalVisuals: (id: string, images: { id: string; dataUrl: string }[]) =>
-        req<{ judgements: EvalJudgement[] }>(`/eval/runs/${id}/judge-visual`, {
-            method: "POST",
-            body: JSON.stringify({ images }),
-        }),
-    postEvalChecks: (id: string, checks: EvalCheck[]) =>
-        req<{ ok: true }>(`/eval/runs/${id}/checks`, {
-            method: "POST",
-            body: JSON.stringify({ checks }),
-        }),
     inviteMember: (email: string, role: "admin" | "member" = "member") =>
         req<{ invite: WorkspaceInvite; url: string; sent: boolean }>("/workspace/invites", {
             method: "POST",
@@ -947,36 +920,22 @@ export const api = {
         req<{ ok: true }>(`/links/${linkId}/recipients/${recipientId}`, { method: "DELETE" }),
 };
 
-// stream one AI turn (POST /ai/turn) over SSE; throws ApiError pre-stream (e.g. 402), aborts via signal
-// Eval tracing rides along on whatever turn the studio runs, so the playground exercises the real
-// flow rather than a copy of it. Persisted, since turning it on and then navigating to the studio is
-// the whole point. The server honours it only for eval admins.
-const TRACE_KEY = "galleo.eval.trace";
-// Guarded by capability, not existence: node defines a `localStorage` global that has no getItem
-// unless it was started with a backing file, and streamTurn is exercised in node tests.
-const store = (): Storage | null => {
-    const s = typeof localStorage === "undefined" ? null : localStorage;
-    return typeof s?.getItem === "function" ? s : null;
-};
-export const traceTurns = (): boolean => store()?.getItem(TRACE_KEY) === "1";
-export const setTraceTurns = (on: boolean): void => {
-    if (on) store()?.setItem(TRACE_KEY, "1");
-    else store()?.removeItem(TRACE_KEY);
-};
+export interface StreamToolOptions {
+    // the open artifact, for a tool that acts on the document the browser holds
+    artifact?: ArtifactContent;
+    signal?: AbortSignal;
+}
 
-// One authoring session; every turn it makes folds into a single eval run.
-let session: string | null = null;
-export const setTraceSession = (id: string | null): void => {
-    session = id;
-};
-
-export async function streamTurn(
-    request: TurnRequest,
+// Stream one tool call (POST /ai/turn) over SSE; throws ApiError pre-stream (e.g. 402), aborts via
+// the signal. One transport whether the events drive the studio, the chat thread or the editor.
+export async function streamTool(
+    tool: ToolId,
+    input: unknown,
     onEvent: (event: TurnEvent) => void,
-    signal?: AbortSignal,
+    opts: StreamToolOptions = {},
 ): Promise<void> {
-    // Turns run one at a time in the studio, so a single current id is exact rather than a guess:
-    // every client event fired while this turn is open joins to the server events it caused.
+    // Calls run one at a time in the studio, so a single current id is exact rather than a guess:
+    // every client event fired while this call is open joins to the server events it caused.
     const requestId = crypto.randomUUID();
     setRequestId(requestId);
     const res = await fetch("/api/ai/turn", {
@@ -987,12 +946,12 @@ export async function streamTurn(
             [REQUEST_ID_HEADER]: requestId,
             ...modelHeaders(),
         },
-        body: JSON.stringify(
-            traceTurns()
-                ? { ...request, trace: true, ...(session ? { traceSession: session } : {}) }
-                : request,
-        ),
-        signal,
+        body: JSON.stringify({
+            tool,
+            input,
+            ...(opts.artifact ? { artifact: opts.artifact } : {}),
+        }),
+        signal: opts.signal,
     });
     if (!res.ok || !res.body) {
         const text = await res.text().catch(() => "");
@@ -1034,7 +993,7 @@ export async function streamTurn(
                     if (typeof logged.event.type === "string") phase = logged.event.type;
                     if (logged.event.type === "turn.done") finished = true;
                     if (logged.event.type === "error") reported = true;
-                    // Outside the parse: a handler that throws is the consumer saying the turn
+                    // Outside the parse: a handler that throws is the consumer saying the call
                     // failed, and swallowing it here alongside a bad frame is what turned a
                     // provider error into a section that silently never arrived.
                     onEvent(logged.event);
@@ -1046,9 +1005,9 @@ export async function streamTurn(
         // A stream that ends without its terminal frame is a death, not a completion. A cancel is
         // neither: the studio aborts the controller when the user closes it, and counting that as a
         // disconnection would make reliability look worse the more people change their minds.
-        if (!finished && !reported && !signal?.aborted)
+        if (!finished && !reported && !opts.signal?.aborted)
             capture("stream_disconnected", {
-                tool_id: ACTION_FOR[request.kind],
+                tool_id: tool,
                 at_phase: phase,
                 ms: Date.now() - startedAt,
             });

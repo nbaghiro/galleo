@@ -8,6 +8,8 @@ import { schema } from "@services/db/schema";
 import type { Transport } from "@services/utils/analytics";
 import { initAnalytics, shutdownAnalytics } from "@services/utils/analytics";
 import { reserve } from "@services/core/spend";
+import { runTool } from "@services/core/ai/execute";
+import { estimateCost } from "@model/tools";
 import { consumeWebhook, stripe } from "@services/core/billing";
 import {
     createMachineClient,
@@ -110,13 +112,29 @@ describe("the credit wall, against a real ledger", () => {
         const { userId, workspaceId } = await seedUser({ plan: "pro" });
         await setBalance(workspaceId, 1_000);
 
-        const held = await reserve(await workspaceRow(workspaceId), userId, "ask-assistant");
-        if (!held.ok) throw new Error("a funded workspace must not be refused");
-        // A run that burns no tokens and produces nothing owes nothing, so the reserve refunds itself
-        await held.settle(async () => "done");
+        // The completed event is written off the trace as the call closes, so it is only ever
+        // seen through the executor. The scripted model answers rewrite-text with no tokens, so a
+        // run that burns nothing owes nothing and the reserve refunds itself.
+        const savedFake = process.env.GALLEO_FAKE_AI;
+        process.env.GALLEO_FAKE_AI = "1";
+        try {
+            const out = await runTool(
+                {
+                    id: "rewrite-text",
+                    surface: "direct",
+                    input: { text: "hello", instruction: "shorter" },
+                },
+                { userId, ws: await workspaceRow(workspaceId), role: "owner" },
+                { ctx: { image: {} } },
+            );
+            if (!out.ok) throw new Error(`a funded workspace must not be refused: ${out.reason}`);
+        } finally {
+            if (savedFake === undefined) delete process.env.GALLEO_FAKE_AI;
+            else process.env.GALLEO_FAKE_AI = savedFake;
+        }
 
         const [done] = await eventsNamed("ai_action_completed");
-        expect(done?.properties.tool_id).toBe("ask-assistant");
+        expect(done?.properties.tool_id).toBe("rewrite-text");
         const charged = done?.properties.credits_charged as number;
 
         const rows = await db
@@ -125,13 +143,13 @@ describe("the credit wall, against a real ledger", () => {
             .where(
                 and(
                     eq(schema.credits.workspaceId, workspaceId),
-                    eq(schema.credits.reason, "ask-assistant"),
+                    eq(schema.credits.reason, "rewrite-text"),
                 ),
             );
         const ledger = rows.reduce((n, r) => n - r.delta, 0);
         expect(charged).toBe(ledger);
-        // and the estimate was 10, so the settle really did move it
-        expect(charged).toBeLessThan(10);
+        // and the estimate was above zero, so the settle really did move it
+        expect(charged).toBeLessThan(estimateCost("rewrite-text"));
 
         const after = await workspaceRow(workspaceId);
         expect(after.aiCreditsBalance).toBe(1_000 - ledger);

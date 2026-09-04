@@ -104,7 +104,8 @@ comments.ts    the anchors, thread DTOs + wire bodies, and the pure anchor-resol
 collab.ts      the live-collaboration wire protocol: presence/lease/op messages, their guards, and the content-relative cursor math both ends share (see collab.md)
 analytics.ts   the product-event contract: every event name and its property shape, the super/identify/group traits, and the bucketing that keeps content out. Here because the frontend and the backend both emit, and model is the only layer both may import
 speech.ts      voice + narration + the music bed: the voice catalog and shelf DTOs, the browse filters, the character alignment a caption highlights from, the Soundtrack DTO and its default preset, and the pure word-span math both ends share
-eval.ts        the traced-run contract the eval playground reads
+eval.ts        the verdict contract the offline eval harnesses and the layout checks share: checks, judgements, the rubric, the section archetypes
+trace.ts       what one tool call did, as a record rather than a protocol: the Trace/ToolSpan/ModelCall span tree the executor writes, its level, and the readers over it (modelCalls · tokensOf · stripBodies). Split from ai.ts because a turn's wire shape and a call's history are read by different code at different times
 templates.ts   the Template DTO + TEMPLATE_INDEX (ids/labels/grouping only — the bodies are served from services/core/templates.ts, so this stays edge-safe)
 media.ts       MediaKind + IconPick + the media descriptors the picker and image elements exchange
 geometry.ts    the dimensional contract: Size (+ fit/grow/percent/fixed constructors), box insets, per-instance ElementLayout, and the deck/doc/web format profiles
@@ -338,13 +339,13 @@ stores/      the client stores + app-level controllers, one file each —
              billing.ts · features.ts · onboarding.ts · links.ts (public share links) · errors.ts ·
              theme.ts (the app + custom theme system: app-chrome theme + overlay tokens + custom-theme CRUD into the @themes registry) ·
              share.ts (the share bridge: openShare / closeShare) · media.ts (the media-picker bridge: openMediaPicker · pickMedia · pickMediaIcon) ·
-             templates.ts · eval-shots.ts ·
+             templates.ts ·
              commands.ts (the app command registrations + navigate seam) · navigate.ts · route-context.ts (publishRoute — route→context keys, kept router-free for testing)
 components/   general reusable UI — Sidebar.tsx (the confirm dialog is @ui/overlay's ConfirmModal, used inline) · TemplateGallery.tsx (category rows + preview + use; hosted by the Templates page and the intake's in-place browser) · previews.tsx (Visual · SectionThumb · PreviewCanvas) · ShareModal.tsx (multi-link sharing: create/manage per-audience links + recipients + view stats) · MediaPicker.tsx (stock · AI generate · upload · icons) · ModelPicker.tsx · VoiceInput.tsx + VoiceShelf.tsx · Upgrade.tsx + UpgradePlans.tsx · OnboardingChecklist.tsx + OnboardingSteps.tsx · VerifyBanner.tsx + ConfirmCode.tsx · ErrorModal.tsx · context-attach.tsx + attachments.ts (pasted/uploaded generation context) · palette-sources.tsx (the ⌘K source registry) · credits.tsx · voice.ts
 views/       the routed pages + the global modals mounted in the shell —
   AuthPage · LibraryView (/ + /folder/:id) · TemplatesView · SharedView · TrashView · PricingView ·
   WorkspaceSettingsView (/settings) · AccountSettingsView (/account) · InviteView + CollabInviteView ·
-  OnboardingView (the first session) · EvalView (the eval playground) ·
+  OnboardingView (the first session) ·
   EditorView (/edit/:id — the studio bridge) · PresentView (the standalone /present/:id surface, painting through @canvas) ·
   ThemeEditor (the singular theme picker + custom-token editor + AI generate) · ChatPanel (the AI chat dock) ·
   generate/ (the staged generation studio, one full-screen surface: Mission · Intake · Board · OutlineCard · Console · ContextsPane · TemplateRow over app/stores/generate.ts)

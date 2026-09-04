@@ -2,7 +2,8 @@ import { DEMO_EMAIL } from "@services/db/seed/workspaces";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { ChatBlock, ChatContext, ChatInput, ChatLibrary, ChatTurnRef } from "@model/ai";
-import { applyPatch } from "@model/ai";
+import { applyContentOps } from "@model/ai";
+import type { Generation } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { asContent } from "@model/artifact";
 import { limitsFor } from "@model/billing";
@@ -10,6 +11,9 @@ import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { makeWorkspaceReader } from "@services/core/ai/reader";
 import { runChat } from "@services/core/ai/chat";
+import { makeContext } from "@services/core/ai/tools";
+import { memoryGenerationStore } from "@services/core/generations";
+import "@services/core/ai/tools/register";
 import { EVAL_CASES, type EvalCase, type Step } from "./cases";
 import { arg, avg, hasFlag, int, judge, list, log, pct, pool, reporter, shortModel } from "./kit";
 
@@ -28,6 +32,9 @@ interface Env {
     workspace: ReturnType<typeof makeWorkspaceReader>;
     library: ChatLibrary;
     sample: ArtifactContent;
+    // a run in progress for the generate-surface cases: planned, nothing written
+    store: ReturnType<typeof memoryGenerationStore>;
+    generation?: { generation: Generation; content: ArtifactContent };
     plan: string;
     credits: { remaining: number; limit: number };
     artifactId(titleSubstr: string): string | undefined;
@@ -72,10 +79,46 @@ async function loadEnv(): Promise<Env> {
     };
     const limit = limitsFor(ws.plan).includedCredits;
     const sample = asContent((rows.find((r) => r.formatId === "deck") ?? rows[0]!).draftContent);
+    const store = memoryGenerationStore(ws.id);
+    const opened = await store.create({
+        brief: {
+            prompt: "A launch deck for Meridian, a calm operating system, aimed at seed investors",
+            surface: "deck",
+            theme: "studio",
+            set: { prompt: "user" },
+        },
+    });
+    const generation = await store.apply(opened.generation.id, {
+        generation: [
+            {
+                op: "setOutline",
+                title: "Meridian",
+                beats: [
+                    { id: "s1", label: "Cover", role: "scene", takeaway: "A calmer way to work" },
+                    {
+                        id: "s2",
+                        label: "The problem",
+                        role: "tension",
+                        takeaway: "Tools interrupt",
+                    },
+                    { id: "s3", label: "The product", role: "turn", takeaway: "One quiet surface" },
+                    {
+                        id: "s4",
+                        label: "Traction",
+                        role: "proof",
+                        takeaway: "1,900 studios joined",
+                    },
+                    { id: "s5", label: "The ask", role: "close", takeaway: "Raising a seed round" },
+                ],
+            },
+        ],
+    });
     return {
         workspace: makeWorkspaceReader(ws.id),
         library,
         sample,
+        store,
+        generation,
         plan: ws.plan,
         credits: { remaining: ws.aiCreditsBalance, limit },
         artifactId: (sub) =>
@@ -107,11 +150,18 @@ async function runTurn(
     const timer = setTimeout(() => ctrl.abort(), 150_000);
     const t0 = Date.now();
     try {
-        for await (const ev of runChat(input, {
-            workspace: env.workspace,
-            models: { chat: model },
-            signal: ctrl.signal,
-        })) {
+        for await (const ev of runChat(
+            input,
+            makeContext({
+                image: {},
+                workspace: env.workspace,
+                models: { chat: model },
+                signal: ctrl.signal,
+                artifact: context.content ?? env.generation?.content,
+                generation: env.generation?.generation,
+                generations: env.generation ? env.store : undefined,
+            }),
+        )) {
             if (ev.type === "chat.tool") tools.push(ev.tool);
             else if (ev.type === "chat.block") blocks.push(ev.block);
             else if (ev.type === "chat.text") reply += ev.delta;
@@ -189,14 +239,25 @@ function score(step: Step, tools: string[], blocks: ChatBlock[], env: Env): stri
             }
         }
         if (a.briefSurface || a.briefSource) {
-            const b = first(blocks, "brief")?.brief;
-            if (!b) reasons.push(`no brief block`);
+            const p = blocks.find(
+                (b): b is Extract<ChatBlock, { type: "proposal" }> =>
+                    b.type === "proposal" && b.tool === "start-generation" && !!b.call,
+            );
+            const b = p?.call?.input as { surface?: string; sourceArtifactId?: string } | undefined;
+            if (!b) reasons.push(`no start-generation proposal`);
             else {
                 if (a.briefSurface && b.surface !== a.briefSurface)
                     reasons.push(`wrong surface (${b.surface} ≠ ${a.briefSurface})`);
                 if (a.briefSource && b.sourceArtifactId !== env.artifactId(a.briefSource))
                     reasons.push(`wrong/absent source artifact (want "${a.briefSource}")`);
             }
+        }
+        if (a.proposalTool) {
+            const p = blocks.find(
+                (b): b is Extract<ChatBlock, { type: "proposal" }> =>
+                    b.type === "proposal" && b.tool === a.proposalTool,
+            );
+            if (!p) reasons.push(`no ${a.proposalTool} proposal`);
         }
     }
     return reasons;
@@ -220,8 +281,13 @@ async function runJudge(step: Step, turn: Turn): Promise<{ score: number; reason
     const j = step.judge!;
     let output = "";
     if (j.what === "reply") output = turn.reply.trim();
-    else if (j.what === "brief") output = first(turn.blocks, "brief")?.brief.prompt ?? "";
-    else {
+    else if (j.what === "brief") {
+        const p = turn.blocks.find(
+            (b): b is Extract<ChatBlock, { type: "proposal" }> =>
+                b.type === "proposal" && b.tool === "start-generation",
+        );
+        output = ((p?.call?.input as { prompt?: string } | undefined)?.prompt ?? "").toString();
+    } else {
         const p = first(turn.blocks, "proposal");
         output = p?.preview ? sectionText(p.preview) : "";
     }
@@ -260,19 +326,27 @@ async function runCase(model: string, c: EvalCase, env: Env): Promise<CaseResult
         const context: ChatContext =
             c.surface === "editor"
                 ? { surface: "editor", content: content!, plan: env.plan, credits: env.credits }
-                : {
-                      surface: "library",
-                      library: env.library,
-                      plan: env.plan,
-                      credits: env.credits,
-                  };
+                : c.surface === "generate"
+                  ? {
+                        surface: "generate",
+                        generationId: env.generation?.generation.id,
+                        plan: env.plan,
+                        credits: env.credits,
+                    }
+                  : {
+                        surface: "library",
+                        library: env.library,
+                        plan: env.plan,
+                        credits: env.credits,
+                    };
         const turn = await runTurn(model, step.message, context, history, env);
         ms += turn.ms;
         if (turn.error)
             return { errored: true, error: turn.error, pass: false, steps: results, ms };
         if (content)
             for (const b of turn.blocks)
-                if (b.type === "proposal") content = applyPatch(content, b.patch);
+                if (b.type === "proposal" && b.patch?.artifact?.length)
+                    content = applyContentOps(content, b.patch.artifact);
         history.push({ role: "user", text: step.message });
         if (turn.reply.trim()) history.push({ role: "assistant", text: turn.reply.trim() });
 

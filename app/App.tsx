@@ -28,7 +28,6 @@ import { ThemeEditor } from "./views/ThemeEditor";
 import { TrashView } from "./views/TrashView";
 import { WorkspaceSettingsView } from "./views/WorkspaceSettingsView";
 import { AccountSettingsView } from "./views/AccountSettingsView";
-import { EvalView } from "./views/EvalView";
 import { InviteView } from "./views/InviteView";
 import { CollabInviteView } from "./views/CollabInviteView";
 import { UiThemeProvider } from "@ui/icons";
@@ -205,9 +204,6 @@ export const App: Component = () => {
                             {/* the tab rides in the path so a settings page is linkable */}
                             <Route path="/settings/:tab?" component={WorkspaceSettingsView} />
                             <Route path="/account/:tab?" component={AccountSettingsView} />
-                            <Route path="/eval" component={EvalView} />
-                            {/* a run is linkable: the detail page is a route, not a signal */}
-                            <Route path="/eval/:id" component={EvalView} />
                             <Route path="/invite/:token" component={InviteView} />
                             <Route path="/collab/:token" component={CollabInviteView} />
                             <Route path="/edit/:id" component={EditorView} />

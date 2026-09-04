@@ -339,7 +339,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "items",
                 type: "text",
                 required: true,
-                desc: "the node labels, comma-separated, or one per line, which is required if any label contains a comma. An entry may add a short supporting phrase after a pipe ('Label | why it matters'), rendered smaller under the label. A number after a second pipe ('Label | detail | 2') is read by `funnel`, where it sizes each band so the stages are proportional (give every stage one, or none). `pictogram` reads it as the number of marks to draw (whole numbers, at most 20), and `roadmap` as how many columns the phase spans (phases lay end to end in the order given and wrap to a new lane when one no longer fits, so a span is the only placement control). Other types ignore it. For a conversion funnel write the readable metric as the detail and the raw number as the value ('Visitors | 12.4K | 12400'), so the stage reads its figure and the band still scales.",
+                desc: "the node labels, comma-separated, or one per line, which is required if any label contains a comma. Keep a label to a few words: a node is a small shape, and a long label or supporting phrase is clamped to what fits, so put any real explanation in the section's prose, not inside a node. An entry may add a short supporting phrase after a pipe ('Label | why it matters'), rendered smaller under the label. A number after a second pipe ('Label | detail | 2') is read by `funnel`, where it sizes each band so the stages are proportional (give every stage one, or none). `pictogram` reads it as the number of marks to draw (whole numbers, at most 20), and `roadmap` as how many columns the phase spans (phases lay end to end in the order given and wrap to a new lane when one no longer fits, so a span is the only placement control). Other types ignore it. For a conversion funnel write the readable metric as the detail and the raw number as the value ('Visitors | 12.4K | 12400'), so the stage reads its figure and the band still scales.",
             },
             {
                 key: "links",
@@ -430,7 +430,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
         label: "Profile",
         category: "composite",
         container: true,
-        when: "one person in a team, a speaker line-up, or an author note, centred under their portrait",
+        when: "one person in a team, a speaker line-up, or an author note, centred under their portrait. ONE person only: a deliberately collective entry (a committee, a whole crew) is a `container` card with a heading and a line, never a faceless profile",
         fields: [
             childrenField(
                 `in order: the face ({ type: 'avatar', data: { size: 88, src } }), the name (\`text\`, style 'h3', align 'center'), the role (\`text\`, style 'caption', align 'center'), and optionally one more caption line. The avatar's \`src\` is ${FACE_SRC}`,
@@ -657,10 +657,12 @@ export function layoutCatalog(): string {
         // The authoring surface the solver actually reads (applyLayout in canvas/elements/compose.ts).
         // Left undocumented, the writer reached for width alone and side-by-side cards came out at
         // whatever height their copy happened to make them.
+        "How a box is sized, the grammar you lay out with. Every box has a width and a height, and each is one of: `fit` (hug the content), `fill` (take the space left over), a `{ pct }` share of the row, or its natural size. A row hands its width out by these; a column's height is the sum of its stacked children. A box shorter than its row sits at the TOP of it by default, so its empty space falls to the bottom, which is the commonest way a section reads as broken.",
         "Each child's own `layout` says how it sits in its parent:",
         '- `width`: `{ pct }` for a share of the row, `"fill"` to take whatever is left, `"fit"` to shrink to its content. Give EVERY column in a row a share or give none of them: one missing share drops the whole row back to equal columns.',
-        '- `height: "fill"`: stretch this child to the full height of its row, which is how side-by-side cards and panels are kept level when their copy runs to different lengths. The row takes its height from the columns that do NOT fill, so leave it off the tallest one: a row where every column fills has no height to share and collapses to nothing.',
+        '- `height: "fill"`: stretch a COLUMN to the full height of its row, so side-by-side cards stay level. It only fills against a row that gives it a height; inside a plain stack there is nothing to fill. A chart, diagram or image already carries its own height, so do not put `fill` on the visual itself: to keep a short visual from stranding at the top of a taller column, put `fill` on the column that holds it, or center that column with `align: "center"`. The row takes its height from the columns that do NOT fill, so leave it off the tallest one: a row where every column fills has no height to share and collapses to nothing.',
         "- `align`: `start` / `center` / `end`, this one child's cross-axis position, overriding whatever the container sets for the rest.",
+        "Balance a split: two columns should carry comparable weight, so do not pair one dense text column against a lone visual. Fill a frame by nesting, a caption and a key `stat` stacked under a chart, rather than by padding the text side with more bullets. One `container` tree, nested to any depth, is the whole freedom you have; use it to make each column earn its height.",
         '- `pin`: `{ "x": "start"|"center"|"end", "y": "start"|"center"|"end", "dx"?, "dy"?, "z"? }` lifts this child out of the flow and anchors it to a point of its parent\'s box, offset in px. For one small overlay that carries something true: a date badge on a cover photo, a corner price flash, a sold-out chip. At most one pinned element in the whole piece, width `"fit"`, insets of 16 to 32 px, and never body content; a piece that needs none is the common case.',
         "",
         "A row stacks itself into a column on narrow screens, so never write a second mobile variant of a section. For more cells than one row should hold, nest: a `col` container of row containers, which is also how an uneven grid is built (a 2-up above a 3-up).",
@@ -688,5 +690,8 @@ export function siteAnatomy(): string {
 export function describeTheme(id: string): string {
     const t = resolveTheme(id);
     const mode = t.dark ? "dark" : "light";
-    return `The active theme is "${t.name}" (${t.tag}, ${mode}). Write in a register that fits a ${t.tag} ${mode} design.`;
+    return `The active theme is "${t.name}": ${t.tag}, ${mode}. Write in a register that fits it.`;
 }
+
+/** The preset ids as the job lists them, so the job and the catalog cannot disagree. */
+export const presetList = (): string => LAYOUTS.map((l) => l.id).join(" · ");

@@ -484,3 +484,7 @@ export async function seedMusicShelf(
     }
     return composed;
 }
+
+// what a bed that was written now is billed as; a cached one reports zero and owes nothing
+export const bedMinutes = (ms: number | undefined): number =>
+    ms ? Math.max(1, Math.ceil(ms / 60_000)) : 0;

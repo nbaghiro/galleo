@@ -1,7 +1,7 @@
 import type { Section } from "@model/artifact";
 import type { ArtifactContent } from "@model/artifact";
 import type { Beat, SectionPlan } from "@services/core/ai/schema";
-import type { SectionInput } from "@model/ai";
+import type { SectionInput, TurnEvent } from "@model/ai";
 import { implement, type ToolContext } from "@services/core/ai/tools";
 import {
     insertSectionParts,
@@ -12,6 +12,7 @@ import { surfaceOf } from "@services/core/ai/prompts/generate";
 import { resolveImages } from "@services/core/ai/images";
 import { planSectionTool, writeSectionTool } from "./plan";
 import { drain } from "@services/core/ai/tools";
+import { firstText } from "@services/core/ai/prompts/system";
 
 // fresh non-colliding section id — mirror the editor's "s-xxxx" scheme
 export function newSectionId(content: ArtifactContent): string {
@@ -22,25 +23,45 @@ export function newSectionId(content: ArtifactContent): string {
     }
 }
 
-async function chatAddSection(
+// plan the one section (so the skeleton renders), write it, then place it after `afterId`
+async function* addSection(
     content: ArtifactContent,
     afterId: string | null,
     instruction: string,
     ctx: ToolContext,
-): Promise<Section> {
+): AsyncGenerator<TurnEvent, Section> {
     const input: SectionInput = { instruction, afterId, content };
     const id = newSectionId(content);
+    const surface = surfaceOf(content.format);
+    yield { type: "phase", name: "intake" };
+    yield {
+        type: "narration",
+        text: "Reading the surrounding sections",
+        sub: instruction.length > 90 ? `${instruction.slice(0, 89)}…` : instruction,
+    };
+    yield { type: "phase", name: "outline" };
     const object = await drain(ctx.use(planSectionTool, sectionPlanParts(input)));
     const beat: Beat = { ...(object as SectionPlan), id };
-    const section = await drain(
-        ctx.use(writeSectionTool, {
-            parts: insertSectionParts(input, beat),
-            id: id,
-            label: beat.label,
-            surface: surfaceOf(content.format),
-        }),
-    );
-    return resolveImages(section, ctx.image);
+    yield { type: "plan", beats: [beat] };
+    yield { type: "narration", text: `Planned “${beat.label}”`, mono: ` · ${beat.role}` };
+    yield { type: "phase", name: "build" };
+    yield { type: "section.status", id, status: "active" };
+    yield { type: "narration", text: `Writing “${beat.label}”`, mono: ` · ${beat.role}` };
+    yield { type: "section.status", id, status: "writing" };
+    const written = yield* ctx.use(writeSectionTool, {
+        parts: insertSectionParts(input, beat),
+        id,
+        label: beat.label,
+        surface,
+    });
+    if (beat.image || written.background?.kind === "image") {
+        yield { type: "section.status", id, status: "image" };
+        yield { type: "narration", text: `Sourcing an image for “${beat.label}”` };
+    }
+    const section = await resolveImages(written, ctx.image);
+    yield { type: "phase", name: "compose" };
+    yield { type: "section.status", id, status: "done" };
+    return section;
 }
 
 async function chatEditSection(
@@ -62,16 +83,22 @@ async function chatEditSection(
     return resolveImages(section, ctx.image);
 }
 
-export const addSectionTool = implement(
+implement(
     "add-section",
-    async function* (input, ctx) {
+    async function* (input, ctx): AsyncGenerator<TurnEvent, Section> {
         if (!ctx.artifact) throw new Error("no artifact is open");
-        return await chatAddSection(ctx.artifact, input.afterId, input.instruction, ctx);
+        return yield* addSection(ctx.artifact, input.afterId, input.instruction, ctx);
     },
-    (section, input) => [{ op: "addSection", afterId: input.afterId, section }],
+    {
+        patch: (section, input) => ({
+            artifact: [{ op: "addSection", afterId: input.afterId, section }],
+        }),
+        note: (section, input) =>
+            `Proposed a new “${firstText(section)}” section${input.afterId ? ` after ${input.afterId}` : ""}.`,
+    },
 );
 
-export const rewriteSectionTool = implement(
+implement(
     "rewrite-section",
     async function* (input, ctx) {
         if (!ctx.artifact) throw new Error("no artifact is open");
@@ -84,10 +111,15 @@ export const rewriteSectionTool = implement(
         if (!section) throw new Error(`there is no section "${input.sectionId}"`);
         return section;
     },
-    (section, input) => [{ op: "replaceSection", id: input.sectionId, section }],
+    {
+        patch: (section, input) => ({
+            artifact: [{ op: "replaceSection", id: input.sectionId, section }],
+        }),
+        note: (_section, input) => `Proposed a rewrite of section ${input.sectionId}.`,
+    },
 );
 
-export const editArtifactTool = implement(
+implement(
     "edit-artifact",
     async function* (
         input,
@@ -113,5 +145,25 @@ export const editArtifactTool = implement(
             format: found.content.format,
         };
     },
-    (res, input) => [{ op: "replaceSection", id: input.sectionId, section: res.section }],
+    {
+        patch: (res, input) => ({
+            artifact: [{ op: "replaceSection", id: input.sectionId, section: res.section }],
+        }),
+        // the target is another artifact, so the card carries its id and its look
+        present: (res, input, patches) => ({
+            type: "proposal",
+            id: crypto.randomUUID(),
+            tool: "edit-artifact",
+            summary: `Update “${firstText(res.section).slice(0, 40)}”`,
+            patch: patches[0] ?? {
+                artifact: [{ op: "replaceSection", id: input.sectionId, section: res.section }],
+            },
+            preview: res.section,
+            targetArtifactId: res.artifactId,
+            theme: res.theme,
+            format: res.format,
+        }),
+        note: (_res, input) =>
+            `Proposed an edit to a section of that artifact (${input.sectionId}).`,
+    },
 );

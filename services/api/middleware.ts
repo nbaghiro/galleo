@@ -1,4 +1,7 @@
 import type { Context, Env, MiddlewareHandler } from "hono";
+import { streamSSE } from "hono/streaming";
+import type { TurnEvent } from "@model/ai";
+import type { ToolOutcome } from "@services/core/ai/execute";
 import { getCookie } from "hono/cookie";
 import type { User, WorkspaceRole } from "@model/workspace";
 import { mustConfirmEmail } from "@model/workspace";
@@ -141,3 +144,64 @@ export const delegatedLimiter = rateLimit({
 // The client may pin any step to a specific model; the registry decides which ids survive.
 export const overridesFrom = (c: Context): ModelOverrides =>
     parseOverrides(c.req.header(MODEL_HEADER));
+
+export type Refusal = Extract<ToolOutcome<unknown>, { ok: false }>;
+
+interface StreamRun<R> {
+    // starts the executor with the two hooks it needs; the hold is taken inside
+    run: (hooks: {
+        onHeld: () => void;
+        onEvent: (e: TurnEvent) => void;
+    }) => Promise<ToolOutcome<R>>;
+    head?: unknown[]; // frames sent as the stream opens
+    frame: (e: TurnEvent) => unknown | null; // how an event is framed; null sends nothing
+    tail: (out: ToolOutcome<R> | Error) => unknown[] | Promise<unknown[]>; // frames as the run ends
+    refused: (out: Refusal) => Response; // a refusal before anything ran, as a status
+    abort?: AbortController; // aborted when the client closes the stream
+}
+
+/**
+ * A streamed tool call that still answers a refusal with a status. The executor takes the hold
+ * before it runs the body, so the stream opens only once there is something to stream: a client
+ * that reads a 402 walls the same way it does on a fetched route, and a refusal never has to be
+ * smuggled down the body as a line.
+ */
+export async function streamRun<R>(c: Context, spec: StreamRun<R>): Promise<Response> {
+    let held!: () => void;
+    const heldP = new Promise<"held">((resolve) => {
+        held = () => resolve("held");
+    });
+    const buffered: TurnEvent[] = [];
+    let live: ((e: TurnEvent) => void) | null = null;
+    const outP: Promise<ToolOutcome<R> | Error> = spec
+        .run({
+            onHeld: () => held(),
+            onEvent: (e) => (live ? live(e) : buffered.push(e)),
+        })
+        .catch((e: unknown) => (e instanceof Error ? e : new Error(String(e))));
+    const first = await Promise.race([heldP, outP.then(() => "done" as const)]);
+    if (first === "done") {
+        const out = await outP;
+        if (!(out instanceof Error) && !out.ok) return spec.refused(out);
+    }
+    return streamSSE(c, async (stream) => {
+        const abort = spec.abort;
+        if (abort) stream.onAbort(() => abort.abort());
+        let queue: Promise<void> = Promise.resolve();
+        const send = (data: unknown): void => {
+            queue = queue
+                .then(() => stream.writeSSE({ data: JSON.stringify(data) }))
+                .catch(() => undefined);
+        };
+        for (const f of spec.head ?? []) send(f);
+        const push = (e: TurnEvent): void => {
+            const f = spec.frame(e);
+            if (f !== null) send(f);
+        };
+        for (const e of buffered) push(e);
+        live = push;
+        const out = await outP;
+        for (const f of await spec.tail(out)) send(f);
+        await queue;
+    });
+}

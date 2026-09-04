@@ -3,7 +3,7 @@ import type { ArtifactContent, ElementInstance, Section, SectionForm } from "@mo
 import { BLOCK_KINDS } from "@model/elements";
 import type { Beat, Outline } from "@services/core/ai/schema";
 import { PERSONA, surfaceVoice } from "./persona";
-import { describeTheme, elementCatalog, layoutCatalog, siteAnatomy } from "./catalog";
+import { describeTheme, elementCatalog, layoutCatalog, presetList, siteAnatomy } from "./catalog";
 import { RUBRIC, VOICE, lengthGuidance } from "./rubric";
 import { arcGuidance } from "./arcs";
 import {
@@ -23,7 +23,7 @@ import { sectionExemplars, siteExemplar } from "./exemplars";
 import type { PromptParts } from "./system";
 
 const OUTLINE_JOB = `## Your job
-Plan the artifact: your reading of the brief, a title, a backdrop, and an ordered list of beats (sections). Before anything else, commit to one concrete world and stay in it: a named subject (a company, a person, a place, an occasion), where it is, and two or three real, odd numbers that belong to it (a price, a date, a count). Weave that commitment into the \`backdrop\` and the beats' briefs, because every section is written against them and sections that invent their own facts drift apart. Then state what you take the piece to be, its \`goal\` (what it has to achieve), \`audience\` (who it's for), and \`tone\` (how it should sound), inferred from the prompt and any source material; these are shown to the user and every section is written against them, so make them specific rather than generic. The backdrop is the artifact's full-bleed background image, describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim). Never a generic abstract texture. The outline is a skeleton other calls flesh out, so keep every field tight: phrases and single sentences, never paragraphs; the section writer gets the whole outline and expands it. Give the piece a real narrative arc that fits the topic, the beat roles (scene, tension, turn, proof, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. For each beat: a short url-safe id (\`s1\`, \`s2\`, … is fine, and on a website a word naming what the section holds, since that id is what a nav link points at), a short working label, its narrative role, the layout you intend (\`layout\`, a named preset: full · split-6040 · split-4060 · two-col · three-up), and, crucially, design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text, the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. Also give each beat whether it leads with an image. Then WRITE THE STORY, not a table of contents, for every beat give all three of: \`brief\` (one line naming the section's job), \`takeaway\` (a full sentence stating the one thing the reader leaves with), and \`points\` (the 2–4 concrete moves it makes, in order, the actual claims, numbers, comparisons, or steps. Never topic labels like "benefits" or "overview"). Decide the real substance here: what each section actually argues, and with what. A section written from "Traction" is generic; one written from "1,900 studios joined in five months, four in five still active at week eight, and the curve steepened after the referral launch" is not. Make consecutive beats build on each other rather than restating the same idea. Give the opening (scene) and closing (close) sections a full-bleed background image, set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
+Plan the artifact: your reading of the brief, a title, a backdrop, and an ordered list of beats (sections). Before anything else, commit to one concrete world and stay in it: a named subject (a company, a person, a place, an occasion), where it is, and two or three real, odd numbers that belong to it (a price, a date, a count). Weave that commitment into the \`backdrop\` and the beats' briefs, because every section is written against them and sections that invent their own facts drift apart. Then state what you take the piece to be, its \`goal\` (what it has to achieve), \`audience\` (who it's for), and \`tone\` (how it should sound), inferred from the prompt and any source material; these are shown to the user and every section is written against them, so make them specific rather than generic. The backdrop is the artifact's full-bleed background image, describe a moody, on-theme atmospheric scene that evokes the subject (a wide, low-detail environment, since it sits behind every section under a scrim). Never a generic abstract texture. The outline is a skeleton other calls flesh out, so keep every field tight: phrases and single sentences, never paragraphs; the section writer gets the whole outline and expands it. Give the piece a real narrative arc that fits the topic, the beat roles (scene, tension, turn, proof, objection, momentum, close) are a toolbox to draw on, not a fixed sequence: use the ones the story needs, in the order it needs, and repeat proof/momentum beats where the argument earns them. An \`objection\` beat answers the reader's strongest doubt plainly (seasonality, price, "why not more or faster"), and one done honestly is often the most convincing section in the piece. For each beat: a short url-safe id (\`s1\`, \`s2\`, … is fine, and on a website a word naming what the section holds, since that id is what a nav link points at), a short working label, its narrative role, the layout you intend (\`layout\`, a named preset: ${presetList()}), and, crucially, design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Vary layouts and blocks across the piece, and place visual blocks (image / stat / chart / diagram / table) where they earn their spot rather than defaulting to walls of text, the layout you choose is rendered as a live skeleton and the section writer must fill it exactly. When a beat's points are parallel voices rather than a sequence (three menus, three seasons, three levels), plan a \`tabs\` section for it instead of bullets. Also give each beat whether it leads with an image. Then WRITE THE STORY, not a table of contents, for every beat give all three of: \`brief\` (one line naming the section's job), \`takeaway\` (a full sentence stating the one thing the reader leaves with), and \`points\` (the 2–4 concrete moves it makes, in order, the actual claims, numbers, comparisons, or steps. Never topic labels like "benefits" or "overview"). Decide the real substance here: what each section actually argues, and with what. A section written from "Traction" is generic; one written from "1,900 studios joined in five months, four in five still active at week eight, and the curve steepened after the referral launch" is not. Make consecutive beats build on each other rather than restating the same idea. Give the opening (scene) and closing (close) sections a full-bleed background image, set image=true for them; they anchor the piece. Don't pad and don't truncate.`;
 
 // one clip for both readers of the source, so the planner and the writers see the same window
 const SOURCE_CLIP = 6000;
@@ -61,14 +61,16 @@ export interface OutlineOpts {
 export function outlineParts(input: GenerateInput, opts: OutlineOpts = {}): PromptParts {
     const { maxSections, pack, forms, shapeName } = opts;
     return {
+        // static fragments first and the surface- and theme-specific ones last, so the provider's
+        // prompt cache keeps the shared prefix across runs that differ only in those
         system: stack(
             ["persona", PERSONA],
-            ["surface voice", surfaceVoice(input.surface)],
-            ["theme", describeTheme(input.theme)],
             ["job", OUTLINE_JOB],
             ["layouts", layoutCatalog()],
-            input.surface === "web" && ["site anatomy", siteAnatomy()],
             ["rubric", RUBRIC],
+            ["surface voice", surfaceVoice(input.surface)],
+            input.surface === "web" && ["site anatomy", siteAnatomy()],
+            ["theme", describeTheme(input.theme)],
             ["output", OUTPUT_NOTE],
         ),
         prompt: stack(
@@ -166,18 +168,20 @@ function placement(beat: Beat, outline: Outline): string {
     );
 }
 
+// The same order rule as the outline: everything every section call shares comes first, then
+// what depends on the surface, then the theme line, with the output envelope last where it lands.
 function sectionSystem(surface: Surface, theme: string): string {
     return stack(
         ["persona", PERSONA],
-        ["surface voice", surfaceVoice(surface)],
-        ["theme", describeTheme(theme)],
         ["elements", elementCatalog()],
         ["layouts", layoutCatalog()],
-        surface === "web" && ["site anatomy", siteAnatomy()],
         ["rules", SECTION_RULES],
         ["voice", VOICE],
+        ["surface voice", surfaceVoice(surface)],
+        surface === "web" && ["site anatomy", siteAnatomy()],
         ["exemplars", sectionExemplars(surface)],
         surface === "web" && ["site exemplar", siteExemplar()],
+        ["theme", describeTheme(theme)],
         ["output", SECTION_OUTPUT],
     );
 }
@@ -219,12 +223,40 @@ export function sectionParts(
     };
 }
 
+// A section that parsed but failed the checks is repaired rather than rewritten from nothing: the
+// writer is shown its own object and what is wrong with it, under the fragments a repair needs
+// (the contract and the rules), not the exemplars and layouts a fresh write is taught with.
+export function repairParts(
+    surface: Surface,
+    prompt: string,
+    previous: string,
+    issues: readonly string[],
+): PromptParts {
+    return {
+        system: stack(
+            ["persona", PERSONA],
+            ["elements", elementCatalog()],
+            ["rules", SECTION_RULES],
+            surface === "web" && ["site anatomy", siteAnatomy()],
+            ["output", SECTION_OUTPUT],
+        ),
+        prompt: stack(
+            prompt,
+            heading("Your previous section", previous),
+            heading(
+                "What is wrong with it",
+                `${issues.map((i) => `- ${i}`).join("\n")}\nReturn the corrected section as ONE JSON object: keep its id, its layout and every cell that was fine, fix only what is listed, and fill any cell that was empty with a real element.`,
+            ),
+        ),
+    };
+}
+
 export function surfaceOf(format: string): Surface {
     return format === "doc" || format === "web" ? format : "deck";
 }
 
 const PLAN_ONE_JOB = `## Your job
-Plan ONE new section to slot into this artifact at the marked spot. Decide its narrative role, choose the layout that fits (\`layout\`, a named preset: full · split-6040 · split-4060 · two-col · three-up), and design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Reach for a visual block (image / stat / chart / diagram / table) where the idea is a picture, number, trend, or process rather than defaulting to a wall of text. Give it a short working label, whether it leads with an image, and a one-line brief of what it must say. Match the density and voice of the sections around it. This section has to feel like it was always there.`;
+Plan ONE new section to slot into this artifact at the marked spot. Decide its narrative role, choose the layout that fits (\`layout\`, a named preset: ${presetList()}), and design its LAYOUT: assign a block to each column, in order (\`blocks\`, one per column, each one of: ${BLOCK_KINDS.join(", ")}). Reach for a visual block (image / stat / chart / diagram / table) where the idea is a picture, number, trend, or process rather than defaulting to a wall of text. Give it a short working label, whether it leads with an image, and a one-line brief of what it must say. Match the density and voice of the sections around it. This section has to feel like it was always there.`;
 
 export function sectionPlanParts(input: SectionInput): PromptParts {
     const surface = surfaceOf(input.content.format);

@@ -1,4 +1,11 @@
-import type { ModelSpan } from "@model/ai";
+import type {
+    BeatState,
+    Brief,
+    ChatThreadMessage,
+    GenerationStage,
+    PlanOutline,
+    ProposalMark,
+} from "@model/ai";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
     pgTable,
@@ -24,7 +31,8 @@ import type { FeatureOverrides, Interval, ScheduledChange } from "@model/billing
 import type { Usage } from "@model/credits";
 import type { SpeechAlignment, VoiceLabels } from "@model/speech";
 import type { ArtifactContent } from "@model/artifact";
-import type { EvalCheck, EvalConfig, EvalJudgement, EvalStatus } from "@model/eval";
+import type { TraceLevel, TraceSpan, TraceStatus } from "@model/trace";
+import type { ToolId, ToolSurface } from "@model/tools";
 import type { PublishPolicy, UserPrefs } from "@model/workspace";
 import type { AssetMeta } from "@model/media";
 
@@ -534,33 +542,91 @@ export const chatMessages = pgTable(
     (t) => [index("chat_messages_ws_art_idx").on(t.workspaceId, t.artifactId, t.createdAt.desc())],
 );
 
-// A traced generation: the run's config, every model call it made, and what it cost. Written only
-// when a run asks to be traced, so this never grows on ordinary user turns.
-export const evalRuns = pgTable(
-    "eval_runs",
+// A piece being made. Holds what the artifact cannot: the brief with who set each field, the
+// outline, the standing steer note and every take of every beat. The section of record stays in
+// the draft artifact's content; `seq` orders the two halves of a patch the same way `artifacts.seq`
+// orders content writes.
+export const generations = pgTable(
+    "generations",
     {
         id: uuid("id").primaryKey().defaultRandom(),
         workspaceId: uuid("workspace_id")
             .notNull()
             .references(() => workspaces.id),
-        userId: uuid("user_id").references(() => users.id),
-        // one authoring session; the studio's turns fold into a single run
-        sessionId: text("session_id"),
-        artifactId: uuid("artifact_id"), // no FK: a run may be abandoned before the draft is saved
-        config: jsonb("config").$type<EvalConfig>().notNull(),
-        spans: jsonb("spans").$type<ModelSpan[]>().notNull(),
-        checks: jsonb("checks").$type<EvalCheck[]>(),
-        content: jsonb("content").$type<ArtifactContent>(),
-        judgements: jsonb("judgements").$type<EvalJudgement[]>(),
-        status: text("status").$type<EvalStatus>().notNull(),
+        artifactId: uuid("artifact_id")
+            .notNull()
+            .references(() => artifacts.id, { onDelete: "cascade" }),
+        createdBy: uuid("created_by").references(() => users.id),
+        stage: text("stage").$type<GenerationStage>().notNull(),
+        brief: jsonb("brief").$type<Brief>().notNull(),
+        briefVersion: integer("brief_version").notNull().default(0),
+        outline: jsonb("outline").$type<PlanOutline>(),
+        plannedAgainst: integer("planned_against"),
+        steer: text("steer").notNull().default(""),
+        clarify: text("clarify"),
+        beats: jsonb("beats").$type<Record<string, BeatState>>().notNull().default({}),
+        seq: bigint("seq", { mode: "number" }).notNull().default(0),
+        // the writer lease: one write at a time per generation, across instances; a dead writer's
+        // lease lapses on its own, and a live one is extended by every patch it lands
+        writerUntil: timestamp("writer_until"),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    },
+    (t) => [index("generations_ws_artifact_idx").on(t.workspaceId, t.artifactId)],
+);
+
+// The chat as the person sees it: one thread per person per subject (a generation, an artifact,
+// or the library), the assistant's turns kept as the events they streamed. `chat_messages` beside
+// it is the recall index over the same words; this is the record the dock reopens.
+export const chatThreads = pgTable(
+    "chat_threads",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        workspaceId: uuid("workspace_id")
+            .notNull()
+            .references(() => workspaces.id),
+        userId: uuid("user_id")
+            .notNull()
+            .references(() => users.id),
+        key: text("key").notNull(),
+        messages: jsonb("messages").$type<ChatThreadMessage[]>().notNull().default([]),
+        marks: jsonb("marks").$type<Record<string, ProposalMark>>().notNull().default({}),
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+        updatedAt: timestamp("updated_at").notNull().defaultNow(),
+    },
+    (t) => [uniqueIndex("chat_threads_ws_user_key_idx").on(t.workspaceId, t.userId, t.key)],
+);
+
+// One root tool call as the executor recorded it: the tool spans and model calls under it, what it
+// cost, and at `full` the bodies and the artifact after the call. Written for every call on every
+// surface and capped per workspace (core/traces.ts), so it never grows without bound.
+export const traces = pgTable(
+    "traces",
+    {
+        id: uuid("id").primaryKey(), // minted by the tracer; also the root span's id
+        workspaceId: uuid("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }),
+        userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+        surface: text("surface").$type<ToolSurface>().notNull(),
+        tool: text("tool").$type<ToolId>().notNull(),
+        generationId: uuid("generation_id"), // no FK: a generation goes with its artifact
+        artifactId: uuid("artifact_id"),
+        level: text("level").$type<TraceLevel>().notNull(),
+        status: text("status").$type<TraceStatus>().notNull(),
         error: text("error"),
+        models: jsonb("models").$type<Record<string, string>>().notNull(),
         tokensIn: integer("tokens_in").notNull(),
         tokensOut: integer("tokens_out").notNull(),
         credits: integer("credits").notNull(),
         ms: integer("ms").notNull(),
+        spans: jsonb("spans").$type<TraceSpan[]>().notNull(),
+        input: jsonb("input"),
+        content: jsonb("content").$type<ArtifactContent>(),
         createdAt: timestamp("created_at").notNull().defaultNow(),
     },
-    (t) => [index("eval_runs_ws_created_idx").on(t.workspaceId, t.createdAt.desc())],
+    (t) => [
+        index("traces_ws_created_idx").on(t.workspaceId, t.createdAt.desc()),
+        index("traces_generation_idx").on(t.generationId),
+    ],
 );
 
 // Voices we can speak with. Adoption is install-wide rather than per workspace: a community voice is
@@ -797,7 +863,9 @@ export const schema = {
     contextItems,
     chunks,
     chatMessages,
-    evalRuns,
+    chatThreads,
+    generations,
+    traces,
     voices,
     workspaceVoices,
     workspaceSoundtracks,

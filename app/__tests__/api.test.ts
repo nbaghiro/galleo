@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { ArtifactContent, ArtifactInput, ElementInstance } from "@model/artifact";
-import type { TurnEvent, TurnRequest } from "@model/ai";
-import { ApiError, api, streamTurn } from "@app/api";
+import type { TurnEvent } from "@model/ai";
+import { ApiError, api, streamTool } from "@app/api";
 
 interface FetchCall {
     url: string;
@@ -402,12 +402,13 @@ describe("searchMedia — query-string encoding", () => {
     });
 });
 
-describe("streamTurn — SSE frame parsing", () => {
-    const request: TurnRequest = { kind: "edit", input: { instruction: "tighten it" } };
+describe("streamTool — SSE frame parsing", () => {
+    const stream = (onEvent: (e: TurnEvent) => void): Promise<void> =>
+        streamTool("rewrite-text", { text: "hi", instruction: "tighten it" }, onEvent);
 
     it("parses each data: frame → event, skips a malformed frame, buffers across chunks", async () => {
         const frames =
-            'data: {"seq":0,"event":{"type":"turn.start","kind":"edit"}}\n\n' +
+            'data: {"seq":0,"event":{"type":"turn.start","tool":"rewrite-text"}}\n\n' +
             "data: not-json\n\n" +
             'data: {"seq":1,"event":{"type":"reply","text":"hello"}}\n\n' +
             'data: {"seq":2,"event":{"type":"turn.done"}}\n\n';
@@ -416,10 +417,10 @@ describe("streamTurn — SSE frame parsing", () => {
         stubFetch(streamResponse([frames.slice(0, cut), frames.slice(cut)]));
 
         const events: TurnEvent[] = [];
-        await streamTurn(request, (e) => events.push(e));
+        await stream((e) => events.push(e));
 
         expect(events).toEqual([
-            { type: "turn.start", kind: "edit" },
+            { type: "turn.start", tool: "rewrite-text" },
             { type: "reply", text: "hello" },
             { type: "turn.done" },
         ]);
@@ -430,12 +431,12 @@ describe("streamTurn — SSE frame parsing", () => {
         // what turned a provider error into a section that silently never arrived
         stubFetch(
             streamResponse([
-                'data: {"seq":0,"event":{"type":"turn.start","kind":"edit"}}\n\n' +
+                'data: {"seq":0,"event":{"type":"turn.start","tool":"rewrite-text"}}\n\n' +
                     'data: {"seq":1,"event":{"type":"error","message":"the model is overloaded"}}\n\n',
             ]),
         );
         await expect(
-            streamTurn(request, (e) => {
+            stream((e) => {
                 if (e.type === "error") throw new Error(e.message);
             }),
         ).rejects.toThrow("the model is overloaded");
@@ -448,7 +449,7 @@ describe("streamTurn — SSE frame parsing", () => {
                 { status: 402, statusText: "Payment Required" },
             ),
         );
-        const err = await caught(streamTurn(request, () => undefined));
+        const err = await caught(stream(() => undefined));
         expect(err).toBeInstanceOf(ApiError);
         expect(err.status).toBe(402);
         expect(err.message).toBe("Out of credits");
@@ -456,7 +457,7 @@ describe("streamTurn — SSE frame parsing", () => {
 
     it("throws ApiError when an ok response carries no body", async () => {
         stubFetch(jsonResponse({}, { status: 200, statusText: "OK" })); // no `body` → cannot stream
-        const err = await caught(streamTurn(request, () => undefined));
+        const err = await caught(stream(() => undefined));
         expect(err).toBeInstanceOf(ApiError);
         expect(err.status).toBe(200);
     });

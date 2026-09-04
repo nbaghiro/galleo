@@ -7,13 +7,8 @@ import { membershipsOf } from "@services/core/workspaces";
 import { getTool } from "@services/core/ai/tools";
 import { runTool } from "@services/core/ai/execute";
 import { makeWorkspaceReader } from "@services/core/ai/reader";
-import {
-    Built,
-    applyToContent,
-    commitContent,
-    commitNew,
-    loadContent,
-} from "@services/core/ai/effects";
+import { makeGenerationStore } from "@services/core/generations";
+import { Built, commitPatch, commitNew, loadContent } from "@services/core/ai/effects";
 import { setTrashed, updateArtifact } from "@services/core/artifacts";
 import type { WorkspaceRow } from "@services/core/accounts";
 import { capture } from "@services/utils/analytics";
@@ -53,9 +48,9 @@ const no = (
     message,
 });
 
-// Tools that build a whole piece rather than change one: they end with an artifact that did not
-// exist before, so what they produce is stored rather than patched over something.
-const CREATES = new Set<ToolId>(["generate-artifact", "create-artifact"]);
+// A piece handed over whole: it ends with an artifact that did not exist before, so what it carries
+// is stored rather than patched over something. A generation makes its own draft through the store.
+const CREATES = new Set<ToolId>(["create-artifact"]);
 
 // Tools whose answer is a view of an artifact, and so are worth painting rather than describing.
 export const RENDERS = new Set<ToolId>([
@@ -70,6 +65,11 @@ export const RENDERS = new Set<ToolId>([
     "set-format",
     "generate-artifact",
     "create-artifact",
+    "plan-outline",
+    "write-beat",
+    "write-beats",
+    "pick-version",
+    "finish-generation",
 ]);
 
 // Reads that need the stored tree the way a write does: the body is handed it, and the outcome
@@ -133,6 +133,9 @@ function refused(
     if (out.reason === "bad-input") return no("refused", (out.issues as string[]).join("; "));
     if (out.reason === "credits")
         return no("refused", `Not enough credits in ${wsName}: ${String(out.remaining)} left.`);
+    if (out.reason === "not-found") return no("not-found", out.message as string);
+    if (out.reason === "busy")
+        return no("refused", "A section is being written right now; try again once it lands.");
     // Name the surface rather than saying "here": the caller is a program on the other side of MCP or
     // the v1 API, and "here" is the one thing it cannot see.
     if (out.reason === "wrong-surface")
@@ -269,24 +272,16 @@ async function dispatch(call: Call, grant: Grant | null, landing: Landing): Prom
         wants && artifactId ? await loadContent({ workspaceId: ws.id, artifactId }) : null;
     if (wants && !content) return no("not-found", MISSING);
 
-    // Creation has no artifact to load and none to patch: it makes one. Generation streams its work
-    // and is gathered as it goes; a direct create hands the whole tree over at once.
+    // A direct create has no artifact to load and none to patch: it hands the whole tree over.
     if (CREATES.has(id)) {
         const given = input as {
-            surface?: string;
-            theme?: string;
             title?: string;
             content?: { format?: string; theme?: string; sections?: unknown[] };
         };
-        const built = new Built(
-            given.content
-                ? { format: given.content.format, theme: given.content.theme }
-                : { format: given.surface, theme: given.theme },
-        );
+        const built = new Built({ format: given.content?.format, theme: given.content?.theme });
         if (given.content) built.seed(given.content, given.title);
         const made = await runTool({ id, surface, input }, who, {
             ctx: { image: {}, workspace: reader },
-            onEvent: built.watch,
         });
         if (!made.ok) return refused(made, id, def.title, ws.name, call.surface);
         const newId = await commitNew(ws.id, grant.userId, built);
@@ -300,44 +295,59 @@ async function dispatch(call: Call, grant: Grant | null, landing: Landing): Prom
                 sections: made_content.sections.length,
                 format: made_content.format,
             },
-            note: `Built “${built.named}” — ${made_content.sections.length} sections. It is in ${ws.name}.`,
+            note: `Stored “${built.named}” with ${made_content.sections.length} sections. It is in ${ws.name}.`,
             workspace: { id: ws.id, name: ws.name },
             artifactId: newId,
             rendered: made_content,
         };
     }
 
+    // A generation's patches are applied by the executor through the store; an artifact tool's
+    // land here, through the same save the editor uses.
     const out = await runTool(
         { id, surface, input },
         { ...who, scopes: grant.scopes },
         {
-            ctx: { image: {}, workspace: reader, ...(content ? { artifact: content } : {}) },
+            ctx: {
+                image: {},
+                workspace: reader,
+                generations: makeGenerationStore(ws.id, grant.userId),
+                ...(content ? { artifact: content } : {}),
+            },
         },
     );
     if (!out.ok) return refused(out, id, def.title, ws.name, call.surface);
 
     let note: string | undefined;
-    if (changes && content && artifactId) {
-        const next = applyToContent(content, tool.patch!(out.result, input));
-        await commitContent({ workspaceId: ws.id, artifactId }, next);
+    const ops = out.patches.flatMap((p) => p.artifact ?? []);
+    if (!out.generationId && ops.length && content && artifactId) {
+        const landed = await commitPatch({ workspaceId: ws.id, artifactId }, content, ops);
+        if (!landed)
+            return no(
+                "refused",
+                "The artifact changed while the tool ran; read it again and retry.",
+            );
         note = "Saved.";
+    } else if (out.generationId) {
+        note = tool.note?.(out.result, input) ?? "Saved.";
     } else if (isAction(out.result)) {
         const done = await perform(ws.id, out.result);
         if (done === null) return no("not-found", MISSING);
         note = done;
     }
 
+    const acted = out.artifactId ?? artifactId;
     return {
         ok: true,
         result: out.result,
         note,
         workspace: { id: ws.id, name: ws.name },
-        ...(artifactId ? { artifactId } : {}),
+        ...(acted ? { artifactId: acted } : {}),
         // A write reloads, so what a component paints is the saved state rather than the one the
         // tool started from; a read wrote nothing and already holds it.
         rendered:
-            changes && artifactId && RENDERS.has(id)
-                ? await loadContent({ workspaceId: ws.id, artifactId })
+            (changes || out.generationId) && acted && RENDERS.has(id)
+                ? await loadContent({ workspaceId: ws.id, artifactId: acted })
                 : content,
     };
 }

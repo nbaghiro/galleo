@@ -1,35 +1,14 @@
-import type { ArtifactContent, ElementInstance, Section, SectionBackground } from "@model/artifact";
+import type {
+    ArtifactContent,
+    ElementInstance,
+    Section,
+    SectionBackground,
+    SectionOp,
+} from "@model/artifact";
 import type { Tokens } from "@model/theme";
-import { removeAtPath, updateAtPath } from "@model/artifact";
+import type { MediaItem } from "@model/media";
+import { LAYOUT_PRESETS, diffSections, removeAtPath, updateAtPath } from "@model/artifact";
 
-export type TurnKind = "generate" | "edit" | "section" | "chat" | "plan" | "build";
-
-/**
- * One model call, as the runtime recorded it. Owned here rather than by any one consumer: the
- * meter reads the token fields to bill, and the eval playground reads the rest to explain. The
- * prompt bodies are present only on a traced run, and are clipped at capture.
- */
-export interface ModelSpan {
-    modelId: string;
-    input: number; // tokens, cached ones included
-    output: number;
-    /** The share of `input` the provider served from its prompt cache, priced at the cached rate. */
-    cached?: number;
-    step: string; // "brief" | "outline" | "plan-section" | "section:<beatId>" | "" when unlabelled
-    ms: number;
-    system?: string;
-    prompt?: string;
-    response?: string;
-    temperature?: number;
-    finishReason?: string;
-    /** The named fragments the system prompt was assembled from, when the builder labelled them. */
-    parts?: PromptPart[];
-}
-
-export interface PromptPart {
-    name: string;
-    text: string;
-}
 export type Surface = "deck" | "doc" | "web";
 
 export interface GenerateInput {
@@ -41,7 +20,7 @@ export interface GenerateInput {
     tone?: string;
     length?: string;
     mustInclude?: string[]; // the outline tags beats with these
-    clarifications?: string[]; // answered "Q — A" lines from the brief stage
+    clarifications?: string[]; // answered "Q · A" lines, and shaping notes from the console
     contextIds?: string[]; // attached context-library collections; retrieval grounds every call
     source?: string;
     sourceArtifactId?: string;
@@ -52,41 +31,64 @@ export interface GenerateInput {
     imageSource?: "stock" | "ai"; // stock is the free default
 }
 
-// a structured expansion of a raw prompt the user edits before anything is planned
-export interface BriefDraft {
-    prompt: string;
-    surface?: Surface;
-    goal?: string;
-    audience?: string;
-    tone?: string;
-    length?: string;
-    mustInclude?: string[];
-    clarify?: string; // ONE question, only when the answer would change the outline
+export type BriefField = keyof GenerateInput;
+export type BriefSource = "user" | "planner";
+
+// The brief a generation is planned and written against, with who set each field: the planner
+// fills what the user left blank and never overwrites what they typed.
+export interface Brief extends GenerateInput {
+    set: Partial<Record<BriefField, BriefSource>>;
 }
 
-// the approved plan a build turn writes against
 export interface PlanOutline {
     title: string;
     backdrop?: string;
     beats: Beat[];
 }
 
-// write ONE pre-planned beat of an approved outline (the studio's client-driven build loop)
-export interface BuildInput {
-    brief: GenerateInput;
-    outline: PlanOutline;
-    beat: Beat;
-    content: ArtifactContent; // the artifact as built so far
-    afterId: string | null; // insert after this id; null ⇒ front
-    steer?: string; // session-wide, applies from here on
-    note?: string; // per-attempt instruction (regenerate-with-note)
-    anchor?: "cover" | "closer"; // force a full-bleed background on the piece's bookends
-    replace?: boolean; // true ⇒ emit replaceSection (a regeneration), else addSection
+// The row keeps only settled states. "writing" is a live signal on the stream, so a process that
+// dies mid-write leaves a beat queued rather than stuck.
+export type BeatStatus = "queued" | "done" | "failed" | "skipped";
+
+export interface BeatState {
+    status: BeatStatus;
+    versions: Section[]; // every take kept
+    active: number; // the one the artifact carries
 }
 
-export interface EditInput {
-    instruction: string; // whole-artifact revision
+export type GenerationStage = "briefed" | "planning" | "outlined" | "writing" | "done";
+
+// A piece being made: what the artifact cannot hold. The section of record lives in the draft
+// artifact's content; this holds the brief, the plan, the standing note and the alternate takes.
+export interface Generation {
+    id: string;
+    workspaceId: string;
+    artifactId: string;
+    stage: GenerationStage;
+    brief: Brief;
+    briefVersion: number;
+    outline: PlanOutline | null;
+    plannedAgainst: number | null; // the brief version the outline came from
+    steer: string;
+    clarify: string | null; // the planner's one question, until it is answered or skipped
+    beats: Record<string, BeatState>;
+    seq: number;
+    createdAt: string; // ISO
 }
+
+export type GenerationOp =
+    | { op: "setBrief"; patch: Partial<GenerateInput>; by: BriefSource }
+    | { op: "setOutline"; title: string; backdrop?: string; beats: Beat[]; clarify?: string | null }
+    | { op: "setClarify"; question: string | null }
+    | { op: "addBeat"; afterId: string | null; beat: Beat }
+    | { op: "updateBeat"; id: string; patch: Partial<Beat> }
+    | { op: "removeBeat"; id: string }
+    | { op: "moveBeat"; id: string; afterId: string | null }
+    | { op: "setSteer"; note: string }
+    | { op: "setBeat"; id: string; status: BeatStatus }
+    | { op: "pushVersion"; id: string; section: Section }
+    | { op: "pickVersion"; id: string; index: number }
+    | { op: "setStage"; stage: GenerationStage };
 
 export interface SectionInput {
     instruction: string;
@@ -132,52 +134,24 @@ export interface ArtifactRef {
     updatedAt?: string;
 }
 
-// what the planner understood the prompt to be asking for
-export interface BriefRead {
-    goal?: string;
-    audience?: string;
-    tone?: string;
-    mustInclude?: string[];
-}
-
-export interface ChatBeat {
+// A card the agent left that the user has not acted on. Listed in the agent's context so a spoken
+// approval names it instead of re-emitting the payload.
+export interface PendingProposal {
     id: string;
-    label: string;
-    role: string;
-    brief?: string;
-    takeaway?: string;
-    points?: string[];
-    written: boolean;
+    summary: string;
+    tool: string;
+    call?: { input: unknown }; // a run the user has not started
+    patch?: Patch; // a change that ran and waits to be applied
 }
-
-// its presence tells the agent it is INSIDE a run, so proposing a separate new artifact is wrong
-export interface ChatGeneration {
-    stage: string; // planning · outline · building · review · done
-    surface: Surface;
-    prompt: string;
-    goal?: string;
-    audience?: string;
-    tone?: string;
-    mustInclude?: string[];
-    steer?: string; // the standing note already in force, so the agent can amend rather than repeat
-    beats: ChatBeat[];
-}
-
-// Outline edits are not artifact edits: they change the plan, which only the studio holds.
-export type BeatOp =
-    | { op: "addBeat"; afterId: string | null; beat: Beat }
-    | { op: "updateBeat"; id: string; patch: Partial<Beat> }
-    | { op: "removeBeat"; id: string }
-    | { op: "moveBeat"; id: string; afterId: string | null };
-export type OutlinePatch = BeatOp[];
 
 export interface ChatContext {
     surface: "editor" | "library" | "generate";
     artifactId?: string;
-    content?: ArtifactContent; // the open artifact; server derives the model's digest from it
+    content?: ArtifactContent; // the open artifact; the server derives the model's digest from it
     focus?: ChatFocus;
     library?: ChatLibrary; // present on the "library" surface (no open artifact)
-    generation?: ChatGeneration; // present on the "generate" surface (a run in progress)
+    generationId?: string; // a run in progress; the server loads it and its draft
+    pending?: PendingProposal[]; // cards still waiting on the user
     contextIds?: string[]; // attached context-library collections
     imageSource?: "stock" | "ai"; // so re-sourcing an image matches how the piece was built
     plan?: string; // so the agent can hint at gated capabilities
@@ -201,74 +175,62 @@ export interface ChatInput {
     history?: ChatTurnRef[];
 }
 
-// a generation brief the user confirms before anything is built
-export interface GenBrief {
-    prompt: string;
-    surface: Surface;
-    length?: string; // "Short" | "Standard" | "In-depth"
-    goal?: string;
-    audience?: string;
-    tone?: string;
-    sourceFromMessage?: boolean; // build from the user's last pasted message
-    sourceArtifactId?: string;
-    // the user's message already said "build it" — the client starts the run without a click
-    approved?: boolean;
+// The durable thread. An assistant turn is kept as the events it streamed, compacted, so a client
+// replays it through the same reducer that painted it live and the cards come back addressable.
+export type ChatThreadMessage =
+    | { role: "user"; text: string; at: string }
+    | { role: "assistant"; events: TurnEvent[]; at: string };
+
+// what the person did with a card, keyed by proposal id
+export type ProposalMark = "applied" | "discarded";
+
+export interface ChatThread {
+    id: string;
+    key: string; // generation:<id> · artifact:<id> · library
+    messages: ChatThreadMessage[];
+    marks: Record<string, ProposalMark>;
 }
+
+export const threadKey = (ctx: {
+    generationId?: string;
+    artifactId?: string;
+    content?: unknown;
+}): string =>
+    ctx.generationId
+        ? `generation:${ctx.generationId}`
+        : ctx.artifactId
+          ? `artifact:${ctx.artifactId}`
+          : "library";
 
 // a chat response is an ordered list of these
 export type ChatBlock =
-    | { type: "text"; text: string }
     | { type: "suggestions"; items: string[] }
-    // targetArtifactId ⇒ apply to a named library artifact; absent ⇒ the open artifact / in-chat draft
+    // What a tool proposes. `call` is a run the user approves before it happens (it costs, or it
+    // creates); `patch` is a change that already ran and waits to be applied. Exactly one is set.
     | {
           type: "proposal";
+          id: string;
+          tool: string;
           summary: string;
-          patch: Patch;
+          cost?: number;
+          call?: { input: unknown };
+          patch?: Patch;
           preview?: Section;
           targetArtifactId?: string;
           theme?: string;
           format?: string;
       }
-    | { type: "preview"; section?: Section; format?: string }
     | { type: "sections"; sections: Section[]; format?: string } // a carousel of existing sections
-    | { type: "brief"; brief: GenBrief } // a proposed generation the user confirms
     | { type: "artifacts"; items: ArtifactRef[] } // library search results, a pick-list
     | { type: "templates"; items: TemplateRef[] } // starter templates, a pick-list
-    // on outline/write/plan, `approved` = the user's message already said to do it — the client
-    // applies the card without a click
-    | { type: "outline"; summary: string; ops: OutlinePatch; approved?: boolean } // a proposed edit to the live outline
     // a designed theme: the client saves it to the workspace, then points the artifact at the new id
     | { type: "theme"; name: string; mood: string; isDark: boolean; tokens: Tokens }
-    | { type: "write"; summary: string; beatIds: string[]; approved?: boolean } // write these already-planned beats
-    // plan (or replan) the run's outline; the studio runs the plan turn when the user starts it
-    | { type: "plan"; summary: string; guidance?: string; andWrite?: boolean; approved?: boolean }
-    // a standing note for every section still to be written; "" clears it
-    | { type: "steer"; note: string }
-    | { type: "action"; action: WorkspaceAction }; // a workspace action the client runs (or confirms)
-
-// `trace` asks the server to record every model call of this turn as an eval run, and `traceSession`
-// groups the turns of one authoring session into a single run: the studio builds a section per turn,
-// but the thing worth evaluating is the artifact. Honoured only for eval admins, so a client setting
-// them changes nothing on its own.
-type Traced = { trace?: boolean; traceSession?: string };
-
-export type TurnRequest = Traced &
-    (
-        | { kind: "generate"; input: GenerateInput }
-        | { kind: "edit"; input: EditInput }
-        | { kind: "section"; input: SectionInput }
-        | { kind: "chat"; input: ChatInput }
-        | { kind: "plan"; input: GenerateInput }
-        | { kind: "build"; input: BuildInput }
-    );
-
-export const isKind = (k: string): k is TurnKind =>
-    k === "generate" ||
-    k === "edit" ||
-    k === "section" ||
-    k === "chat" ||
-    k === "plan" ||
-    k === "build";
+    // a run started from the chat; the card is a view of the generation it names
+    | { type: "generation"; generationId: string; artifactId: string }
+    // the agent applied a pending card on the person's spoken approval; the card is retired
+    | { type: "applied"; proposal: string }
+    // `confirm` = wait for a click before the client performs it
+    | { type: "action"; action: WorkspaceAction; confirm: boolean };
 
 export type PatchOp =
     | { op: "setMeta"; theme?: string; format?: string; background?: SectionBackground | null }
@@ -279,7 +241,19 @@ export type PatchOp =
     | { op: "replaceElement"; sectionId: string; path: number[]; element: ElementInstance | null } // null ⇒ remove
     | { op: "setSectionBackground"; sectionId: string; background: SectionBackground | null };
 
-export type Patch = PatchOp[];
+// What a tool changes, by target. An object rather than a union because one tool often changes two
+// things at once: writing a beat adds a section and marks the beat written, and both must land
+// together. A workspace action is carried, not applied here; the caller performs it.
+export interface Patch {
+    artifact?: PatchOp[];
+    generation?: GenerationOp[];
+    workspace?: WorkspaceAction;
+}
+
+export interface PatchState {
+    content?: ArtifactContent;
+    generation?: Generation;
+}
 
 // shallow copy is enough: applyOp swaps immutably, so originals are never mutated
 const cloneSections = (sections: Section[]): Section[] => sections.map((s) => ({ ...s }));
@@ -345,32 +319,247 @@ function applyOp(content: ArtifactContent, op: PatchOp): ArtifactContent {
 }
 
 // never mutates the input
-export function applyPatch(content: ArtifactContent, patch: Patch): ArtifactContent {
+export function applyContentOps(
+    content: ArtifactContent,
+    ops: readonly PatchOp[],
+): ArtifactContent {
     let next: ArtifactContent = { ...content, sections: cloneSections(content.sections) };
-    for (const op of patch) next = applyOp(next, op);
+    for (const op of ops) next = applyOp(next, op);
     return next;
 }
 
-export type Phase =
-    | "intake"
-    | "spine"
-    | "outline"
-    | "plan"
-    | "build"
-    | "edit"
-    | "research"
-    | "compose"
-    | "done";
+const freshBeat = (): BeatState => ({ status: "queued", versions: [], active: 0 });
+
+function insertBeat(beats: Beat[], afterId: string | null, beat: Beat): Beat[] {
+    // idempotent on id, so an echo of an op already applied optimistically changes nothing
+    const without = beats.filter((b) => b.id !== beat.id);
+    if (afterId === null) return [beat, ...without];
+    const i = without.findIndex((b) => b.id === afterId);
+    if (i < 0) return [...without, beat];
+    return [...without.slice(0, i + 1), beat, ...without.slice(i + 1)];
+}
+
+const BRIEF_FIELDS = [
+    "prompt",
+    "surface",
+    "theme",
+    "goal",
+    "audience",
+    "tone",
+    "length",
+    "mustInclude",
+    "clarifications",
+    "contextIds",
+    "source",
+    "sourceArtifactId",
+    "shapeTemplateId",
+    "imageSource",
+] as const satisfies readonly BriefField[];
+
+// The planner fills blanks and never overwrites what the user typed; a user edit is the only thing
+// that moves the version, which is what "planned against an older brief" is measured by.
+function setBrief(gen: Generation, patch: Partial<GenerateInput>, by: BriefSource): Generation {
+    const set = { ...gen.brief.set };
+    const accepted: Partial<GenerateInput> = {};
+    let changed = false;
+    const take = <K extends BriefField>(key: K): void => {
+        if (by === "planner" && set[key] === "user") return;
+        const value = patch[key];
+        if (JSON.stringify(gen.brief[key]) === JSON.stringify(value)) return;
+        accepted[key] = value;
+        set[key] = by;
+        changed = true;
+    };
+    for (const key of BRIEF_FIELDS) if (key in patch) take(key);
+    if (!changed) return gen;
+    return {
+        ...gen,
+        brief: { ...gen.brief, ...accepted, set },
+        briefVersion: by === "user" ? gen.briefVersion + 1 : gen.briefVersion,
+    };
+}
+
+function applyGenerationOp(gen: Generation, op: GenerationOp): Generation {
+    const outline = gen.outline;
+    const withBeats = (beats: Beat[]): Generation => ({
+        ...gen,
+        outline: outline ? { ...outline, beats } : { title: "", beats },
+    });
+    const state = (id: string): BeatState => gen.beats[id] ?? freshBeat();
+    switch (op.op) {
+        case "setBrief":
+            return setBrief(gen, op.patch, op.by);
+        case "setOutline": {
+            const beats: Record<string, BeatState> = {};
+            for (const b of op.beats) beats[b.id] = state(b.id);
+            return {
+                ...gen,
+                outline: { title: op.title, backdrop: op.backdrop, beats: op.beats },
+                plannedAgainst: gen.briefVersion,
+                clarify: op.clarify ?? null,
+                beats,
+                stage: "outlined",
+            };
+        }
+        case "setClarify":
+            return { ...gen, clarify: op.question };
+        case "addBeat": {
+            const next = withBeats(insertBeat(outline?.beats ?? [], op.afterId, op.beat));
+            return { ...next, beats: { ...gen.beats, [op.beat.id]: state(op.beat.id) } };
+        }
+        case "updateBeat":
+            return withBeats(
+                (outline?.beats ?? []).map((b) =>
+                    b.id === op.id ? { ...b, ...op.patch, id: b.id } : b,
+                ),
+            );
+        case "removeBeat": {
+            const next = withBeats((outline?.beats ?? []).filter((b) => b.id !== op.id));
+            const { [op.id]: _gone, ...rest } = gen.beats;
+            return { ...next, beats: rest };
+        }
+        case "moveBeat": {
+            const beat = outline?.beats.find((b) => b.id === op.id);
+            if (!beat || !outline) return gen;
+            return withBeats(insertBeat(outline.beats, op.afterId, beat));
+        }
+        case "setSteer":
+            return { ...gen, steer: op.note };
+        case "setBeat":
+            return {
+                ...gen,
+                beats: { ...gen.beats, [op.id]: { ...state(op.id), status: op.status } },
+            };
+        case "pushVersion": {
+            const s = state(op.id);
+            const versions = [...s.versions, op.section];
+            return {
+                ...gen,
+                beats: {
+                    ...gen.beats,
+                    [op.id]: { status: "done", versions, active: versions.length - 1 },
+                },
+            };
+        }
+        case "pickVersion": {
+            const s = state(op.id);
+            if (!s.versions.length) return gen;
+            const active = Math.max(0, Math.min(s.versions.length - 1, op.index));
+            return { ...gen, beats: { ...gen.beats, [op.id]: { ...s, active } } };
+        }
+        case "setStage":
+            return { ...gen, stage: op.stage };
+    }
+}
+
+// never mutates the input
+export function applyGenerationOps(gen: Generation, ops: readonly GenerationOp[]): Generation {
+    let next = gen;
+    for (const op of ops) next = applyGenerationOp(next, op);
+    return next;
+}
+
+// Both halves at once, so a tool that writes a section and marks its beat lands as one change.
+// A half whose target is absent from the state is left for whoever holds that target.
+/**
+ * A patch as the section ops the REST write and the collaboration room speak. The two vocabularies
+ * describe the same edits from two sides (a patch names what changed, an op names how the stored
+ * document moves), and this is where they meet: apply the patch, diff, and the ops fall out. A
+ * server-side write goes through here so collaborators see the change land as ops rather than as
+ * a resync, and so nothing about a tool's effect is written twice.
+ */
+export function toSectionOps(before: ArtifactContent, ops: PatchOp[]): SectionOp[] {
+    const had = new Map(before.sections.map((s) => [s.id, JSON.stringify(s)]));
+    // the diff reads identity, which the editor keeps and a patch application does not; a section
+    // the patch left alone is the same section whatever object it came back in
+    return diffSections(before, applyContentOps(before, ops)).filter(
+        (op) => op.kind !== "set" || had.get(op.section.id) !== JSON.stringify(op.section),
+    );
+}
+
+export function applyPatch(state: PatchState, patch: Patch): PatchState {
+    return {
+        content:
+            state.content && patch.artifact?.length
+                ? applyContentOps(state.content, patch.artifact)
+                : state.content,
+        generation:
+            state.generation && patch.generation?.length
+                ? applyGenerationOps(state.generation, patch.generation)
+                : state.generation,
+    };
+}
+
+export const emptyPatch = (p: Patch): boolean =>
+    !p.artifact?.length && !p.generation?.length && !p.workspace;
+
+// the beats written so far, in outline order
+export const writtenBeats = (gen: Generation): Beat[] =>
+    (gen.outline?.beats ?? []).filter((b) => gen.beats[b.id]?.status === "done");
+
+export const unwrittenBeats = (gen: Generation): Beat[] =>
+    (gen.outline?.beats ?? []).filter((b) => {
+        const s = gen.beats[b.id]?.status ?? "queued";
+        return s === "queued" || s === "failed";
+    });
+
+// the section of record for a beat: its active take, or null while it is unwritten
+export const beatSection = (gen: Generation, id: string): Section | null => {
+    const s = gen.beats[id];
+    return s?.versions[s.active] ?? null;
+};
+
+export const columnsFor = (layout?: string): number =>
+    LAYOUT_PRESETS[layout ?? "full"]?.length ?? 1;
+
+// keeps the blocks that still fit the new column count
+export function blocksForLayout(layout: string, prev?: string[]): string[] {
+    const n = columnsFor(layout);
+    const kept = (prev ?? []).slice(0, n);
+    while (kept.length < n) kept.push("text");
+    return kept;
+}
+
+// A layout change carries a column count, so the blocks leading those columns move with it. Here
+// because there are two writers, the outline card and the agent, and only one used to remember.
+export function withDerivedBlocks(patch: Partial<Beat>, prev?: string[]): Partial<Beat> {
+    if (patch.layout === undefined || patch.blocks !== undefined) return patch;
+    return { ...patch, blocks: blocksForLayout(patch.layout, prev) };
+}
+
+// fresh non-colliding beat/section id in the outline's "s<N>" scheme
+export function newBeatId(beats: readonly Beat[], taken: Iterable<string> = []): string {
+    const used = new Set([...beats.map((b) => b.id), ...taken]);
+    for (let n = beats.length + 1; ; n++) {
+        const id = `s${n}`;
+        if (!used.has(id)) return id;
+    }
+}
+
+export function makeBeat(id: string): Beat {
+    return {
+        id,
+        label: "New section",
+        role: "detail",
+        layout: "full",
+        blocks: ["text"],
+        image: false,
+        brief: "",
+    };
+}
+
+export type Phase = "intake" | "outline" | "build" | "compose" | "done";
 
 export type SectionStatus = "queued" | "active" | "writing" | "image" | "done";
 
-// The generate prompt offers the model the first six; `detail` is only ever chosen by hand in the
-// outline editor. `ROLE_WANTS` in ./eval scores six of the seven.
+// The generate prompt offers the model the first seven; `detail` is only ever chosen by hand in
+// the outline editor. `ROLE_WANTS` in ./eval scores seven of the eight.
 export const BEAT_ROLES = [
     "scene",
     "tension",
     "turn",
     "proof",
+    "objection",
     "momentum",
     "close",
     "detail",
@@ -393,17 +582,10 @@ export interface Beat {
 }
 
 export type TurnEvent =
-    | { type: "turn.start"; kind: TurnKind }
+    | { type: "turn.start"; tool: string }
     | { type: "phase"; name: Phase }
     | { type: "narration"; text: string; mono?: string; sub?: string } // Console terminal lines
-    // `brief` is the planner's own reading of the prompt, folded in here to save a second call
-    | {
-          type: "plan";
-          beats: Beat[];
-          title?: string;
-          backdrop?: string;
-          brief?: BriefRead;
-      }
+    | { type: "plan"; beats: Beat[]; title?: string; backdrop?: string }
     // the outline as it streams: only the beats that have fully formed so far, replaced wholesale
     // each time, so the studio paints the plan while the rest of it is still generating
     | { type: "plan.partial"; beats: Beat[]; title?: string }
@@ -413,8 +595,13 @@ export type TurnEvent =
     // a build's live preview: the written section with empty frames where its photographs will
     // land, shown while they are sourced; never stored, the following patch is the section of record
     | { type: "section.partial"; id: string; section: Section }
-    | { type: "patch"; ops: Patch } // apply to the canvas as it streams
-    | { type: "reply"; text: string } // chat/research answer
+    // `seq` is the generation's revision after the server applied it; absent when the caller applies
+    | { type: "patch"; patch: Patch; seq?: number }
+    // a section's narration landed: synthesized now, or served from the cache at no cost
+    | { type: "section.audio"; id: string; ms: number; cached: boolean; chars: number }
+    // one generated picture or clip, stored in the workspace library; `failed` is a variation lost
+    | { type: "media"; item: MediaItem }
+    | { type: "media.failed"; reason?: string }
     // one headline per move in the agent's reasoning loop; no label = it just started thinking
     | { type: "chat.thinking"; label?: string }
     | { type: "chat.text"; delta: string } // streamed assistant prose
@@ -422,5 +609,5 @@ export type TurnEvent =
     | { type: "chat.tool"; blockId: string; tool: string; title: string; done?: boolean }
     | { type: "chat.nested"; blockId: string; event: TurnEvent } // a capability event routed to a block's widget
     | { type: "chat.block"; blockId: string; block: ChatBlock }
-    | { type: "turn.done"; summary?: string }
+    | { type: "turn.done"; summary?: string; result?: unknown; traceId?: string }
     | { type: "error"; message: string };

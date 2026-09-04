@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { ToolId } from "@model/tools";
+import type { ToolSpec } from "@model/tools";
+import { scopeFor, TOOL_SPEC, TOOLS } from "@model/tools";
+import { toolsFor } from "@services/core/ai/tools";
+import { warn } from "@services/utils/env";
 import { appUrl } from "@services/utils/env";
 import { readJson } from "@services/utils/http";
 import { verifyAccessToken } from "@services/core/authorization";
@@ -31,6 +35,8 @@ const grantFor = async (raw: string): Promise<AccessGrant | null> =>
     (await verifyAccessToken(raw, "")) ?? (await verifyAccessToken(raw, appUrl("/mcp")));
 
 const unauthorized = { error: "unauthorized" } as const;
+// the spec map holds only the tools that publish a shape, so it is read as a partial
+const SPEC = TOOL_SPEC as Partial<Record<ToolId, ToolSpec>>;
 
 /** One shape for every route: resolve the caller, run the shared call, answer with what it made. */
 async function run(
@@ -58,7 +64,14 @@ async function run(
         // the write it was making already happened.
         return { status: 500, body: { error: e instanceof Error ? e.message : "the call failed" } };
     }
-    if (out.ok)
+    if (out.ok) {
+        // the answer is held to the shape the listing publishes; a mismatch is ours, not the caller's
+        const output = SPEC[id]?.output;
+        const parsed = output?.safeParse(out.result);
+        if (parsed && !parsed.success)
+            warn(
+                `[api] ${id} answered outside its output schema: ${parsed.error.issues[0]?.message ?? "?"}`,
+            );
         return {
             status: 200,
             body: {
@@ -67,6 +80,7 @@ async function run(
                 data: out.result,
             },
         };
+    }
     // the shapes a REST client acts on: 403 to widen a token, 404 for a thing that is not there
     if (out.kind === "scope")
         return { status: 403, body: { error: "insufficient_scope", scope: out.needs } };
@@ -77,6 +91,25 @@ async function run(
 
 const ws = (c: { req: { query: (k: string) => string | undefined } }): string | undefined =>
     c.req.query("workspace");
+
+// The contract, readable without a token: every tool the API can reach, with the scope it takes
+// and the JSON Schema of what it accepts and what it answers. The same schemas MCP publishes.
+v1.get("/api/v1/tools", (c) =>
+    c.json({
+        tools: toolsFor("api").map((t) => {
+            const spec = SPEC[t.id];
+            return {
+                name: t.id,
+                title: TOOLS[t.id].title,
+                description: spec?.describe ?? TOOLS[t.id].summary,
+                scope: scopeFor(t.id),
+                effect: TOOLS[t.id].effect ?? "write",
+                ...(spec ? { input: z.toJSONSchema(spec.input, { io: "input" }) } : {}),
+                ...(spec?.output ? { output: z.toJSONSchema(spec.output, { io: "output" }) } : {}),
+            };
+        }),
+    }),
+);
 
 v1.get("/api/v1/workspaces", async (c) => {
     const out = await run(c.req.header("authorization"), undefined, "list-workspaces", {});

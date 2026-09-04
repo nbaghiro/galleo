@@ -4,10 +4,10 @@ import { z } from "zod";
 import { out, warn } from "@services/utils/env";
 import { MODELS, PROVIDER_LABEL, type Provider } from "@services/core/models";
 import { modelCall, providerReady } from "@services/core/ai/provider";
-import { runPlan } from "@services/core/ai/run";
 import { runChat } from "@services/core/ai/chat";
-import { expandBrief } from "@services/core/ai/tools/plan";
-import type { Beat, BriefDraft, GenerateInput } from "@model/ai";
+import { planOutlineFor } from "@services/core/ai/tools/plan";
+import { drain, makeContext } from "@services/core/ai/tools";
+import type { Beat, GenerateInput } from "@model/ai";
 
 // Does each registered model actually answer, with the key this environment holds? `check:models`
 // proves an id is one the SDK declares; only a real call proves the key works, the account has
@@ -17,7 +17,7 @@ import type { Beat, BriefDraft, GenerateInput } from "@model/ai";
 //   pnpm ai:probe --provider=anthropic   one provider
 //   pnpm ai:probe --model=openai:gpt-5.5 one model
 //   pnpm ai:probe --json                 also check structured output, which the pipeline leans on
-//   pnpm ai:probe --turn                 run the REAL flows: brief → outline plan → a full chat turn
+//   pnpm ai:probe --turn                 run the REAL flows: the outline plan → a full chat turn
 //   pnpm ai:probe --turn --sections=12   plan at the size the studio really asks for (default 3)
 
 const args = process.argv.slice(2);
@@ -77,9 +77,9 @@ function outlineGaps(beats: Beat[]): string | null {
     return gaps.length && fatal ? `${beats.length} beats, ${gaps.join(", ")}` : null;
 }
 
-// The product's own flows, not a synthetic call: the brief expansion, the studio's plan turn, and a
-// full chat turn with its real toolset. A model can answer a one-line prompt and a toy schema and
-// still fail here on schema size, tool calling, or a reasoning-only reply.
+// The product's own flows, not a synthetic call: the studio's plan, and a full chat turn with its
+// real toolset. A model can answer a one-line prompt and a toy schema and still fail here on
+// schema size, tool calling, or a reasoning-only reply.
 async function realFlows(id: string, signal: AbortSignal): Promise<string | null> {
     const PROMPT = "A short launch deck for a note-taking app";
     const step: Record<string, number> = {};
@@ -95,44 +95,27 @@ async function realFlows(id: string, signal: AbortSignal): Promise<string | null
         Object.entries(step)
             .map(([k, ms]) => `${k} ${(ms / 1000).toFixed(1)}s`)
             .join("  ");
-    let brief: BriefDraft | undefined;
-    try {
-        brief = await timed("brief", () =>
-            expandBrief(PROMPT, "deck", { models: { brief: id }, signal }),
-        );
-        // each field on its own: a read with only a goal is not a brief, and "came back empty"
-        // hid that by passing whenever any one of the three landed
-        const blank = (["goal", "audience", "tone"] as const).filter((k) => !brief?.[k]?.trim());
-        if (blank.length) return `brief: no ${blank.join(", no ")}`;
-    } catch (e) {
-        return `brief: ${reason(e)}`;
-    }
 
     try {
-        const input: GenerateInput = {
-            prompt: PROMPT,
-            surface: "deck",
-            theme: "studio",
-            goal: brief.goal,
-            audience: brief.audience,
-            tone: brief.tone,
-        };
-        let beats: Beat[] = [];
-        let planError: string | null = null;
-        await timed("outline", async () => {
-            for await (const ev of runPlan(input, {
-                models: { outline: id },
-                maxSections: sections,
-                signal,
-                // the real turn sources a backdrop; stock is the product default and needs no key
-                image: { source: "stock" },
-            })) {
-                if (ev.type === "error") planError = clip(ev.message, 110);
-                if (ev.type === "plan") beats = ev.beats;
-            }
-        });
-        if (planError) return `outline: ${planError}`;
-        const gaps = outlineGaps(beats);
+        const input: GenerateInput = { prompt: PROMPT, surface: "deck", theme: "studio" };
+        const outline = await timed("outline", () =>
+            drain(
+                planOutlineFor(
+                    input,
+                    makeContext({
+                        models: { outline: id },
+                        maxSections: sections,
+                        signal,
+                        // the real turn sources a backdrop; stock is the product default and needs no key
+                        image: { source: "stock" },
+                    }),
+                ),
+            ),
+        );
+        // the planner reads the brief itself now, so its reading is checked with the arc
+        const blank = (["goal", "audience", "tone"] as const).filter((k) => !outline[k]?.trim());
+        if (blank.length) return `outline: no ${blank.join(", no ")}`;
+        const gaps = outlineGaps(outline.beats);
         if (gaps) return `outline: ${gaps}`;
     } catch (e) {
         return `outline: ${reason(e)}`;
@@ -143,7 +126,7 @@ async function realFlows(id: string, signal: AbortSignal): Promise<string | null
         await timed("chat", async () => {
             for await (const ev of runChat(
                 { message: "What could this deck cover?", context: { surface: "library" } },
-                { models: { chat: id }, signal },
+                makeContext({ image: {}, models: { chat: id }, signal }),
             )) {
                 if (ev.type === "error") failed = ev.message;
                 // the agent catches its own stream errors and reports them as prose

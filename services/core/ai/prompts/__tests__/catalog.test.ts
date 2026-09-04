@@ -7,6 +7,7 @@ import {
     describeTheme,
     elementCatalog,
     layoutCatalog,
+    presetList,
     siteAnatomy,
 } from "@services/core/ai/prompts/catalog";
 
@@ -103,6 +104,13 @@ describe("layoutCatalog", () => {
     it("lists EVERY layout preset (drift guard)", () => {
         for (const g of LAYOUTS) expect(out).toContain(`\`${g.id}\``);
     });
+    it("teaches the sizing grammar and the vertical balance a split needs", () => {
+        expect(out).toContain("`fit`"); // the four size modes, named
+        expect(out).toContain("`fill`");
+        expect(out).toContain("sits at the TOP"); // the default that strands a short visual
+        expect(out).toContain('`align: "center"`'); // the fix the writer should reach for
+        expect(out).toContain("comparable weight"); // balance the two columns
+    });
 });
 
 describe("describeTheme", () => {
@@ -117,5 +125,12 @@ describe("describeTheme", () => {
         const out = describeTheme(dark.id);
         expect(out).toContain(dark.name);
         expect(out).toContain("dark");
+    });
+});
+
+describe("presetList", () => {
+    it("names every layout preset the catalog holds, so the job cannot drift from it", () => {
+        for (const l of LAYOUTS) expect(presetList()).toContain(l.id);
+        expect(presetList()).toContain("four-up");
     });
 });

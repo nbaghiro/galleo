@@ -9,10 +9,15 @@ import {
     feature,
     fill,
     fitW,
+    grid,
+    img,
     menu,
     pin,
+    polaroid,
+    profile,
     row,
     section,
+    split,
     t,
     table,
 } from "@model/authoring";
@@ -43,6 +48,15 @@ function cleanSection(s: Section): unknown {
     return { id: s.id, root: cleanElement(s.root) };
 }
 
+// The corpus was written before the persona banned the em-dash, and an exemplar teaches by
+// imitation: a label joined to its value takes the middot the voice asks for, a clause its comma.
+const plainDashes = (json: string): string =>
+    json
+        .replace(/(\d[\d.,%]*) \u2014 /g, "$1 · ")
+        .replace(/ \u2014 /g, ", ")
+        .replace(/\u2014/g, ", ");
+const exemplarJson = (s: Section): string => plainDashes(JSON.stringify(cleanSection(s)));
+
 function shapeOf(s: Section): string {
     const d = s.root.data as { direction?: string; children?: unknown[] };
     if (!Array.isArray(d.children)) return "leaf";
@@ -67,6 +81,51 @@ const MOVES: Section = section(
     ),
 );
 
+// The gallery-and-people section, hand-authored like MOVES: a captioned grid (the captions carry
+// the personality, tables stay dry), face-explicit portrait briefs, and people beside a polaroid
+// on a 70/30 split so the polaroid can never starve the row.
+const GALLERY: Section = section(
+    "workshop",
+    col(
+        t("THE WORKSHOP, KEPT", "label"),
+        grid(
+            3,
+            col(
+                img("hands waxing a canvas roll on a workbench", 1),
+                t("Every roll waxed twice. Opinions expected.", "caption"),
+            ),
+            col(
+                img("a wall of numbered brass patterns", 1),
+                t("The archive · one pattern kept from every year", "caption"),
+            ),
+            col(
+                img("morning light across a cutting table", 1),
+                t("6:40, before the radio goes on", "caption"),
+            ),
+        ),
+        split(
+            70,
+            row(
+                fill(
+                    profile(
+                        "Mara Ellison",
+                        "Cutter, 19 years",
+                        "portrait of a woman in her 50s, warm smile, natural light",
+                    ),
+                ),
+                fill(
+                    profile(
+                        "Dev Okonkwo",
+                        "Wax room",
+                        "portrait of a man in his 30s, easy grin, workshop light",
+                    ),
+                ),
+            ),
+            polaroid("the first bag of the season on the bench", 1, "No. 1 of 240"),
+        ),
+    ),
+);
+
 export function sectionExemplars(surface: Surface): string {
     const art = GOLD[surface] ?? GOLD.deck;
     const ranked = art.sections
@@ -79,15 +138,13 @@ export function sectionExemplars(surface: Surface): string {
     const picks = [first, second].filter((s): s is Section => !!s);
     if (!picks.length) return "";
     const body = picks
-        .map(
-            (s, i) =>
-                `Example ${i + 1} · layout ${shapeOf(s)}:\n${JSON.stringify(cleanSection(s))}`,
-        )
+        .map((s, i) => `Example ${i + 1} · layout ${shapeOf(s)}:\n${exemplarJson(s)}`)
         .join("\n\n");
-    const moves = `Example ${picks.length + 1} · the reserved moves (a pinned corner badge, a baseline number line, a clamped table). Use each at most once in a whole piece, and only where it carries something true; most pieces need none of them:\n${JSON.stringify(cleanSection(MOVES))}`;
+    const gallery = `Example ${picks.length + 1} · a captioned gallery and the people, for a beat about craft, place, or a team: image tiles in a \`grid\` whose captions carry the personality, portrait briefs that name a FACE, and people beside a polaroid on a 70/30 split:\n${JSON.stringify(cleanSection(GALLERY))}`;
+    const moves = `Example ${picks.length + 2} · the reserved moves (a pinned corner badge, a baseline number line, a clamped table). Use each at most once in a whole piece, and only where it carries something true; most pieces need none of them:\n${JSON.stringify(cleanSection(MOVES))}`;
     return heading(
         `Gold-standard ${surface} sections. Match this richness and density`,
-        `These are real sections from hand-crafted, published artifacts. Notice how each fills its frame with a clear headline plus purposeful, varied elements (stats, cards, groups, bullets, images). Never a lone line of text on an empty frame:\n\n${body}\n\n${moves}`,
+        `These are real sections from hand-crafted, published artifacts. Notice how each fills its frame with a clear headline plus purposeful, varied elements (stats, cards, groups, bullets, images). Never a lone line of text on an empty frame:\n\n${body}\n\n${gallery}\n\n${moves}`,
     );
 }
 

@@ -39,8 +39,10 @@ with high-fidelity export. Net-new, TypeScript.
   **One file per concept**, each holding its types, its wire DTOs, and the functions that operate on them,
   so a new field is one file's diff: `artifact` (the content tree + tree/path ops + node addressing + REST
   shapes + section-op semantics + the derived digest/search text + the speaker-note fingerprint that
-  tells a current script from one written for copy that has since changed), `ai` (the streamed turn protocol; the
-  LLM-facing catalog lives with its prompt in `services/core/ai/prompts/catalog.ts`), `credits` (metered credits +
+  tells a current script from one written for copy that has since changed), `ai` (the tool protocol: the streamed events, the `Patch` that
+  addresses the artifact, the generation and the workspace at once, the `Generation` resource, the chat
+  blocks and the stored thread; the LLM-facing element catalog lives with its prompt in
+  `services/core/ai/prompts/catalog.ts`), `credits` (metered credits +
   the AiTask steps), `tools` (the one tool catalog: identity, surfaces, pricing), `billing` (plans, seats,
   add-ons + the entitlement resolver), `eval` (the traced-run contract the eval playground reads),
   `workspace` (the person, not the tenant: user + prefs + memberships + folder + the auth/account DTOs),
@@ -60,8 +62,10 @@ with high-fidelity export. Net-new, TypeScript.
   `elements` (element value-sets + the vector IR), and
   the two curated catalogs that carry their own contract: `theme` (the whole theme contract + library) and
   `templates` (the `Template` DTO + `TEMPLATE_INDEX`, ids/labels/grouping only — the bodies are served from
-  `services/core/templates.ts`, so this stays edge-safe). Eighteen files; resist adding a nineteenth for a
-  handful of types that belong to a concept already here.
+  `services/core/templates.ts`, so this stays edge-safe), and `trace` (the record of one tool call: the
+  tool and model spans, the level, the status, the cost; kept for every call and read by the eval
+  playground, here because the playground and the backend both read it). Nineteen files; resist adding a
+  twentieth for a handful of types that belong to a concept already here.
 - **`canvas/`** (`@canvas`, `@engine`, `@elements`) — the paint layer: the layout engine + element
   library + DOM / 2D-canvas / PDF backends + present-slide geometry + export. **Pure TS** — framework-
   and editor-free; imports only `model`.
@@ -300,9 +304,11 @@ served by `services/core/ai` (see `.docs/ai.md`). Whole-artifact generation runs
 **generation studio** (`app/views/generate/` over `app/stores/generate.ts`): one full-screen surface
 whose first body is a centred prompt with attachable context (pasted text + text files), then an
 outline the canvas renders as editable section cards, then a per-beat build (write all, or one at a
-time, with steer / pause / versions). One turn per step. There are no run-mode settings:
-editing the outline covers shaping the arc, and the two ways to build are both one click at the
-board. The chat rail runs the same agent on a `generate` surface that sees the outline and revises it.
+time, with steer / pause / versions). The run is a server-side `Generation` row, every button is a
+catalog tool run through the one executor (`services/core/ai/execute.ts`), and the store is a mirror
+kept by applying the patches that stream back. There are no run-mode settings: editing the outline
+covers shaping the arc, and the two ways to build are both one click at the board. The chat rail runs
+the same agent on a `generate` surface with the generation's tools in its toolset.
 
 ## Commits
 

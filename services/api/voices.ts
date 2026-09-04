@@ -1,11 +1,14 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
-import type { VoiceQuery } from "@model/speech";
+import type { DesignedCandidate, VoiceQuery } from "@model/speech";
+import { runTool } from "@services/core/ai/execute";
+import type { ToolOutcome } from "@services/core/ai/execute";
+import type { Auditioned } from "@services/core/ai/tools/audio";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 import { featuresFor } from "@model/billing";
 import {
     adopt,
-    design,
     keepDesigned,
     makeDefault,
     renameShelved,
@@ -16,8 +19,8 @@ import {
     VoiceError,
     voiceFor,
 } from "@services/core/voices";
-import { SpeechError, synthesize } from "@services/core/ai/speech";
-import { pricesFor, reserve } from "@services/core/spend";
+import { SpeechError } from "@services/core/ai/speech";
+
 import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
 
 // The voice surface: browsing the provider's community library, saving to a workspace's shelf, and
@@ -148,25 +151,28 @@ voices.post("/voices/design", requireWorkspace, async (c) => {
             400,
         );
 
-    const held = await reserve(ws, c.get("user").id, "design-voice", {
-        prices: pricesFor(ws, {}),
-        role: c.get("role"),
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
-
-    return held.settle(async (billed) => {
-        try {
-            const candidates = await design(description, body?.sampleText?.trim()?.slice(0, 1000));
-            // TODO(measure): the provider documents no price for a design call. Until it is measured
-            // against a real account this settles at one unit and the ceiling holds three.
-            billed({ speech: candidates.length ? 1 : 0 });
-            return c.json({ candidates });
-        } catch (e) {
-            const f = fail(e);
-            return c.json({ error: f.error }, f.status);
-        }
-    });
+    let out: ToolOutcome<DesignedCandidate[]>;
+    try {
+        out = await runTool<DesignedCandidate[]>(
+            {
+                id: "design-voice",
+                surface: "direct",
+                input: { description, sampleText: body?.sampleText },
+            },
+            { userId: c.get("user").id, ws, role: c.get("role") },
+            {
+                ctx: { image: {} },
+                // TODO(measure): the provider documents no price for a design call. Until it is
+                // measured against a real account this settles at one unit and the ceiling holds three.
+                produced: (r) => ({ speech: Array.isArray(r) && r.length ? 1 : 0 }),
+            },
+        );
+    } catch (e) {
+        const f = fail(e);
+        return c.json({ error: f.error }, f.status);
+    }
+    if (!out.ok) return refused(c, out);
+    return c.json({ candidates: out.result });
 });
 
 const zKeep = z.object({
@@ -239,26 +245,40 @@ voices.post("/voices/audition", requireWorkspace, async (c) => {
     const voice = await voiceFor(ws.id, body.voiceId);
     if (!voice) return c.json({ error: "this workspace has no voices yet" }, 404);
 
-    const held = await reserve(ws, c.get("user").id, "audition-voice", {
-        prices: pricesFor(ws, {}),
-        role: c.get("role"),
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
-
-    return held.settle(async (billed) => {
-        try {
-            const out = await synthesize(text, voice.externalId);
+    let out: ToolOutcome<Auditioned>;
+    try {
+        out = await runTool<Auditioned>(
+            { id: "audition-voice", surface: "direct", input: { voiceId: voice.id, text } },
+            { userId: c.get("user").id, ws, role: c.get("role") },
             // synthesis is flat-priced and invisible to the token meter; without this the settle
             // sees nothing owed and refunds the hold, making every audition free
-            billed({ text: 1 });
-            return c.json({
-                audio: `data:${out.mime};base64,${out.audio.toString("base64")}`,
-                ms: out.ms,
-            });
-        } catch (e) {
-            const f = fail(e);
-            return c.json({ error: f.error }, f.status);
-        }
-    });
+            { ctx: { image: {} }, produced: (r) => ({ text: r ? 1 : 0 }) },
+        );
+    } catch (e) {
+        const f = fail(e);
+        return c.json({ error: f.error }, f.status);
+    }
+    if (!out.ok) return refused(c, out);
+    return c.json(out.result);
 });
+
+// what the route answers when the executor refused before the body ran
+function refused(
+    c: Context<WorkspaceEnv>,
+    out: Extract<ToolOutcome<unknown>, { ok: false }>,
+): Response {
+    const ws = c.get("ws");
+    if (out.reason === "credits") return c.json(creditRefusal(ws, out), 402);
+    if (out.reason === "entitlement")
+        return c.json(
+            {
+                error: "That needs a higher plan.",
+                reason: "feature" as const,
+                feature: out.feature,
+                upgrade: true,
+            },
+            402,
+        );
+    if (out.reason === "bad-input") return c.json({ error: out.issues.join("; ") }, 400);
+    return c.json({ error: "that action is not available" }, 500);
+}

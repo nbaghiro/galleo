@@ -11,7 +11,8 @@ import type {
     SectionSummary,
 } from "@model/artifact";
 import type { PlanId, PlanLimits } from "@model/billing";
-import type { TurnEvent, TurnRequest } from "@model/ai";
+import type { TurnEvent } from "@model/ai";
+import type { ToolId } from "@model/tools";
 import type { IconPick, MediaCredit, MediaItem, MediaKind } from "@model/media";
 import { createSignal } from "solid-js";
 import type { Theme, Tokens } from "@themes";
@@ -1014,9 +1015,14 @@ export function adoptLink(url: string): Promise<string> {
     return linkAdopter?.(url) ?? Promise.resolve(url);
 }
 
-// app registers the AI turn transport (POST /ai/turn, SSE); injected so the editor stays app-free
+// app registers the AI tool transport (POST /ai/turn, SSE); injected so the editor stays app-free
+export interface ToolCall {
+    tool: ToolId;
+    input: unknown;
+    artifact?: ArtifactContent; // the document the tool acts on, when the browser holds it
+}
 export type SectionStreamer = (
-    request: TurnRequest,
+    call: ToolCall,
     onEvent: (event: TurnEvent) => void,
     signal?: AbortSignal,
 ) => Promise<void>;

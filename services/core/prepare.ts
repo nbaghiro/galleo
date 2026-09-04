@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import type { ArtifactContent, Section, SectionOp } from "@model/artifact";
 import { asContent, needsScript, unscripted } from "@model/artifact";
 import { featuresFor } from "@model/billing";
+import { estimateCost } from "@model/tools";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { applyContentOps } from "@services/core/artifacts";
@@ -11,9 +12,10 @@ import { aiReady } from "@services/core/ai/provider";
 import { speechReady } from "@services/core/ai/speech";
 import { musicReady } from "@services/core/ai/music";
 import { DEFAULT_MS } from "@services/core/ai/music";
-import { pruneOrphans, spokenOf, trackFor, unitsFor } from "@services/core/narration";
-import { composeForArtifact } from "@services/core/soundtrack";
-import { pricesFor, reserve } from "@services/core/spend";
+import { pruneOrphans, spokenOf, unitsFor } from "@services/core/narration";
+import type { Composed, Narrated } from "@services/core/ai/tools/audio";
+import { bedMinutes } from "@services/core/soundtrack";
+import { pricesFor } from "@services/core/spend";
 import { warn } from "@services/utils/env";
 
 /**
@@ -24,9 +26,11 @@ import { warn } from "@services/utils/env";
  * presses play puts the whole wait where it is least wanted, so this does it behind a request that
  * has already been answered.
  *
- * Deliberately not a queue. It is triggered from the two moments the server already hears about an
- * artifact (its content changing, and it being opened) and everything it does is keyed on what is
- * missing, so a second trigger on a prepared piece is two indexed reads that find nothing to do.
+ * Deliberately not a queue. It is triggered when an artifact is opened, and everything it does is
+ * keyed on what is missing, so opening a prepared piece is two indexed reads that find nothing to
+ * do. It used to run on every save as well, which narrated a piece once per edit and spent more on
+ * pieces nobody presented than the whole of generation; an open is the moment someone is about to
+ * read or present, so that is the one this listens to.
  *
  * **Narration follows the content; the bed does not.** A script IS the words, so a section whose
  * copy changed has a script that is now wrong, and every such section is rewritten in one pass so
@@ -42,6 +46,32 @@ import { warn } from "@services/utils/env";
 /** At most this many artifacts in flight per process, so preparation cannot crowd out real work. */
 const MAX_CONCURRENT = 2;
 const preparing = new Set<string>();
+// An open arrives in pairs (the editor, then present) and the read it rode in on should answer
+// first, so a pass starts a moment later and one pass covers the pair.
+const QUIET_MS = 2_000;
+const pending = new Map<string, ReturnType<typeof setTimeout>>();
+// A workspace that could not pay is not asked again for a while: the refusal is the same on the
+// next save, and each attempt is a hold, a trace and an analytics event for nothing.
+const REFUSED_FOR_MS = 10 * 60_000;
+const refusedAt = new Map<string, number>();
+export const noteRefusal = (workspaceId: string): void => {
+    refusedAt.set(workspaceId, Date.now());
+};
+const refusedRecently = (workspaceId: string): boolean =>
+    Date.now() - (refusedAt.get(workspaceId) ?? 0) < REFUSED_FOR_MS;
+
+/**
+ * Whether the workspace can pay for the first thing a pass would ask for. Checked before the pass
+ * starts rather than left to the hold, since a refused hold is still a trace and an event.
+ */
+export function affordable(
+    ws: { aiCreditsBalance: number } & Parameters<typeof pricesFor>[0],
+): boolean {
+    return (
+        ws.aiCreditsBalance >=
+        estimateCost("write-speaker-notes", { sections: 1 }, pricesFor(ws, {}))
+    );
+}
 
 /**
  * Sections worth spending on: no script yet, or one written for copy that has since changed.
@@ -62,6 +92,18 @@ export interface PrepareTarget {
  * so this must never reject and never be awaited.
  */
 export function prepareInBackground(target: PrepareTarget): void {
+    if (refusedRecently(target.workspaceId)) return;
+    clearTimeout(pending.get(target.artifactId));
+    pending.set(
+        target.artifactId,
+        setTimeout(() => {
+            pending.delete(target.artifactId);
+            start(target);
+        }, QUIET_MS),
+    );
+}
+
+function start(target: PrepareTarget): void {
     if (preparing.size >= MAX_CONCURRENT || preparing.has(target.artifactId)) return;
     preparing.add(target.artifactId);
     void prepare(target)
@@ -77,6 +119,10 @@ export function prepareInBackground(target: PrepareTarget): void {
 export async function prepare({ artifactId, workspaceId }: PrepareTarget): Promise<void> {
     const ws = await workspaceFor(workspaceId);
     if (!ws?.prepareAudio) return; // off unless the workspace asked for it
+    if (!affordable(ws)) {
+        noteRefusal(workspaceId);
+        return;
+    }
     const features = featuresFor(ws);
 
     const [row] = await db
@@ -115,23 +161,27 @@ async function composeBed(
     spender: string,
     content: ArtifactContent,
 ): Promise<void> {
-    const held = await reserve(ws, spender, "compose-soundtrack", {
-        size: { musicMinutes: 1 },
-        prices: pricesFor(ws, {}),
-        surface: "direct",
-    });
-    if (!held.ok) return;
-
-    await held.settle(async (billed) => {
-        try {
-            const out = await composeForArtifact(artifactId, content, DEFAULT_MS);
+    const out = await runTool<Composed>(
+        {
+            id: "compose-soundtrack",
+            surface: "direct",
+            input: { custom: true, lengthMs: DEFAULT_MS },
+        },
+        { userId: spender, ws, role: "member" },
+        {
+            ctx: { image: {}, artifact: content, artifactId },
+            size: { musicMinutes: 1 },
             // a bed this deployment already had reports zero, so a second pass owes nothing
-            billed({ music: out.ms ? Math.max(1, Math.ceil(out.ms / 60_000)) : 0 });
-        } catch (e: unknown) {
-            billed({ music: 0 });
-            warn(`prepare bed ${artifactId}: ${e instanceof Error ? e.message : "failed"}`);
-        }
+            produced: (r) => ({ music: bedMinutes((r as Composed | undefined)?.ms) }),
+        },
+    ).catch((e: unknown) => {
+        warn(`prepare bed ${artifactId}: ${e instanceof Error ? e.message : "failed"}`);
+        return null;
     });
+    if (out && !out.ok) {
+        if (out.reason === "credits") noteRefusal(workspaceId);
+        else warn(`prepare bed ${artifactId}: ${out.reason}`);
+    }
 }
 
 const workspaceFor = async (
@@ -181,7 +231,8 @@ async function fillScripts(
     // Out of credits, or a body that threw: either way the piece stays unprepared, which is not an
     // error anyone asked about. Nothing was billed for a run that produced no notes.
     if (!out.ok) {
-        if (out.reason !== "credits") warn(`prepare notes ${artifactId}: ${out.reason}`);
+        if (out.reason === "credits") noteRefusal(workspaceId);
+        else warn(`prepare notes ${artifactId}: ${out.reason}`);
         return content;
     }
     const written = out.result;
@@ -217,30 +268,23 @@ async function recordSections(
         const chars = spokenOf(section).length;
         if (!chars) continue;
 
-        const held = await reserve(ws, spender, "narrate-artifact", {
-            size: { speechUnits: Math.max(1, unitsFor(chars)) },
-            prices: pricesFor(ws, {}),
-            surface: "direct",
+        const out = await runTool<Narrated>(
+            { id: "narrate-artifact", surface: "direct", input: { sectionIds: [section.id] } },
+            { userId: spender, ws, role: "member" },
+            {
+                ctx: { image: {}, artifact: content, artifactId },
+                size: { speechUnits: Math.max(1, unitsFor(chars)) },
+                produced: (r) => ({ speech: unitsFor((r as Narrated | undefined)?.chars ?? 0) }),
+            },
+        ).catch((e: unknown) => {
+            warn(`prepare voice ${artifactId}: ${e instanceof Error ? e.message : "failed"}`);
+            return null;
         });
-        if (!held.ok) return; // the wall is for the whole piece, not this section
-
-        const ok = await held.settle(async (billed) => {
-            try {
-                const out = await trackFor(
-                    artifactId,
-                    content,
-                    workspaceId,
-                    section.id,
-                    () => "", // the url is the reader's business; this only fills the cache
-                );
-                billed({ speech: unitsFor(out?.chars ?? 0) });
-                return true;
-            } catch (e: unknown) {
-                billed({ speech: 0 });
-                warn(`prepare voice ${artifactId}: ${e instanceof Error ? e.message : "failed"}`);
-                return false;
-            }
-        });
-        if (!ok) return; // a provider that refused once will refuse the next section too
+        if (out && !out.ok) {
+            // the wall is for the whole piece, not this section
+            if (out.reason === "credits") noteRefusal(workspaceId);
+            return;
+        }
+        if (!out) return; // a provider that refused once will refuse the next section too
     }
 }

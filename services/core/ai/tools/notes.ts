@@ -63,7 +63,7 @@ export function toNotes(spoken: string, cues: readonly string[]): SectionNotes {
     };
 }
 
-export interface ModelNote {
+interface ModelNote {
     sectionId: string;
     spoken?: string;
     cues?: string[];
@@ -100,7 +100,7 @@ export function collectNotes(
     return out.sort((a, b) => (at.get(a.sectionId) ?? 0) - (at.get(b.sectionId) ?? 0));
 }
 
-export async function writeSpeakerNotes(
+async function writeSpeakerNotes(
     content: ArtifactContent,
     sectionIds: readonly string[] | undefined,
     opts: NotesOpts = {},
@@ -123,11 +123,33 @@ export async function writeSpeakerNotes(
     return collectNotes(object.notes, targets, content.sections);
 }
 
-implement("write-speaker-notes", async function* (input, ctx) {
-    if (!ctx.artifact) throw new Error("There is no open artifact to write notes for.");
-    return await writeSpeakerNotes(ctx.artifact, input.sectionIds, {
-        tier: ctx.tier,
-        models: ctx.models,
-        signal: ctx.signal,
-    });
-});
+implement(
+    "write-speaker-notes",
+    async function* (input, ctx) {
+        if (!ctx.artifact) throw new Error("There is no open artifact to write notes for.");
+        const rows = await writeSpeakerNotes(ctx.artifact, input.sectionIds, {
+            tier: ctx.tier,
+            models: ctx.models,
+            signal: ctx.signal,
+            guidance: input.guidance,
+        });
+        const by = new Map(rows.map((r) => [r.sectionId, r.notes]));
+        yield {
+            type: "patch",
+            patch: {
+                artifact: ctx.artifact.sections
+                    .filter((s) => by.has(s.id))
+                    .map((s) => ({
+                        op: "replaceSection",
+                        id: s.id,
+                        section: { ...s, notes: by.get(s.id)! },
+                    })),
+            },
+        };
+        return rows;
+    },
+    {
+        note: (rows) =>
+            `Wrote speaker notes for ${rows.length} section${rows.length === 1 ? "" : "s"}; the user applies them.`,
+    },
+);

@@ -1,19 +1,17 @@
 import type { Component } from "solid-js";
 import { createSignal, For, Show } from "solid-js";
-import { Button, Chip, Eyebrow, Spinner } from "@ui/button";
+import { Chip, Eyebrow, Spinner } from "@ui/button";
 import { TextArea, TextField } from "@ui/inputs";
 import { Icon } from "@ui/icons";
 import {
     answerClarify,
-    briefCost,
+    briefStale,
     coverage,
     gen,
-    redraftBrief,
     setBriefField,
-    setGen,
     setMustInclude,
+    skipClarify,
 } from "@app/stores/generate";
-import { Credits } from "@app/components/Credits";
 
 const FIELDS = [
     ["Goal", "goal", "what it has to achieve"],
@@ -53,31 +51,17 @@ const BriefFields: Component = () => {
                 <ClarifyBox />
             </Show>
 
-            <div class="flex flex-col items-start gap-2">
-                <Show
-                    when={read()}
-                    fallback={
-                        <p class="text-[12.5px] leading-relaxed text-muted">
-                            Planning straight from your prompt. Read it to pull out the goal,
-                            audience and tone, so every section aims at the same thing.
-                        </p>
-                    }
-                >
-                    <ReadLine />
-                </Show>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    class="flex-none whitespace-nowrap"
-                    disabled={gen.briefLoading}
-                    onClick={() => void redraftBrief()}
-                >
-                    <Show when={!gen.briefLoading} fallback="Reading…">
-                        <Icon name="refresh" size={12} />
-                        {read() ? "Read it again" : "Read the brief"} · <Credits n={briefCost()} />
-                    </Show>
-                </Button>
-            </div>
+            <Show
+                when={read()}
+                fallback={
+                    <p class="text-[12.5px] leading-relaxed text-muted">
+                        Planning reads the goal, audience and tone out of your prompt and fills them
+                        in here. Edit any of them, or ask the console for a different reading.
+                    </p>
+                }
+            >
+                <ReadLine />
+            </Show>
 
             {/* one field per row: the rail is too narrow to pair them, and wrapping them would put
                 the break somewhere different for every label */}
@@ -102,7 +86,7 @@ const BriefFields: Component = () => {
                             <TextField
                                 compact
                                 value={gen.brief[key] ?? ""}
-                                placeholder={gen.briefLoading ? "reading…" : hint}
+                                placeholder={gen.planning ? "reading…" : hint}
                                 onChange={(v) => setBriefField(key, v)}
                             />
                         </div>
@@ -158,12 +142,7 @@ const BriefFields: Component = () => {
                     </For>
                 </div>
             </Show>
-            <Show when={gen.briefFailed}>
-                <p class="text-[11px] leading-snug text-muted">
-                    That read didn't come back. The arc still plans from your prompt.
-                </p>
-            </Show>
-            <Show when={gen.briefDirty}>
+            <Show when={briefStale()}>
                 <p class="text-[11px] leading-snug text-accent">
                     The plan was made against an older brief. Reroll it to match.
                 </p>
@@ -199,7 +178,7 @@ const ClarifyBox: Component = () => {
                 <button
                     class="text-[11.5px] text-muted transition-colors hover:text-ink"
                     title="Leave it unanswered"
-                    onClick={() => setGen("clarify", null)}
+                    onClick={skipClarify}
                 >
                     Skip
                 </button>
@@ -237,13 +216,13 @@ export const BriefBar: Component<{ open: boolean; onToggle: () => void }> = (pro
                             {points().length} must-cover
                         </span>
                     </Show>
-                    <Show when={gen.briefDirty}>
+                    <Show when={briefStale()}>
                         <span class="flex-none font-mono text-[9.5px] uppercase tracking-wide text-accent">
                             edited
                         </span>
                     </Show>
                     <span class="flex flex-none items-center gap-1 text-muted">
-                        <Show when={gen.briefLoading}>
+                        <Show when={gen.planning}>
                             <Spinner size={10} />
                         </Show>
                         <Icon name={open() ? "chevronUp" : "chevronDown"} size={12} />

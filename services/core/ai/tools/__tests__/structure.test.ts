@@ -25,7 +25,7 @@ describe("reorderSectionTool", () => {
             afterId: null,
             label: "Intro",
         });
-        expect(out.patch).toEqual([{ op: "moveSection", id: "s3", afterId: null }]);
+        expect(out.patch).toEqual({ artifact: [{ op: "moveSection", id: "s3", afterId: null }] });
         expect(out.summary).toContain("front");
         expect(out.summary).toBe("Move “Intro” to the front");
     });
@@ -36,7 +36,7 @@ describe("reorderSectionTool", () => {
             afterId: "s1",
             label: "Proof",
         });
-        expect(out.patch).toEqual([{ op: "moveSection", id: "s3", afterId: "s1" }]);
+        expect(out.patch).toEqual({ artifact: [{ op: "moveSection", id: "s3", afterId: "s1" }] });
         expect(out.summary).toBe("Move “Proof”");
     });
 
@@ -49,7 +49,7 @@ describe("reorderSectionTool", () => {
 describe("removeSectionTool", () => {
     it("returns a removeSection patch + labelled summary", async () => {
         const out = await runTool(removeSectionTool, { sectionId: "s4", label: "Old" });
-        expect(out.patch).toEqual([{ op: "removeSection", id: "s4" }]);
+        expect(out.patch).toEqual({ artifact: [{ op: "removeSection", id: "s4" }] });
         expect(out.summary).toBe("Remove “Old”");
     });
 
@@ -66,7 +66,7 @@ describe("setFormatTool", () => {
         ["web", "Site"],
     ] as const)("%s → setMeta format + 'Switch to %s'", async (format, name) => {
         const out = await runTool(setFormatTool, { format });
-        expect(out.patch).toEqual([{ op: "setMeta", format }]);
+        expect(out.patch).toEqual({ artifact: [{ op: "setMeta", format }] });
         expect(out.summary).toBe(`Switch to ${name}`);
     });
 });
@@ -74,7 +74,7 @@ describe("setFormatTool", () => {
 describe("setThemeTool", () => {
     it("a valid theme id → setMeta theme patch + 'Switch theme to <name>'", async () => {
         const out = await runTool(setThemeTool, { theme: "studio" });
-        expect(out.patch).toEqual([{ op: "setMeta", theme: "studio" }]);
+        expect(out.patch).toEqual({ artifact: [{ op: "setMeta", theme: "studio" }] });
         expect(out.summary).toBe(`Switch theme to ${THEMES["studio"]!.name}`);
     });
 

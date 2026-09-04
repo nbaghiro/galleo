@@ -166,6 +166,22 @@ describe("who the v1 API lets in", () => {
 
     // The reason this surface may not resolve a caller before the shared call: part of the tool
     // catalog is nobody's content, and which part is the shared call's decision to make.
+    it("lists the contract with no token: every api tool, its scope, and both schemas", async () => {
+        const res = await api("/api/v1/tools");
+        expect(res.status).toBe(200);
+        const { tools } = (await res.json()) as {
+            tools: { name: string; scope: string; input?: unknown; output?: unknown }[];
+        };
+        expect(tools.map((t) => t.name)).toEqual(
+            expect.arrayContaining(["find-templates", "generate-artifact", "read-artifact"]),
+        );
+        for (const t of tools) {
+            expect(t.scope, t.name).toBeTruthy();
+            expect(t.input, t.name).toBeDefined();
+            expect(t.output, t.name).toBeDefined();
+        }
+    });
+
     it("serves the template catalog to a caller with no Authorization header at all", async () => {
         const res = await api("/api/v1/templates");
         expect(res.status).toBe(200);

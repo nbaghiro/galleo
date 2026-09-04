@@ -83,7 +83,7 @@ export const Board: Component = () => {
     let scrollTimer: ReturnType<typeof setTimeout> | undefined;
     createEffect(() => {
         const id = gen.activeSection;
-        if (gen.stage !== "building") return;
+        if (gen.stage !== "writing") return;
         clearTimeout(scrollTimer);
         scrollTimer = setTimeout(() => centerOn(id), reduced() ? 0 : REVEAL_MS + DWELL_MS);
     });
@@ -113,7 +113,7 @@ export const Board: Component = () => {
     createEffect(
         (was: boolean) => {
             const settled = gen.revealed === null && !gen.planning;
-            if (!was && settled && gen.stage === "outline")
+            if (!was && settled && gen.stage === "outlined")
                 board?.scrollTo({ top: 0, behavior: reduced() ? "auto" : "smooth" });
             return settled;
         },
@@ -147,7 +147,7 @@ export const Board: Component = () => {
                         <div class="grid h-full w-full place-items-center">
                             {/* a gate waiting on the user must not look like work in progress */}
                             <Show
-                                when={gen.planning || gen.briefLoading}
+                                when={gen.planning}
                                 fallback={
                                     <p class="max-w-xs text-center text-[13px] leading-relaxed text-muted">
                                         The outline appears here once it's planned.
@@ -164,12 +164,12 @@ export const Board: Component = () => {
                             <Frame id={id} index={i()} total={visible().length} avail={avail} />
                         )}
                     </For>
-                    <Show when={gen.stage === "outline"}>
+                    <Show when={gen.stage === "outlined"}>
                         <button
                             class="flex icon-row justify-center gap-1.5 rounded-[var(--radius)] border border-dashed border-line py-3 text-[12px] text-muted transition-colors hover:border-accent hover:text-ink"
                             style={{ width: `${frameWidth(avail())}px` }}
                             onClick={() =>
-                                addBeatAfter(gen.beats[gen.beats.length - 1]?.id ?? null)
+                                void addBeatAfter(gen.beats[gen.beats.length - 1]?.id ?? null)
                             }
                         >
                             <Icon name="plus" size={12} /> Add a section
@@ -256,7 +256,7 @@ const Frame: Component<{
     // an unwritten beat stays an outline card at every stage
     const planned = (): boolean => !doneReady() && !active();
     const reviewable = (): boolean =>
-        !!landedTake() && !working() && (gen.stage === "building" || gen.stage === "done");
+        !!landedTake() && !working() && (gen.stage === "writing" || gen.stage === "done");
     const selected = (): boolean => editable() && gen.selectedBeat === props.id;
 
     // repaint only when the picture changes: unguarded, every store write replayed the reveal
@@ -526,7 +526,7 @@ const Frame: Component<{
                                         selected={v === activeVersion()}
                                         rounded="md"
                                         title={`Take ${v + 1}`}
-                                        onClick={() => setActiveVersion(props.id, v)}
+                                        onClick={() => void setActiveVersion(props.id, v)}
                                     >
                                         v{v + 1}
                                     </Chip>

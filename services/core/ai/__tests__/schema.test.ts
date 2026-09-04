@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { applySectionOps } from "@model/artifact";
-import { applyPatch } from "@model/ai";
+import { applyContentOps } from "@model/ai";
 import { isArtifactContent, isSectionOp } from "@services/core/artifacts";
 import { resolveImages } from "@services/core/ai/images";
 import { extractJson } from "@services/core/ai/schema";
@@ -9,7 +9,6 @@ import {
     zElement,
     zSection,
     zBeat,
-    zBriefDraft,
     zOutline,
     zSectionPlan,
     zTokens,
@@ -246,8 +245,8 @@ describe("a hero rides from the model's reply to stored content intact", () => {
         });
     });
 
-    it("survives applyPatch, the op stream a generation is accumulated from", () => {
-        const built = applyPatch({ format: "web", theme: "studio", sections: [] }, [
+    it("survives applyContentOps, the op stream a generation is accumulated from", () => {
+        const built = applyContentOps({ format: "web", theme: "studio", sections: [] }, [
             { op: "addSection", afterId: null, section: parse() },
         ]);
         const hero = built.sections[0]!;
@@ -321,53 +320,6 @@ describe("zBeat", () => {
         const beat: Record<string, string> = { id: "s1", label: "Intro", role: "scene" };
         beat[field] = "";
         expect(zBeat.safeParse(beat).success).toBe(false);
-    });
-});
-
-describe("zBriefDraft", () => {
-    it("requires goal/audience/tone + 2–6 must-cover points; clarify optional", () => {
-        const ok = zBriefDraft.safeParse({
-            goal: "raise a seed round",
-            audience: "early-stage investors",
-            tone: "confident, plain",
-            mustInclude: ["the team", "traction"],
-        });
-        expect(ok.success).toBe(true);
-        const withQ = zBriefDraft.safeParse({
-            goal: "g",
-            audience: "a",
-            tone: "t",
-            mustInclude: ["x", "y"],
-            clarify: "Live pitch or email attachment?",
-        });
-        expect(withQ.success).toBe(true);
-    });
-    it("tolerates a null clarify — models emit null for an optional field they skip", () => {
-        const ok = zBriefDraft.safeParse({
-            goal: "g",
-            audience: "a",
-            tone: "t",
-            mustInclude: ["x", "y"],
-            clarify: null,
-        });
-        expect(ok.success).toBe(true);
-    });
-    it("does not fail an otherwise-fine read over the point COUNT — that's normalized, not validated", () => {
-        for (const mustInclude of [["only one"], Array.from({ length: 9 }, (_, i) => `p${i}`)])
-            expect(
-                zBriefDraft.safeParse({ goal: "g", audience: "a", tone: "t", mustInclude }).success,
-            ).toBe(true);
-    });
-    // normalizeBrief turns a blank into undefined, so an all-blank read would have passed as a brief
-    it.each(["goal", "audience", "tone"])("rejects an empty `%s`", (field) => {
-        const read: Record<string, unknown> = {
-            goal: "g",
-            audience: "a",
-            tone: "t",
-            mustInclude: ["x", "y"],
-        };
-        read[field] = "";
-        expect(zBriefDraft.safeParse(read).success).toBe(false);
     });
 });
 

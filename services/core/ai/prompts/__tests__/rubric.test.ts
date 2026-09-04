@@ -10,29 +10,24 @@ describe("RUBRIC / VOICE", () => {
 });
 
 describe("lengthGuidance", () => {
-    it("always states the size-to-the-story baseline", () => {
-        expect(lengthGuidance(undefined)).toContain(
-            "Let the topic decide how many sections it needs.",
-        );
+    // one band per length, bracketing what the estimate prices (sectionsForLength: 7 · 12 · 18)
+    it("gives a short* length the tight band (case-insensitive prefix)", () => {
+        for (const l of ["short", "Short and tight", "SHORTEST"])
+            expect(lengthGuidance(l)).toContain("5 to 8 sections");
     });
-    it("leans shorter for a short* length (case-insensitive prefix)", () => {
-        expect(lengthGuidance("short")).toContain("lean toward the shorter end");
-        expect(lengthGuidance("Short and tight")).toContain("lean toward the shorter end");
-        expect(lengthGuidance("SHORTEST")).toContain("lean toward the shorter end");
+    it("gives in* / deep* / long* lengths the full band", () => {
+        for (const l of ["in-depth", "Deep dive", "long read"])
+            expect(lengthGuidance(l)).toContain("14 to 20 sections");
     });
-    it("leans fuller for in* / deep* / long* lengths", () => {
-        expect(lengthGuidance("in-depth")).toContain("lean toward the fuller end");
-        expect(lengthGuidance("Deep dive")).toContain("lean toward the fuller end");
-        expect(lengthGuidance("long read")).toContain("lean toward the fuller end");
+    it("gives a neutral or unset length the usual band and lets the story decide within it", () => {
+        for (const l of ["standard", undefined]) {
+            const out = lengthGuidance(l);
+            expect(out).toContain("8 to 14 sections");
+            expect(out).toContain("Size it to the story");
+        }
     });
-    it("adds neither clause for a neutral length", () => {
-        const out = lengthGuidance("standard");
-        expect(out).not.toContain("shorter end");
-        expect(out).not.toContain("fuller end");
-    });
-    it("adds neither clause when length is unset", () => {
-        const out = lengthGuidance(undefined);
-        expect(out).not.toContain("shorter end");
-        expect(out).not.toContain("fuller end");
+    it("never asks for padding, whatever the length", () => {
+        for (const l of ["short", "standard", "long"])
+            expect(lengthGuidance(l)).toContain("Never pad to hit a number");
     });
 });

@@ -44,7 +44,14 @@ export async function suggestSections(
         .slice(0, 6);
 }
 
-export const suggestSectionsTool = implement("suggest-sections", async function* (_input, ctx) {
-    if (!ctx.artifact) return [];
-    return await suggestSections(ctx.artifact);
-});
+implement(
+    "suggest-sections",
+    async function* (_input, ctx) {
+        if (!ctx.artifact) return [];
+        return await suggestSections(ctx.artifact, { tier: ctx.tier, models: ctx.models });
+    },
+    {
+        present: (items) => ({ type: "suggestions", items }),
+        note: (items) => `Offered ${items.length} section ideas.`,
+    },
+);

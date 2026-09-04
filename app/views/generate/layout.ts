@@ -22,9 +22,9 @@ export type RailMode = "beside" | "switched";
 export const railMode = (tier: Tier): RailMode => (tier === "phone" ? "switched" : "beside");
 
 // Whether a still-unwritten beat accepts edits. Writing one section parks the run at stage
-// "building" (paused), so gating on stage === "outline" silently stripped the controls and inline
+// "writing" (paused), so gating on stage === "outlined" silently stripped the controls and inline
 // editing from every beat that had not been written yet. Only a locked run freezes the board.
-const EDITABLE_STAGES = new Set(["outline", "building", "done"]);
+const EDITABLE_STAGES = new Set(["outlined", "writing", "done"]);
 
 export const outlineEditable = (stage: string, runLocked: boolean): boolean =>
     !runLocked && EDITABLE_STAGES.has(stage);

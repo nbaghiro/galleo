@@ -2,7 +2,11 @@ import { z } from "zod";
 import type { ArtifactContent } from "@model/artifact";
 import { sectionText } from "@model/artifact";
 import type { ToolEffect, ToolId, ToolScope } from "@model/tools";
-import { isToolScope, scopeFor, TOOLS } from "@model/tools";
+import type { ToolSpec } from "@model/tools";
+import { isToolScope, scopeFor, TOOL_SPEC, TOOLS } from "@model/tools";
+
+const SPEC = TOOL_SPEC as Partial<Record<ToolId, ToolSpec>>;
+import { warn } from "@services/utils/env";
 import { getTool, toolsFor } from "@services/core/ai/tools";
 import {
     ARTIFACT_URI,
@@ -117,6 +121,28 @@ const HINTS: Record<ToolEffect, { readOnlyHint: boolean; destructiveHint: boolea
     destructive: { readOnlyHint: false, destructiveHint: true },
 };
 
+// `structuredContent` is the tool's answer inside the same envelope every call gets, so the
+// published schema describes the envelope, with the tool's own shape under `result`.
+const envelope = (result: z.ZodType): z.ZodType =>
+    z.object({
+        workspace: z.object({ id: z.string(), name: z.string() }).optional(),
+        artifact: z.string().optional(),
+        result,
+    });
+
+// The answer is held to the schema the listing promised. A mismatch is a server-side bug rather
+// than something the caller can act on, so it is reported and the answer still goes out.
+function checked(id: ToolId, result: unknown): unknown {
+    const output = SPEC[id]?.output;
+    if (!output) return result;
+    const parsed = output.safeParse(result);
+    if (!parsed.success)
+        warn(
+            `[mcp] ${id} answered outside its output schema: ${parsed.error.issues[0]?.message ?? "?"}`,
+        );
+    return result;
+}
+
 function describeTool(id: ToolId): Record<string, unknown> | null {
     const tool = getTool(id);
     const def = TOOLS[id];
@@ -126,6 +152,7 @@ function describeTool(id: ToolId): Record<string, unknown> | null {
         [k: string]: unknown;
     };
     const component = componentFor(id);
+    const output = SPEC[id]?.output;
     // a tool that reads or changes one artifact needs to be told which, unless it already asks
     const named = (tool.patch || INSPECTS.has(id)) && !(schema.properties ?? {}).artifactId;
     return {
@@ -141,6 +168,7 @@ function describeTool(id: ToolId): Record<string, unknown> | null {
                 ...(named ? { artifact: ARTIFACT_ARG } : {}),
             },
         },
+        ...(output ? { outputSchema: z.toJSONSchema(envelope(output), { io: "output" }) } : {}),
         annotations: { title: def.title, ...HINTS[def.effect ?? "write"], openWorldHint: false },
         // The permission this one needs, so a client granted less can see what to step up to
         // rather than discovering it by being refused.
@@ -233,7 +261,7 @@ async function callTool(grant: AccessGrant | null, params: unknown): Promise<Cal
         if (out.kind === "needs-auth") return { needsAuth: true };
         return text(out.message, true);
     }
-    const model = modelResult(id, out);
+    const model = checked(id, modelResult(id, out));
     const paint = paintable(id, out);
     return {
         content: [{ type: "text", text: out.note ?? JSON.stringify(model) }],

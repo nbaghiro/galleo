@@ -36,7 +36,7 @@ const GOOD = JSON.stringify({
 const text = (t: string): Awaited<ReturnType<typeof generateText>> =>
     ({ text: t }) as Awaited<ReturnType<typeof generateText>>;
 
-// the same door runBuild uses, so the tool is reached the way the pipeline reaches it
+// the same door write-beat uses, so the tool is reached the way the pipeline reaches it
 const write = (signal?: AbortSignal): Promise<Section> =>
     drain(
         makeContext({ image: {}, signal }).use(writeSectionTool, {

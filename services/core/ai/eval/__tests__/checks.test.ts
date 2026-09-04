@@ -135,3 +135,60 @@ describe("against the corpus, which is the quality bar", () => {
         );
     });
 });
+
+describe("no-photo-twice", () => {
+    const photo = (src: string): ElementInstance => ({
+        type: "media",
+        data: { kind: "photo", src },
+    });
+
+    it("flags the same http src in two places, and only http srcs", () => {
+        const dup = artifact([
+            section("a", [photo("https://cdn.x/one.jpg")]),
+            section("b", [photo("https://cdn.x/one.jpg")]),
+        ]);
+        expect(failed(dup, "no-photo-twice")).toBe(true);
+        const phrases = artifact([
+            section("a", [photo("a quiet harbour at dusk")]),
+            section("b", [photo("a quiet harbour at dusk")]),
+        ]);
+        expect(failed(phrases, "no-photo-twice")).toBe(false);
+    });
+});
+
+describe("every-person-has-a-face", () => {
+    const person = (src?: string): ElementInstance => ({
+        type: "profile",
+        data: {
+            children: [
+                {
+                    type: "media",
+                    data: { kind: "photo", shape: "circle", ...(src ? { src } : {}) },
+                },
+                text("Mara Ellison"),
+            ],
+        },
+    });
+
+    it("flags the ghost avatar and passes a faced one, avatar or merged media alike", () => {
+        expect(failed(artifact([section("team", [person()])]), "every-person-has-a-face")).toBe(
+            true,
+        );
+        expect(
+            failed(
+                artifact([section("team", [person("a warm portrait")])]),
+                "every-person-has-a-face",
+            ),
+        ).toBe(false);
+        const legacy: ElementInstance = {
+            type: "testimonial",
+            data: { children: [{ type: "avatar", data: { src: "a face" } }, text("said")] },
+        };
+        expect(failed(artifact([section("t", [legacy])]), "every-person-has-a-face")).toBe(false);
+    });
+
+    it("stays calibrated: the gold corpus carries no ghosts and no doubled photos", () => {
+        expect(failed(galleo, "no-photo-twice")).toBe(false);
+        expect(failed(galleo, "every-person-has-a-face")).toBe(false);
+    });
+});

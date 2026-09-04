@@ -13,7 +13,7 @@ export const ARCS = {
         key: "pitch",
         label: "Pitch / fundraising deck",
         arc: "cover → problem → why now → the product → market size (stat-trio) → how it works (diagram) → traction (chart) → business model / pricing (table) → why we win → team → the ask (CTA)",
-        tells: "deck; numbered em-dash kickers ('01, The problem'); big stat-trios; a raise badge on the cover ('$4M SEED · LED BY …'); one thesis quote over an image; ends on 'the ask' with a contact button.",
+        tells: "deck; numbered kickers ('01, The problem'); big stat-trios; a raise badge on the cover ('$4M SEED · LED BY …'); one thesis quote over an image; ends on 'the ask' with a contact button.",
     },
     sales: {
         key: "sales",
@@ -59,23 +59,48 @@ export const ARCS = {
     },
 } satisfies Record<string, Arc>;
 
-export function chooseArc(goal?: string, surface?: Surface): Arc {
-    const g = (goal ?? "").toLowerCase();
-    if (g.includes("pitch")) return ARCS.pitch;
-    if (g.includes("sell") || g.includes("sale"))
+const has = (text: string, ...words: string[]): boolean =>
+    words.some((w) => new RegExp(`\\b${w}`, "i").test(text));
+
+/** The arc a brief calls for, read off everything it says: the prompt as well as the planner's goal. */
+export function chooseArc(text?: string, surface?: Surface): Arc {
+    const g = (text ?? "").toLowerCase();
+    if (
+        has(
+            g,
+            "pitch",
+            "investor",
+            "fundrais",
+            "raise\\b",
+            "raising\\b",
+            "seed round",
+            "series [a-d]\\b",
+            "venture",
+            "vcs?\\b",
+        )
+    )
+        return ARCS.pitch;
+    if (has(g, "proposal", "client update", "statement of work", "sow\\b", "tender", "rfp"))
+        return ARCS.proposal;
+    if (has(g, "sell", "sales?\\b", "prospect", "buyer"))
         return surface === "web" ? ARCS.marketing : ARCS.sales;
-    if (g.includes("report")) return ARCS.report;
-    if (["event", "invite", "rsvp", "conference", "wedding"].some((k) => g.includes(k)))
+    if (has(g, "report", "research", "findings", "audit", "analysis", "whitepaper", "white paper"))
+        return ARCS.report;
+    if (has(g, "event", "invit", "rsvp", "conference", "wedding", "summit", "meetup"))
         return ARCS.event;
-    if (g.includes("announce")) return ARCS.marketing;
-    if (["portfolio", "resume", "personal site"].some((k) => g.includes(k))) return ARCS.creative;
+    if (has(g, "announce", "landing page", "product page")) return ARCS.marketing;
+    if (has(g, "portfolio", "resume", "cv\\b", "personal site", "about me", "photo essay"))
+        return ARCS.creative;
     if (surface === "web") return ARCS.marketing;
-    if (g.includes("teach") || g.includes("inform")) return ARCS.report;
+    if (has(g, "teach", "inform", "explain", "lesson", "course")) return ARCS.report;
     return ARCS.generic;
 }
 
 export function arcGuidance(input: GenerateInput): string {
-    const a = chooseArc(input.goal, input.surface);
+    const a = chooseArc(
+        [input.prompt, input.goal, input.audience].filter(Boolean).join(" "),
+        input.surface,
+    );
     return heading(
         "Design the structure for THIS brief",
         `Decide the narrative this specific topic, goal, and audience need, then choose the sections and their order to serve it, don't reach for a stock template. As one reference, a "${a.label}" often runs:\n${a.arc}\nTreat that as a proven shape to draw from, remix, or set aside, not a checklist. Two different briefs should not produce the same skeleton. Signatures of this genre: ${a.tells}`,

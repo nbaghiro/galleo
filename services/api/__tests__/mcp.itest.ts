@@ -713,6 +713,24 @@ describe("the public surface", () => {
         expect(listed.result.tools.length).toBeGreaterThan(0);
     });
 
+    it("publishes an output schema per tool, in the envelope structuredContent carries", async () => {
+        const listed = (await (await anon("tools/list")).json()) as {
+            result: {
+                tools: {
+                    name: string;
+                    outputSchema?: { properties?: Record<string, unknown>; required?: string[] };
+                }[];
+            };
+        };
+        for (const t of listed.result.tools) {
+            expect(t.outputSchema, t.name).toBeDefined();
+            expect(Object.keys(t.outputSchema!.properties ?? {})).toEqual(
+                expect.arrayContaining(["workspace", "artifact", "result"]),
+            );
+            expect(t.outputSchema!.required).toEqual(["result"]);
+        }
+    });
+
     it("runs a public tool for a caller with no account", async () => {
         const res = await anon("tools/call", { name: "find-templates", arguments: {} });
         expect(res.status).toBe(200);

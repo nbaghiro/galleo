@@ -29,6 +29,7 @@ export const trashArtifactTool = implement(
     async function* (input): AsyncGenerator<TurnEvent, Action<"trash">> {
         return { kind: "trash", id: input.artifactId };
     },
+    { note: () => "Proposed moving it to Trash; the user confirms before it happens." },
 );
 
 export const restoreArtifactTool = implement(
@@ -50,6 +51,7 @@ export const shareArtifactTool = implement(
     async function* (input): AsyncGenerator<TurnEvent, Action<"share">> {
         return { kind: "share", id: input.artifactId };
     },
+    { note: () => "Opened the share options for the user to publish a link." },
 );
 
 export const exportArtifactTool = implement(
@@ -57,4 +59,5 @@ export const exportArtifactTool = implement(
     async function* (input): AsyncGenerator<TurnEvent, Action<"export">> {
         return { kind: "export", id: input.artifactId };
     },
+    { note: () => "Opened the artifact for the user to export." },
 );

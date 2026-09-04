@@ -31,14 +31,6 @@ describe("implement", () => {
         expect(echo.input).toBe(TOOL_SPEC["show-sections"].input);
     });
 
-    it("refuses a proposal, which has no server body by definition", () => {
-        expect(() =>
-            implement("revise-outline", async function* () {
-                return null;
-            }),
-        ).toThrow(/proposal/);
-    });
-
     it("lets an internal primitive skip the agent schema, since nothing calls it by name", () => {
         expect(() =>
             implement("pick-arc", async function* () {

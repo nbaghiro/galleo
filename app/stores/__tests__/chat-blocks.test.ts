@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UIBlock } from "@app/stores/chat-blocks";
-import { discardSuperseded, resolveBriefs, textInsertAt } from "@app/stores/chat-blocks";
+import { discardSuperseded, pendingProposals, textInsertAt } from "@app/stores/chat-blocks";
 
 const text = (t: string): UIBlock => ({ k: "text", text: t });
 const tool = (id: string): UIBlock => ({ k: "tool", blockId: id, tool: id, title: id, done: true });
@@ -8,6 +8,20 @@ const widget = (id: string): UIBlock => ({
     k: "widget",
     blockId: id,
     block: { type: "suggestions", items: ["a"] },
+});
+const card = (blockId: string, tool: string, applied?: "applied" | "discarded"): UIBlock => ({
+    k: "widget",
+    blockId,
+    block: {
+        type: "proposal",
+        id: `p-${blockId}`,
+        tool,
+        summary: `${tool} ${blockId}`,
+        ...(tool === "write-beats"
+            ? { call: { input: { beatIds: ["s2"] } } }
+            : { patch: { generation: [{ op: "removeBeat", id: "b1" }] } }),
+    },
+    ...(applied && { applied }),
 });
 
 describe("textInsertAt", () => {
@@ -36,80 +50,80 @@ describe("textInsertAt", () => {
     });
 });
 
-describe("resolveBriefs", () => {
-    const brief = (blockId: string, state: "pending" | "started" | "superseded"): UIBlock => ({
-        k: "brief",
-        blockId,
-        brief: { prompt: "p", surface: "deck" },
-        state,
-    });
-
-    it("starts the chosen brief and supersedes the other pending ones", () => {
-        const blocks: UIBlock[] = [brief("a", "pending"), text("x"), brief("b", "pending")];
-        resolveBriefs(blocks, "b");
-        expect(blocks[0]).toMatchObject({ state: "superseded" });
-        expect(blocks[2]).toMatchObject({ state: "started" });
-    });
-
-    it("supersedes every pending brief in messages that hold no started one", () => {
-        const blocks: UIBlock[] = [brief("a", "pending")];
-        resolveBriefs(blocks, null);
-        expect(blocks[0]).toMatchObject({ state: "superseded" });
-    });
-
-    it("never rewrites briefs that already resolved", () => {
-        const blocks: UIBlock[] = [brief("a", "started"), brief("b", "superseded")];
-        resolveBriefs(blocks, "b");
-        expect(blocks[0]).toMatchObject({ state: "started" });
-        expect(blocks[1]).toMatchObject({ state: "superseded" });
-    });
-});
-
 describe("discardSuperseded", () => {
-    type CardType = "outline" | "write" | "plan";
-    const card = (blockId: string, type: CardType, applied?: "applied" | "discarded"): UIBlock => ({
-        k: "widget",
-        blockId,
-        block:
-            type === "outline"
-                ? { type, summary: "s", ops: [{ op: "removeBeat", id: "b1" }] }
-                : type === "write"
-                  ? { type, summary: "s", beatIds: ["s2"] }
-                  : { type, summary: "s" },
-        ...(applied && { applied }),
-    });
-
-    it("discards earlier unapplied cards of the same type, up to the applied one", () => {
-        const blocks: UIBlock[] = [card("a", "write"), text("x"), card("b", "write", "applied")];
-        discardSuperseded(blocks, "write", "b");
+    it("discards earlier unapplied cards of the same tool, up to the applied one", () => {
+        const blocks: UIBlock[] = [
+            card("a", "write-beats"),
+            text("x"),
+            card("b", "write-beats", "applied"),
+        ];
+        discardSuperseded(blocks, "write-beats", "b");
         expect(blocks[0]).toMatchObject({ applied: "discarded" });
         expect(blocks[2]).toMatchObject({ applied: "applied" });
     });
 
-    it("leaves cards of the other types alone", () => {
-        const blocks: UIBlock[] = [card("a", "outline"), card("b", "plan"), card("c", "write")];
-        discardSuperseded(blocks, "write", "c");
+    it("leaves cards of other tools alone", () => {
+        const blocks: UIBlock[] = [
+            card("a", "revise-outline"),
+            card("b", "plan-outline"),
+            card("c", "write-beats"),
+        ];
+        discardSuperseded(blocks, "write-beats", "c");
         expect(blocks[0]).not.toHaveProperty("applied");
         expect(blocks[1]).not.toHaveProperty("applied");
     });
 
     it("leaves cards after the applied one live", () => {
-        const blocks: UIBlock[] = [card("a", "outline", "applied"), card("b", "outline")];
-        discardSuperseded(blocks, "outline", "a");
+        const blocks: UIBlock[] = [
+            card("a", "revise-outline", "applied"),
+            card("b", "revise-outline"),
+        ];
+        discardSuperseded(blocks, "revise-outline", "a");
         expect(blocks[1]).not.toHaveProperty("applied");
     });
 
     it("discards every unapplied card when the applied one lives in a later message", () => {
-        const blocks: UIBlock[] = [card("a", "plan"), card("b", "plan")];
-        discardSuperseded(blocks, "plan", null);
+        const blocks: UIBlock[] = [card("a", "plan-outline"), card("b", "plan-outline")];
+        discardSuperseded(blocks, "plan-outline", null);
         expect(blocks[0]).toMatchObject({ applied: "discarded" });
         expect(blocks[1]).toMatchObject({ applied: "discarded" });
     });
 
     it("never rewrites cards that already resolved", () => {
-        const blocks: UIBlock[] = [card("a", "write", "applied"), card("b", "write")];
-        discardSuperseded(blocks, "write", null);
+        const blocks: UIBlock[] = [card("a", "write-beats", "applied"), card("b", "write-beats")];
+        discardSuperseded(blocks, "write-beats", null);
         expect(blocks[0]).toMatchObject({ applied: "applied" });
         expect(blocks[1]).toMatchObject({ applied: "discarded" });
+    });
+});
+
+describe("pendingProposals", () => {
+    const msg = (id: number, blocks: UIBlock[]) => ({
+        id,
+        role: "assistant" as const,
+        blocks,
+        streaming: false,
+    });
+
+    it("lists the cards still waiting, with the payload the agent needs to apply each", () => {
+        const out = pendingProposals([
+            msg(1, [card("a", "revise-outline"), card("b", "write-beats", "applied")]),
+            msg(2, [text("x"), card("c", "write-beats")]),
+        ]);
+        expect(out.map((p) => p.id)).toEqual(["p-a", "p-c"]);
+        expect(out[0]).toMatchObject({
+            tool: "revise-outline",
+            patch: { generation: [{ op: "removeBeat", id: "b1" }] },
+        });
+        expect(out[1]).toMatchObject({ tool: "write-beats", call: { input: { beatIds: ["s2"] } } });
+    });
+
+    it("keeps only the newest few, since the agent's context is not a ledger", () => {
+        const many = Array.from({ length: 12 }, (_, i) => card(`c${i}`, "revise-outline"));
+        expect(pendingProposals([msg(1, many)], 3).map((p) => p.id)).toEqual([
+            "p-c9",
+            "p-c10",
+            "p-c11",
+        ]);
     });
 });

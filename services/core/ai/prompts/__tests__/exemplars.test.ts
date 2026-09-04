@@ -53,6 +53,15 @@ describe("sectionExemplars", () => {
         // split columns carry load-bearing layout.width — cleanElement must keep it
         expect(sectionExemplars("deck")).toContain('"layout":');
     });
+
+    it("carries no em-dash, whatever the corpus copy says, since an exemplar teaches by imitation", () => {
+        for (const s of ["deck", "doc", "web"] as const) {
+            const out = sectionExemplars(s);
+            expect(out).not.toContain("—");
+            // a label joined to its value takes the middot, a clause its comma
+            expect(out).toMatch(/\d · |, /);
+        }
+    });
 });
 
 describe("siteExemplar", () => {

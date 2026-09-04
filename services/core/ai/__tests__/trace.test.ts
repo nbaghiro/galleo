@@ -1,19 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { record, recordTokens, tracing, withMeter, withStep } from "@services/core/ai/meter";
+import { traceCall } from "@services/core/traces";
 
 const FLASH = "google:gemini-3.5-flash";
+const root = {
+    tool: "show-sections" as const,
+    surface: "direct" as const,
+    principal: null,
+    models: {},
+};
 
 describe("tracing flag", () => {
-    it("is off unless a run asks for it, so normal turns stay billing-only", async () => {
+    it("is on inside a traced call and off outside one, whatever the meter says", async () => {
         await withMeter(async () => {
             expect(tracing()).toBe(false);
         });
-        await withMeter(async () => {
+        await traceCall(root, async () => {
             expect(tracing()).toBe(true);
-        }, true);
+        });
     });
 
-    it("reads false outside any meter rather than throwing", () => {
+    it("reads false outside any scope rather than throwing", () => {
         expect(tracing()).toBe(false);
     });
 });
@@ -24,7 +31,7 @@ describe("step attribution", () => {
             await withStep("outline", async () => recordTokens(FLASH, 10, 5));
             await withStep("section:b3", async () => recordTokens(FLASH, 20, 8));
             return m;
-        }, true);
+        });
         expect(meter.uses.map((u) => u.step)).toEqual(["outline", "section:b3"]);
     });
 
@@ -32,7 +39,7 @@ describe("step attribution", () => {
         const meter = await withMeter(async (m) => {
             recordTokens(FLASH, 1, 1);
             return m;
-        }, true);
+        });
         expect(meter.uses[0]!.step).toBe("");
     });
 
@@ -46,7 +53,7 @@ describe("step attribution", () => {
                 withStep("section:b", async () => recordTokens(FLASH, 2, 2)),
             ]);
             return m;
-        }, true);
+        });
         // b finishes first, so order is by completion; the labels must still match their own call
         expect(meter.uses.find((u) => u.input === 1)!.step).toBe("section:a");
         expect(meter.uses.find((u) => u.input === 2)!.step).toBe("section:b");
@@ -71,7 +78,7 @@ describe("spans", () => {
                 }),
             );
             return m;
-        }, true);
+        });
         const span = meter.uses[0]!;
         expect(span.step).toBe("outline"); // filled in from the scope, not the caller
         expect(span.system).toBe("You are a planner.");
@@ -82,7 +89,7 @@ describe("spans", () => {
         const meter = await withMeter(async (m) => {
             record({ modelId: FLASH, input: 7, output: 3, step: "outline", ms: 5 });
             return m;
-        }, true);
+        });
         expect(meter.uses[0]).toMatchObject({ modelId: FLASH, input: 7, output: 3 });
     });
 
@@ -90,7 +97,7 @@ describe("spans", () => {
         const meter = await withMeter(async (m) => {
             record({ modelId: FLASH, input: 0, output: 0, step: "outline", ms: 5 });
             return m;
-        }, true);
-        expect(meter.uses).toHaveLength(0);
+        });
+        expect(meter.uses).toEqual([]);
     });
 });

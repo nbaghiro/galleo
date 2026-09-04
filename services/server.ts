@@ -7,6 +7,7 @@ import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
 import { readSession, SESSION_COOKIE } from "./utils/auth";
 import { assertDatabaseUrl } from "./db/client";
+import { setTraceStore, traceStore } from "./core/traces";
 import { checkMailConfig } from "./core/mail";
 import { checkAuthConfig } from "./core/accounts";
 import { out } from "./utils/env";
@@ -27,13 +28,13 @@ import { features } from "./api/features";
 import { workspace } from "./api/workspace";
 import { media } from "./api/media";
 import { ai } from "./api/ai";
+import { chat } from "./api/chat";
 import { links } from "./api/links";
 import { narration } from "./api/narration";
 import { voices } from "./api/voices";
 import { search } from "./api/search";
 import { context } from "./api/context";
 import { importer } from "./api/import";
-import { evals } from "./api/eval";
 import { onboarding } from "./api/onboarding";
 import { ingest } from "./api/ingest";
 import { google } from "./api/google";
@@ -42,6 +43,7 @@ import { mcp } from "./api/mcp";
 import { v1 } from "./api/v1";
 
 assertDatabaseUrl();
+setTraceStore(traceStore()); // every tool call is recorded from here on
 initAnalytics();
 
 // without a real SESSION_SECRET, sessions sign with the public dev default: anyone could mint a cookie
@@ -82,13 +84,13 @@ app.route("/api", features);
 app.route("/api", workspace);
 app.route("/api", media);
 app.route("/api", ai);
+app.route("/api", chat);
 app.route("/api", links);
 app.route("/api", narration);
 app.route("/api", voices);
 app.route("/api", search);
 app.route("/api", context);
 app.route("/api", importer);
-app.route("/api", evals);
 app.route("/api", onboarding);
 app.route("/api", ingest);
 app.route("/api", google);

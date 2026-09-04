@@ -40,6 +40,32 @@ describe("chooseArc", () => {
         expect(chooseArc(undefined, "deck")).toBe(ARCS.generic);
         expect(chooseArc("whatever", "deck")).toBe(ARCS.generic);
     });
+    it("reads the pitch off the words a raise actually uses, not only the word pitch", () => {
+        for (const text of [
+            "a launch deck for Tidewell, for Series A investors",
+            "raising a seed round",
+            "our fundraising story for VCs",
+        ])
+            expect(chooseArc(text, "deck")).toBe(ARCS.pitch);
+    });
+    it("reaches the proposal arc, which nothing routed to before", () => {
+        expect(chooseArc("a proposal for the Aster account", "deck")).toBe(ARCS.proposal);
+        expect(chooseArc("client update, Q3", "doc")).toBe(ARCS.proposal);
+    });
+    it("matches whole words, so a raised bed is not a raise", () => {
+        expect(chooseArc("a guide to raised garden beds", "doc")).toBe(ARCS.generic);
+    });
+});
+
+describe("arcGuidance", () => {
+    it("reads the prompt as well as the goal, since the goal is empty when the planner runs", () => {
+        const input: GenerateInput = {
+            prompt: "A launch deck for Tidewell, a Lisbon startup. Series A investors.",
+            surface: "deck",
+            theme: "studio",
+        };
+        expect(arcGuidance(input)).toContain(ARCS.pitch.label);
+    });
 });
 
 // Every arc a web brief can land on has to describe the page a site actually is, or the outline

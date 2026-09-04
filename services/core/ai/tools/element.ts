@@ -48,7 +48,7 @@ export async function reviseElement(
 
 // Two callers, two ways to name an element: the editor has a selection and hands over its path, the
 // agent has neither and names a type plus an ordinal. Both land on the same body.
-export const reviseElementTool = implement(
+implement(
     "revise-element",
     async function* (input, ctx): AsyncGenerator<never, Section> {
         if (!ctx.artifact) throw new Error("no artifact is open");
@@ -74,5 +74,11 @@ export const reviseElementTool = implement(
         );
         return replaceElement(section, hit.path, revised);
     },
-    (section, input) => [{ op: "replaceSection", id: input.sectionId, section }],
+    {
+        patch: (section, input) => ({
+            artifact: [{ op: "replaceSection", id: input.sectionId, section }],
+        }),
+        note: (_section, input) =>
+            `Proposed a fresh ${input.elementType ?? "element"} in ${input.sectionId}; the rest of the section is unchanged.`,
+    },
 );

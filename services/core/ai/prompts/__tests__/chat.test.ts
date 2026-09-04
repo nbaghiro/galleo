@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import type { ChatContext } from "@model/ai";
+import type { ChatContext, Generation } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { THEME_LIST } from "@themes";
-import { chatSystem } from "@services/core/ai/prompts/chat";
+import { chatSystem, type ChatView } from "@services/core/ai/prompts/chat";
 
 const txt = (text: string): ElementInstance => ({ type: "text", data: { text } });
 const sec = (id: string, title: string): Section => ({
@@ -16,92 +16,155 @@ const content: ArtifactContent = {
     sections: [sec("s1", "Title"), sec("s2", "Thesis")],
 };
 
-describe("chatSystem — library surface (no open artifact)", () => {
-    const libCtx: ChatContext = {
-        surface: "library",
-        library: {
-            artifactCount: 3,
-            folder: "Decks",
-            folders: [{ id: "f1", name: "Work" }],
-            recent: [{ title: "Aria deck", format: "deck" }],
-        },
-        credits: { remaining: 5, limit: 100 },
-    };
+const tools = [
+    { id: "find-artifacts", describe: "search the library" },
+    { id: "write-beat", describe: "write one planned beat" },
+];
 
-    it("uses the library persona", () => {
-        expect(chatSystem(libCtx)).toContain("Galleo's library");
+const view = (context: ChatContext, over: Partial<ChatView> = {}): string =>
+    chatSystem({ context, tools, ...over });
+
+const generation = (over: Partial<Generation> = {}): Generation => ({
+    id: "gen-1",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    workspaceId: "ws",
+    artifactId: "a1",
+    stage: "outlined",
+    brief: {
+        prompt: "A launch deck for Meridian",
+        surface: "deck",
+        theme: "studio",
+        goal: "win the round",
+        audience: "seed investors",
+        mustInclude: ["ARR"],
+        set: {},
+    },
+    briefVersion: 0,
+    outline: {
+        title: "Meridian",
+        beats: [
+            { id: "s1", label: "Cover", role: "scene" },
+            { id: "s2", label: "The problem", role: "tension", takeaway: "Tools interrupt" },
+        ],
+    },
+    plannedAgainst: 0,
+    steer: "",
+    clarify: null,
+    beats: { s1: { status: "done", versions: [sec("s1", "Cover")], active: 0 } },
+    seq: 3,
+    ...over,
+});
+
+describe("chatSystem: one persona, facts per context", () => {
+    it("lists exactly the tools the context was offered", () => {
+        const out = view({ surface: "library" });
+        expect(out).toContain("- find-artifacts: search the library");
+        expect(out).toContain("- write-beat: write one planned beat");
+        expect(out).not.toContain("propose-generation");
     });
-    it("does NOT include the editor's artifact digest or theme reference", () => {
-        const out = chatSystem(libCtx);
-        expect(out).not.toContain("Current artifact");
-        expect(out).not.toContain("Built-in themes");
-    });
-    it("summarizes the workspace", () => {
-        const out = chatSystem(libCtx);
+    it("uses the library facts when nothing is open", () => {
+        const out = view({
+            surface: "library",
+            library: {
+                artifactCount: 3,
+                folder: "Decks",
+                folders: [{ id: "f1", name: "Work" }],
+                recent: [{ title: "Aria deck", format: "deck" }],
+            },
+        });
+        expect(out).toContain("## The library");
         expect(out).toContain("They have 3 artifacts.");
         expect(out).toContain("Aria deck");
         expect(out).toContain("f1 · Work");
+        expect(out).not.toContain("Current artifact");
+        expect(out).not.toContain("Built-in themes");
     });
-    it("pluralizes the artifact count", () => {
-        expect(chatSystem({ surface: "library", library: { artifactCount: 1 } })).toContain(
-            "They have 1 artifact.",
-        );
-    });
-    it("omits the workspace summary when there is no library", () => {
-        expect(chatSystem({ surface: "library" })).not.toContain("The user's workspace");
-    });
-    it("omits the credit line when there are no credits", () => {
-        expect(chatSystem({ surface: "library" })).not.toContain("AI credits left");
-    });
-});
-
-describe("chatSystem — editor surface (open artifact)", () => {
-    const edCtx: ChatContext = {
-        surface: "editor",
-        content,
-        credits: { remaining: 5, limit: 100 },
-        plan: "pro",
-    };
-
-    it("uses the editor persona", () => {
-        expect(chatSystem(edCtx)).toContain("Galleo's editor");
-    });
-    it("includes the artifact spine and digest", () => {
-        const out = chatSystem(edCtx);
+    it("uses the editor facts when an artifact is open", () => {
+        const out = view({ surface: "editor", content }, { content });
+        expect(out).toContain("## The open artifact");
         expect(out).toContain('A deck themed "studio".');
         expect(out).toContain("Current artifact");
-    });
-    it("includes a theme reference listing EVERY built-in theme id", () => {
-        const out = chatSystem(edCtx);
-        expect(out).toContain("Built-in themes");
         for (const t of THEME_LIST) expect(out).toContain(t.id);
     });
-    it("renders the credit line with the plan", () => {
-        expect(chatSystem(edCtx)).toContain("5 of 100 AI credits");
+    it("uses the generation facts when a run is in progress, whatever the surface says", () => {
+        for (const surface of ["editor", "library", "generate"] as const) {
+            const out = view({ surface }, { generation: generation() });
+            expect(out).toContain("## The piece being made");
+            expect(out).not.toContain("## The library");
+        }
     });
 });
 
-describe("chatSystem — focus (current selection) line", () => {
-    it("omits the selection line for focus kind none", () => {
-        const ctx: ChatContext = { surface: "editor", content, focus: { kind: "none" } };
-        expect(chatSystem(ctx)).not.toContain("The user's current selection");
+describe("the generation digest", () => {
+    const out = (over?: Partial<Generation>): string =>
+        view({ surface: "generate", generationId: "gen-1" }, { generation: generation(over) });
+
+    it("shows every beat with its id and whether it is written", () => {
+        const text = out();
+        expect(text).toContain("[s1]");
+        expect(text).toContain("[s2]");
+        expect(text).toContain("WRITTEN");
+        expect(text).toContain("not yet written");
+        expect(text).toContain("1 of 2 sections written");
     });
-    it("names a selected section", () => {
-        const ctx: ChatContext = {
-            surface: "editor",
-            content,
-            focus: { kind: "section", sectionId: "s2", headline: "Thesis" },
-        };
-        const out = chatSystem(ctx);
-        expect(out).toContain("The user's current selection");
+    it("carries the brief the run is judged against", () => {
+        const text = out();
+        expect(text).toContain("win the round");
+        expect(text).toContain("seed investors");
+        expect(text).toContain("ARR");
+    });
+    it("says so plainly when nothing is planned yet", () => {
+        expect(out({ outline: null, beats: {} })).toContain("No beats planned yet.");
+    });
+    it("carries a steering note already in force, and says nothing when there is none", () => {
+        expect(out({ steer: "keep every section under four lines" })).toContain(
+            "keep every section under four lines",
+        );
+        expect(out()).not.toContain("Standing note on every section");
+    });
+    it("says the outline is stale once the brief moved past it", () => {
+        expect(out({ briefVersion: 2 })).toContain("The brief changed after this outline");
+        expect(out()).not.toContain("The brief changed after this outline");
+    });
+    it("warns off add-section for a planned beat", () => {
+        expect(out()).toContain("never written with add-section");
+    });
+});
+
+describe("what every surface carries", () => {
+    it("lists pending proposals by id so a spoken approval can name one", () => {
+        const out = view({
+            surface: "library",
+            pending: [{ id: "p-1", tool: "start-generation", summary: "Start a deck" }],
+        });
+        expect(out).toContain("p-1 · start-generation · Start a deck");
+        expect(out).toContain("apply-patch");
+    });
+    it("reports the balance when the client sent one, with the plan", () => {
+        const out = view({
+            surface: "library",
+            credits: { remaining: 40, limit: 100 },
+            plan: "pro",
+        });
+        expect(out).toContain("40 of 100");
+        expect(out).toContain("(pro plan)");
+    });
+    it("omits the credit line when there are no credits", () => {
+        expect(view({ surface: "library" })).not.toContain("AI credits left");
+    });
+    it("names the selection in the editor", () => {
+        const out = view(
+            {
+                surface: "editor",
+                content,
+                focus: { kind: "section", sectionId: "s2", headline: "Thesis" },
+            },
+            { content },
+        );
         expect(out).toContain("section [s2]");
+        expect(out).toContain("“Thesis”");
     });
-    it("names a selected element by type and section", () => {
-        const ctx: ChatContext = {
-            surface: "editor",
-            content,
-            focus: { kind: "element", sectionId: "s2", elementType: "stat" },
-        };
-        expect(chatSystem(ctx)).toContain("a stat in section [s2]");
+    it("carries no em dash, the tell the copy guard bans", () => {
+        expect(view({ surface: "library" }, { generation: generation() })).not.toMatch(/—/);
     });
 });

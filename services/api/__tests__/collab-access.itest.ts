@@ -293,8 +293,8 @@ describe("what a grant does not open", () => {
                     userId,
                     "/ai/turn",
                     jsonInit("POST", {
-                        kind: "chat",
-                        input: { message: "hi", context: { artifactId } },
+                        tool: "ask-assistant",
+                        input: { message: "hi", context: { surface: "editor", artifactId } },
                     }),
                 );
             expect((await turn(cast.guest.userId)).status).toBe(404);

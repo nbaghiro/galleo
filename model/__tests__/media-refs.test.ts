@@ -106,7 +106,7 @@ describe("mapMediaRefs", () => {
     });
 });
 
-// The AI resolves image phrases one section at a time (runGenerate, the section and relayout tools)
+// The AI resolves image phrases one section at a time (write-beat, the section and relayout tools)
 // and one element at a time (the element tool), never over a whole draft. Both walks take `unknown`,
 // so a level they did not understand read as "no media here" rather than failing.
 describe("the levels the AI resolves at", () => {

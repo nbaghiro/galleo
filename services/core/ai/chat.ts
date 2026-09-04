@@ -1,42 +1,23 @@
 import { ToolLoopAgent, stepCountIs, tool } from "ai";
 import type { ModelMessage, ToolSet } from "ai";
-import type { ChatBlock, ChatInput, OutlinePatch, TurnEvent } from "@model/ai";
-import type { ElementInstance, Section } from "@model/artifact";
+import type { ChatBlock, ChatInput, Patch, TurnEvent, WorkspaceAction } from "@model/ai";
+import { emptyPatch } from "@model/ai";
+import type { Section } from "@model/artifact";
+import { confirmFor, estimateCost, TOOLS } from "@model/tools";
 import { modelCall } from "./provider";
 import { modelFor, modelNote } from "@services/core/models";
 import { chatSystem } from "./prompts/chat";
-import { heading, retrievedContext, stack } from "./prompts/system";
+import { firstText, heading, retrievedContext, stack } from "./prompts/system";
 import { thinkingSteps } from "./thinking";
-import type { RunOpts } from "./run";
-import { makeContext, spec } from "./tools";
+import { implement, offeredTo } from "./tools";
+import type { Tool, ToolContext } from "./tools";
 import { runTool } from "./execute";
-import type { Tool } from "./tools";
-import { showSectionsTool } from "./tools/inspect";
-import { findArtifactsTool, findTemplatesTool, readArtifactTool } from "./tools/library";
-import { addSectionTool, editArtifactTool, rewriteSectionTool } from "./tools/section";
-import { suggestSectionLayoutsTool } from "./tools/relayout";
-import { rewritePassageTool, rewriteTextTool, translateTextTool } from "./tools/text";
-import { generateThemeTool } from "./tools/theme";
-import { reviseElementTool } from "./tools/element";
-import { reimageTool } from "./tools/media";
-import {
-    createFolderTool,
-    duplicateArtifactTool,
-    exportArtifactTool,
-    moveArtifactTool,
-    renameArtifactTool,
-    restoreArtifactTool,
-    shareArtifactTool,
-    trashArtifactTool,
-} from "./tools/manage";
-import {
-    removeSectionTool,
-    reorderSectionTool,
-    setFormatTool,
-    setThemeTool,
-} from "./tools/structure";
-import { suggestSectionsTool } from "./tools/suggest";
-import { searchContextTool } from "./tools/context-search";
+import type { ToolOutcome } from "./execute";
+import { generationSize } from "./tools/generation";
+
+// The chat agent: an AI SDK tool loop whose toolset is the catalog's agent surface filtered by what
+// the context holds. Chat owns nothing about a capability except how its result is shown, and even
+// that falls to the generic presenter unless the tool declares its own.
 
 function createChannel<T>() {
     const buf: T[] = [];
@@ -63,94 +44,135 @@ function createChannel<T>() {
     };
 }
 
-function firstText(section: Section): string {
-    const visit = (el: ElementInstance | undefined): string => {
-        if (!el) return "";
-        const d = el.data as { text?: string; children?: ElementInstance[] };
-        if (typeof d.text === "string" && d.text.trim()) return d.text.trim();
-        for (const k of d.children ?? []) {
-            const t = visit(k);
-            if (t) return t;
-        }
-        return "";
-    };
-    return visit(section.root) || "section";
-}
+type AnyTool = Tool<never, unknown>;
+
 const clip = (s: string, n: number): string =>
     s.length > n ? s.slice(0, n - 1).trimEnd() + "…" : s;
 
+const isSection = (v: unknown): v is Section =>
+    !!v && typeof v === "object" && "id" in v && "root" in v;
+const isAction = (v: unknown): v is WorkspaceAction =>
+    !!v && typeof v === "object" && typeof (v as WorkspaceAction).kind === "string";
+
+// several patches from one call land as one card, so applying it is one act
+function mergePatches(patches: Patch[]): Patch {
+    const merged: Patch = {};
+    for (const p of patches) {
+        if (p.artifact?.length) merged.artifact = [...(merged.artifact ?? []), ...p.artifact];
+        if (p.generation?.length)
+            merged.generation = [...(merged.generation ?? []), ...p.generation];
+        if (p.workspace) merged.workspace = p.workspace;
+    }
+    return merged;
+}
+
+// the section a patch puts on the page, when it puts exactly one there
+function previewOf(result: unknown, patch: Patch): Section | undefined {
+    if (isSection(result)) return result;
+    const sections = (patch.artifact ?? []).flatMap((op) =>
+        op.op === "addSection" || op.op === "replaceSection" ? [op.section] : [],
+    );
+    return sections.length === 1 ? sections[0] : undefined;
+}
+
+function summaryOf(t: AnyTool, result: unknown, input: unknown): string {
+    const own = (result as { summary?: unknown } | null)?.summary;
+    if (typeof own === "string" && own) return own;
+    const given = (input as { summary?: unknown } | null)?.summary;
+    if (typeof given === "string" && given) return given;
+    const title = TOOLS[t.id].title;
+    return isSection(result) ? `${title}: “${clip(firstText(result) || result.id, 40)}”` : title;
+}
+
+// What the model reads back when the tool declares no note: the string it returned, or what the
+// card says, so a follow-up turn knows what stands.
+function noteOf(t: AnyTool, result: unknown, blocks: ChatBlock[]): string {
+    if (t.note) return t.note(result, undefined);
+    if (typeof result === "string") return result;
+    const card = blocks.find((b) => b.type === "proposal");
+    if (card && card.type === "proposal")
+        return `Proposed: ${card.summary}. The user applies or discards it.`;
+    if (Array.isArray(result)) return `${result.length} result${result.length === 1 ? "" : "s"}.`;
+    return "Done.";
+}
+
 // What the model is told when the executor turns a call away. It reads this and explains it, so it
 // is a sentence rather than a code.
-const refusalNote = (out: { ok: false } & Record<string, unknown>, id: string): string => {
+function refusalNote(out: Exclude<ToolOutcome<unknown>, { ok: true }>, id: string): string {
     if (out.reason === "entitlement") return `That needs a higher plan on this workspace.`;
     if (out.reason === "credits") return `There are not enough credits left for that.`;
     if (out.reason === "bad-input")
-        return `Those arguments were not valid: ${(out.issues as string[]).join("; ")}`;
+        return `Those arguments were not valid: ${out.issues.join("; ")}`;
+    if (out.reason === "not-found") return out.message;
+    if (out.reason === "busy")
+        return "A section is being written right now; ask again once it lands.";
     return `“${id}” is not available here.`;
-};
+}
 
-export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGenerator<TurnEvent> {
-    yield { type: "turn.start", kind: "chat" };
-    const override = modelNote(opts.models, ["chat"]);
+export async function* runChat(input: ChatInput, ctx: ToolContext): AsyncGenerator<TurnEvent> {
+    const override = modelNote(ctx.models, ["chat"]);
     if (override) yield { type: "narration", text: "Model override", mono: ` · ${override}` };
     const ch = createChannel<TurnEvent>();
-    const format = input.context.content?.format;
-    const ctx = makeContext({
-        artifact: input.context.content,
-        image: opts.image ?? {},
-        workspace: opts.workspace,
-        signal: opts.signal,
-        tier: opts.tier,
-        models: opts.models,
-        maxSections: opts.maxSections,
-        pack: opts.pack,
-    });
+    const format = ctx.artifact?.format;
+    const generationId = ctx.generation?.id;
 
-    const wrap = <I, R>(
-        t: Tool<I, R>,
-        title: string,
-        present: (result: R, input: I) => ChatBlock | ChatBlock[] | null,
-        note: (result: R, input: I) => string,
-    ) =>
+    const wrap = (t: AnyTool) =>
         tool({
             description: t.describe,
             inputSchema: t.input,
-            execute: async (input: I, { toolCallId }: { toolCallId: string }) => {
-                ch.push({ type: "chat.tool", blockId: toolCallId, tool: t.id, title });
+            execute: async (raw: unknown, { toolCallId }: { toolCallId: string }) => {
+                const def = TOOLS[t.id];
+                const confirm = confirmFor(t.id);
+                ch.push({ type: "chat.tool", blockId: toolCallId, tool: t.id, title: def.title });
+                // the run in progress is the only one there is, so a call may leave its id implied
+                const input =
+                    generationId && def.needs?.includes("generation")
+                        ? { generationId, ...(raw as object) }
+                        : raw;
                 try {
+                    if (confirm === "before") {
+                        const size = generationSize(t.id, input, ctx.generation);
+                        const block: ChatBlock = {
+                            type: "proposal",
+                            id: crypto.randomUUID(),
+                            tool: t.id,
+                            summary: summaryOf(t, null, input),
+                            cost: estimateCost(t.id, size ?? undefined),
+                            call: { input },
+                        };
+                        ch.push({ type: "chat.block", blockId: toolCallId, block });
+                        return `Offered “${def.title}” as a card (${block.id}). Nothing runs until the user starts it, so do not say it happened.`;
+                    }
                     // Through the executor, like every other surface: the surface check, the tool's
                     // own schema and the entitlement gate all apply here too. `holds: "caller"`
                     // because the turn already reserved once and settles for the whole thing.
-                    const ran = opts.principal
-                        ? await runTool<R>({ id: t.id, surface: "agent", input }, opts.principal, {
+                    const forward = (event: TurnEvent): void => {
+                        // a patch the user has not approved is the card's, not the page's
+                        if (event.type === "patch" && confirm !== "never") return;
+                        ch.push({ type: "chat.nested", blockId: toolCallId, event });
+                    };
+                    const ran = ctx.principal
+                        ? await runTool({ id: t.id, surface: "agent", input }, ctx.principal, {
                               ctx,
                               holds: "caller",
-                              onEvent: (event) =>
-                                  ch.push({ type: "chat.nested", blockId: toolCallId, event }),
+                              apply: confirm === "never",
+                              onEvent: forward,
                           })
-                        : null;
-                    if (ran && !ran.ok) return refusalNote(ran, t.id);
-                    let result: R;
-                    if (ran) result = ran.result;
-                    else {
-                        // no principal (the eval harness): the body still runs, unmetered
-                        const gen = t.run(input, ctx);
-                        let step = await gen.next();
-                        while (!step.done) {
-                            ch.push({
-                                type: "chat.nested",
-                                blockId: toolCallId,
-                                event: step.value,
-                            });
-                            step = await gen.next();
-                        }
-                        result = step.value;
-                    }
-                    const out = present(result, input);
-                    const blocks = Array.isArray(out) ? out : out ? [out] : [];
+                        : await unmetered(t, input, ctx, forward);
+                    if (!ran.ok) return refusalNote(ran, t.id);
+                    const merged = mergePatches(ran.patches);
+                    const own = t.present?.(ran.result, input, ran.patches);
+                    const blocks: ChatBlock[] =
+                        own === undefined
+                            ? presentDefault(t, ran.result, input, merged, confirm)
+                            : Array.isArray(own)
+                              ? own
+                              : own
+                                ? [own]
+                                : [];
                     for (const block of blocks)
                         ch.push({ type: "chat.block", blockId: toolCallId, block });
-                    return note(result, input);
+                    return noteOf(t, ran.result, blocks);
                 } catch (e) {
                     ch.push({
                         type: "chat.text",
@@ -163,475 +185,55 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                         type: "chat.tool",
                         blockId: toolCallId,
                         tool: t.id,
-                        title,
+                        title: def.title,
                         done: true,
                     });
                 }
             },
         });
 
-    const proposeGeneration = tool({
-        description: spec("propose-generation").describe,
-        inputSchema: spec("propose-generation").input,
-        execute: async (
-            brief: {
-                prompt: string;
-                surface: "deck" | "doc" | "web";
-                length?: string;
-                sourceFromMessage?: boolean;
-                sourceArtifactId?: string;
-                approved?: boolean;
+    const presentDefault = (
+        t: AnyTool,
+        result: unknown,
+        input: unknown,
+        patch: Patch,
+        confirm: ReturnType<typeof confirmFor>,
+    ): ChatBlock[] => {
+        if (isAction(result))
+            return [{ type: "action", action: result, confirm: confirm === "before" }];
+        if (confirm === "never" || emptyPatch(patch)) return [];
+        return [
+            {
+                type: "proposal",
+                id: crypto.randomUUID(),
+                tool: t.id,
+                summary: summaryOf(t, result, input),
+                patch,
+                preview: previewOf(result, patch),
+                ...(format ? { format } : {}),
             },
-            { toolCallId }: { toolCallId: string },
-        ) => {
-            ch.push({ type: "chat.block", blockId: toolCallId, block: { type: "brief", brief } });
-            return brief.approved
-                ? `The user already approved — the ${brief.surface} build is starting right now in this chat. Say so in a short sentence; do not ask them to click anything.`
-                : `Proposed a ${brief.surface} to generate. The user can review the brief and click Generate to build it here — nothing is created until they do.`;
-        },
-    });
-
-    // the outline lives only in the studio, so this proposes ops rather than a content patch
-    const reviseOutline = tool({
-        description: spec("revise-outline").describe,
-        inputSchema: spec("revise-outline").input,
-        execute: async (
-            revision: {
-                summary: string;
-                ops: {
-                    op: "add" | "update" | "remove" | "move";
-                    id?: string;
-                    afterId?: string | null;
-                    label?: string;
-                    role?: string;
-                    brief?: string;
-                    takeaway?: string;
-                    points?: string[];
-                    layout?: string;
-                    image?: boolean;
-                }[];
-                approved?: boolean;
-            },
-            { toolCallId }: { toolCallId: string },
-        ) => {
-            const known = new Set((input.context.generation?.beats ?? []).map((b) => b.id));
-            const ops: OutlinePatch = [];
-            let added = 0;
-            for (const o of revision.ops) {
-                const fields = {
-                    ...(o.label !== undefined && { label: o.label }),
-                    ...(o.role !== undefined && { role: o.role }),
-                    ...(o.brief !== undefined && { brief: o.brief }),
-                    ...(o.takeaway !== undefined && { takeaway: o.takeaway }),
-                    ...(o.points !== undefined && { points: o.points }),
-                    ...(o.layout !== undefined && { layout: o.layout }),
-                    ...(o.image !== undefined && { image: o.image }),
-                };
-                if (o.op === "add") {
-                    added += 1;
-                    ops.push({
-                        op: "addBeat",
-                        afterId: o.afterId ?? null,
-                        // the studio assigns the real id; this one only has to be unique in the batch
-                        beat: {
-                            id: `new-${added}`,
-                            label: o.label ?? "New section",
-                            role: o.role ?? "detail",
-                            ...fields,
-                        },
-                    });
-                } else if (o.id && known.has(o.id)) {
-                    if (o.op === "update") ops.push({ op: "updateBeat", id: o.id, patch: fields });
-                    else if (o.op === "remove") ops.push({ op: "removeBeat", id: o.id });
-                    else ops.push({ op: "moveBeat", id: o.id, afterId: o.afterId ?? null });
-                }
-            }
-            if (!ops.length)
-                return "No usable outline change — the beat ids didn't match the plan.";
-            ch.push({
-                type: "chat.block",
-                blockId: toolCallId,
-                block: {
-                    type: "outline",
-                    summary: revision.summary,
-                    ops,
-                    ...(revision.approved && { approved: true }),
-                },
-            });
-            return revision.approved
-                ? `The user already approved — the outline change (${revision.summary}) is being applied right now. Say so in a short sentence; do not ask them to click anything.`
-                : `Proposed an outline change: ${revision.summary}. The user applies or discards it.`;
-        },
-    });
-
-    // The steering note the board used to hold in a text field: one standing instruction applied to
-    // every section still to be written. Applied on arrival rather than proposed — it writes nothing
-    // and costs nothing, and asking the user to confirm their own instruction reads as a stall.
-    const steerSections = tool({
-        description: spec("steer-sections").describe,
-        inputSchema: spec("steer-sections").input,
-        execute: async (req: { note: string }, { toolCallId }: { toolCallId: string }) => {
-            const note = req.note.trim();
-            const had = input.context.generation?.steer?.trim();
-            if (!note && !had) return "There was no steering note to clear.";
-            ch.push({ type: "chat.block", blockId: toolCallId, block: { type: "steer", note } });
-            return note
-                ? `Steering every section still to come: “${note}”. It is in force now; sections already written are untouched.`
-                : "Cleared the steering note. Sections still to come go back to following the brief alone.";
-        },
-    });
-
-    // the outline turn runs client-side (it is the studio's own plan turn), so this only offers it
-    const requestPlan = tool({
-        description: spec("request-plan").describe,
-        inputSchema: spec("request-plan").input,
-        execute: async (
-            req: { summary: string; guidance?: string; andWrite?: boolean; approved?: boolean },
-            { toolCallId }: { toolCallId: string },
-        ) => {
-            // a replan would mint fresh beat ids over sections that already exist
-            if ((input.context.generation?.beats ?? []).some((b) => b.written))
-                return "Sections are already written, so a full replan would orphan them. Use revise-outline to reshape the remaining beats instead.";
-            ch.push({
-                type: "chat.block",
-                blockId: toolCallId,
-                block: {
-                    type: "plan",
-                    summary: req.summary,
-                    ...(req.guidance?.trim() && { guidance: req.guidance.trim() }),
-                    ...(req.andWrite && { andWrite: true }),
-                    ...(req.approved && { approved: true }),
-                },
-            });
-            const planned = (input.context.generation?.beats ?? []).length;
-            const then = req.andWrite ? " and then write every section" : "";
-            if (req.approved)
-                return `The user already approved — the outline is being planned${then} right now${planned ? ", replacing the current beats" : ""}. Say so in a short sentence; do not ask them to click anything.`;
-            return planned
-                ? `Offered to replan the outline${then}; the current beats are replaced when the user starts it.`
-                : `Offered to plan the outline${then}. Nothing runs until the user starts it.`;
-        },
-    });
-
-    const generating = !!input.context.generation;
-    const written = !!input.context.content?.sections.length;
-    // the client owns the brief, outline, and anchor rules, so this only proposes which beats to
-    // build; the studio then runs the same `build` turns the board does
-    const writeSections = tool({
-        description: spec("request-write").describe,
-        inputSchema: spec("request-write").input,
-        execute: async (
-            req: { beatIds: string[]; summary: string; approved?: boolean },
-            { toolCallId }: { toolCallId: string },
-        ) => {
-            const beats = input.context.generation?.beats ?? [];
-            const known = new Map(beats.map((b) => [b.id, b]));
-            const unknown = req.beatIds.filter((id) => !known.has(id));
-            const already = req.beatIds.filter((id) => known.get(id)?.written);
-            const todo = req.beatIds.filter((id) => known.get(id) && !known.get(id)!.written);
-            if (!todo.length)
-                return already.length
-                    ? `Those sections are already written (${already.join(", ")}). To change them, use rewrite-section instead.`
-                    : `No such beats in the outline (${unknown.join(", ") || "none given"}). The plan's ids are: ${beats.map((b) => b.id).join(", ") || "none yet"}.`;
-            ch.push({
-                type: "chat.block",
-                blockId: toolCallId,
-                block: {
-                    type: "write",
-                    summary: req.summary,
-                    beatIds: todo,
-                    ...(req.approved && { approved: true }),
-                },
-            });
-            const skipped = [...unknown, ...already];
-            const skippedNote = skipped.length ? `; skipped ${skipped.join(", ")}` : "";
-            return req.approved
-                ? `The user already approved — ${todo.length} planned section${todo.length === 1 ? " is" : "s are"} being written right now (${todo.join(", ")})${skippedNote}. Say so in a short sentence; do not ask them to click anything.`
-                : `Offered to write ${todo.length} planned section${todo.length === 1 ? "" : "s"} (${todo.join(", ")})${skippedNote}. The user starts it — nothing is written until they do.`;
-        },
-    });
-
-    // mid-run, "content to act on" means sections actually written: an empty draft would otherwise
-    // invite add-section for a beat that is only planned
-    const artifactTools: ToolSet = (generating ? written : !!input.context.content)
-        ? {
-              "suggest-sections": wrap(
-                  suggestSectionsTool,
-                  "Ideas",
-                  (items) => ({ type: "suggestions", items }),
-                  (items) => `Offered ${items.length} section ideas.`,
-              ),
-              "add-section": wrap(
-                  addSectionTool,
-                  "New section",
-                  (section, input) => ({
-                      type: "proposal",
-                      summary: `Add a “${clip(firstText(section), 40)}” section`,
-                      patch: [{ op: "addSection", afterId: input.afterId, section }],
-                      preview: section,
-                  }),
-                  (section, input) =>
-                      `Proposed a new “${firstText(section)}” section${input.afterId ? ` after ${input.afterId}` : ""}.`,
-              ),
-              "revise-element": wrap(
-                  reviseElementTool,
-                  "Reworking",
-                  (section, input) => ({
-                      type: "proposal",
-                      summary: `Regenerate the ${input.elementType} in “${clip(firstText(section), 30)}”`,
-                      patch: [{ op: "replaceSection", id: input.sectionId, section }],
-                      preview: section,
-                  }),
-                  (_section, input) =>
-                      `Proposed a fresh ${input.elementType} in ${input.sectionId}; the rest of the section is unchanged.`,
-              ),
-              reimage: wrap(
-                  reimageTool,
-                  "Finding a picture",
-                  (section, input) => ({
-                      type: "proposal",
-                      summary:
-                          input.target === "backdrop"
-                              ? `New backdrop: “${clip(input.phrase, 34)}”`
-                              : `New image: “${clip(input.phrase, 34)}”`,
-                      patch: [{ op: "replaceSection", id: input.sectionId, section }],
-                      preview: section,
-                  }),
-                  (_section, input) =>
-                      `Proposed a new ${input.target === "backdrop" ? "backdrop" : "image"} for ${input.sectionId}.`,
-              ),
-              "rewrite-passage": wrap(
-                  rewritePassageTool,
-                  "Rewording",
-                  (section, input) => ({
-                      type: "proposal",
-                      summary: `Reword “${clip(input.find, 40)}”`,
-                      patch: [{ op: "replaceSection", id: input.sectionId, section }],
-                      preview: section,
-                  }),
-                  (_section, input) =>
-                      `Proposed a reword of that passage in ${input.sectionId}; the rest of the section is untouched.`,
-              ),
-              "rewrite-section": wrap(
-                  rewriteSectionTool,
-                  "Edit section",
-                  (section, input) => ({
-                      type: "proposal",
-                      summary: `Rewrite the “${clip(firstText(section), 40)}” section`,
-                      patch: [{ op: "replaceSection", id: input.sectionId, section }],
-                      preview: section,
-                  }),
-                  (_section, input) => `Proposed a rewrite of section ${input.sectionId}.`,
-              ),
-              "suggest-section-layouts": wrap(
-                  suggestSectionLayoutsTool,
-                  "Layout options",
-                  (sections, input) =>
-                      sections.map((section, i) => ({
-                          type: "proposal" as const,
-                          summary: `Layout option ${i + 1} of ${sections.length}`,
-                          patch: [{ op: "replaceSection" as const, id: input.sectionId, section }],
-                          preview: section,
-                      })),
-                  (sections, input) =>
-                      `Proposed ${sections.length} layout options for ${input.sectionId}; the copy is unchanged in each, and the user applies at most one.`,
-              ),
-              "show-sections": wrap(
-                  showSectionsTool,
-                  "Sections",
-                  (sections) => (sections.length ? { type: "sections", sections, format } : null),
-                  (sections) =>
-                      sections.length
-                          ? `Showing ${sections.length} section${sections.length === 1 ? "" : "s"}.`
-                          : "There are no sections to show yet.",
-              ),
-              "reorder-section": wrap(
-                  reorderSectionTool,
-                  "Reordering",
-                  (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }),
-                  (r) => r.summary,
-              ),
-              "remove-section": wrap(
-                  removeSectionTool,
-                  "Removing",
-                  (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }),
-                  (r) => r.summary,
-              ),
-              "set-format": wrap(
-                  setFormatTool,
-                  "Reformatting",
-                  (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }),
-                  (r) => r.summary,
-              ),
-              "set-theme": wrap(
-                  setThemeTool,
-                  "Restyling",
-                  (r) => ({ type: "proposal", summary: r.summary, patch: r.patch }),
-                  (r) => r.summary,
-              ),
-          }
-        : {};
-    // inside a run the piece on the canvas is the whole subject, so library management stands down
-    const libraryTools: ToolSet = generating
-        ? {}
-        : {
-              "propose-generation": proposeGeneration,
-              "find-templates": wrap(
-                  findTemplatesTool,
-                  "Browsing templates",
-                  (items) => (items.length ? { type: "templates", items } : null),
-                  (items) =>
-                      items.length
-                          ? `Templates: ${items.map((t) => `${t.name} (${t.category})`).join(", ")}. The user can pick one to start from.`
-                          : "No matching templates.",
-              ),
-              "edit-artifact": wrap(
-                  editArtifactTool,
-                  "Editing",
-                  (res, input) => ({
-                      type: "proposal",
-                      summary: `Update “${clip(firstText(res.section), 40)}”`,
-                      patch: [{ op: "replaceSection", id: input.sectionId, section: res.section }],
-                      preview: res.section,
-                      targetArtifactId: res.artifactId,
-                      theme: res.theme,
-                      format: res.format,
-                  }),
-                  (_res, input) =>
-                      `Proposed an edit to a section of that artifact (${input.sectionId}).`,
-              ),
-              "rename-artifact": wrap(
-                  renameArtifactTool,
-                  "Renaming",
-                  (action) => ({ type: "action", action }),
-                  () => "Proposed a rename.",
-              ),
-              "move-artifact": wrap(
-                  moveArtifactTool,
-                  "Moving",
-                  (action) => ({ type: "action", action }),
-                  () => "Proposed a move.",
-              ),
-              "duplicate-artifact": wrap(
-                  duplicateArtifactTool,
-                  "Duplicating",
-                  (action) => ({ type: "action", action }),
-                  () => "Proposed a duplicate.",
-              ),
-              "trash-artifact": wrap(
-                  trashArtifactTool,
-                  "Trashing",
-                  (action) => ({ type: "action", action }),
-                  () => "Proposed moving it to Trash — the user confirms before it happens.",
-              ),
-              "restore-artifact": wrap(
-                  restoreArtifactTool,
-                  "Restoring",
-                  (action) => ({ type: "action", action }),
-                  () => "Proposed a restore.",
-              ),
-              "create-folder": wrap(
-                  createFolderTool,
-                  "New folder",
-                  (action) => ({ type: "action", action }),
-                  () => "Proposed a new folder.",
-              ),
-              "share-artifact": wrap(
-                  shareArtifactTool,
-                  "Sharing",
-                  (action) => ({ type: "action", action }),
-                  () => "Opened the share options for the user to publish a link.",
-              ),
-              "export-artifact": wrap(
-                  exportArtifactTool,
-                  "Exporting",
-                  (action) => ({ type: "action", action }),
-                  () => "Opened the artifact for the user to export.",
-              ),
-          };
-
-    const findArtifacts = wrap(
-        findArtifactsTool,
-        "Searching your library",
-        (items) => (items.length ? { type: "artifacts", items } : null),
-        // note is the model's tool result — MUST carry ids so a follow-up read/edit targets the right one
-        (items) =>
-            items.length
-                ? `Found ${items.length}:\n${items.map((i) => `- ${i.id} — “${i.title}” (${i.format})`).join("\n")}`
-                : "No matching artifacts in the library.",
-    );
-    const readArtifact = wrap(
-        readArtifactTool,
-        "Reading",
-        () => null,
-        (digest) => digest,
-    );
-
-    const generalTools: ToolSet = {
-        ...(generating
-            ? {
-                  "revise-outline": reviseOutline,
-                  "request-write": writeSections,
-                  "request-plan": requestPlan,
-                  "steer-sections": steerSections,
-              }
-            : {}),
-        "rewrite-text": wrap(
-            rewriteTextTool,
-            "Rewording",
-            () => null,
-            (rewritten) => `Rewritten: ${rewritten}`,
-        ),
-        "translate-text": wrap(
-            translateTextTool,
-            "Translating",
-            () => null,
-            (translated) => `Translated: ${translated}`,
-        ),
-        "generate-theme": wrap(
-            generateThemeTool,
-            "Designing a theme",
-            (t) => ({
-                type: "theme",
-                name: t.name,
-                mood: t.mood,
-                isDark: t.isDark,
-                tokens: t.tokens,
-            }),
-            (t) =>
-                `Designed “${t.name}” (${t.mood}, ${t.isDark ? "dark" : "light"}). The user applies it — it isn't saved until they do.`,
-        ),
-        ...libraryTools,
-        ...artifactTools,
+        ];
     };
 
-    const tools: ToolSet = {
-        ...generalTools,
-        "find-artifacts": findArtifacts,
-        "read-artifact": readArtifact,
-        ...(ctx.pack
-            ? {
-                  "search-context": wrap(
-                      searchContextTool,
-                      "Searching the attached contexts",
-                      () => null,
-                      (found) => found,
-                  ),
-              }
-            : {}),
-    };
+    const offered = offeredTo(ctx);
+    const tools: ToolSet = Object.fromEntries(offered.map((t) => [t.id, wrap(t)]));
 
     // both are best-effort: a retrieval hiccup degrades to an ungrounded (but honest) turn
-    const packText = (await opts.pack?.(input.message).catch(() => null)) ?? null;
-    const recallText = (await opts.recall?.(input.message).catch(() => null)) ?? null;
+    const packText = (await ctx.pack?.(input.message).catch(() => null)) ?? null;
+    const recallText = (await ctx.recall?.(input.message).catch(() => null)) ?? null;
 
     const agent = new ToolLoopAgent({
-        ...modelCall(modelFor("chat", opts.tier, opts.models)),
+        ...modelCall(modelFor("chat", ctx.tier, ctx.models)),
         instructions: stack(
-            chatSystem(input.context),
+            chatSystem({
+                context: input.context,
+                generation: ctx.generation,
+                content: ctx.artifact,
+                tools: offered.map((t) => ({ id: t.id, describe: t.describe })),
+            }),
             retrievedContext(packText),
             recallText
-                ? heading("Earlier in this conversation (recalled — possibly relevant)", recallText)
+                ? heading("Earlier in this conversation (recalled, possibly relevant)", recallText)
                 : undefined,
             ctx.pack
                 ? "The user attached context collections to this conversation. search-context digs into them; the excerpts above were retrieved for this message."
@@ -653,7 +255,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
     let sent = 0;
     const pump = (async () => {
         try {
-            const result = await agent.stream({ messages, abortSignal: opts.signal });
+            const result = await agent.stream({ messages, abortSignal: ctx.signal });
             for await (const part of result.fullStream) {
                 if (part.type === "reasoning-delta") {
                     if (!part.text) continue;
@@ -668,7 +270,7 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
                 }
             }
         } catch (e) {
-            if (!opts.signal?.aborted)
+            if (!ctx.signal?.aborted)
                 ch.push({
                     type: "chat.text",
                     delta: `\n\n_(I couldn't finish that: ${e instanceof Error ? e.message : "something went wrong"}.)_`,
@@ -680,5 +282,34 @@ export async function* runChat(input: ChatInput, opts: RunOpts = {}): AsyncGener
 
     for await (const ev of ch.drain()) yield ev;
     await pump;
-    yield { type: "turn.done" };
 }
+
+// no principal (the eval harness): the body still runs, unmetered, and its patches are kept for the
+// card exactly as the executor would keep them
+async function unmetered(
+    t: AnyTool,
+    input: unknown,
+    ctx: ToolContext,
+    onEvent: (e: TurnEvent) => void,
+): Promise<ToolOutcome<unknown>> {
+    const patches: Patch[] = [];
+    const gen = (t.run as (i: unknown, c: ToolContext) => AsyncGenerator<TurnEvent, unknown>)(
+        input,
+        ctx,
+    );
+    let step = await gen.next();
+    while (!step.done) {
+        if (step.value.type === "patch") patches.push(step.value.patch);
+        onEvent(step.value);
+        step = await gen.next();
+    }
+    if (t.patch) {
+        const p = t.patch(step.value, input);
+        if (!emptyPatch(p)) patches.push(p);
+    }
+    return { ok: true, result: step.value, patches };
+}
+
+implement("ask-assistant", async function* (input, ctx): AsyncGenerator<TurnEvent, void> {
+    yield* runChat(input, ctx);
+});

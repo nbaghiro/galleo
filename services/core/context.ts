@@ -4,7 +4,7 @@ import { TEMPLATE_INDEX } from "@model/templates";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { embedTexts, type Embedder } from "./ai/embed";
-import { extractArtifactText } from "./ai/run";
+import { extractArtifactText } from "./ai/prompts/system";
 import { templateBody } from "./templates";
 import { fetchWebpage } from "@services/utils/webpage";
 

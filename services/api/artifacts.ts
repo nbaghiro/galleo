@@ -139,8 +139,8 @@ artifacts.get("/artifacts/:id", requireUser, async (c) => {
     if (isResponse(gate)) return gate;
     const a = gate.artifact;
     if (gate.grant) await markGrantSeen(a.id, c.get("user").id);
-    // Opening a piece is the other moment worth preparing from, so someone who edits nothing and
-    // walks straight to present still finds it ready. Never awaited: this answers first.
+    // Opening a piece is the one moment worth preparing from: someone coming back to it is about to
+    // read or present it, while a piece edited and left alone costs nothing. Never awaited.
     prepareInBackground({ artifactId: a.id, workspaceId: gate.ws.id });
     const win = parseWindow(c.req.query("window"));
     if (win) return c.json({ artifact: { ...windowOf(a, win), access: gate.access } });
@@ -266,7 +266,6 @@ artifacts.patch("/artifacts/:id/content", requireUser, async (c) => {
         { kind: "user", connId: c.req.header(CONN_HEADER) ?? "", userId: c.get("user").id },
         ops,
     );
-    prepareInBackground({ artifactId: c.req.param("id"), workspaceId: gate.ws.id });
     return c.json({ ok: true, updatedAt: result.updatedAt, total: result.total, seq: result.seq });
 });
 
@@ -280,8 +279,6 @@ artifacts.patch("/artifacts/:id", requireUser, async (c) => {
         return c.json({ error: "only the owning workspace can move this artifact" }, 403);
     const a = await updateArtifact(gate.ws.id, c.req.param("id"), body);
     if (!a) return c.json({ error: "not found" }, 404);
-    if (body.draftContent !== undefined)
-        prepareInBackground({ artifactId: a.id, workspaceId: gate.ws.id });
     // A move is a library act worth counting; a rename carries nothing a query can use.
     if (body.folderId !== undefined)
         capture({ userId: c.get("user").id, workspaceId: gate.ws.id }, "artifact_moved", {

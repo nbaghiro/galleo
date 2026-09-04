@@ -352,6 +352,13 @@ export function tierAllows(tier: ModelTier, id: string): boolean {
     return !min || TIER_RANK[tier] >= TIER_RANK[min];
 }
 
+// the models that will actually run for every task, not the overrides that were asked for
+export function modelMap(tier: ModelTier, overrides: ModelOverrides = {}): Record<string, string> {
+    const models: Record<string, string> = {};
+    for (const task of AI_TASKS) models[task] = modelFor(task, tier, overrides);
+    return models;
+}
+
 export function modelFor(
     task: AiTask,
     tier: ModelTier = "premium",
@@ -402,7 +409,7 @@ type TextUnit = Exclude<CostUnit, MediaUnit>;
 
 /**
  * What one unit of each kind of text work sends and receives. `plan` and `section` are measured:
- * 283 recorded calls in eval_runs average 2,659 in / 1,673 out for the outline step and
+ * 283 traced calls (the runs of 2026-08) average 2,659 in / 1,673 out for the outline step and
  * 8,171 in / 656 out for a section write. The rest are ESTIMATES and have never been measured; they
  * are deliberately a little generous so the pre-flight hold does not come up short, and each should
  * be replaced with a measurement the same way the first two were.

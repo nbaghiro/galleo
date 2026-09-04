@@ -18,7 +18,9 @@
 //   3. every tool the catalog puts on a non-internal surface resolves to a scope, and every tool
 //      on the mcp surface has an implementation and a name within the directory's 64-char limit,
 //   4. every tool with a registered body either carries a price or says `free: true`, so a body
-//      that reaches a provider cannot bill nothing by omission.
+//      that reaches a provider cannot bill nothing by omission,
+//   5. every tool on the agent surface declares a confirm policy, since the default is to apply on
+//      arrival.
 //
 // Self-verifying: a guard that can only report violations cannot tell you it has stopped working,
 // so it plants both textual violations and fails if the scan stays quiet.
@@ -29,8 +31,8 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { isToolScope, scopeFor, TOOLS, type ToolId } from "@model/tools";
-import { registeredToolIds, toolsFor } from "@services/core/ai/tools";
+import { TOOLS, TOOL_SPEC, isToolScope, scopeFor, type ToolId, type ToolSpec } from "@model/tools";
+import { getTool, registeredToolIds, toolsFor } from "@services/core/ai/tools";
 import "@services/core/ai/tools/register";
 
 const w = (s: string): void => {
@@ -51,27 +53,9 @@ const TOOL_BODY_IMPORT =
 const RESERVE_CALL = /(?<!function\s)\breserve\s*\(/g;
 const RESERVE_LOOKAHEAD = 240;
 
-/**
- * The reserves that are not a tool call in disguise. Each one holds credits for work whose price
- * the catalog names but whose body is not a registered tool: synthesis and voice design run against
- * a provider rather than a model, so there is nothing for the executor to resolve. They stay listed
- * here rather than being invisible, so adding one lands in a reviewed diff.
- */
-const ALLOW: Record<string, string> = {
-    "services/api/narration.ts":
-        "narrate-artifact + compose-soundtrack: provider calls, no registered tool body",
-    // Same tool, same reason, from the background path: its notes call DOES go through the executor,
-    // so this covers only the synthesis reserve beside it.
-    "services/core/prepare.ts":
-        "narrate-artifact + compose-soundtrack: provider calls, no registered tool body",
-    "services/api/voices.ts": "audition-voice / design-voice: provider calls, no registered body",
-    "services/api/media.ts": "generate-video: no registered tool body yet",
-    "services/api/context.ts":
-        "read-file: a vision read of an upload, no registered tool body to resolve",
-    // the agent turn holds ONE reservation for the whole turn and passes holds:"caller" down, which
-    // is the seam that stops unifying from double-charging every chat message
-    "services/api/ai.ts": "the /ai/turn reservation the whole turn settles against",
-};
+// Every reserve outside the executor is a tool call in disguise. The list is empty and stays
+// declared, so the next exception lands in a reviewed diff with a reason beside it.
+const ALLOW: Record<string, string> = {};
 
 const inScope = (f: string): boolean =>
     /^services\/.*\.ts$/.test(f) && !/__tests__|\.test\.|\.itest\./.test(f);
@@ -187,17 +171,27 @@ for (const [id, def] of Object.entries(TOOLS)) {
     if (def.surfaces.includes("mcp") && id.length > 64)
         catalogFaults.push(`${id}: an mcp tool name may be at most 64 characters`);
 }
-// A planned tool (`live` unset) may name where it will live; a live one may not, because
-// tools/list is built from the registry and would quietly leave it out.
-const implemented = new Set(toolsFor("mcp").map((t) => t.id));
+// A planned tool (`live` unset) may name where it will live; a live one may not, on any surface:
+// the executor answers "unknown-tool" for a body the registry never saw, which is how the chat
+// turn went dark when the last import of its file was cleaned away.
+for (const [id, def] of Object.entries(TOOLS))
+    if (def.surfaces.some((s) => s !== "internal") && def.live && !getTool(id as ToolId))
+        catalogFaults.push(
+            `${id}: live on ${def.surfaces.join("/")} with no implementation to run`,
+        );
+// MCP publishes an output schema per tool and the REST listing does the same, so a tool on either
+// surface without one ships a contract with half its shape missing.
 for (const [id, def] of Object.entries(TOOLS))
     if (
-        def.surfaces.includes("mcp") &&
-        def.live &&
-        def.kind !== "proposal" &&
-        !implemented.has(id as ToolId)
+        (def.surfaces.includes("mcp") || def.surfaces.includes("api")) &&
+        !(TOOL_SPEC as Partial<Record<ToolId, ToolSpec>>)[id as ToolId]?.output
     )
-        catalogFaults.push(`${id}: live on the mcp surface with no implementation to run`);
+        catalogFaults.push(`${id}: published to mcp/api without an output schema in TOOL_SPEC`);
+// The in-app agent reads `confirm` to decide whether a call waits for a click; a tool that says
+// nothing falls to "never", which is the wrong default for anything that costs or destroys.
+for (const [id, def] of Object.entries(TOOLS))
+    if (def.surfaces.includes("agent") && !def.confirm)
+        catalogFaults.push(`${id}: offered to the agent without a confirm policy`);
 
 if (catalogFaults.length) {
     w("");
@@ -257,6 +251,6 @@ if (silent.length) {
 }
 
 w(
-    `✓ one executor, one catalog (${files.length} files scanned, ${implemented.size} mcp tools, ` +
+    `✓ one executor, one catalog (${files.length} files scanned, ${toolsFor("mcp").length} mcp tools, ` +
         `${registeredToolIds().length} bodies priced or declared free)`,
 );

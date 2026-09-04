@@ -1,19 +1,23 @@
 import { Hono } from "hono";
-import { streamSSE } from "hono/streaming";
+import type { Context } from "hono";
 import { z } from "zod";
 import type { ArtifactContent } from "@model/artifact";
 import { asContent } from "@model/artifact";
 import { featuresFor } from "@model/billing";
-import { gateShared, isResponse, requireWorkspace, type WorkspaceEnv } from "./middleware";
+import {
+    gateShared,
+    isResponse,
+    requireWorkspace,
+    streamRun,
+    type WorkspaceEnv,
+} from "./middleware";
 import { isArtifactContent, updateArtifact } from "@services/core/artifacts";
-import { audioFor, manifestFor, prepare, trackFor, unitsFor } from "@services/core/narration";
+import { audioFor, manifestFor, trackFor, unitsFor } from "@services/core/narration";
 import {
     audioFor as bedAudio,
     BedError,
     bedBelongsTo,
-    composeForArtifact,
-    composeForWorkspace,
-    ensurePreset,
+    bedMinutes,
     makeDefault,
     presets,
     renameShelved,
@@ -28,7 +32,10 @@ import { DEFAULT_MS, MusicError, musicReady } from "@services/core/ai/music";
 import { SpeechError, speechReady } from "@services/core/ai/speech";
 import { VoiceError } from "@services/core/voices";
 import { publicRead } from "@services/core/links";
-import { pricesFor, reserve } from "@services/core/spend";
+import { runTool } from "@services/core/ai/execute";
+import type { ToolOutcome } from "@services/core/ai/execute";
+import type { WorkspaceRow } from "@services/core/accounts";
+import type { Composed, Narrated } from "@services/core/ai/tools/audio";
 import { creditRefusal, readJson } from "@services/utils/http";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
@@ -132,35 +139,46 @@ narration.post("/artifacts/:id/narration", requireWorkspace, async (c) => {
     const pending = content.sections
         .filter((s) => !body.sectionIds?.length || body.sectionIds.includes(s.id))
         .reduce((n, s) => n + (s.notes?.spoken.trim().length ?? 0), 0);
-    const held = await reserve(ws, c.get("user").id, "narrate-artifact", {
-        size: { speechUnits: Math.max(1, unitsFor(pending)) },
-        prices: pricesFor(ws, {}),
-        role,
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
 
-    return streamSSE(c, (stream) =>
-        held.settle(async (billed) => {
-            const send = (data: unknown): Promise<void> =>
-                stream.writeSSE({ data: JSON.stringify(data) });
-            let chars = 0;
-            try {
-                for await (const ev of prepare(id, content, gate.ws.id, body.sectionIds)) {
-                    chars += ev.chars;
-                    await send({ type: "section", ...ev });
-                }
-            } catch (e) {
-                await send({
-                    type: "error",
-                    message: e instanceof Error ? e.message : "narration failed",
-                });
-            } finally {
-                billed({ speech: unitsFor(chars) });
-                await send({ type: "done", chars });
-            }
-        }),
-    );
+    let chars = 0;
+    return streamRun(c, {
+        refused: (out) => refused(c, ws, out),
+        frame: (ev) => {
+            if (ev.type !== "section.audio") return null;
+            chars += ev.chars;
+            return {
+                type: "section",
+                sectionId: ev.id,
+                ms: ev.ms,
+                cached: ev.cached,
+                chars: ev.chars,
+            };
+        },
+        tail: (out) => [
+            ...(out instanceof Error
+                ? [{ type: "error", message: out.message || "narration failed" }]
+                : !out.ok
+                  ? [{ type: "error", message: refusalLine(out) }]
+                  : []),
+            { type: "done", chars },
+        ],
+        run: ({ onHeld, onEvent }) =>
+            runTool<Narrated>(
+                {
+                    id: "narrate-artifact",
+                    surface: "direct",
+                    input: { sectionIds: body.sectionIds },
+                },
+                { userId: c.get("user").id, ws, role },
+                {
+                    ctx: { image: {}, artifact: content, artifactId: id },
+                    size: { speechUnits: Math.max(1, unitsFor(pending)) },
+                    produced: () => ({ speech: unitsFor(chars) }),
+                    onHeld,
+                    onEvent,
+                },
+            ),
+    });
 });
 
 // One section, cached or synthesized on the spot. The player calls this for what it is about to
@@ -193,35 +211,34 @@ narration.post("/artifacts/:id/narration/section/:sectionId", requireWorkspace, 
 
     const chars =
         content.sections.find((s) => s.id === sectionId)?.notes?.spoken.trim().length ?? 0;
-    const held = await reserve(ws, c.get("user").id, "narrate-artifact", {
-        size: { speechUnits: Math.max(1, unitsFor(chars)) },
-        prices: pricesFor(ws, {}),
-        role,
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
-
-    return held.settle(async (billed) => {
-        try {
-            const out = await trackFor(
-                id,
-                content,
-                gate.ws.id,
-                sectionId,
-                audioUrl(`/api/artifacts/${id}/narration`),
-            );
-            // a cached hit reports zero characters, so replaying a section costs nothing
-            billed({ speech: unitsFor(out?.chars ?? 0) });
-            return c.json({ track: out?.track ?? null });
-        } catch (e) {
-            billed({ speech: 0 });
-            // SpeechError and VoiceError carry the difference between "this server is misconfigured"
-            // (503) and "the provider refused" (502); flattening both to 502 threw that away
-            const status = e instanceof SpeechError || e instanceof VoiceError ? e.status : 502;
-            const message = e instanceof Error ? e.message : "narration failed";
-            return c.json({ error: message }, status);
-        }
-    });
+    let out: ToolOutcome<Narrated>;
+    try {
+        out = await runTool<Narrated>(
+            { id: "narrate-artifact", surface: "direct", input: { sectionIds: [sectionId] } },
+            { userId: c.get("user").id, ws, role },
+            {
+                ctx: { image: {}, artifact: content, artifactId: id },
+                size: { speechUnits: Math.max(1, unitsFor(chars)) },
+                // a cached hit reports zero characters, so replaying a section costs nothing
+                produced: (r) => ({ speech: unitsFor((r as Narrated | undefined)?.chars ?? 0) }),
+            },
+        );
+    } catch (e) {
+        // SpeechError and VoiceError carry the difference between "this server is misconfigured"
+        // (503) and "the provider refused" (502); flattening both to 502 threw that away
+        const status = e instanceof SpeechError || e instanceof VoiceError ? e.status : 502;
+        return c.json({ error: e instanceof Error ? e.message : "narration failed" }, status);
+    }
+    if (!out.ok) return refused(c, ws, out);
+    // the audio is in the cache now, so reading the track back costs nothing
+    const track = await trackFor(
+        id,
+        content,
+        gate.ws.id,
+        sectionId,
+        audioUrl(`/api/artifacts/${id}/narration`),
+    );
+    return c.json({ track: track?.track ?? null });
 });
 
 narration.get("/artifacts/:id/narration", requireWorkspace, async (c) => {
@@ -276,26 +293,24 @@ narration.post("/music/shelf", requireWorkspace, async (c) => {
     const body = await readJson(c, zShelve);
     if (!body?.presetId) return c.json({ error: "which preset" }, 400);
 
-    const held = await reserve(ws, c.get("user").id, "compose-soundtrack", {
-        size: { musicMinutes: 1 },
-        prices: pricesFor(ws, {}),
-        role: c.get("role"),
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
-
-    return held.settle(async (billed) => {
-        try {
-            const out = await ensurePreset(body.presetId!);
-            billed({ music: out.chars ? Math.max(1, Math.ceil(out.chars / 60_000)) : 0 });
-            await shelve(ws.id, out.row.id, { ...(body.name ? { name: body.name } : {}) });
-            return c.json({ beds: await shelfFor(ws.id, bedUrlFor) });
-        } catch (e) {
-            billed({ music: 0 });
-            const status = e instanceof MusicError ? e.status : 502;
-            return c.json({ error: e instanceof Error ? e.message : "music failed" }, status);
-        }
-    });
+    let out: ToolOutcome<Composed>;
+    try {
+        out = await runTool<Composed>(
+            { id: "compose-soundtrack", surface: "direct", input: { preset: body.presetId } },
+            { userId: c.get("user").id, ws, role: c.get("role") },
+            {
+                ctx: { image: {} },
+                size: { musicMinutes: 1 },
+                produced: (r) => ({ music: bedMinutes((r as Composed | undefined)?.ms) }),
+            },
+        );
+    } catch (e) {
+        const status = e instanceof MusicError ? e.status : 502;
+        return c.json({ error: e instanceof Error ? e.message : "music failed" }, status);
+    }
+    if (!out.ok) return refused(c, ws, out);
+    await shelve(ws.id, out.result.row.id, { ...(body.name ? { name: body.name } : {}) });
+    return c.json({ beds: await shelfFor(ws.id, bedUrlFor) });
 });
 
 const zCompose = z.object({ description: z.string().optional() });
@@ -310,25 +325,23 @@ narration.post("/music/shelf/compose", requireWorkspace, async (c) => {
     const said = body?.description?.trim();
     if (!said) return c.json({ error: "say what it should sound like" }, 400);
 
-    const held = await reserve(ws, c.get("user").id, "compose-soundtrack", {
-        size: { musicMinutes: 1 },
-        prices: pricesFor(ws, {}),
-        role: c.get("role"),
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
-
-    return held.settle(async (billed) => {
-        try {
-            const out = await composeForWorkspace(ws.id, said);
-            billed({ music: out.ms ? Math.max(1, Math.ceil(out.ms / 60_000)) : 0 });
-            return c.json({ beds: await shelfFor(ws.id, bedUrlFor) });
-        } catch (e) {
-            billed({ music: 0 });
-            const status = e instanceof MusicError || e instanceof BedError ? e.status : 502;
-            return c.json({ error: e instanceof Error ? e.message : "music failed" }, status);
-        }
-    });
+    let out: ToolOutcome<Composed>;
+    try {
+        out = await runTool<Composed>(
+            { id: "compose-soundtrack", surface: "direct", input: { description: said } },
+            { userId: c.get("user").id, ws, role: c.get("role") },
+            {
+                ctx: { image: {} },
+                size: { musicMinutes: 1 },
+                produced: (r) => ({ music: bedMinutes((r as Composed | undefined)?.ms) }),
+            },
+        );
+    } catch (e) {
+        const status = e instanceof MusicError || e instanceof BedError ? e.status : 502;
+        return c.json({ error: e instanceof Error ? e.message : "music failed" }, status);
+    }
+    if (!out.ok) return refused(c, ws, out);
+    return c.json({ beds: await shelfFor(ws.id, bedUrlFor) });
 });
 
 const zBedPatch = z.object({ name: z.string().optional(), makeDefault: z.boolean().optional() });
@@ -376,43 +389,38 @@ narration.post("/artifacts/:id/soundtrack", requireWorkspace, async (c) => {
     if (!body) return c.json({ error: "invalid body" }, 400);
 
     const minutes = Math.max(1, Math.ceil((body.lengthMs || DEFAULT_MS) / 60_000));
-    const held = await reserve(ws, c.get("user").id, "compose-soundtrack", {
-        size: { musicMinutes: minutes },
-        prices: pricesFor(ws, {}),
-        role: gate.role ?? "member",
-        surface: "direct",
-    });
-    if (!held.ok) return c.json(creditRefusal(ws, held), 402);
-
-    return held.settle(async (billed) => {
-        try {
-            // The bed itself comes back, not just its id. The caller turns music on in its own
-            // copy of the content and cannot read it back from here until that write lands, and
-            // asking anyway is a race it loses often enough to look broken.
-            const bedUrl = (t: string): string => `/api/artifacts/${id}/soundtrack/${t}`;
-            if (body.custom) {
-                const content = body.content ?? (await contentOf(id));
-                const out = await composeForArtifact(id, content, body.lengthMs ?? DEFAULT_MS);
+    const content = body.custom ? (body.content ?? (await contentOf(id))) : undefined;
+    let out: ToolOutcome<Composed>;
+    try {
+        out = await runTool<Composed>(
+            {
+                id: "compose-soundtrack",
+                surface: "direct",
+                input: body.custom
+                    ? { custom: true, lengthMs: body.lengthMs ?? DEFAULT_MS }
+                    : { preset: body.preset ?? DEFAULT_PRESET },
+            },
+            { userId: c.get("user").id, ws, role: gate.role ?? "member" },
+            {
+                ctx: { image: {}, ...(content ? { artifact: content } : {}), artifactId: id },
+                size: { musicMinutes: minutes },
                 // a cached bed reports zero, so asking twice for the same piece costs nothing
-                billed({ music: out.ms ? Math.max(1, Math.ceil(out.ms / 60_000)) : 0 });
-                return c.json({
-                    trackId: out.row.id,
-                    cached: !out.ms,
-                    track: rowToTrack(out.row, bedUrl(out.row.id)),
-                });
-            }
-            const out = await ensurePreset(body.preset ?? DEFAULT_PRESET);
-            billed({ music: out.chars ? Math.max(1, Math.ceil(out.chars / 60_000)) : 0 });
-            return c.json({
-                trackId: out.row.id,
-                cached: !out.chars,
-                track: rowToTrack(out.row, bedUrl(out.row.id)),
-            });
-        } catch (e) {
-            billed({ music: 0 });
-            const status = e instanceof MusicError ? e.status : 502;
-            return c.json({ error: e instanceof Error ? e.message : "music failed" }, status);
-        }
+                produced: (r) => ({ music: bedMinutes((r as Composed | undefined)?.ms) }),
+            },
+        );
+    } catch (e) {
+        const status = e instanceof MusicError || e instanceof BedError ? e.status : 502;
+        return c.json({ error: e instanceof Error ? e.message : "music failed" }, status);
+    }
+    if (!out.ok) return refused(c, ws, out);
+    // The bed itself comes back, not just its id. The caller turns music on in its own copy of the
+    // content and cannot read it back from here until that write lands, and asking anyway is a
+    // race it loses often enough to look broken.
+    const bedUrl = (t: string): string => `/api/artifacts/${id}/soundtrack/${t}`;
+    return c.json({
+        trackId: out.result.row.id,
+        cached: !out.result.ms,
+        track: rowToTrack(out.result.row, bedUrl(out.result.row.id)),
     });
 });
 
@@ -522,3 +530,35 @@ narration.get("/p/:slug/narration/:sectionId", async (c) => {
     if (read.status !== 200) return new Response("not found", { status: 404 });
     return await serveAudio(read.artifactId, c.req.param("sectionId"), c.req.query("v"));
 });
+
+// a stream has already sent its headers, so a refusal arrives as a line rather than a status
+const refusalLine = (out: Extract<ToolOutcome<unknown>, { ok: false }>): string =>
+    out.reason === "credits"
+        ? "Not enough credits."
+        : out.reason === "entitlement"
+          ? "That needs a higher plan."
+          : out.reason === "bad-input"
+            ? out.issues.join("; ")
+            : "that action is not available";
+
+// what a route answers when the executor refused before the body ran; `ws` is whoever pays, which
+// for an invited collaborator is the artifact's workspace rather than their own
+function refused(
+    c: Context,
+    ws: WorkspaceRow,
+    out: Extract<ToolOutcome<unknown>, { ok: false }>,
+): Response {
+    if (out.reason === "credits") return c.json(creditRefusal(ws, out), 402);
+    if (out.reason === "entitlement")
+        return c.json(
+            {
+                error: "That needs a higher plan.",
+                reason: "feature" as const,
+                feature: out.feature,
+                upgrade: true,
+            },
+            402,
+        );
+    if (out.reason === "bad-input") return c.json({ error: out.issues.join("; ") }, 400);
+    return c.json({ error: "that action is not available" }, 500);
+}

@@ -1,9 +1,9 @@
 # AI — technical guide
 
-How every AI capability in Galleo works end to end: the streamed **turn protocol**, the single **tool
-catalog** (identity + pricing), the **registry** that executes it, the **runtime** that generates and edits
-content, the **chat / workspace agent**, the **HTTP routes** + credit gate, the **prompt playbook**, and the
-**client** that drives it all. This is the real backend — the old client-side generation _simulator_ is gone.
+How every AI capability in Galleo works end to end: the **tool envelope** and the **patch** every surface
+speaks, the **generation** as a server-side resource, the single **tool catalog** (identity, availability,
+confirm policy, pricing), the **one executor** every call runs through, the **chat / workspace agent**, the
+**HTTP routes**, the **prompt playbook**, the **stored thread**, and the **client** that mirrors it all.
 
 Companion to `architecture.md` (the file map, layering law + credits/billing), `rendering.md` (the content
 tree + element system the AI writes), `frontend.md` (the client shell that speaks the protocol), and
@@ -14,45 +14,51 @@ tree + element system the AI writes), `frontend.md` (the client shell that speak
 
 ```
 model/                         the PURE contract (edge-safe; imports nothing above model)
-  ai.ts        the turn PROTOCOL only: turns · patches · events · applyPatch
-  credits.ts   what a capability is and what it costs: the metered-credit engine (Usage bag + costOf) ·
-               the AiTask steps + their per-model rate multipliers · the ONE tool catalog (identity, tier,
-               surfaces, pricing) — plus estimateCost / costRange / typicalCost / PRICED_TOOLS
+  ai.ts        the tool PROTOCOL: the streamed events · the Patch (artifact ops + generation ops + a
+               workspace action) and applyPatch · the Generation resource (Brief with per-field
+               provenance, outline, steer, per-beat state) · the chat blocks and the stored thread
+  tools.ts     the ONE tool catalog: identity, tier, surfaces, availability (needs / without), the
+               confirm policy, pricing, and TOOL_SPEC (the agent-facing describe + zod input per tool)
+  credits.ts   the metered-credit engine: the Usage bag, costOf, the AiTask steps and their multipliers
+  trace.ts     the record of one tool call: the tool and model spans, the level, the status, the cost;
+               eval.ts holds only the verdicts about a run (checks · judgements · the rubric)
 
 services/core/ai/                   the runtime (depends only on model; may NOT import canvas)
-  models.ts    the model registry — `provider:model` ids + DEFAULT_MODELS per task. A new entry is
-               not finished until `pnpm ai:probe --model=<id> --json` answers and `probedOn` is set:
-               a declared id can still refuse the options we send it (see `thinkingBudget`), and
-               only a real call says so. `check:models` fails once a probe date ages out.
-  provider.ts  resolveModel(id) → a Vercel AI SDK LanguageModel; aiReady()/providerReady(); thinklessOpts
-  schema.ts    the Zod output schemas — zOutline · zSectionPlan · zSection · zElement · zTheme · …
-  run.ts       the turn runtime — runTurn dispatch + runGenerate/runSection/reviseElement + image sourcing
-  text.ts      the fast text runtime — rewriteText / translateText
-  chat.ts      the chat/workspace agent — an AI-SDK ToolLoopAgent whose toolset is built from the registry
-  tasks.ts     the one-shot calls: rewriteText · translateText · generateTheme* · expandBrief ·
-               suggestSections (a single request in, a finished value out — nothing streams here)
-  quality.ts   the section audit
-  tools/       the executable registry: registry.ts (Tool<I,R> + ctx.use + register + WorkspaceReader) +
-               one file per capability (generate · section · element · text · suggest · inspect · library ·
-               manage · structure · media · theme) + register.ts (side-effect: registers the whole catalog)
+  execute.ts   runTool: the one envelope around every call (surface · scope · entitlement · schema ·
+               the generation it acts on · the writer lease · the credit hold · applying its patches)
+  tools.ts     the registry: Tool<I,R>, ToolContext, GenerationStore, implement(), offeredTo()
+  tools/       one file per capability; generation.ts holds the studio's tools, generate.ts the
+               one-shot composite over them, register.ts imports them all for the side effect
+  chat.ts      the agent: a ToolLoopAgent whose toolset is offeredTo(ctx), run as the ask-assistant tool
+  models.ts    the model registry (`provider:model` ids + DEFAULT_MODELS per task; see check:models)
+  provider.ts  resolveModel(id) → a Vercel AI SDK LanguageModel; aiReady(); thinklessOpts
+  schema.ts    the Zod output schemas: zOutline · zSectionPlan · zSection · zElement · zTheme · …
+  quality.ts   the section audit;  text.ts  rewriteText / translateText;  tasks.ts  the one-shot calls
   prompts/     the pure prompt-string builders (see §10)
+  eval/        the traced-run harness; it runs tools through the same executor with a memory store
 
-  routes.ts    POST /ai/{turn,brief,suggest,theme,element,text} — auth + credit gate + SSE framing
-  reader.ts    makeWorkspaceReader(wsId) — the DB-backed WorkspaceReader the agent's find/read tools use
-  corpus/      the seven gold-standard artifacts; prompts/exemplars.ts injects sections from three of
-               them (deck=galleo · doc=helios · web=terra) into every generate turn
+services/core/
+  generations.ts   makeGenerationStore (rows in `generations`, the draft in `artifacts`) +
+                   memoryGenerationStore (tests, evals) + runMeta
+  threads.ts       the stored chat thread per subject: compactEvents · loadThread · appendExchange
+  traces.ts        the tracer: opened by the executor around every call, fed by the meter and the
+                   hold, kept per workspace under a cap; the DB store and the in-memory one
+  effects.ts       load / apply / commit an artifact for a caller with no browser
+  delegated.ts     the one call MCP and the REST API make; patches come out of the executor's outcome
+  spend.ts         reserve(): the credit hold the executor takes, and where every metered call is measured
 
 services/api/
-  routes.ts    the credit ledger the gate charges against (POST /billing/spend, GET /billing)
+  ai.ts        POST /ai/turn {tool, input}: the streaming envelope for any tool; the JSON one-shots
+  chat.ts      GET · POST mark · DELETE /chat/thread: the stored thread
+  media.ts · narration.ts · voices.ts · context.ts   run their tools through runTool as well
+  middleware.ts   streamRun: hold first, then open the stream, so a refusal is still a status
 
-editor/ + app/                 the client (thin — speaks the protocol, never the model)
+editor/ + app/                 the client (thin: speaks the protocol, never the model)
+  app/api.ts                   streamTool (SSE reader) + the JSON transports
+  app/stores/generate.ts       the studio: a MIRROR of the generation, kept by applying patch events
+  app/stores/chat.ts           the dock: the thread, the reducer, the GenerationHost seam
+  app/views/generate/          the studio shell; app/views/ChatPanel.tsx the dock
   editor/core/store.ts         injected seams: onSectionStream · onSuggestSections · onReviseElement · onTextAssist
-  editor/ai/                   the in-canvas flows: section-gen · element-gen · text-assist + TextAiMenu
-  app/stores/generate.ts       the generation studio's session state machine (stages · gates · build loop ·
-                               versions · steer · draft persistence) over app/stores/generate-plan.ts (pure helpers)
-  app/views/generate/Mission.tsx (GenerateStudio) + app/views/generate/    the studio shell + its stages (§12)
-  app/stores/chat.ts + app/views/ChatPanel.tsx    the chat dock: chat.ts (thread + dispatch) + ChatPanel.tsx
-  app/api.ts                   streamTurn (SSE reader) + the JSON transports; wired in EditorView.tsx
 ```
 
 ## 2. The three invariants that decide the shape
@@ -65,80 +71,94 @@ editor/ + app/                 the client (thin — speaks the protocol, never t
 2. **The AI writes content, never layout.** It emits the element tree (`{ type, data }` per element, a
    `layout.width` per column child); the engine renders that identically to deck / doc / web and to PDF. The
    AI never touches pixels — see `rendering.md`.
-3. **The seam is the `TurnEvent` stream (SSE) plus a few JSON routes.** Structured generation, credit
-   metering, and auth wrap the runtime; the client only ever parses events and applies patches. Swap the
-   model or a prompt and nothing on the client changes.
+3. **The seam is the tool call.** Every AI action is a catalog tool, every caller reaches it through one
+   executor, and every surface reads the same `TurnEvent` stream and applies the same `Patch`. The client
+   only ever parses events and applies patches; swap the model or a prompt and nothing on the client changes.
 
-## 3. The turn protocol (`@model/ai`)
+## 3. The tool envelope and the patch (`@model/ai`)
 
-A **turn** is one request the client makes; the runtime answers with an ordered stream of **events**; some
-events carry **patches** (structural ops) the client applies to the artifact.
+Every AI action is a **tool** in the catalog (§5), and a request from any surface is a tool call:
+`{ tool, input }`. The runtime answers a streamed call with an ordered stream of **events**; some
+events carry **patches**, which one pure function applies to the same state on both ends.
 
-**Turns** — `TurnRequest = { kind, input }`, `TurnKind = "generate" | "edit" | "section" | "chat" | "plan" | "build"`:
+**The patch.** A `Patch` addresses three things at once, any of which may be absent:
 
-| kind       | input                                                                                    | what it does                                                   |
-| ---------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `generate` | `GenerateInput` (prompt, surface, theme, goal?, audience?, tone?, length?, mustInclude?) | build a whole artifact in one uninterrupted run                |
-| `plan`     | `GenerateInput`                                                                          | outline ONLY — beats stream to the client for editing          |
-| `build`    | `BuildInput` (brief, outline, beat, content, afterId, steer?, note?, anchor?, replace?)  | write ONE pre-planned, user-approved beat                      |
-| `section`  | `SectionInput` (instruction, afterId, content)                                           | write + insert ONE new section                                 |
-| `chat`     | `ChatInput` (message, context, history?)                                                 | a conversational agent turn                                    |
-| `edit`     | `EditInput` (instruction)                                                                | whole-artifact revision — **not yet implemented** (route 501s) |
+```ts
+interface Patch {
+    artifact?: PatchOp[]; // the content tree
+    generation?: GenerationOp[]; // the run: brief, outline, steer, beats, versions, stage
+    workspace?: WorkspaceAction; // rename / move / share / export … (the client routes these)
+}
+applyPatch({ content, generation }, patch); // pure; applyContentOps + applyGenerationOps under it
+```
 
-`plan` + `build` are the **generation studio's** decomposition of `generate` (§12): the client holds the
-approved outline and drives one `build` turn per beat, so pausing, steering (`steer` reaches every later
-section's prompt), per-beat regeneration (`replace` + `note`), and per-section billing all fall out of turn
-boundaries — the server never tracks a session. `Beat` carries `brief` (the one-line section instruction)
-and `covers` (which of the brief's `mustInclude` points it addresses, verbatim — the outline editor's
-coverage checklist). `BriefDraft` (prompt → goal/audience/tone/mustInclude + at most one `clarify`
-question) is the studio's Brief-stage shape.
+`PatchOp` is the content vocabulary (`setMeta · addSection · replaceSection · removeSection ·
+moveSection · replaceElement · setSectionBackground`), each with a structural inverse, so the same
+ops power streaming, surgical edits, history and undo. The REST write and the collaboration room
+speak `SectionOp` (`@model/artifact`), which names how the stored document moves rather than what
+changed; `toSectionOps(before, patch)` is where the two meet, and every server-side landing of a
+patch (`commitPatch`) goes through it, so a tool's effect reaches the room as ops. `GenerationOp` is the run's vocabulary:
+`setBrief` (with `by: "user" | "planner"`, which is how the brief remembers who set each field),
+`setOutline` and the beat ops (`addBeat · updateBeat · removeBeat · moveBeat`), `setClarify`,
+`setSteer`, `setBeat` (status), `pushVersion` / `pickVersion`, `setStage`.
 
-`ChatContext.imageSource` carries the run's image strategy, so a picture re-sourced from chat matches how
-the rest of the piece was built instead of silently falling back to stock. The route threads it into the
-turn's `ImageOptions` and adds any AI variations to what the turn's tools already owe (a generation
-recomputes its bill from the real count instead, because it reserved for images up front).
-
-`ChatContext` carries the surface so the agent grounds itself per surface: `editor` (the open `content` +
-`focus`), `library` (a `ChatLibrary` workspace summary — recent titles + count), or **`generate`** (a
-`ChatGeneration`: the run's stage, brief, and every beat with a `written` flag). The generate surface exists
-because mid-run the piece is half-_planned_ rather than absent — with only `content` to look at the agent saw
-an empty artifact and proposed building a separate one. On it the agent gets `revise-outline` (proposing a
-`BeatOp[]` the studio applies to its plan, since the outline lives nowhere else) and loses
-`propose-generation` and the library-management half of the catalog entirely.
-
-**Events** — `TurnEvent`, a discriminated union the runtime yields and the client dispatches:
+**The generation.** A `Generation` is the server-side record of a run in progress, and the thing the
+studio, the chat dock, MCP and the API all act on by id:
 
 ```
-turn.start   { kind }                              a turn began
+id · workspaceId · artifactId         the draft artifact is created with the generation
+stage          briefed → planning → outlined → writing → done
+brief          GenerateInput + `set`: which fields a person set and which the planner filled
+briefVersion · plannedAgainst         the outline is stale when they differ
+outline        { title, backdrop?, beats[] } | null
+steer          the standing note every later section follows
+clarify        the one question the planner may ask, or null
+beats          per beat: versions[] · active · status (queued | done | failed | skipped)
+seq            bumped per applied patch; the client echoes it to know it is current
+```
+
+The artifact holds what a reader needs; the generation holds what only the run needs. Finishing a
+generation stamps `runMeta` on the artifact, which is the shape the studio used to write itself.
+
+**Events.** `TurnEvent`, a discriminated union the runtime yields and the client dispatches:
+
+```
+turn.start   { tool }                              a call began
 phase        { name }                              intake → outline → build → compose → done
-narration    { text, sub?, mono? }                 a human progress line (the build animation reads it)
-plan         { beats[] }                           the outline: ordered beats (id · label · role · layout · image)
-section.status { id, status }                      active → writing → image → done  (per section)
-patch        { ops: PatchOp[] }                    structural mutations to apply (see below)
-chat.text    { delta }                             a token of assistant prose (streamed)
-chat.tool    { blockId, tool, title }              a tool started ("working…" shell)
-chat.nested  { blockId, event }                    a tool's own progress, forwarded
-chat.block   { blockId, block }                    a finished rich block (proposal · suggestions · sections)
-turn.done    { summary? }                          success
-error        { message }                            failure
+narration    { text, sub?, mono? }                 a human progress line
+plan         { beats[], title?, backdrop? }        the outline (plan.partial while it streams)
+section.status { id, status }                      active → writing → image → done
+section.partial { id, section }                    a section still being written
+patch        { patch, seq? }                       apply this; seq is the generation's after it
+section.audio { id, ms, cached, chars }            one narrated section landed
+media        { item } · media.failed { reason? }   one generated picture or clip, or not
+chat.thinking { label? }  chat.text { delta }      the agent's reasoning headline / prose
+chat.tool    { blockId, tool, title, done? }       a tool shell opened, then closed
+chat.nested  { blockId, event }                    a tool's own progress, forwarded to its shell
+chat.block   { blockId, block }                    a finished card (see below)
+turn.done    { summary?, result? }                 success, with the tool's typed result
+error        { message }                           failure
 ```
 
-Two chat events not in the table above but present in the union: `chat.reasoning { delta }` (streamed
-thinking tokens — Gemini's summarized thoughts, rendered as a progress bubble) and `reply { text }` (a
-non-streamed chat/research answer).
+**Chat blocks.** `proposal` is the one card that carries work: `{ id, tool, summary, cost?,
+call?: { input }, patch?, preview?, targetArtifactId?, theme?, format? }`. A card with a `call` is a
+tool the agent offered and did not run (`confirm: "before"`); pressing it runs that tool. A card
+with a `patch` is a tool that ran and whose change waits for approval (`confirm: "after"`); pressing
+it applies the patch. `generation { generationId }` tells the dock a run started, so it can adopt it
+into the studio; `applied { proposal }` retires a card the agent applied on a spoken approval;
+`action { action, confirm }` is a workspace verb the client runs or asks about. The rest
+(`suggestions`, `sections`, `artifacts`, `templates`) are pick-lists.
 
-**Patches** — `PatchOp` + `applyPatch(content, patch)` (pure, immutable, in `@model/ai`):
+**The chat context.** `ChatContext` names the surface (`editor` · `library` · `generate`) and what
+the agent may act on: `content` for the open artifact, `library` for a workspace summary, and
+`generationId` for a run in progress, which the executor loads server-side with its draft. The
+generate surface exists because mid-run the piece is half planned rather than absent; with only
+`content` to look at the agent saw an empty artifact and proposed building a separate one.
+`pending` lists the cards still waiting, so "yes, do that" can name one.
 
-```
-setMeta { theme?, format?, background? }            addSection { afterId?, section }
-replaceSection { id, section }                      removeSection { id }
-moveSection { id, afterId }                          replaceElement { sectionId, path, element }
-setSectionBackground { sectionId, background }
-```
-
-Generate streams `addSection`s; regenerate-a-section is one `replaceSection`; an element edit is one
-`replaceElement` at a `path` into the section's `root` tree. Every op has a structural inverse, so the same
-model powers streaming, surgical edits, history, and undo.
+**The stored thread.** `ChatThread { key, messages, marks }` is what the dock reopens, per subject:
+`threadKey(ctx)` is `generation:<id>`, `artifact:<id>` or `library`. An assistant message stores its
+compacted events (§11), so a reopened thread is replayed through the same reducer that painted it.
 
 ## 4. The content contract
 
@@ -162,356 +182,336 @@ teaches the per-element fields; the element specs tolerate extra/missing keys). 
 `generateObject`; a section is free-form JSON validated on parse, because Gecko-style response schemas can't
 populate arbitrary-keyed `data` maps (§6).
 
-## 5. The tool catalog + pricing (`@model/credits`)
+## 5. The tool catalog + pricing (`@model/tools` + `@model/credits`)
 
-**One catalog** names every capability the AI has and carries its pricing — there is no separate "AI actions"
-catalog (that split was removed; a tool _is_ the priced unit). `ToolId` is a verb-object union; each
-`ToolMeta` in `TOOL_CATALOG` has:
+**One catalog** names every capability the AI has and carries its pricing. There is no separate
+"AI actions" catalog, no turn kind, and no route-private operation: a tool is the priced unit, the
+permission unit and the unit of exposure. `ToolId` is a verb-object union; each `ToolMeta` in
+`TOOLS` has:
 
 ```
 id · title · summary                        identity + human copy
 tier      composite | action | primitive    whole flow · single call · internal building block
-surfaces  agent | direct | mcp | internal    where it's exposed (direct = a route/seam; agent = the chat loop)
-category · usage · meter · live              PRICING (present only on user-facing, credit-costing tools)
+surfaces  agent | direct | mcp | api | internal   where a call may arrive from
+needs     generation | artifact | library | contexts   what the context must hold for the tool to be offered
+without   generation                        offered only when the context does NOT hold this
+confirm   before | after | never            how the agent treats it (§8); direct callers are unaffected
+effect · public · requires                  the MCP annotations, the no-account flag, the plan entitlement
+category · usage · meter · live · free      PRICING; `free: true` is a decision, not a field left off
 ```
 
-`usage` is the typical units of work (`{ section: 12, image: 3, … }`); `meter(m)` is the size-scaling
-function for metered tools; both price through `usdOfUsage` in `@model/credits`. A tool that costs the caller
-nothing says so with `free: true` (reads like `show-sections`, the workspace management tools, and internal
-primitives whose parent run already holds). Saying it is not decoration: an unpriced tool takes the free
-branch in `reserve()`, which returns a settle that never calls `owed()`, so a body that reaches a provider
-would burn tokens nobody is billed for. That is how `suggest-sections` shipped calling `generateObject` on
-every use and charging nothing. `pnpm check:tools` now fails when a tool with a registered body declares
-neither a price nor `free: true`, so free is a decision somebody made rather than a field left off. The
-pricing helpers —
-`estimateCost(id, meter)`, `typicalCost(id)`, `isMetered(id)`, `costRange(id)`, and `PRICED_TOOLS` (the "what
-your credits buy" list = tools that are both `usage`-priced **and** `live`) — all live here and key off
-`ToolId`. The credit gate (§11) and the `/pricing` page read straight off this; retune a unit once and the
-paywall, the showcase, and every charge move together.
+`availableTo(ctx)` filters the catalog by `needs` / `without`, and the agent's toolset is exactly
+that filter over the `agent` surface (`offeredTo` in the registry). A tool that needs a generation
+is offered only while one is open, so the studio's verbs vanish from a library conversation, and
+`start-generation` is `without: ["generation"]`, so a run in progress never gets a second one
+proposed beside it. `confirmFor(id)` reads the confirm policy, which the agent applies uniformly:
+`before` offers a card and runs nothing until it is pressed (`generate-artifact`,
+`start-generation`, `plan-outline`, `write-beat`, `write-beats`, `trash-artifact`,
+`create-artifact`); `after` runs the tool and offers its patch as a card; `never` applies on arrival
+(reads, the cheap settings, `steer-generation`, `revise-brief`, `pick-version`, `apply-patch`).
+`pnpm check:tools` fails a tool reachable by the agent with no confirm policy.
 
-**The catalog — 55 tool ids** (8 composites · 42 actions · 5 primitives), defined once in
-`model/tools.ts`; `pnpm check:tools` fails if a route reaches around the executor or the catalog names a
-tool it cannot serve. The tiers, rather than an inventory that rots on the next tool:
+`usage` is the typical units of work (`{ section: 12, image: 3, … }`); `meter(m)` is the
+size-scaling function for metered tools; both price through `usdOfUsage` in `@model/credits`. An
+unpriced tool takes the free branch in `reserve()`, which returns a settle that never calls
+`owed()`, so a body that reaches a provider would burn tokens nobody is billed for. `pnpm
+check:tools` fails when a tool with a registered body declares neither a price nor `free: true`.
+The pricing helpers (`estimateCost(id, meter)`, `typicalCost(id)`, `isMetered(id)`,
+`costRange(id)`, `PRICED_TOOLS`) all live here and key off `ToolId`. The executor's hold (§7) and
+the `/pricing` page read straight off this; retune a unit once and the paywall, the showcase, and
+every charge move together.
 
-- **8 composites** (whole flows, each one turn): `generate-artifact` · `revise-artifact` · `add-section` ·
-  `rewrite-section` · `suggest-section-layouts` · `edit-artifact` (rewrite a section of _another_ library
-  artifact) · `revise-element` · `ask-assistant` (the agent turn).
-- **42 actions** (single calls): content and structure edits, the studio's brief/outline proposals, the
-  workspace verbs a chat or an MCP client can drive (`find-artifacts` · `read-artifact` · `rename-artifact`
-  · `move-artifact` · `duplicate-artifact` · `trash-artifact` · `restore-artifact` · `create-folder` ·
-  `share-artifact` · `export-artifact` · `find-templates`), the media and speech calls (`generate-image` ·
-  `generate-video` · `reimage` · `narrate-artifact` · `compose-soundtrack` · `audition-voice` ·
-  `design-voice`), and `apply-patch`.
-- **5 primitives** (internal building blocks): `plan-outline` · `plan-section` · `write-section` ·
-  `check-section` · `pick-arc`. `plan-outline` is also a **live, direct, priced** step now — the studio's
-  `plan` turn bills it (3 cr), so an abandoned outline costs the plan, not the build.
+**The catalog is 61 tool ids** (10 composites · 47 actions · 4 primitives), defined once in
+`model/tools.ts`; `pnpm check:tools` fails if a route reaches around the executor or the catalog
+names a tool it cannot serve. By tier rather than by inventory:
 
-**Pricing — metered, not flat.** Cost = Σ of the primitive **units of work** an action produces. The units
-(`@model/credits` `COST_UNITS`, anchored so a typical ~12-section, ~3-image build ≈ 40 credits):
+- **Composites** (whole flows, each one call): `generate-artifact` (start · plan · write every beat
+  · finish, for a caller that wants the piece in one call; `direct`, `mcp` and `api` only, never the
+  agent, which builds beat by beat with the tools below) · `write-beats` · `write-beat` ·
+  `add-section` · `rewrite-section` · `edit-artifact` · `suggest-section-layouts` ·
+  `revise-element` · `revise-artifact` · `ask-assistant` (the agent turn itself).
+- **The generation's actions**: `start-generation` · `plan-outline` · `revise-brief` ·
+  `revise-outline` · `steer-generation` · `pick-version` · `read-generation` ·
+  `finish-generation` · `apply-patch`. Every one is free except `plan-outline`, `write-beat` and
+  `write-beats`, so an abandoned outline costs the plan and an unwritten beat costs nothing.
+- **Content and structure edits**, the workspace verbs (`find-artifacts` · `read-artifact` ·
+  `rename-` / `move-` / `duplicate-` / `trash-` / `restore-artifact` · `create-folder` ·
+  `share-artifact` · `export-artifact` · `create-artifact` · `list-workspaces` · `find-templates`),
+  the text tools, the media and speech calls (`generate-image` · `generate-video` · `reimage` ·
+  `narrate-artifact` · `compose-soundtrack` · `audition-voice` · `design-voice`), `read-file`,
+  `refine-prompt`, `search-context`.
+- **4 primitives** (internal building blocks, reached only through `ctx.use`): `plan-section` ·
+  `write-section` · `check-section` · `pick-arc`.
+
+**Pricing: metered, not flat.** Cost = Σ of the primitive **units of work** an action produces,
+priced at the provider's list price for the model that runs it and converted at `CREDIT_USD`
+(`@model/credits`, 0.0025 USD per credit). The per-unit credits below are what the default models
+cost today; they move when a model or its price does:
 
 ```
-plan 3   ·   section 2   ·   image 5 (per AI-generated variation)   ·   text 1   ·   theme 4   ·   reply 2
+plan 8   ·   section 7   ·   text 3   ·   theme 8   ·   image 28 (per AI-generated variation)   ·   reply 8
 ```
 
-`costOf(usage)` floors at 1 so nothing is free. `estimateCost(id, meter)` is what the pre-flight gate reserves
-and the UI previews. The **live, priced** tools ("what your credits buy") and their cost, folding in the
-former ai-prompts credit column (now derived from the code above):
+`creditsForUsd` floors at 1 so nothing metered is free. `estimateCost(id, meter)` is what the
+executor reserves and the UI previews. The live, priced tools and their typical cost:
 
-| tool                                                | usage (base)                  | typical / range  | notes                                                             |
-| --------------------------------------------------- | ----------------------------- | ---------------- | ----------------------------------------------------------------- |
-| `generate-artifact`                                 | `{plan:1,section:12,image:3}` | 15–73 (metered)  | scales by length; AI images add 5 each (stock=0)                  |
-| `plan-outline`                                      | `{plan:1}`                    | 3                | the studio's outline gate (a `plan` turn)                         |
-| `add-section` / `rewrite-section` / `edit-artifact` | `{section:1}`                 | 2                | one section written; a studio `build` turn bills as `add-section` |
-| `revise-element`                                    | `{text:2}`                    | 2                | one element reworked                                              |
-| `rewrite-text` / `translate-text`                   | `{text:1}`                    | 1                | one run, latency-sensitive                                        |
-| `generate-theme`                                    | `{theme:1}`                   | 4                | one token system (+ deterministic finalize pass)                  |
-| `generate-image`                                    | `{image:1}`                   | 5 (× variations) | AI image; metered per variation                                   |
-| `ask-assistant` (chat)                              | `{reply:1}`                   | 2 + sub-tools    | base reply; chained content tools bill on top (§11)               |
+| tool                                                | usage (base)           | typical           | notes                                                            |
+| --------------------------------------------------- | ---------------------- | ----------------- | ---------------------------------------------------------------- |
+| `generate-artifact`                                 | `{plan:1,section:12}`  | 58 / 95 / 138     | Short / Standard / Long with stock images; AI images add 28 each |
+| `plan-outline`                                      | `{plan:1}`             | 8                 | the outline, priced whether the run goes on or not               |
+| `write-beat` / `write-beats`                        | `{section:1}` per beat | 7 per beat        | sized off the generation by the executor                         |
+| `add-section` / `rewrite-section` / `edit-artifact` | `{section:1}`          | 7                 | one section written                                              |
+| `revise-element`                                    | `{text:2}`             | 6                 | one element reworked                                             |
+| `rewrite-text` / `translate-text`                   | `{text:1}`             | 3                 | one run, latency-sensitive                                       |
+| `generate-theme`                                    | `{theme:1}`            | 8                 | one token system (+ deterministic finalize pass)                 |
+| `generate-image`                                    | `{image:1}`            | 28 (× variations) | AI image; metered per variation                                  |
+| `ask-assistant` (chat)                              | `{reply:1}`            | 8 + sub-tools     | base reply; the tools it runs bill on the same hold (§7)         |
 
 Metered but **not yet `live`** (priced in the catalog, no route surfaced): `revise-artifact`
-(whole-artifact edit, 12–40), `translate-artifact` (5–40, fan-out), `suggest-title`, `write-summary` /
-`write-alt-text` / `write-speaker-notes`. All workspace reads + management tools are **free** (declared `free: true`).
+(12–40), `translate-artifact` (5–40), `suggest-title`, `write-summary` / `write-alt-text`. All
+workspace reads and management tools, and every generation action but the three above, are free.
 
-## 6. The tools registry (`services/core/ai/tools/`)
+## 6. The tools registry (`services/core/ai/tools.ts` + `tools/`)
 
-The executable half. A `Tool<Input, Result>` binds a `ToolId` to a Zod `input` schema and a `run` that
+The executable half. `implement(id, run, { patch?, present?, note? })` binds a body to an id the
+catalog already defines, and throws at import for an id it does not, or for a reachable tool with
+no `TOOL_SPEC` entry, so a definition and its implementation cannot drift apart unnoticed. A body
 **yields progress and returns a typed result**:
 
 ```ts
 run(input, ctx): AsyncGenerator<TurnEvent, Result>
 ```
 
-The return value is what makes composites composable: `ctx.use(subTool, input)` runs another tool with the
-**same context** (shared artifact + image strategy + workspace reader + abort signal) and, via `yield*`,
-forwards its events while capturing its result. `makeContext(base)` builds that context; `register(tool)`
-adds it to the map; `register.ts` imports every tool file for its side effect, so the whole catalog is present
-regardless of which surface pulls from it. The `ToolContext` also carries an optional, user-scoped
-**`WorkspaceReader`** (`find` / `read` against Postgres) the route injects — the agent's eyes on the library
-(§8, Seam A). **Three surfaces read this one registry** — direct dispatch (§7), the chat agent (§8), and
-(ahead) MCP — none redefines a capability.
+A body changes state only by yielding a `patch` event, or by returning a value the tool's `patch`
+mapper turns into one. It never writes a row: the executor applies every patch through the
+`GenerationStore` as it is yielded (§7), which is what lets the same body run against the
+database in production, the in-memory store in a test, and the eval harness, unchanged. The three
+optional hooks are the tool's say over how the agent shows it: `present` maps a result to chat
+blocks (absent = the generic presenter, §8), `note` is the one line the model reads back.
+
+`ToolContext` is what a body may see and use: `artifact` (and `artifactId` when the server holds
+it), `generation` + `generations` (the loaded run and its store), `image` (the picture strategy),
+`workspace` + `account` (the DB-backed readers), `principal` (who the call is for, so the chat body
+can run its sub-tools through the executor), `signal`, `tier` + `models`, `maxSections`, `pack` +
+`recall` (retrieval), `pending` (the cards still waiting), and `use(tool, input)`, which runs
+another tool with the same context and forwards its events through `yield*`. `offeredTo(ctx)` is
+the agent's toolset: `availableTo` over the registered bodies on the `agent` surface.
 
 One file per capability:
 
-- `generate.ts` — the artifact composite (wraps `runGenerate`).
-- `section.ts` — `add-section` / `rewrite-section` / `edit-artifact` (the last reads a library target).
-- `element.ts` — `revise-element`.
-- `text.ts` — `rewrite-text` / `translate-text`.
-- `suggest.ts` — `suggest-sections`; `inspect.ts` — `show-sections` (a read that returns the sections).
-- `library.ts` — `find-artifacts` / `read-artifact` (both via the `WorkspaceReader`) + `find-templates`.
-- `manage.ts` — `rename` / `move` / `duplicate` / `trash` / `restore` / `create-folder` / `share` / `export`
-  (each returns a `WorkspaceAction` the client runs; no server mutation).
-- `structure.ts` — `reorder-section` / `remove-section` / `set-format` / `set-theme` (each emits an existing
-  `PatchOp`, so it works on the open artifact, a draft, or a target identically).
-- `media.ts` — `generate-image` / `reimage`; `theme.ts` — `generate-theme`.
+- `generation.ts`: the studio's ten tools (§7) and `generationSize`, which sizes a write off the
+  generation the executor loaded.
+- `generate.ts`: `generate-artifact`, a composite that runs start · plan · write-beats · finish
+  through `ctx.use`, so the one-shot path and the studio path write with the same code.
+- `plan.ts`: `plan-outline` and `planOutlineFor`, the outline call both of the above share.
+- `section.ts`: `add-section` / `rewrite-section` / `edit-artifact`; `element.ts` :
+  `revise-element`; `text.ts`: `rewrite-text` / `translate-text` / `rewrite-passage`;
+  `structure.ts`: `reorder-section` / `remove-section` / `set-format` / `set-theme`.
+- `suggest.ts` · `inspect.ts` · `library.ts` · `manage.ts` · `theme.ts` · `relayout.ts` ·
+  `notes.ts` · `context-search.ts` · `files.ts` (`read-file`) · `media.ts` (`generate-image` ·
+  `generate-video` · `reimage`) · `audio.ts` (`narrate-artifact` · `compose-soundtrack` ·
+  `audition-voice` · `design-voice`).
+- `register.ts` imports every file for its side effect; `execute.ts` imports it, so the whole
+  catalog is present wherever a call can arrive.
 
-## 7. The turn runtime (`services/core/ai/run.ts`)
+## 7. The executor and the generation (`services/core/ai/execute.ts` + `tools/generation.ts`)
 
-`runTurn(req, opts)` is the dispatch table for the **direct** surface (a route consumes its generator and
-frames it as SSE):
-
-```
-generate → generateArtifactTool.run(...)     // via the registry (§6), which wraps runGenerate
-plan     → runPlan(...)                       // outline only (the studio's gate)
-build    → runBuild(...)                      // one pre-planned beat (the studio's build loop)
-section  → runSection(...)                    // insert one section
-chat     → runChat(...)                       // the agent (§8)
-edit     → unimplemented → error              // 501
-```
-
-**`runGenerate` — the two-phase artifact flow.** One giant `generateObject` of a 20-section artifact would
-block until done (no progressive canvas) and dilute quality; splitting wins on both:
+**`runTool(call, principal, opts)` is the one envelope around every call.** The chat agent, the
+direct routes, the MCP server and the REST API all go through it, so a tool costs the same,
+validates the same and lands the same however it was reached. In order:
 
 ```
-phase intake  → narration("Reading the brief")
-phase outline → generateObject(zOutline)                    ONE plan call (title · backdrop · beats)
-                emit plan(beats)                            → client pre-shapes skeletons
-phase build   → for each beat, in order:
-                  section.status(active → writing)
-                  writeSection(...) → free-form JSON section
-                  cover/closer get a full-bleed background injected if the model omitted one
-                  resolveImages(section)                    → section.status("image") while sourcing
-                  emit patch([{ addSection, section }])     → canvas reveals it
-                  (first section) resolve the artifact backdrop → emit setMeta patch
-                  section.status(done)
-phase compose · done → turn.done(summary)
+surface        the catalog lists the surface the call arrived on
+scope          a delegated token's grant covers the tool (a session has no scopes and skips this)
+entitlement    the workspace's plan carries `requires`, when the tool names one
+schema         the tool's own zod input parses the untrusted input; issues come back as bad-input
+generation     a `generationId` in the input loads the run and its draft into the context, once
+lease          write-beat / write-beats claim the generation's writer lease, or answer `busy`
+hold           reserve() for the estimate, sized off the generation for a write; `credits` on refusal
+run            drive the body; every yielded patch is applied through the store as it arrives
+settle         bill what ran; `produced` reports the flat-priced assets a body made
 ```
 
-`beat.id === section.id === addSection.section.id` binds content to its pre-shaped slot. The outline runs
-**warm** (`temperature 0.9`) so section count + arc genuinely vary brief-to-brief; sections run cooler.
+Two options decide who owns what around a call. `holds: "caller"` means an enclosing turn already
+reserved: the chat agent's sub-tools run this way, so a chat turn stays on one reservation rather
+than one per tool. `apply: false` means the patches are collected and echoed but not persisted,
+which is the agent's `after` policy: the change rides on a card and lands only when the user
+presses it. `onHeld` fires once the credits are held and before the body runs, which is how a
+streaming route still answers a refusal with a status (§11). The outcome is `{ ok, result,
+patches, artifactId?, generationId? }` or a typed refusal (`unknown-tool` · `wrong-surface` ·
+`scope` · `entitlement` · `bad-input` · `not-found` · `busy` · `credits`).
 
-**`writeSectionFrom` — free-form JSON + auto-repair.** A section's `data` is an open, type-dependent map that
-a response schema can't fill, so the section writer emits raw JSON (the prompt teaches the exact envelope),
-which is `zSection.safeParse`d. It gets three attempts, and each of the three ways a call can fail spends
-one: unreadable JSON is retried with a note saying so, a valid section that trips
-`checkSection(section, surface)` (a deterministic quality audit, `quality.ts`) is regenerated with the
-issues fed back, and a call that throws (an overloaded model, a dropped socket, a 429 the sdk's own retries
-did not absorb) is simply tried again. A section that parsed but never passed the checks is returned rather
-than discarded, since the checks describe a good section and not a valid one. Only three failures in a row
-throw, and the message carries the provider's own words. Shared by generate and insert, so both get the
-same repair.
+A patch is applied the moment it is yielded rather than after the body returns, so a composite
+that writes several sections lands each as it comes, and a later beat reads the earlier ones. The
+`patch` event the caller sees carries the generation's `seq` after it, which is how the client
+knows its mirror is current.
 
-`checkSection` runs two bars. The **structural** one (`structureIssues`) holds the reply to the same catalog
-the prompt handed it: every type is one `ELEMENTS` declares, every required field that type declares actually
-arrived, no container is empty, one h1 per section, and no row is laid out in a way the solver cannot honour.
-That last one covers two slips that produce an invisible or ragged section rather than an error: a row where
-only some columns carry `layout.width.pct` falls back to equal columns and quietly loses the split the model
-designed, and a row where every column carries `layout.height: "fill"` has no height to share and measures
-zero. Both were verified against the engine rather than read off the types. The **content** bar is the older
-set (a headline, no placeholder copy, not too sparse for a slide).
+**Every call is traced.** `runTool` opens a trace (`services/core/traces.ts`) before the surface
+check and closes it after the settle, so a refusal is a trace with status `refused` and a throw is
+one with `error` (or `aborted`). The root is a tool span; a nested `runTool` (the chat agent's
+sub-tools) or a `ctx.use` adds a child tool span under it, and every model call the meter records
+hangs off whichever tool span is in progress, so the tree reads agent turn → tool → model calls.
+The hold reports the settled credits to it, and the executor hands it the parsed input, the
+generation and artifact ids, the patch counts, and the artifact as the call leaves it. The level
+is decided at close: `metrics` for every call, which keeps the spans without their words, and
+`full` for the eval account and for any call that did not end `ok`, which keeps the prompt and
+response bodies, the input and the content. The store is registered once by the server entry
+(`setTraceStore(traceStore())`), so a unit test that registers nothing traces in memory and drops
+it; `TRACE_CAP` rows are kept per workspace, pruned on write. The outcome carries `traceId` when a
+store will keep the trace, and `turn.done` carries it to the client, where nothing reads it yet.
+Nothing in the product reads the table yet either: the eval playground that used to was removed
+with this, and the consumers are the offline harnesses and an analyzer to come (§13).
 
-The rules are calibrated against the corpus the same way the layout thresholds are, and it moved two of them:
-a `stat` writes its value as an h1, so three stats in a row is three h1s by the catalog's own instruction and
-only headlines the model placed itself are counted; and a composite may leave a slot deliberately blank (a
-pull quote with no attribution), so a missing field inside one is reported only for the types that ARE their
-field (image, chart, diagram, table, code, button, badge). `renders-what-it-declares` in `eval/checks.ts`
-runs the same function over the corpus, so a rule the hand-built work fails is caught as miscalibration.
+**The generation's tools.** Ten bodies in `tools/generation.ts`, each free of any storage:
 
-The rules split in two, because two different things are being asked. `renderIssues` is what any section
-is held to whoever wrote it: an element that paints nothing, and a row the solver cannot lay out as
-written. `structureIssues` adds the two only a model reply is held to, its vocabulary and its single h1.
-That is what lets `services/core/__tests__/templates.test.ts` hold the shipped templates to the first half
-without failing them for reaching into a registered internal (`avatar`) the model is deliberately not
-taught. Four templates had shipped an empty 40% container beside a 60% column, meant as negative space and
-drawn by the editor as a dashed drop target on somebody's first slide.
+- `start-generation`: creates the row and its draft artifact from a `GenerateInput`, with every
+  given field marked `set: user`. Stage `briefed`.
+- `plan-outline` (`tools/plan.ts`): the outline call. It yields `setBrief` for the fields the
+  planner filled (`by: planner`, never over a user's), `setOutline` with `plannedAgainst` at the
+  current `briefVersion`, and `setClarify` when it has one question. Stage `outlined`. Priced.
+  The artifact's backdrop image is looked up while the beats are still streaming: the phrase comes
+  before the beats in the planner's object, so once it has held across two partials with beats
+  present it is complete, and the lookup runs alongside the rest of the stream rather than after
+  it. The patch that dresses the board with it goes out with the outline.
+- `revise-brief`: a user's edit to a brief field, bumping `briefVersion`, so an outline planned
+  against the old brief reads as stale (`briefStale` in the studio) rather than being replanned
+  behind the user's back.
+- `revise-outline`: the beat ops (`addBeat · updateBeat · removeBeat · moveBeat`) as one patch.
+  `after`, so the agent's rewrite of the arc is a card until it is pressed.
+- `steer-generation`: `setSteer`, applied on arrival; every beat written after it reads the note.
+- `write-beat`: drafts one beat (`draftBeat`: the prompt from brief + outline + steer + the
+  sections already landed, the free-form JSON section, the repair loop, the images), then lands it
+  (`landBeat`: `pushVersion`, `setBeat done`, and `addSection` after the previous landed beat or
+  `replaceSection` on a regeneration; the first landing sets stage `writing`). A `note` rides one
+  attempt only. The landing reads the outer context at land time, not draft time, so beats whose
+  images were pipelined still land in outline order.
+  A write against an outline the brief has moved past (`plannedAgainst` behind `briefVersion`) is
+  refused with the replan named, unless the caller passes `force`; the studio passes it, since its
+  stale banner is the person's warning.
+- `write-beats`: the same for a list of beats, or every unwritten one when none are named, in
+  order; a beat that fails after its retry is marked `failed` and the loop moves on, and the run
+  stays open with that beat's card still offering Write.
+- `pick-version`: `pickVersion` + the matching `replaceSection`.
+- `read-generation`: `{ generation, content, writing }`, where `writing` is whether the lease is
+  held; the client polls this after a pause to learn when the in-flight beat has landed.
+- `finish-generation`: stage `done`, and the store records `runMeta` on the artifact with the
+  models that ran. It takes the writer lease like a write, so a stop pressed mid-beat is `busy`
+  until the beat lands; the studio waits for that before it finishes.
+- `apply-patch`: applies a patch the caller hands in, which is the approval path for an `after`
+  card that belongs to a generation.
 
-**`runPlan` / `runBuild` — the studio's decomposition of the same flow.** `runPlan` runs only the outline
-call (`planOutline`, the exact code `runGenerate` uses — one extracted function, not a fork), emits `plan`
-(now carrying `title` + `backdrop`), resolves the artifact backdrop, and ends — 3 credits, and the client
-owns the beats from there. `runBuild` writes ONE beat of a client-supplied (user-edited) outline through
-the same `sectionParts` → `writeSectionFrom` → `resolveImages` path as generate, with four extras:
-`steer` (a session-wide note injected into the prompt), `note` (a this-attempt-only regeneration
-instruction), `anchor` (`cover`/`closer` — the client says which beats are the bookends now, since the
-user may have reordered them; the full-bleed background forcing keys off it), and `content` (the artifact
-as built so far — `writtenContext` folds every written section's actual words into the prompt, so
-hand-edits are canon and later sections stop repeating earlier ones; the beat being written is excluded,
-so a regeneration is never anchored by its own old take). The one-shot `runGenerate` loop accumulates its
-landed sections and threads the same context, so both paths write with the page in view. `replace: true`
-emits `replaceSection` instead of `addSection`, which is all a regeneration is.
+`generate-artifact` (`tools/generate.ts`) is `start · plan · write-beats · finish` through
+`ctx.use`, for a caller that wants the piece in one call: the direct route, MCP, the API. The chat
+agent is deliberately not offered it; it starts a generation and builds beat by beat with the same
+tools the studio's buttons press, so the person can steer between beats.
 
-**`runSection`** mirrors generate scoped to one beat: `sectionPlanParts` → `plan` (so the skeleton renders) →
-`insertSectionParts` → the written section → `addSection` at `afterId`.
+**The store.** `makeGenerationStore(workspaceId, userId)` in `services/core/generations.ts` keeps
+the row in `generations` and the section of record in the draft artifact's `draft_content`,
+bumping `generations.seq` per applied patch and `artifacts.seq` per content change, so the
+collaboration room can order the draft's edits. The writer lease is `writer_until` on the row,
+claimed with a conditional update, so a second instance refuses the same write; it lapses on its
+own, which is what keeps a dead writer from leaving a run stuck, and every patch the holder lands
+pushes it out again, so a long write is never cut off mid-beat. `memoryGenerationStore()` is the same contract over a map, for tests and the eval
+harness.
 
-**`reviseElement(content, sectionId, element, instruction?)`** regenerates ONE element in place (the
-ContextBar Regenerate action + the `revise-element` tool). The element is passed **by value** — the runtime
-can't traverse the canvas tree — with its section for context; it keeps the original `type` + the user's
-hand-set `layout`, rewrites only `data`, then resolves any new images.
+**Writing a section** is unchanged underneath: `write-section` (`tools/plan.ts`) emits free-form JSON validated by
+`zSection.safeParse`, with three attempts spent across unreadable JSON, a section that trips
+`checkSection` (`quality.ts`), and a call that throws; a section that parsed but never passed the
+checks is returned rather than discarded. `checkSection` runs the structural bar (`structureIssues`:
+the vocabulary, the required fields, no empty container, one h1, a row the solver can honour) and
+the content bar (a headline, no placeholder copy, not too sparse). `renders-what-it-declares` in
+`eval/checks.ts` runs the same function over the corpus, so a rule the hand-built work fails is
+caught as miscalibration.
 
-**`chatAddSection` / `chatEditSection`** are the plain functions the chat tools wrap to _propose_ a section
-(returned, not streamed). `edit-artifact` runs `chatEditSection` over a library artifact loaded via the
-`WorkspaceReader`.
-
-**Image resolution.** The model writes an art-director phrase; `resolveImage(phrase, slot, opts)` turns
-it into a real URL: **AI generation** when the build asks for it (`GenerateInput.imageSource:"ai"` and the
-image model is wired) via the Gemini image model (`services/core/media.ts`), else stock search across
-providers (`unsplash → pexels → pixabay → openverse`, the last keyless so there's always a fallback), else a
-deterministic `picsum` placeholder. `resolveImages` walks a section's tree (every media field at any depth,
-through `children` and `cells`) + its background in parallel. Whatever it lands on is adopted into the
-workspace library through `ImageOptions.adopt`, so the provider's attribution survives and the turn streams
-canonical `/api/media/asset/:id` urls: stock still costs no storage and no credits (the row keeps an
-`origin` rather than bytes), while an AI image is stored and metered per variation.
-
-A slot is more than a shape. `slotIndex` reads what each phrase is being asked for off the element it sits
-on, and an `avatar` is the one the tree knows is a person by construction: it renders as a fixed square
-masked to a circle whatever its data says. Before this it took the default aspect and resolved at landscape,
-so every face in every team, speaker and testimonial section was a 16:9 picture cropped into a 72px circle.
-A face slot now resolves square, asks the generator for a head-and-shoulders portrait of a fictional person
-rather than for the phrase alone, and appends `portrait headshot` to the stock query (appended, not
-prepended, because `toQuery` keeps the first N words and the short fallback still has to be about somebody).
-A person inside a plain `image` is not detected and is not meant to be: that one reads as a person from its
-phrase, which is the writer's job to get right rather than ours to guess at.
-
-The phrase itself is the other half. `FACE_SRC` in `prompts/catalog.ts` is written once and used by both
-elements that carry a face, and it asks for three things: a described person rather than a generic one,
-varied across the people in one section, and never a real person's name, since a name reaches an image
-generator as a likeness.
+**Image resolution** is unchanged too: the model writes an art-director phrase and
+`resolveImage(phrase, slot, opts)` turns it into a URL, by AI generation when the brief asks for it
+(`imageSource: "ai"`), else stock across `unsplash → pexels → pixabay → openverse`, else a
+deterministic placeholder; whatever lands is adopted into the workspace library so the stream
+carries canonical `/api/media/asset/:id` urls. A face slot (`avatar`) resolves square and asks for
+a described, fictional person (`FACE_SRC` in `prompts/catalog.ts`).
 
 ## 8. The chat / workspace agent (`services/core/ai/chat.ts`)
 
-A real multi-step **tool-calling loop** — the AI SDK's `ToolLoopAgent`. The model answers in prose and calls
-tools; the loop chains up to 6 steps (`stepCountIs(6)`). It is a full **workspace agent**, not a
-generate-a-new-artifact bot: it can _see_ the user's library, _act_ on it, and edit any artifact — open,
-in-chat draft, or a named library target.
+A multi-step **tool-calling loop**, the AI SDK's `ToolLoopAgent`, run as the `ask-assistant` tool
+body. The model answers in prose and calls tools; the loop chains up to 6 steps. It is a workspace
+agent rather than a generate-a-new-artifact bot: it can see the library, act on it, edit any
+artifact, and start and drive a generation.
 
-**Toolset from the registry.** `wrap(tool, title, present, note)` turns a registry `Tool` into an AI-SDK
-`tool()`: it runs the capability (forwarding its progress as `chat.nested` events), then `present`s the typed
-result as a rich `ChatBlock` and returns a one-line `note` to the model. The **capability** is the shared
-registry tool; chat only owns **presentation**. Block kinds: `proposal` (a patch + live section preview,
-optionally `targetArtifactId`/`theme`/`format`), `suggestions`, `sections` (a carousel), `brief` (a
-`GenBrief` confirm card), `artifacts` / `templates` (pick-lists), `outline` (a `BeatOp[]` revision of the live
-plan), `write` (planned beat ids the studio builds), and `action` (a `WorkspaceAction` the client runs or
-confirms).
+**The toolset is the catalog, filtered.** `offeredTo(ctx)` returns every registered tool on the
+`agent` surface whose `needs` the context satisfies and whose `without` it does not violate. Chat
+owns nothing about a capability except how its result is shown. Adding a tool to the catalog and
+implementing it is the whole job; there is no second list in `chat.ts` to forget.
 
-**Thinking is distilled, not streamed.** Chat is the only capability that keeps thinking on (every other
-call site passes `thinklessOpts()`, which zeroes the budget on Flash). The provider's thought summaries are
-markdown essays, so `runChat` accumulates them server-side and forwards only the step HEADLINES through
-`chat.thinking` — `services/core/ai/thinking.ts` pulls the model's own bold step names, falling back to the
-opening sentence of each finished paragraph, clipped to one line and de-duplicated. A half-written heading
-never ships, so a step can't change under the user. The full prose never crosses the wire. The client shows
-one line at a time while the agent reasons, then collapses to "Thought in N steps" you can open. Answer
-prose is unaffected and still streams token by token.
+**Every call goes through the executor**, with `holds: "caller"` (the turn reserved once) and
+`apply` set from the tool's confirm policy. The three policies:
 
-`chat.tool` is sent **twice** per call — once to open the widget shell, once with `done: true` from `wrap`'s
-`finally`. The client upserts on `blockId`, so a tool whose `present` returns null (`read-artifact` always;
-`show-sections` / `find-artifacts` / `find-templates` when empty) still closes its shell instead of spinning
-for the rest of the session; the turn's own `finally` closes any left open by an abort. `chat.nested` carries
-a capability's progress events up to its shell, where a `narration` becomes the shell's subtitle.
+- `before`: the agent does not run the tool. It yields a `proposal` card carrying the tool's
+  `call.input` and the estimate (`generationSize` for a write), and tells the model nothing ran.
+  The user presses the card and the client runs that tool through the same envelope.
+- `after`: the tool runs with `apply: false`; its patches are merged into one `proposal` card with a
+  preview when the patch puts exactly one section on the page. The user applies or discards it.
+- `never`: the tool runs and its patches persist; a workspace action comes back as an `action`
+  card; a bare result becomes a note to the model.
 
-**Per-surface toolset — every surface has tools; the library agent is NOT tool-less.**
+A tool may declare its own `present` (the pick-lists, the suggestions carousel), otherwise the
+**generic presenter** does the above. A refusal from the executor is turned into a sentence the
+model can explain (`refusalNote`: plan, credits, bad arguments, not found, busy). When a run is
+open the agent's calls to generation tools have `generationId` filled in from the context, so the
+model never has to carry an id.
 
-- **Always available**: `find-artifacts`, `read-artifact`.
-- **Not generating** (library or editor): `propose-generation` (confirm-card a NEW artifact — supports
-  `sourceFromMessage` paste-as-source and `sourceArtifactId` repurpose), `find-templates`, `edit-artifact`
-  (edit a named library artifact by id), and the management set — `rename-` / `move-` / `duplicate-` /
-  `trash-` / `restore-artifact`, `create-folder`, `share-artifact`, `export-artifact`. All of it stands down
-  mid-run: inside a generation there is nothing to create and nothing else to reorganize.
-- **Generating only** (`context.generation` present), all four local `tool()`s in `chat.ts` rather than
-  registry capabilities, because none makes a sub-model call and all resolve on the client:
-    - `revise-outline` — add / update / remove / move beats in one call, changing the PLAN. The agent writes
-      the beat content itself, so there is nothing to meter; ids it invents for new beats are re-assigned by
-      the studio.
-    - `write-section` — EXECUTE the plan: it proposes which planned beats to build (`beatIds`), and the studio
-      runs the same `build` turns the board does (`buildSections` → `buildSectionNow`), so a section is written
-      by one code path whoever asked for it. The tool itself is free; the writing bills per `build` turn, and
-      the card shows that price before the user starts it. It refuses ids that aren't in the outline and skips
-      ones already written, telling the model which. Without it the agent's nearest match was `add-section`,
-      which mints a _new_ section beside the plan and leaves the planned beat unwritten — the outline and the
-      piece drift apart. The prompt says so explicitly.
-    - `request-plan` — REPLAN the arc wholesale before anything is written. A proposal card: applying
-      it runs the studio's own `plan` turn, optional `guidance` rides into the brief's
-      `clarifications`, and `andWrite` rolls straight into the build loop. Both the tool and the client
-      commission refuse once any section is written, since a replan would mint beat ids over existing
-      slots — reshaping a half-written run is `revise-outline`'s territory.
-    - `steer-sections` — set the standing note every section still to be written must follow, which the
-      studio threads into each `build` turn as `input.steer`. It is the one generate-surface tool applied on
-      arrival rather than proposed: it writes nothing, costs nothing, and asking the user to confirm their own
-      instruction reads as a stall. The card it leaves in the thread is the record, and carries a Clear. One
-      note is in force at a time, an empty note clears it, and `ChatGeneration.steer` reports the current one
-      back so a follow-up amends rather than repeats. This replaced a text field in the studio rail: a
-      standing instruction is a thing you say, not a control you fill in.
-- **`rewrite-passage`** (content-scoped) — reword ONE passage inside a written section rather than the
-  whole thing: `sectionId` + `find` (copied verbatim) + `instruction`. `services/core/ai/locate.ts` locates the
-  text node (normalized exact match, else the _shortest_ containing node, so a common word lands on the
-  heading rather than swallowing the paragraph) and returns the section with just that node replaced, which
-  chat presents as an ordinary proposal. It exists because `rewrite-text` returns a bare string with no
-  target — usable by the editor, where selection says where it goes, but a dead end for the agent. When no
-  passage matches it lists the section's real passages back to the model rather than rewriting the wrong one.
-- **`revise-element`** and **`reimage`** (content-scoped) — the other two "regenerate one part" tools,
-  targeted the same way, since the agent has no selection to point with. `revise-element` takes
-  `sectionId` + `elementType` (+ `nth`) and re-rolls that one chart / stat / table in place; `reimage`
-  takes `sectionId` + `phrase` and re-sources the section's image, or its full-bleed backdrop with
-  `target:"backdrop"`. Both resolve a path via `services/core/ai/locate.ts` and return the whole section, so
-  they ride the ordinary proposal path. A miss lists the section's real element types back to the model.
-  `reimage` itself is free: `resolveImage` honours the turn's image strategy, so it finds stock unless the
-  run was started with AI images, and the route meters the variations it actually generated.
-- **Content-scoped** (added when there's an artifact/draft to act on — mid-run that means sections actually
-  _written_, so an empty draft can't invite `add-section` for an unwritten beat): `suggest-sections`,
-  `add-section`, `rewrite-section`, `show-sections`, `reorder-section`, `remove-section`, `set-format`,
-  `set-theme` — the tools that act on _the current_ piece.
+**Thinking is distilled, not streamed.** Chat is the only capability that keeps thinking on (every
+other call site passes `thinklessOpts()`). The provider's thought summaries are markdown essays, so
+`runChat` accumulates them server-side and forwards only the step headlines through
+`chat.thinking`, via `services/core/ai/thinking.ts`. The full prose never crosses the wire.
 
-The system prompt (`prompts/chat.ts`) matches: an **editor persona** with the section map + selection focus +
-theme list, or a **library persona** that's explicit it can build here _and_ see/organize existing work — it
-never tells the user to "click New artifact" or claims an edit it didn't make. Both are grounded in the same
-registry.
+`chat.tool` is sent **twice** per call, once to open the widget shell and once with `done: true`
+from the wrapper's `finally`, so a tool with nothing to show still closes its shell. `chat.nested`
+carries a capability's progress events up to its shell, where a `narration` becomes the subtitle.
+A patch yielded by an `after` tool is not forwarded; the card is its only home until it is pressed.
 
-**The three architectural seams** every capability lands on:
+**What each surface is offered**, by the `needs` field rather than by a list here:
 
-- **Seam A — read spine (server-side, DB-backed).** The turn is authenticated, so `find-artifacts` /
-  `read-artifact` run against Postgres through the injected `WorkspaceReader` (`makeWorkspaceReader(wsId)` in
-  `services/core/ai/reader.ts`) — no content shipped from the client, `model` stays pure. `read` returns
-  a compact digest (`artifactSpine` + `artifactDigest`), never the raw tree.
-- **Seam B — edit a target.** A `proposal` carries an optional `targetArtifactId` (absent = open artifact /
-  active draft). `edit-artifact` loads a library artifact, rewrites a section, and returns a proposal tagged
-  with its id + theme/format; applying saves straight to that artifact (no open needed). The structure tools
-  (`reorder`/`remove`/`set-format`/`set-theme`) emit existing patch ops, so the **same** proposal model edits
-  open / draft / library targets uniformly.
-- **Seam C — workspace actions (mutations + a confirm gate).** Management tools return a `WorkspaceAction`;
-  the **client** executes it. Reversible ops (rename / move / duplicate / create-folder) run and the client
-  refreshes; **destructive or outward-facing** ops (trash, share-link, export) render as a confirm/route card
-  and run only on an explicit click. The server agent only ever _proposes_.
+- **Library** (no artifact, no generation): the reads, the workspace verbs, `find-templates`,
+  `edit-artifact`, `create-artifact`, and `start-generation`. "Turn this into a deck" starts a
+  generation from the message; the dock adopts it into the studio (`generation` block) and the
+  same conversation continues there.
+- **Editor** (an open artifact): the content tools (`add-section`, `rewrite-section`,
+  `rewrite-passage`, `revise-element`, `reimage`, `suggest-sections`, `show-sections`, the
+  structure tools, the notes and summary tools). `rewrite-passage`, `revise-element` and `reimage`
+  target by `sectionId` plus a find string, an element type, or a phrase, since the agent has no
+  selection to point with; `services/core/ai/locate.ts` resolves the path and a miss lists the
+  section's real passages or element types back to the model.
+- **Generate** (a run in progress): the nine generation tools, plus the content tools once
+  sections are written. `revise-outline` reshapes the arc, `write-beats` executes it,
+  `steer-generation` sets the standing note, `revise-brief` changes the brief, `plan-outline`
+  replans (it is `before`, so the reroll costs a press). Without `write-beats` the agent's nearest
+  match was `add-section`, which mints a new section beside the plan; the prompt says so.
 
-**Streaming.** A tiny async channel (`createChannel`) lets tools push their blocks _while_ the model is still
-talking; draining the agent's `fullStream` is what drives the loop — `reasoning-delta` → `chat.reasoning`,
-`text-delta` → `chat.text`.
+The system prompt (`prompts/chat.ts`, `chatSystem(view)`) matches: an editor persona with the
+section map and focus, a library persona explicit that it can build here and organize existing
+work, and a generate persona that reads `generationDigest` (stage, brief, outline with each beat's
+status, the steer) and never claims a beat is written that is not.
 
-**The approval gate is client-side.** The artifact lives in the editor / draft / DB; the server never mutates
-it. Every `proposal` carries a `patch` the user Applies (→ `applyPatch` + `commit`, or save-to-target) or
-Discards; every destructive/outward `action` waits for a click.
+**Seams every capability lands on:**
 
-**Cross-cutting (enforced):**
+- **Read spine (server-side, DB-backed).** `find-artifacts` / `read-artifact` run against Postgres
+  through the injected `WorkspaceReader`; `read` returns a compact digest, never the raw tree.
+- **Edit a target.** A `proposal` carries an optional `targetArtifactId` (absent = the open
+  artifact or the draft). `edit-artifact` loads a library artifact and returns a proposal tagged
+  with its id; applying saves straight to that artifact.
+- **Workspace actions.** Management tools return a `WorkspaceAction` the client performs.
+  Reversible ones run and refresh; trash, share and export render as a confirm or route card.
 
-- **Metering.** Reads + management are free; content generation/edits stay metered. A chained content sub-tool
-  reports its `usage` via `opts.onUsage`, which the route bills on top of the reserved `ask-assistant` base
-  (§11).
-- **Safety.** Trash / share / export **always** go through the confirm/route card — the agent proposes, the
-  user commits. Upgrade/pay and permission-scope changes are **hand-off only**: the credit line tells the
-  agent to point at the pricing page and **never** purchase or change a plan itself.
-- **Refresh discipline.** Any turn that mutates the library ends with the client calling
-  `loadLibrary()`/`loadFolders()` so the optimistic stores reflect server truth (mirrors `loadBilling()`).
-- **Grounding honesty.** The agent acts only on real ids returned by `find-artifacts` — never invents an
-  artifact or claims an action it didn't take (the same rule as section ids).
+**Cross-cutting:**
 
-**Model.** The agent _reasons_ (picks + chains tools), so it runs on `chat`'s task model with **thinking on**
-(§9); the content tools it calls keep their own fast, thinkless models.
+- **Metering.** One hold per turn; the tools the agent runs settle against it. Reads and
+  management are free; content generation and edits stay metered.
+- **Safety.** Trash / share / export always go through the card. Upgrade and permission changes are
+  hand-off only.
+- **Grounding honesty.** The agent acts only on real ids returned by `find-artifacts` and real beat
+  ids from the outline, and never claims an action it did not take.
+- **Model.** The agent reasons, so it runs on `chat`'s task model with thinking on; the tools it
+  calls keep their own fast, thinkless models.
 
 ## 9. Models + provider
 
@@ -534,7 +534,7 @@ still be moved to a heavier model in isolation.
 
 `thinklessOpts(id)` (`provider.ts`) sets `thinkingBudget: 0` on any non-Pro Google model, so every task runs
 thinkless — except **chat**, which passes its own `thinkingConfig.includeThoughts: true` and streams
-Gemini's summarized thoughts as `chat.reasoning`.
+Gemini's summarized thoughts, distilled to step headlines as `chat.thinking` (§8).
 
 Plan tiers (`modelFor(task, tier, overrides)`) resolve identically today: `BASIC_OVERRIDES` is empty because
 no task runs a pro-class model. The seam stays wired for the moment one earns it on paid plans.
@@ -633,16 +633,21 @@ Every capability builds a `PromptParts = { system, prompt }` by stacking pure fr
 sections + text ops) with the task's model (§9). Layering:
 
 ```
-system  =  PERSONA  +  surfaceVoice(deck|doc|web)  +  describeTheme(id)        ← who + register
+system  =  PERSONA                                                              ← who
         +  elementCatalog() + layoutCatalog()                                   ← the contract (from @model)
-        +  SECTION_RULES + VOICE + sectionExemplars(surface)                    ← the quality bar (from demos)
+        +  SECTION_RULES + VOICE                                                ← the quality bar
+        +  surfaceVoice(deck|doc|web) + sectionExemplars(surface)               ← per surface
+        +  describeTheme(id)                                                    ← per theme
         +  <output envelope: SECTION_OUTPUT | ELEMENT_OUTPUT | OUTPUT_NOTE>
 prompt  =  briefContext(input) | artifactSpine | neighbors | placement          ← the pulled context
         +  <the ask>
 ```
 
-The **system** teaches identity + contract + taste (stable, cacheable); the **prompt** carries the specific
-ask + context. Cheap high-volume ops (rewrite/translate) deliberately drop the catalog and use a lean persona.
+The **system** teaches identity + contract + taste; the **prompt** carries the specific ask + context.
+The order inside the system prompt is the cache's: everything every call shares comes first, then
+what depends on the surface, then the theme line, so the provider's prompt cache keeps the shared
+prefix across runs that differ only in those. The outline builder follows the same rule. Cheap
+high-volume ops (rewrite/translate) deliberately drop the catalog and use a lean persona.
 
 ### 10.1 Each builder, in detail (`prompts/generate.ts` unless noted)
 
@@ -811,329 +816,224 @@ chat dock's composer carries the same menu restricted to collection toggles, fee
 
 ## 11. Routes + the credit gate (`services/api/ai.ts`)
 
-Every route does auth → `aiReady()` gate → **reserve credits** → run. The gate reserves a size-aware estimate
-up front (`estimateCost(toolId, meter)` from `@model/credits`), 402s when the workspace allowance is spent, then
-deducts against `workspaces.aiCreditsUsed`.
+**The credit gate is the executor's.** A route no longer reserves: it names a tool and hands the
+call to `runTool`, which holds, runs and settles (§7). `pnpm check:tools` fails a file under
+`services/api/` that imports a tool body or calls `reserve` with a tool id, which is the regression
+that would re-fork metering.
 
 ```
-POST /ai/turn      SSE. Runs a turn (generate · plan · build · section · chat live; edit → 501). ACTION_FOR
-                   maps the TurnKind to its priced tool (generate→generate-artifact, plan→plan-outline,
-                   build→add-section, section→add-section, chat→ask-assistant, edit→revise-artifact) and
-                   meters generate by length + image source; a build turn with an AI-image brief reconciles
-                   real generated images on top of its section base. Frames each TurnEvent as
-                   `data: {seq, event}`.
-POST /ai/brief     Meters draft-brief (1 cr, refunded on failure). Expands a raw prompt into a BriefDraft (goal/audience/tone/mustInclude +
-                   ≤1 clarify question); `{brief:null}` on failure — the studio falls through to the raw prompt.
-POST /ai/suggest   UNMETERED. Cheap "what to add next" ideas (the insert popup); client caches per artifact.
-POST /ai/theme     One structured ThemeInput from a prompt. Meters generate-theme.
-POST /ai/element   Regenerate one element in place → { element }. Meters revise-element. The element rides in
-                   the body (the runtime can't traverse the canvas tree).
-POST /ai/text      Rewrite / translate one passage → { text }. Meters rewrite-text / translate-text.
-GET  /ai/voice     UNMETERED. `{ ready }` — whether dictation is configured; the chat mic hides on false.
-POST /ai/voice-token  UNMETERED, rate-limited (30/min). Mints a single-use ElevenLabs realtime-STT socket
-                   url (`services/core/ai/voice.ts`; 15-min TTL, consumed on connect). Audio then streams
-                   browser → provider directly — it never transits Galleo. The client (`app/components/
-                   voice.ts` + `VoiceInput.tsx`) captures mic audio in an AudioWorklet, downsamples to
-                   16 kHz PCM, and reduces partial/committed events into the hold-to-talk overlay;
-                   release inserts the transcript at the composer caret. Needs ELEVENLABS_API_KEY.
-POST /ai/notes     SSE. Writes speaker notes for the open piece: `{spoken, cues[]}` per section,
-                   streamed as each lands. One structured call over the whole deck, because
-                   continuity between adjacent notes is the point; a partial rewrite still sees
-                   every other section and the notes already on them. Meters write-speaker-notes
-                   by section count. Prompt: `prompts/notes.ts`; body: `tools/notes.ts`.
+POST /ai/turn      SSE. { tool, input, artifact? }: any tool on the `direct` surface, streamed.
+                   Frames each TurnEvent as `data: {seq, event}`, opening with turn.start and
+                   closing with turn.done {result, traceId?} or error. `artifact` is the
+                   document the browser holds, for a tool acting on the open piece; a call naming a
+                   generationId ignores it, since the executor loads the draft. ask-assistant is the
+                   chat turn: its input is the ChatInput, and the exchange is appended to the stored
+                   thread when it ends.
+POST /ai/suggest   UNMETERED ideas for the insert popup (suggest-sections).
+POST /ai/theme     One ThemeInput from a prompt (generate-theme).
+POST /ai/element   Regenerate one element in place → { element } (revise-element; the element rides
+                   in the body since the runtime cannot traverse the canvas tree).
+POST /ai/text      Rewrite / translate one passage → { text } (rewrite-text / translate-text).
+POST /ai/refine    Sharpen an intake prompt (refine-prompt).
+POST /ai/notes     SSE. Speaker notes for the open piece, streamed per section as replaceSection
+                   patches (write-speaker-notes).
+GET  /ai/voice · POST /ai/voice-token   dictation readiness and the single-use STT socket url.
+
+GET    /chat/thread?key=      the stored thread for a subject (generation:<id> · artifact:<id> · library)
+POST   /chat/thread/mark      { key, proposal, mark }: a card was applied or discarded
+DELETE /chat/thread?key=      clear it
 ```
 
-**Narration lives in its own router**, `services/api/narration.ts` over `services/core/narration.ts`,
-because it is about audio rather than about a turn:
+`/ai/brief` is gone: the planner reports its own reading of the brief through `setBrief` patches,
+and a person's edit is `revise-brief`.
 
-```
-POST /artifacts/:id/narration   SSE. Synthesizes each section whose script has no current audio,
-                                skipping cached ones. Meters narrate-artifact by characters and
-                                settles to what was really spoken, so a mostly-cached run refunds.
-GET  /artifacts/:id/narration   The manifest: per section {url, ms, spoken, alignment}, plus the
-                                sections that have notes but no audio yet.
-GET  /artifacts/:id/narration/:sectionId?v=<hash>   The bytes, immutable-cached.
-GET  /p/:slug/narration[/:sectionId]                The same two reads through `publicRead`, so a
-                                password or a recipient token gates the audio exactly as it gates
-                                the words. The access params ride in the audio urls, because an
-                                <audio> element sends no headers of ours.
-```
+**A refusal is a status, even on a stream.** `streamRun` in `services/api/middleware.ts` starts
+the executor, waits for either `onHeld` or the outcome, and opens the SSE body only once the hold
+is taken; a refusal before that answers as JSON (402 for credits, 403 for a plan, 400 for input), so
+the client walls exactly as it does on a fetched route. Events the body yields before the stream
+is open are buffered. `/ai/turn`, `/media/generate`, `/media/generate-video` and
+`/artifacts/:id/narration` all use it.
 
-**Background music** is the third thing in this feature derived from the content and cached by what
-produced it, in the same router over `services/core/soundtrack.ts`:
+**The other routers run their tools through the same executor.** `POST /media/generate` streams
+`generate-image` variations for the picker and `POST /media/generate-video` one clip;
+`POST /artifacts/:id/narration` runs `narrate-artifact` and frames each `section.audio` event;
+`/voices/audition` and `/voices/design` run `audition-voice` / `design-voice`;
+`/artifacts/:id/soundtrack` runs `compose-soundtrack`; the context routes run `read-file`. Each
+keeps its own body schema at the HTTP boundary, as `check:validation` requires, and its own wire
+framing; what it no longer owns is the reservation or the tool id as a string literal.
 
-```
-GET  /music/presets                     The house set (`MUSIC_PRESETS` in core/ai/music.ts) and
-                                        whether this deployment has generated each one yet.
-POST /artifacts/:id/soundtrack          Either a preset or a bed written for this piece. Meters
-                                        compose-soundtrack by the minute and settles to zero when
-                                        the bed was already built, so asking twice is free.
-GET  /artifacts/:id/soundtrack          The bed this piece plays, or null. Never generates: an
-                                        anonymous link viewer reaches the same function and
-                                        cannot be billed.
-GET  /artifacts/:id/soundtrack/:trackId The bytes. A custom bed is only servable through the
-                                        artifact it belongs to.
-GET  /p/:slug/soundtrack[/:trackId]     The same two reads through `publicRead`, gated exactly as
-                                        the narration pair is.
-```
+**Narration, music and voices** keep their routers (`services/api/narration.ts` over
+`services/core/narration.ts` and `soundtrack.ts`; `services/api/voices.ts` over
+`services/core/voices.ts`), since they are about audio rather than about a turn. The manifest and
+byte reads, the `/p/:slug` mirrors gated by `publicRead`, the preset-once-per-deployment rule, the
+script fingerprint (`SectionNotes.of`, `needsScript`), the press-to-record model of the present bar
+and the cache key `sha256(spoken + voice + model + output_format)` are as they were and are
+described with the present surface in `rendering.md` and the entitlements in `workspaces.md`.
 
-A **preset** is generated once for the whole deployment and shared by every workspace, which is what
-keeps the common case at one provider call ever; `services/core/__tests__/soundtrack.itest.ts` asserts
-that by call count rather than by row count, as the voice adoption cache does. A **custom** bed is
-written from what the piece already says about itself: the theme's mood (a human-written phrase) or
-its descriptor, whether the theme is dark, the format, and the title. That prompt is deterministic and
-costs nothing, so no LLM turn is involved and there is no tool in the catalog for it. When the piece
-is narrated the request carries the narration's total length, so the bed runs exactly as long as the
-voice rather than looping under it.
+**There is no `/eval` route.** The playground that listed traced runs, posted layout checks and
+asked the judge was removed once tracing became the executor's own record; the offline harnesses
+(`pnpm ai:eval`, `pnpm eval:ci`) run the same checks and judges from the command line and need no
+route. The demo account's traces still keep their bodies, so an analyzer over the table can read
+them.
 
-Playback ducks: `duckedVolume` in `@model/artifact` drops the bed to `MUSIC_DUCK` while narration
-speaks. Export ignores music entirely, as it ignores narration.
+**The stored thread.** `appendExchange` (`services/core/threads.ts`) runs after every
+`ask-assistant` turn, best-effort, and stores the user's message with the assistant's events
+**compacted**: text deltas fold into one, thinking labels keep their final list, each tool shell
+keeps only its close, and the live paint of a section (partials, statuses, nested progress) is
+dropped because the card carries the section. One row per (workspace, user, key), capped at 200
+messages. `chat_messages` beside it is the pgvector recall index over the same words; this table
+is what the dock reopens.
 
-**The control is the present bar's music button**, and it is the on-ramp rather than only a mute.
-`SoundtrackSource.enable` is wired where the caller may edit the piece, and the first press is what
-turns music on: it builds the default preset if the deployment has none, records `music.on` on the
-artifact, and plays. Every press after that is play/pause, because pausing mid-talk must not rewrite
-the artifact. A link viewer gets no `enable`, so on publish the button appears only once a bed exists
-and does nothing but play what the presenter chose. Which bed a piece uses stays with the picker in
-a picker the editor no longer carries; the bar is one button and has no room to ask.
-
-**Nothing is prepared ahead of time.** Pressing play in present is the only trigger, and it does both
-halves for the section it is about to speak: write the script if there is none, then record it. The
-first press is the only wait, because `prefetch` runs a section ahead of the voice.
-
-A script is stamped with `SectionNotes.of`, the `sectionFingerprint` of the section it was written
-against (`model/artifact.ts`, FNV-1a over the section's words alone, so moving a box does not
-invalidate an accurate script). That makes three states tellable apart, and `needsScript` folds the
-first two:
-
-```
-no notes                    → write them
-notes, source "ai",  of ≠   → the copy moved out from under the script; rewrite it
-notes, source "human"       → never rewritten, whatever the fingerprint says
-notes written before `of`   → counted as current, so a deploy rewrites nobody's notes at once
-```
-
-Staleness reaches the audio too. The player treats a stale section as a cache miss even when it has a
-recording, because audio made from a script that no longer describes the slide is wrong rather than
-merely old; the rewritten words then change the narration hash, so the section re-records itself.
-
-After the first section is speaking, `scriptRest` writes everything still unscripted in one pass
-behind the voice (`editor/core/notes.ts`), and every section after the first waits on that pass rather
-than asking for its own script. Per-section first buys latency, the whole-piece pass buys continuity.
-
-**Nothing is recorded until someone asks.** Opening a present surface reads the manifest and stops
-there. An earlier build filled the whole piece in the background on mount, which meant every open of
-every piece paid to narrate it, including the ones nobody was ever going to listen to; the spend is
-now behind a press. Concurrent asks for the same section still share one request rather than paying
-twice, which is what the in-flight map in `createNarrationPlayer` is for.
-
-The bar's one button therefore has three states, and the icon says which: a **mic** when the piece has
-no audio yet, because the press records before it can speak and a play triangle would misdescribe it;
-a **spinner** while that recording happens; and **play/pause** once there is something to hear.
-
-Writing and recording are wired only where the caller may edit. Recording spends the artifact owner's
-credits, so an invited viewer and a published link play what is already there and record nothing; the
-alternative is a control that can only answer 403.
-
-There is no speaker-notes editor. Notes are written by the model, on demand, and read in the present
-notes pane; `SectionNotes.source` still distinguishes writing a person did, because rows predating
-this exist and must never be rewritten under them.
-
-Synthesis itself is `services/core/ai/speech.ts`: always the `with-timestamps` endpoint, since the
-character alignment cannot be reconstructed afterwards and is what the caption overlay and the
-per-page step timing are built from. The cache key is
-`sha256(spoken + voice + model + output_format)`, so editing one section invalidates that section and
-changing the voice invalidates the piece.
-
-**Voices** are `services/api/voices.ts` over `services/core/voices.ts`: browsing the provider's
-community library (unmetered, rate-limited, provider previews cost nothing), saving to a per-workspace
-shelf, auditioning a saved voice on one short line, and designing one from a description. Adoption is
-**install-wide and idempotent on `voices.library_id`**: a community voice must be added to the calling
-account before it can speak, that add is capped monthly on the single account serving every workspace,
-and per-tenant adoption of the same popular voice would spend the allowance on duplicates.
-
-**Reconciliation (turn route).** The reserve is a pre-flight estimate; the `finally` block trues it up to what
-actually ran, even on a mid-turn error:
-
-- **Chat sub-tools** report their `usage` through `onUsage`; the route accumulates it and bills it **on top**
-  of the reserved `ask-assistant` base (a chat turn that generated a section costs the reply _plus_ the
-  section).
-- **AI images**: `imageSource:"ai"` (and `imageGenReady()`) counts each generated image, then reconciles the
-  generate estimate to the real count (a stock fallback is unbilled). `edit` never charges — it 501s before
-  the reserve.
-
-The non-streamed routes (`/theme`, `/element`, `/text`, `/suggest`) mirror each other exactly — a single
-call, a credit reserve, a typed JSON result — and each has a matching editor seam (§12). A sibling
-`POST /media/generate` (in `services/api/media.ts`, the media module) streams N AI-image variations for the
-media picker off the same `generate.ts` engine.
+**Reconciliation.** The hold is a pre-flight estimate; the executor's settle trues it up to what
+ran, in a `finally`, so a run that made an image and then threw still bills for the image. A chat
+turn settles once for the reply and every tool it ran.
 
 ## 12. Client wiring + end-to-end traces
 
 The editor stays **app-free**: it exposes injected seams, and the app registers transports in
-`EditorView.tsx`. No host wired → the feature simply doesn't appear. (Fuller client detail is in
-`frontend.md`.)
+`EditorView.tsx`. No host wired, no feature. (Fuller client detail is in `frontend.md`.)
 
 ```
-editor seam (editor.ts)     app transport (api.ts)      route          the flow
-onSectionStream             streamTurn (SSE)            /ai/turn       editor/core/ai.ts (insert)
-onSuggestSections           api.suggestSections         /ai/suggest    the insert popup's idea chips
-onReviseElement             api.reviseElement           /ai/element    editor/core/ai.ts (regenerate)
-onTextAssist                api.assistText              /ai/text       editor/core/ai.ts + TextAiMenu
-(chat uses streamTurn directly)                          /ai/turn       app/stores/chat.ts + app/views/ChatPanel.tsx
+editor seam (editor.ts)     app transport (api.ts)      the call                     the flow
+onSectionStream             streamTool                  /ai/turn add-section         editor/core/ai.ts (insert)
+onSuggestSections           api.suggestSections         /ai/suggest                  the insert popup's idea chips
+onReviseElement             api.reviseElement           /ai/element                  editor/core/ai.ts (regenerate)
+onTextAssist                api.assistText              /ai/text                     editor/core/ai.ts + TextAiMenu
+(chat and the studio use streamTool directly)           /ai/turn <any tool>          app/stores/chat.ts · app/stores/generate.ts
 ```
 
-- **`streamTurn`** opens `POST /ai/turn`, reads the SSE body, parses each `data:` line back to a `TurnEvent`,
-  and hands it to an `onEvent` callback — the one path whether the events drive the build animation or the
-  chat thread.
-- **In-canvas flows** paint a live skeleton from the `plan` event, then land the real content: `section-gen`
-  reserves a placeholder slot and commits the section as one undo step; `element-gen` shimmers the element
-  and swaps it in; `text-assist` splices the rewritten passage back into the live text field.
-- **The chat dock** folds the streamed events into an ordered list of UI blocks per message (`chat.text` →
-  prose, `chat.reasoning` → a thinking bubble, `chat.tool` → a "working…" shell, `chat.block` → a
-  proposal/suggestion/carousel/brief/pick-list/action), applies a proposal's patch (open / draft / target) on
-  Apply, and runs a `WorkspaceAction` (with a confirm card for destructive/outward ones) on click.
+- **`streamTool(tool, input, onEvent, opts)`** opens `POST /ai/turn`, reads the SSE body, parses
+  each `data:` line back to a `TurnEvent`, and hands it to `onEvent`. A non-2xx answer throws an
+  `ApiError` before any event, which is what the paywall keys on.
+- **In-canvas flows** paint a live skeleton from the `plan` event, then land the real content:
+  `section-gen` reserves a placeholder slot and commits the section as one undo step;
+  `element-gen` shimmers the element and swaps it in; `text-assist` splices the rewritten passage
+  back into the live text field.
 
-**The generation studio** (`app/views/generate/` + `app/stores/generate.ts` over the pure helpers in
-`app/stores/generate-plan.ts`) replaced the one-shot Generate modal with a staged, human-in-the-loop
-session: **Intake → Outline → Build**, one small turn per step, the client as the state machine.
-It is a single full-screen surface (`Modal size="screen"`, stamped with the session theme so the whole
-studio recolors with the artifact) whose body switches per stage; the chat rail sits alongside throughout.
+**The generation studio is a mirror.** `app/stores/generate.ts` holds `{ generation, content }`
+and nothing the server does not: every button runs a tool through `runGenerationTool`, and every
+`patch` event that comes back is applied with the same `applyPatch` the server used, so the two
+copies cannot disagree about what a beat is or which take is active. The store's public verbs map
+onto tools one to one:
 
-There are **no run-mode or gate settings**: the prompt always goes straight to an arc, and the outline is
-where every remaining decision is made. Two ways to build, both one click at the board — **Write all N**
-(the loop runs to the end) or **Write this one** per card (which parks the loop, so writing stays one
-section at a time). Editing the outline is what shaping the arc means, so a separate "steer the plan"
-mode would be a second way to do the same thing. The stages:
+```
+startSession          start-generation, then plan-outline       openGenerate → the intake
+setBriefField …       revise-brief                              briefStale() while plannedAgainst lags
+startPlan             plan-outline                              reroll, or replan after a brief edit
+patchBeat · moveBeatDir · removeBeatById · addBeatAfter   revise-outline
+setSteer              steer-generation
+buildSections         write-beats (every queued beat, or a list)   "Write all N"
+buildSectionNow       write-beat                                "Write this one"
+regenerateSection     write-beat { replace, note }
+setActiveVersion      pick-version
+pauseBuild            aborts the stream; the beat in flight lands server-side (its body runs on a
+                      context without the client's signal), and the store polls read-generation
+                      until `writing` is false
+adoptGeneration(id)   read-generation, then open the studio on it (from the dock, or a reopened tab)
+saveGenerated         finish-generation
+```
 
-- **Intake** — a centred composer that owns its own settings (format / length / image-source as compact
-  dropdowns in its footer, beside the attach actions) plus **context to build from**: pasted text and
-  dropped text files, merged into `GenerateInput.source` (`app/stores/attachments.ts`; binaries are
-  refused with a reason rather than read as mojibake, and the 6000-char planner clip is surfaced). The intake is
-  also the app's ONE create entry ("New artifact" on every device — the old create modal is gone):
-  below the composer, a template row live-matches the typed prompt against the edge-safe
-  `TEMPLATE_INDEX` (`model/templates.ts`; curated picks lead when empty, hidden when
-  nothing fits, and the rest of the catalog windows in as the strip scrolls) with bodies fetched
-  once for thumbnails (`app/stores/templates.ts`), and a one-line
-  start-blank row covers the empty-canvas path (`createBlank` in the library store).
-- **Brief** — no longer a stage. The **planner reports its own reading**: `zOutline` carries `goal` /
-  `audience` / `tone` / `mustInclude`, and `runPlan` emits them on the `plan` event as `BriefRead`, so the
-  fields fill themselves with no extra call, latency, or credit. The client absorbs them only into fields
-  the user hasn't set, so a reroll can't overwrite a typed goal. Because the planner now names its own
-  must-cover points, the `covers` instruction applies on every run rather than only when the user supplied
-  points, which is what makes the outline's coverage tags appear at all. `POST /ai/brief` remains as the
-  on-demand "read it again" from the brief bar.
+The studio is one full-screen surface (`Modal size="screen"`, stamped with the session theme) whose
+body switches per stage; the chat rail sits alongside throughout and is the same agent on the
+`generate` surface. There are no run-mode or gate settings: the prompt goes to an outline, and the
+outline is where every remaining decision is made. The stages:
 
-- **Brief** — `POST /ai/brief` expands the prompt into an editable card (goal / audience / tone / length /
-  must-cover chips + at most one clarify question). Best-effort: on failure the raw prompt stands.
-- **Shape** — optional, and settled before the plan turn runs. Picking a starter in the template
-  preview (the strip's cards and the "Browse all" gallery both open it, so the two meanings of a
-  template card sit side by side) sets `shapeTemplateId` on the brief. `planOutlineTool` resolves the
-  body, derives a `SectionForm` per section (`sectionForms` in `@model/artifact`: the nearest named
-  preset, the block leading each column, whether it rides a full-bleed image), lists them in the
-  outline prompt, and then **snaps the returned beats onto them by index**. The prompt asks and the
-  snap guarantees, the same pairing the `maxSections` slice one line above it uses, and for the same
-  reason: `zBeat.layout` and `blocks` are free strings. Only those three fields are taken; label,
-  role, brief, takeaway and points stay the planner's, which is why the plan turn is kept rather than
-  deriving beats client-side. A beat past the starter's last one keeps the layout the planner chose.
-  Costs nothing extra: about 2k characters on one prompt, far below the one-credit floor at settle,
-  and the build turns see the shape through `beat.layout` / `beat.blocks`, which `placement()` and
-  `blockLine()` were already printing. Picking a shape also moves the length chip to
-  `lengthForSections(n)`, so the run carries one section count rather than two that disagree inside
-  the prompt. The intake's attach menu routes a template pick here too: attaching its text told the
-  planner to build FROM it, so a deck shaped like the Startup Pitch template came back about that
-  template's own company.
-- **Outline** — a `plan` turn (3 cr) returns the beats; the canvas renders each as an **editable section
-  card** at the width of the section it becomes (`OutlineCard.tsx`): title, takeaway and points edited in
-  place (`inline.tsx` — auto-growing transparent fields), layout glyph, role, coverage tags, and per-card
-  actions (write this one, add, remove, reorder; drag from the grip). Beats are the board's spine at every
-  stage, so an unwritten beat stays a card while a written one is the painted section, and nothing moves
-  when it lands. "Reroll" replans from the same brief; the Build CTA prices the commitment explicitly.
+- **Intake**: a centred composer with format / length / image source as compact dropdowns, plus
+  context to build from (pasted text and dropped text files, merged into `GenerateInput.source`;
+  `app/stores/attachments.ts`). It is also the app's one create entry: a template row
+  live-matches the typed prompt against `TEMPLATE_INDEX`, and a start-blank row covers the empty
+  canvas. Picking a shape sets `shapeTemplateId`, and `plan-outline` snaps the returned beats onto
+  the template's `sectionForms` by index.
+- **Outline**: the beats render as editable section cards at the width of the section each becomes
+  (`OutlineCard.tsx`); title, takeaway and points edit in place, and every edit is a
+  `revise-outline` call. The brief bar shows the planner's reading with the fields a person set
+  marked as theirs; editing one is `revise-brief`, and the outline reads as stale until the next
+  `plan-outline`. Reroll replans; the Build CTA prices the commitment.
+- **Build**: `write-beats` or `write-beat`. While a full run is in flight the board is locked
+  (`runLocked()`), with a Stop pill that is `pauseBuild()`. Each landed frame gets a verdict bar
+  (regenerate, regenerate with a note) and version chips; a beat that fails after its retry keeps
+  its card with Write still on it, and the run stays open. Two invariants keep the board from
+  re-rendering itself as it fills: `<For>` iterates beat ids, not view objects, and each `Frame`'s
+  paint effect guards on a signature of section, ghost shape, width, theme and format.
 
-    While a full run is in flight the board is **locked**: `runLocked()` (building, not paused, something
-    active or queued) puts the scroller in `overflow-hidden` — which still permits the programmatic `scrollTo`
-    that follows the active section — plus `pointer-events-none` and `select-none`, and floats a Stop pill
-    over the canvas. Stopping is `pauseBuild()`, which unlocks immediately and hands back every intervention
-    path at once (outline edits, per-section rework and versions, the console). The in-flight section still
-    lands, since writes are atomic.
+Because the run is a server resource, closing the studio loses nothing, and reopening it is
+`adoptGeneration`. The one-shot `generate-artifact` is not used by the product's own surfaces.
 
-    Two invariants keep the board from re-rendering itself as it fills, both easy to undo by accident:
-    `<For>` iterates **beat ids**, not view objects (Solid keys by reference, so a fresh object per read
-    disposed and rebuilt every row on any store write), and each `Frame`'s paint effect **guards on a
-    signature** of section / ghost shape / width / theme / format, animating the reveal only when a genuinely
-    new section arrives. Without either, one section landing repainted the whole board and replayed every
-    reveal, which reads as the artifact reloading.
+**The chat dock** (`app/stores/chat.ts` + `app/views/ChatPanel.tsx`) folds the streamed events
+into an ordered list of UI blocks per message (`chat.text` → prose, `chat.thinking` → a thinking
+bubble, `chat.tool` → a shell, `chat.block` → a card). A `proposal` with a `call` runs that tool
+on press: through the `GenerationHost` (`setGenerationHost`, the seam the studio store registers
+so the dock can start or adopt a generation without an import cycle) when it starts or continues a
+run, else through `streamTool`. A `proposal` with a `patch` applies it on press: to the open
+artifact through `applyPatch` + `commit`, to a library target by saving, or to the generation
+through `apply-patch`. A `generation` block adopts the run into the studio.
 
-- **Build** — the client loops one `build` turn per beat (2 cr each, billed as written, not reserved up
-  front). Rework while it runs: each landed frame gets a verdict bar (regenerate · regenerate
-  with a note) and version chips (every take kept; pick the keeper). A **steer** field
-  injects into every later section's prompt; **pause / stop-here** park the loop at a section boundary
-  (writes are atomic); a one-time **tone check** pauses after the cover + first content section. The draft
-  artifact is persisted at build start and re-saved per landed section, so closing the studio never loses
-  built work.
-
-    A beat that does not land is **retried once as a second turn**, since a stream that dies takes its
-    generator with it and the server cannot retry inside a turn that is already gone. If the second try
-    is also empty the slot is marked `failed` and the loop moves on: the run finishes, the board keeps
-    that beat as its outline card with Write still on it, and a narration line says how many were
-    missed. It is deliberately not a `fail()`, which would put the studio in the `error` stage, raise a
-    modal, and strip the Write button off every unwritten card, so the one thing the message asked for
-    was the one thing the screen no longer offered.
+**The thread is stored and replayed.** `currentKey()` is `threadKey` over the bound target (a
+generation, the open artifact, or the library); `loadThread()` fetches the server's copy on
+`openChat`, before a `sendChat` to a new subject, and when the studio binds a run, and replays each
+assistant message's events through the same `dispatch` with a `replay` flag that skips the side
+effects the live turn already had (adopting a generation, running an action). Applying or
+discarding a card marks it server-side, so a reopened thread shows what was done.
 
 **Traces:**
 
-- **Studio generate** — Generate modal → `POST /ai/brief` → confirm → `POST /ai/turn {plan}` (ghost
-  skeletons + backdrop) → edit + approve → N × `POST /ai/turn {build}` (sections land one by one; regens
-  are `{build, replace:true}`) → open in editor.
-- **One-shot generate** (chat's propose-generation path; the studio's Instant is the same experience) —
-  `POST /ai/turn {generate}` → `runGenerate`: `plan` (skeletons appear) →
-  per-section `addSection` patches (sections stream in) → `setMeta` (backdrop) → `turn.done`.
-- **Insert a section** — "＋ AI section" → `section-gen` → `POST /ai/turn {section}` → `plan` (one skeleton) →
-  `addSection` at `afterId` → committed as one undo step.
-- **Regenerate an element** — ContextBar ✨ → `element-gen` resolves the target (climbs coupled parents) →
-  `POST /ai/element` → `reviseElement` → swapped in place.
-- **Rewrite text** — text bar ✨ → `text-assist` → `POST /ai/text {rewrite}` → `rewriteText` (Flash) →
-  spliced into the selection.
-- **Chat (editor)** — ChatPanel → `POST /ai/turn {chat}` → `ToolLoopAgent`: prose streams as `chat.text`; a
-  tool call streams `chat.tool` → `chat.block` (a proposal with a live preview); Apply commits its patch.
-- **Chat (library, edit a named artifact)** — "make the intro of my Aria deck punchier" → `find-artifacts` →
-  `read-artifact` → `edit-artifact` → a `proposal` tagged with `targetArtifactId`; Apply saves to that
-  artifact and refreshes the library thumbnail — no editor open.
-- **Chat (library, build)** — "turn this into a deck" (pasted text) → `propose-generation`
-  (`sourceFromMessage:true`) → a `brief` confirm card → Generate builds inline.
+- **Studio generate**: intake → `start-generation` + `plan-outline` (cards appear) → edits as
+  `revise-outline` / `revise-brief` → `write-beats` (sections land one by one; the board follows
+  the active beat) → `finish-generation` → open in editor.
+- **Chat (library, build)**: "turn this into a deck" (pasted text) → `start-generation` card →
+  press → the dock adopts the run, the studio opens on it → "write the first three" →
+  `write-beats` card → press → `steer-generation` applied on arrival between beats.
+- **Chat (studio console)**: "swap sections 2 and 3 and make the closer a call to action" →
+  `revise-outline` runs, its patch is a card → Apply → `apply-patch` persists it; the board
+  re-renders from the same patch.
+- **One-shot generate (MCP / API)**: `generate-artifact` → `start` · `plan` · every beat · `finish`
+  in one call, the draft committed through the store as it goes.
+- **Insert a section**: "＋ AI section" → `add-section` → `plan` (one skeleton) → `addSection` at
+  `afterId` → committed as one undo step.
+- **Regenerate an element**: ContextBar ✨ → `/ai/element` → `revise-element` → swapped in place.
+- **Chat (library, edit a named artifact)**: "make the intro of my Aria deck punchier" →
+  `find-artifacts` → `read-artifact` → `edit-artifact` → a proposal tagged `targetArtifactId` →
+  Apply saves to that artifact.
 
 ## 13. Status + Planned / deferred
 
-**Live** (working builder + runtime + route):
+**Live:**
 
-- **Generation + editing:** the staged **generation studio** (brief → outline gate → per-beat build with
-  steer/pause/versions, §12) · one-shot generate (the same runtime, gates on auto) ·
-  insert-section · regenerate-section · regenerate-element · rewrite/translate text · translate-artifact
-  (fan-out) · generate-theme · suggest-sections.
-- **Images:** stock sourcing across four providers + **AI image generation** — wired into the generate
-  pipeline (`imageSource:"ai"` → Gemini image model, stored as a workspace asset, metered per variation) and a
-  standalone `/media/generate` streaming route for the media picker.
-- **Pricing:** the unified tool catalog with per-tool pricing + the pre-flight credit gate + turn-level
-  reconciliation.
-- **The chat / workspace agent on both surfaces** (roadmap Phases 1–6 + the Phase 7–8 core): the find/read
-  spine · edit-a-named-artifact + open/navigate · rename / move / duplicate / create-folder / trash(confirm) /
-  restore · reorder / remove / set-format / set-theme · templates + credit awareness · share/export routing
-  (guarded) · **paste-as-source** ("turn THIS into a deck") · **repurpose** ("turn my report into a deck", via
-  `GenerateInput.source` + `sourceArtifactId` fed into the outline phase).
+- **Every AI action is a catalog tool run by one executor** on every surface: the chat agent, the
+  direct routes, MCP and the REST API. The executor owns the surface check, the scope, the plan
+  entitlement, the input schema, the generation a call acts on, the writer lease, the credit hold
+  and the application of patches. `pnpm check:tools` holds the routes to it.
+- **The generation is a server resource**: brief with provenance, outline, steer, per-beat versions
+  and status, `seq`. The studio, the chat dock, the studio console, MCP and the API drive it
+  through the same ten tools; the studio store is a mirror kept by `applyPatch`; pausing lands the
+  beat in flight; closing and reopening the studio adopts the run.
+- **The chat agent's toolset is the catalog filtered by context**, its confirm policy is declared
+  per tool, and its results are shown by a generic presenter unless a tool declares its own. The
+  same agent runs in the library, the editor and the studio console.
+- **The chat thread is stored per subject** and replayed through the client reducer, with the
+  cards marked the way the person left them.
+- **Every call is traced** at the executor: tool and model spans, outcome, settled credits, at
+  `metrics` for everyone and `full` for the eval account and for failures, capped per workspace.
+  Nothing in the product reads the table yet; the offline harnesses judge from the command line.
+- **Generation + editing:** insert-section · regenerate-section · regenerate-element ·
+  rewrite / translate text · rewrite-passage · generate-theme · suggest-sections · speaker notes ·
+  narration · soundtrack · voices · AI images and video for the picker.
 
-**Planned / deferred** (net-new infra, kept off the critical path — no band-aids):
+**Planned / deferred** (kept off the critical path):
 
-- **Whole-artifact `edit` runtime.** The `edit` turn kind + `revise-artifact` tool are defined and priced, and
-  no prompt builder exists for it yet and the route 501s — one revision over the whole tree is a distinct
-  reasoning task on Pro that isn't wired yet.
-- **Source-grounded generation, remaining sources.** Paste-as-source and single-artifact repurpose ship; still
-  deferred are **URL fetch** (needs SSRF-safe fetching) and **PDF / file upload** (needs robust extraction +
-  upload) as generation sources, plus generation **variations** (N drafts to compare — a UX surface).
-- **Cross-artifact repurpose (multi-source).** True **merge / extract** across two+ artifacts ("pull the
-  charts from Q3 into a new update", "merge these two", "reuse the Aria theme") — repurpose already covers
-  single-source "report → deck"; multi-artifact context is the highest-leverage, highest-effort follow-up.
-- **The as-yet-unsurfaced priced actions** — `suggest-title`, `write-summary` / `write-alt-text` /
-  `write-speaker-notes` (priced in the catalog, no route/seam yet).
-- **Platform seams:** an **MCP adapter** over the same registry (a fourth surface, no capability redefined);
-  **event-log persistence + SSE resume** (the `seq` cursor + `LoggedEvent` exist for it); **thread
-  persistence** for chat; and a tightened **discriminated element-union schema** (today `data` stays open and
-  the prompt teaches the fields).
+- **`SectionOp` and `PatchOp` are two vocabularies for one thing.** The REST section-op write and
+  the tool patch overlap almost entirely; folding one into the other is a model change with a
+  migration of stored ops, so it was left for its own pass.
+- **The generation's analytics stay client-side.** The `generation_*` events are captured by the
+  studio store as its mirror changes, so a run driven entirely over MCP is not counted; a server
+  emitter at `finish-generation` and `landBeat` is the fix.
+- **Whole-artifact `revise-artifact`.** Defined and priced, no prompt builder yet.
+- **Source-grounded generation, remaining sources.** Paste-as-source and single-artifact repurpose
+  ship; URL fetch (needs SSRF-safe fetching) and PDF upload as generation sources are deferred, and
+  cross-artifact merge / extract is the highest-leverage follow-up.
+- **The as-yet-unsurfaced priced actions**: `suggest-title`, `write-summary`, `write-alt-text`,
+  `translate-artifact`.
+- **Event-log persistence + SSE resume**: the `seq` cursor exists for it.
+- **A trace analyzer** over the `traces` table (latency and tokens per tool and model, failure
+  reasons by model, cache share, cost per surface, prompt part attribution), and emitting the
+  `ai_action_*` analytics from the trace rather than beside it in `spend.ts`.

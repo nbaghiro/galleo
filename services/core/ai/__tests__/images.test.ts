@@ -90,6 +90,25 @@ describe("a face slot", () => {
         expect(out[0]).toContain("fictional_person");
     });
 
+    it("treats a circle-cropped media photo as the same person: the merged avatar", async () => {
+        const merged: ElementInstance = {
+            type: "media",
+            data: { kind: "photo", shape: "circle", size: 88, src: "a smiling founder" },
+        };
+        const out = srcs(await resolveImages(team(merged), opts));
+        expect(out[0]).toMatch(/^https:\/\/cdn\.test\/square\//);
+        expect(out[0]).toContain("Head-and-shoulders_portrait");
+    });
+
+    it("leaves an uncropped media photo alone, same as a plain image", async () => {
+        const framed: ElementInstance = {
+            type: "media",
+            data: { kind: "photo", src: "a founder at her desk", aspect: 1.4 },
+        };
+        const out = srcs(await resolveImages({ id: "s", root: framed }, opts));
+        expect(out).toEqual(["https://cdn.test/landscape/a_founder_at_her_desk"]);
+    });
+
     it("leaves a plain image alone: a person in one is the writer's phrase to get right", async () => {
         const s: Section = { id: "s", root: image("a founder at her desk") };
         const out = srcs(await resolveImages(s, opts));

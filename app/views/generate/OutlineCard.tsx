@@ -19,7 +19,8 @@ import { Separator } from "@ui/inputs";
 import { Dropdown } from "@ui/select";
 import { isCoarsePointer } from "@ui/viewport";
 import { Credits } from "@app/components/Credits";
-import { blocksForLayout, LAYOUT_IDS } from "@app/stores/generate-plan";
+import { blocksForLayout } from "@model/ai";
+import { LAYOUT_IDS } from "@app/stores/generate-plan";
 import {
     addBeatAfter,
     buildSectionNow,
@@ -135,7 +136,7 @@ export const OutlineChrome: Component<{
     const patch = (p: Partial<Beat>): void => patchBeat(props.beat.id, p);
     const points = (): string[] => props.beat.points ?? [];
     const covers = (): string[] => props.beat.covers ?? [];
-    const busy = (): boolean => !!gen.activeSection;
+    const busy = (): boolean => gen.writing;
     const touch = isCoarsePointer;
     // hover alone, so only one pill is ever up; touch has no hover, so there they all stand
     const shown = (): string => (touch() ? "opacity-100" : "opacity-0 group-hover:opacity-100");
@@ -207,7 +208,7 @@ export const OutlineChrome: Component<{
                 <button
                     class={barIconAction}
                     title="Add a section after this one"
-                    onClick={() => addBeatAfter(props.beat.id)}
+                    onClick={() => void addBeatAfter(props.beat.id)}
                 >
                     <Icon name="plus" size={14} />
                 </button>

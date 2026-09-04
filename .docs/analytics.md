@@ -307,13 +307,23 @@ confirming the right test failed. `services/api/__tests__/ingest.test.ts` pins t
 fact that it strips the session cookie. `ui/__tests__/analytics.test.ts` asserts the capture policy and
 that an unconfigured client makes no network call. We do not test PostHog itself.
 
+**The generation funnel is split by who knows what.** The studio emits what only the browser sees:
+the intake opening, context attached, a shape picked, a build started, a pause, an abandonment, a
+failure it showed, a section it flagged. The server emits the rest from inside the tool bodies
+(`report` in `services/core/ai/tools.ts`, attributed to the call's principal): `generation_planned`
+at the end of `plan-outline`, `generation_section_built` and `generation_section_failed` as
+`write-beat` and `write-beats` land or give up, `generation_steered` and `generation_outline_edited`
+from their tools, and `generation_completed` at `finish-generation` with the run's settled credits
+summed from its traces. A run driven from the chat dock, MCP or the API is therefore counted the
+same as one driven from the board.
+
 ## Planned / deferred
 
 - **The catalog was pruned once already.** Twelve events were removed after the first audit: nine
   that carried no properties at all and answered no question on any dashboard (`artifact_renamed`,
   the three `folder_*`, `section_duplicated`, `custom_theme_deleted`, `workspace_renamed`,
   `ownership_transferred`, `password_changed`), one redundant with a richer event
-  (`generation_resumed`, since `generation_completed` carries `was_paused`), and the two below.
+  (`generation_resumed`, redundant with `generation_paused`), and the two below.
   Removing an event breaks any tile that references it, so check `scripts/posthog-dashboards.ts`
   before cutting another.
 - **Two events are not built.** `onboarding_starter_edited` needs the editor to know that the artifact it

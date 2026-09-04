@@ -98,7 +98,7 @@ export const zBeat = z.object({
     role: z
         .string()
         .min(1)
-        .describe("narrative role: scene | tension | turn | proof | momentum | close"),
+        .describe("narrative role: scene | tension | turn | proof | objection | momentum | close"),
     layout: z
         .string()
         .optional()
@@ -164,6 +164,12 @@ export const zOutline = z.object({
             "a vivid, on-theme photo description for the artifact's full-bleed background — a moody, atmospheric scene evoking the subject (e.g. for a finance deck: 'a modern finance office at dusk, soft focus, warm light'), NOT a generic abstract texture. It sits behind every section under a heavy scrim, so keep it a wide, low-detail environment rather than a busy foreground subject.",
         ),
     beats: z.array(zBeat).min(1).describe("the ordered sections to build"),
+    clarify: z
+        .string()
+        .nullish()
+        .describe(
+            "AT MOST one question for the person, only when its answer would change the STRUCTURE of the piece; omit otherwise",
+        ),
 });
 
 export const zSectionPlan = zBeat.omit({ id: true });
@@ -196,31 +202,9 @@ export const zTheme = z.object({
     tokens: zTokens,
 });
 
-export const zBriefDraft = z.object({
-    // non-empty for the same reason zBeat's are: normalizeBrief drops a blank to undefined, so an
-    // all-blank read would otherwise pass as a brief with nothing in it
-    goal: z.string().min(1).describe("what the piece must achieve, one short line"),
-    audience: z.string().min(1).describe("who it's for, one short line"),
-    tone: z.string().min(1).describe("the register to write in, 2–4 words"),
-    // no min/max: the count is guidance, not correctness, and normalizeBrief trims the list
-    mustInclude: z
-        .array(z.string())
-        .describe(
-            "2–6 points the piece must cover — short noun phrases pulled from (or clearly implied by) the prompt, each one checkable",
-        ),
-    // nullish, not optional: models emit `null` for an optional field they chose not to fill
-    clarify: z
-        .string()
-        .nullish()
-        .describe(
-            "AT MOST one question, only when its answer would genuinely change the outline; omit otherwise",
-        ),
-});
-
 export type Outline = z.infer<typeof zOutline>;
 export type Beat = z.infer<typeof zBeat>;
 export type ThemeGen = z.infer<typeof zTheme>;
-export type BriefDraftGen = z.infer<typeof zBriefDraft>;
 
 export function extractJson(text: string): unknown {
     const t = text

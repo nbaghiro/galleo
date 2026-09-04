@@ -5,8 +5,10 @@ import type { ArtifactContent, GenMeta } from "@model/artifact";
 import type { EvalCheck, EvalJudgement } from "@model/eval";
 import { questionRates } from "@model/eval";
 import type { Surface } from "@model/ai";
-import { applyPatch } from "@model/ai";
-import { runGenerate } from "@services/core/ai/run";
+import { applyContentOps } from "@model/ai";
+import { runTool } from "@services/core/ai/execute";
+import "@services/core/ai/tools/register";
+import { memoryGenerationStore } from "@services/core/generations";
 import { withMeter, usdOf } from "@services/core/ai/meter";
 import { aiReady } from "@services/core/ai/provider";
 import { runChecks } from "@services/core/ai/eval/checks";
@@ -25,7 +27,7 @@ import { session, type Shooter } from "./shoot";
  *   pnpm eval:ci --cases 7 --judge text        the scheduled default
  *   pnpm eval:ci --cases 7 --judge both --out out
  *
- * Needs no database: runGenerate takes no persistence, so there is no seed, no workspace, and no
+ * Needs no database: the executor runs generate-artifact against an in-memory store, so there is no seed, no workspace, and no
  * credit gate in the way.
  *
  * What fails the build is deliberately narrow. Deterministic checks fail it, because they have no
@@ -71,18 +73,33 @@ async function generate(prompt: string, surface: Surface, model: string): Promis
     let content: ArtifactContent | undefined;
     let beats: GenMeta["beats"] = [];
     const overrides = model ? { outline: model, section: model } : undefined;
-    for await (const ev of runGenerate(
-        { prompt, surface, theme: "studio", length: "Short" },
-        { ...(overrides ? { models: overrides } : {}) },
-    )) {
-        if (ev.type === "plan")
-            beats = ev.beats.map((b) => ({ id: b.id, label: b.label, role: b.role }));
-        if (ev.type === "patch")
-            content = applyPatch(
-                content ?? { format: surface, theme: "studio", sections: [] },
-                ev.ops,
-            );
-    }
+    // no database and no account: the executor still runs the whole flow, applying each patch
+    // into the in-memory store the way the route applies it into a row
+    const out = await runTool(
+        {
+            id: "generate-artifact",
+            surface: "direct",
+            input: { prompt, surface, theme: "studio", length: "Short" },
+        },
+        null,
+        {
+            ctx: {
+                image: { source: "stock" },
+                generations: memoryGenerationStore(),
+                ...(overrides ? { models: overrides } : {}),
+            },
+            onEvent: (ev) => {
+                if (ev.type === "plan")
+                    beats = ev.beats.map((b) => ({ id: b.id, label: b.label, role: b.role }));
+                if (ev.type === "patch" && ev.patch.artifact?.length)
+                    content = applyContentOps(
+                        content ?? { format: surface, theme: "studio", sections: [] },
+                        ev.patch.artifact,
+                    );
+            },
+        },
+    );
+    if (!out.ok) throw new Error(`the run was refused: ${out.reason}`);
     if (!content?.sections.length) throw new Error("generation produced no sections");
     return { content, meta: { at: "", models: {}, prompt, surface, beats } };
 }
@@ -134,7 +151,7 @@ async function runCase(
         }
         base.usd = usdOf(meter.uses);
         return base;
-    }, false);
+    });
 }
 
 async function main(): Promise<void> {

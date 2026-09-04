@@ -101,10 +101,16 @@ export interface Slot {
     face?: boolean;
 }
 
-// An avatar is the only slot the tree identifies as a person by construction, since it renders as a
-// fixed square masked to a circle whatever its data says. A person in a plain `image` reads as a
+// A face slot is one the tree identifies as a person by construction: the `avatar` type the
+// catalog teaches, and its merged form, a circle-cropped `media` photo. Both render as a fixed
+// square masked to a circle whatever their data says. A person in a plain picture reads as a
 // person from its phrase alone, which is the writer's job to get right, not ours to guess.
 const FACE_TYPES = new Set(["avatar"]);
+const isFaceSlot = (el: ElementInstance): boolean => {
+    if (FACE_TYPES.has(el.type)) return true;
+    const d = el.data as { kind?: string; shape?: string };
+    return el.type === "media" && d.kind === "photo" && d.shape === "circle";
+};
 
 // What a face slot is actually asking for. Kept as prose the generator reads rather than a style
 // preset, because the framing (head and shoulders, plain ground, eyes to camera) is the whole
@@ -196,7 +202,7 @@ function slotIndex(root: ElementInstance): Map<string, Slot> {
         const data = el.data as Record<string, unknown> | undefined;
         if (!data) return;
         const src = data.src;
-        const face = FACE_TYPES.has(el.type);
+        const face = isFaceSlot(el);
         if (typeof src === "string" && src)
             // An avatar is a fixed square masked to a circle, so its shape is structural and its
             // own data cannot say otherwise. Everything else takes the aspect the writer gave it.
