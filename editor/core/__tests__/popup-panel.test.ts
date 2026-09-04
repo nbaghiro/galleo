@@ -48,6 +48,15 @@ describe("openPopups", () => {
         load(colGroup([colGroup([popup(true, [inst("text", { text: LINE })])])]));
         expect(openPopups()).toEqual([{ section: "s1", path: [0, 0] }]);
     });
+
+    it("answers the same array while the artifact holds, so a repaint re-walks nothing", () => {
+        load(colGroup([popup(true, [inst("text", { text: LINE })])]));
+        const first = openPopups();
+        expect(openPopups()).toBe(first);
+        load(colGroup([popup(true, [inst("text", { text: LINE })])]));
+        expect(openPopups()).not.toBe(first);
+        expect(openPopups()).toEqual(first);
+    });
 });
 
 describe("the floating panel the canvas paints", () => {

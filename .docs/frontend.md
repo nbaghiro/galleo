@@ -56,6 +56,8 @@ ui/                     @ui · Solid · imports model + canvas + @themes only
   icons.tsx             Icon (merged registry ~90 glyphs) + generated named *Icon wrappers + UiThemeProvider
   brand.tsx             Mark   (logo) · setFavicon   (the same mark as the tab icon)
   markdown.tsx          Markdown   (chat/AI markdown renderer)
+  fonts.ts              fontsGeneration · createFontsInvalidator   (one loadingdone listener; the
+                          signal every canvas-backed surface re-solves its layout on)
   z.ts                  Z   (the overlay stacking scale; z-* utilities in styles.css mirror it)
   time.ts               relativeTime   (the coarse "3d ago" stamp every list and thread reads)
   styles.css            shared class tokens + z-index utilities

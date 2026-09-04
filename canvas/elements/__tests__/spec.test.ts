@@ -1,5 +1,6 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
+import { layoutCtx } from "@canvas/testkit";
 import type { EngineNode } from "@engine/node";
 import type { Section } from "@model/artifact";
 import { fit, grow } from "@model/geometry";
@@ -149,6 +150,28 @@ describe("shape kinds", () => {
             const v = shapeVector(kind, 200, 120, { fill: { color: "#123456" } });
             expect(v.nodes.length, kind).toBeGreaterThan(0);
         }
+    });
+});
+
+describe("media focal point", () => {
+    const layoutOf = (data: Record<string, unknown>) =>
+        getElement("media")!.layout({ kind: "photo", src: "p.png", ...data }, layoutCtx(800));
+
+    it("passes focusX/focusY to the leaf as fractions, clamped, absent by default", () => {
+        expect(layoutOf({}).image?.focus).toBeUndefined();
+        expect(layoutOf({ focusX: 25, focusY: 100 }).image?.focus).toEqual({ x: 0.25, y: 1 });
+        expect(layoutOf({ focusX: 180 }).image?.focus).toEqual({ x: 1, y: 0.5 });
+    });
+
+    it("offers the focus sliders only where a crop exists, same gate as zoom", () => {
+        const spec = getElement("media")!;
+        const on = (data: Record<string, unknown>): boolean =>
+            spec.controls.some(
+                (c) => c.key === "focusX" && (!c.visibleWhen || c.visibleWhen(data)),
+            );
+        expect(on({ kind: "photo" })).toBe(true); // photos default to cover
+        expect(on({ kind: "photo", fit: "contain" })).toBe(false);
+        expect(on({ kind: "video" })).toBe(false);
     });
 });
 

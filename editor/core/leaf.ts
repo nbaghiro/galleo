@@ -1,5 +1,5 @@
 import type { EngineNode, TextLeaf } from "@engine/node";
-import type { ElementAddress, Section } from "@model/artifact";
+import type { ArtifactContent, ElementAddress, Section } from "@model/artifact";
 import type { LayoutCtx } from "@elements/spec";
 import { composedNodeFor, firstTextLeaf, nodeById, sectionContentTokens } from "@elements/compose";
 import { childrenOf, getElementAt } from "@elements/ops";
@@ -32,18 +32,25 @@ function paintedCtx(section: Section | undefined): LayoutCtx {
 const isOpenPopup = (type: string, data: unknown): boolean =>
     type === "popup" && (data as { open?: unknown }).open === true;
 
+// the walk is per element, and the canvas asks on every draw; every write replaces the whole tree,
+// so identity is the whole key
+let openPopupsFor: { artifact: ArtifactContent; addresses: ElementAddress[] } | null = null;
+
 /** Every popup the author left open, in tree order. Cheap: no compose until a panel is asked for. */
 export function openPopups(): ElementAddress[] {
+    const artifact = editor.artifact;
+    if (openPopupsFor?.artifact === artifact) return openPopupsFor.addresses;
     const out: ElementAddress[] = [];
     const walk = (address: ElementAddress): void => {
-        const inst = getElementAt(editor.artifact, address);
+        const inst = getElementAt(artifact, address);
         if (!inst) return;
         if (isOpenPopup(inst.type, inst.data)) out.push(address);
         childrenOf(inst)?.forEach((_, i) =>
             walk({ section: address.section, path: [...address.path, i] }),
         );
     };
-    for (const s of editor.artifact.sections) walk({ section: s.id, path: [] });
+    for (const s of artifact.sections) walk({ section: s.id, path: [] });
+    openPopupsFor = { artifact, addresses: out };
     return out;
 }
 

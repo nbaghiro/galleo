@@ -18,6 +18,7 @@ export interface MediaData {
     src?: string;
     alt?: string;
     dims?: { w: number; h: number }; // the picked source's pixel size, written by the media control
+    thumbSrc?: string; // the picked source's small copy, written by the media control
     poster?: string; // video: still frame for every static paint (thumbs, previews, exports)
     // vector-backed kinds
     glyph?: IconGlyph;
@@ -30,6 +31,8 @@ export interface MediaData {
     radius?: number;
     fit?: ImageFit;
     zoom?: number; // percent, 100 = fit frame, higher crops in
+    focusX?: number; // percent, which point of the image a crop keeps; 50/50 (absent) = center
+    focusY?: number;
     size?: number; // side length for the kinds that size rather than frame
     ring?: boolean; // circle shape: accent border
     // video playback
@@ -220,13 +223,18 @@ function videoNode(d: MediaData, ctx: LayoutCtx, k: MediaElementKind): EngineNod
 
 function pictureNode(d: MediaData, ctx: LayoutCtx, k: MediaElementKind): EngineNode {
     const radius = radiusOf(d, ctx, k);
+    const clamp01 = (v: number): number => Math.max(0, Math.min(1, v / 100));
     const image = {
         src: d.src!,
+        thumb: d.thumbSrc,
         alt: d.alt?.trim() || undefined,
         natural: naturalAspect(d) ? d.dims : undefined,
         fit: fitOf(kindOf(d, k), d.fit),
         radius,
         zoom: (d.zoom ?? 100) / 100,
+        ...(d.focusX !== undefined || d.focusY !== undefined
+            ? { focus: { x: clamp01(d.focusX ?? 50), y: clamp01(d.focusY ?? 50) } }
+            : {}),
     };
     if (d.shape !== "circle") return { w: grow(), h: fit(), aspect: aspectOf(d, k), image };
     const side = fixed(d.size ?? 72);
@@ -267,6 +275,7 @@ const CONTROLS: ControlField[] = [
         control: "media",
         dimsKey: "dims",
         posterKey: "poster",
+        thumbKey: "thumbSrc",
         visibleWhen: (d) => !isVectorKind(d.kind),
     },
     {
@@ -312,6 +321,31 @@ const CONTROLS: ControlField[] = [
         unit: "%",
         group: "Frame",
         // zoom only reads against cover fit
+        visibleWhen: (d) =>
+            !isVectorKind(d.kind) && d.kind !== "video" && fitOf(d.kind, d.fit) === "cover",
+    },
+    {
+        key: "focusX",
+        label: "Focus across",
+        control: "slider",
+        min: 0,
+        max: 100,
+        step: 5,
+        unit: "%",
+        group: "Frame",
+        // a focal point only reads against a crop, same as zoom
+        visibleWhen: (d) =>
+            !isVectorKind(d.kind) && d.kind !== "video" && fitOf(d.kind, d.fit) === "cover",
+    },
+    {
+        key: "focusY",
+        label: "Focus down",
+        control: "slider",
+        min: 0,
+        max: 100,
+        step: 5,
+        unit: "%",
+        group: "Frame",
         visibleWhen: (d) =>
             !isVectorKind(d.kind) && d.kind !== "video" && fitOf(d.kind, d.fit) === "cover",
     },

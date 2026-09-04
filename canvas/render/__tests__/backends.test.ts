@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
     backdropCss,
     createSectionStackCache,
+    imageDrawBox,
     scaledHostCss,
     sectionFrameHeight,
     sectionLayoutWidth,
@@ -118,5 +119,30 @@ describe("sectionFrameHeight", () => {
 describe("createSectionStackCache", () => {
     it("starts empty", () => {
         expect(createSectionStackCache().entries.size).toBe(0);
+    });
+});
+
+describe("imageDrawBox", () => {
+    const box = { x: 0, y: 0, w: 100, h: 100 };
+    const wide = 2; // a 2:1 image cover-fitted into a square: dw 200, slack -100
+
+    it("splits the crop slack at the centre by default, exactly the old behavior", () => {
+        expect(imageDrawBox("cover", wide, box)).toEqual({ x: -50, y: 0, w: 200, h: 100 });
+    });
+
+    it("pins the kept edge by the focal point", () => {
+        expect(imageDrawBox("cover", wide, box, 1, { x: 0, y: 0.5 }).x).toBe(0); // left edge kept
+        expect(imageDrawBox("cover", wide, box, 1, { x: 1, y: 0.5 }).x).toBe(-100); // right edge
+    });
+
+    it("zoom crops toward the focal point too", () => {
+        const d = imageDrawBox("cover", 1, box, 2, { x: 0, y: 1 });
+        expect(d).toEqual({ x: 0, y: -100, w: 200, h: 200 });
+    });
+
+    it("slides a contained image with the same rule, CSS object-position semantics", () => {
+        // 2:1 into a square under contain: dh 50, slack +50 on y
+        expect(imageDrawBox("contain", wide, box, 1, { x: 0.5, y: 0 }).y).toBe(0);
+        expect(imageDrawBox("contain", wide, box, 1, { x: 0.5, y: 1 }).y).toBe(50);
     });
 });

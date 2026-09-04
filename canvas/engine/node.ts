@@ -134,12 +134,18 @@ export interface TextLeaf {
 
 export interface ImageLeaf {
     src: string;
+    // a small copy of the same picture, when the source offered one: what a surface painting at
+    // tile scale fetches instead of the editor-grade asset
+    thumb?: string;
     alt?: string;
     natural?: { w: number; h: number }; // pixel size of the source, when known: a `fit` width uses it
     fit: "cover" | "contain";
     radius?: number;
     scrim?: number; // 0..1 dark overlay
     zoom?: number; // >1 crops in; set only by image elements
+    // which point of the image the crop keeps (0..1 each; absent = center), CSS object-position
+    // semantics: the x fraction of the image aligns with the x fraction of the box
+    focus?: { x: number; y: number };
     border?: { color: string; width: number; style?: "solid" | "dashed" }; // section-card border (theme)
     shadow?: string; // CSS box-shadow
 }
@@ -185,7 +191,9 @@ export interface EngineNode {
     // Clips descendants on the given axes; the resolved rect rides on each command.
     clip?: { x?: boolean; y?: boolean };
     // Lifted out of the flow (no effect on siblings or fit size). Painted by `z`: negative under
-    // the flow (decoration), non-negative above it (overlays), ascending within each side.
+    // the flow (decoration), non-negative above it (overlays), ascending within each side. That
+    // order is also the reading order every backend inherits: decoration is marked `decor` and
+    // never spoken, overlays are real content read after the flow they annotate.
     float?: { x?: Align; y?: Align; dx?: number; dy?: number; z?: number };
     // marks section chrome for composeSection's hoist; the engine itself never reads it. A tag
     // rather than a float-shape sniff, since a pinned element can float with the same shape.

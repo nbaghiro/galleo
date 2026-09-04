@@ -277,46 +277,60 @@ _wrong_ fallback-metric layouts all session, a correctness item). P3/P6/P8 and t
 demoted to hygiene — worth doing only when touching those files. The entries below keep the
 original evidence.
 
-**P1 A keystroke costs three composes and 2-3 layouts of the edited section.** The stack repaints
-once (per-section cache holds), but the minimap Thumb re-lays-out and full-teardown repaints
+**All eight fixed 2026-09-03**, in the round recorded in [`perf-round.md`](perf-round.md), which
+also carries what each phase deviated from as planned. Two pieces are deliberately left: the inline
+editor's third compose under P1, and the AI adopt path under P7.
+
+**P1 (Thumb half) ✔ A keystroke costs three composes and 2-3 layouts of the edited section.** The
+stack repaints once (per-section cache holds), but the minimap Thumb re-lays-out and teardown-repaints
 (`Canvas.tsx:1057-1086`), and the inline editor overlay re-composes a third time
 (`leaf.ts:101-118`); slide mode adds natural/collapsed probes even under `fitFreeze`. Direction:
 reconcile or debounce the Thumb while editing; memo the composed node per (section, width, theme).
-Size: S.
+Size: S. **Fixed** (`perf-round.md` B1): the minimap repaints through the exported `paintReconcile`
+instead of tearing its subtree down. The overlay's third compose is untouched.
 
-**P2 The minimap paints everything it has seen, forever.** Thumbs latch `seen` and never evict
+**P2 ✔ The minimap paints everything it has seen, forever.** Thumbs latch `seen` and never evict
 (`Canvas.tsx:1040-1055`): a 200-section doc accumulates a second full DOM copy of itself in the
-rail. Direction: window the rail like the stack. Size: M.
+rail. Direction: window the rail like the stack. Size: M. **Fixed** (`perf-round.md` B2): the rail
+windows on two IntersectionObservers, painting in at 300px and releasing the subtree at 1500px.
 
-**P3 Placeholder ghosts lay out on every stack repaint, cache hit or not.**
+**P3 ✔ Placeholder ghosts lay out on every stack repaint, cache hit or not.**
 `opts.placeholder?.(section, layoutW)` runs before the reuse check (`backends.ts:1050`) — one
 discarded engine layout per pending section per scroll repaint. Direction: cheap boolean for the
-key, lay out on miss. Size: S.
+key, lay out on miss. Size: S. **Fixed** (`perf-round.md` E): a `pending` predicate keys the cache
+and the ghost lays out only on a miss.
 
-**P4 pdf-lib (~512KB pre-gzip) rides the main app bundle eagerly.** `export.ts:4-15` imports it
+**P4 ✔ pdf-lib (~512KB pre-gzip) rides the main app bundle eagerly.** `export.ts:4-15` imports it
 statically, ExportModal statically imported by Editor; pptxgenjs/jszip/wawoff2/fontkit are already
 dynamic. Direction: `await import("pdf-lib")` in the export entries, matching the other four.
-Size: S.
+Size: S. **Fixed** (`perf-round.md` A): `loadPdfLib()` in `pdf-draw.ts`; the app entry dropped
+420 KB (175 KB gzip).
 
-**P5 Non-editor surfaces keep fallback-font layouts for the session.** Only the measure cache and
+**P5 ✔ Non-editor surfaces keep fallback-font layouts for the session.** Only the measure cache and
 the editor/ThemeEditor stacks invalidate on `fonts.loadingdone`; publish, present, previews,
 tiles, minimap keep stale wrap solved against fallback metrics — on publish this is first-load
 wrap drift. Direction: a shared fonts-settled generation folded into the stack cache key. Size: S.
+**Fixed** (`perf-round.md` C): `ui/fonts.ts` carries the settled generation, and each of those
+surfaces reads it inside the paint effect it already owns.
 
-**P6 Present costs that stack up.** Advancing slides recounts every prior section from scratch
+**P6 ✔ Present costs that stack up.** Advancing slides recounts every prior section from scratch
 (O(N²) over a run-through, `ui/present.tsx:147-154,577`); the overview lays out every section
 eagerly on open; ExportModal lays out the whole deck to count pages. Direction: per-section count
-memo keyed on identity. Size: S.
+memo keyed on identity. Size: S. **Fixed** (`perf-round.md` E): `sectionSlideCount` memoizes on
+section, tokens and profile identity, and all three consumers read the one memo.
 
-**P7 Scaled surfaces fetch the full-size asset.** `thumbUrl` never reaches a RenderCommand; a
-176px library tile decodes the same photo the editor does. Direction: carry `thumbUrl` in media
-data and pick by painted scale. Size: M.
+**P7 ✔ (picked media) Scaled surfaces fetch the full-size asset.** `thumbUrl` never reaches a
+RenderCommand; a 176px library tile decodes the same photo the editor does. Direction: carry
+`thumbUrl` in media data and pick by painted scale. Size: M. **Fixed** (`perf-round.md` D):
+`MediaData.thumbSrc` reaches `ImageLeaf.thumb` and a small surface paints with `assets: "thumb"`.
+The AI adopt path is deferred there, so an AI-sourced picture still paints its full asset.
 
-**P8 Small fixed overheads per draw.** `openPopups()` walks the whole artifact with per-node
+**P8 ✔ Small fixed overheads per draw.** `openPopups()` walks the whole artifact with per-node
 `getElementAt` before its early return (`Canvas.tsx:205-207`); `paintSectionStack` ends in
 `host.replaceChildren` even when membership didn't change (`backends.ts:1153`); measure-cache
 eviction is FIFO not LRU, so a multi-width session can evict hot editor entries in a burst.
-Size: XS-S each.
+Size: XS-S each. **Fixed** (`perf-round.md` B3 + E): all three, as a memoized `openPopups`, a
+skipped `replaceChildren` when membership and order hold, and LRU eviction.
 
 ---
 

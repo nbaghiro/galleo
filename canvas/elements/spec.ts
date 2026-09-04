@@ -109,6 +109,7 @@ export interface ControlField {
     mediaKind?: string; // for `media` controls: the kind the picker opens (photo · gif · …)
     posterKey?: string; // for `media` controls: sibling data key that receives the picked item's still frame
     dimsKey?: string; // for `media` controls: sibling data key that receives the source's { w, h }
+    thumbKey?: string; // for `media` controls: sibling data key that receives the source's small copy
     group?: string; // optional inspector section heading
     visibleWhen?: (data: Record<string, unknown>) => boolean;
 }

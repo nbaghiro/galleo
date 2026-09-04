@@ -310,6 +310,14 @@ whether `clip` becomes a shape or stays a rect with a radius, which is the cheap
 
 ## 9. Image focal point
 
+Status update: built 2026-09-03. `ImageLeaf.focus` (0..1 each, CSS object-position semantics),
+honored by the DOM backend (background-position / object-position + transform-origin under zoom)
+and the canvas placement (`imageDrawBox`), which PDF and PPTX inherit by rasterizing through it;
+authored per use on the media element (`focusX`/`focusY` sliders, gated to cover fit like zoom).
+Untaught to the AI, the zoom precedent: the model cannot see the picture. Not done: a per-asset
+default, detection at upload, section backgrounds, and a drag-on-image affordance. The entry below
+is the original inventory.
+
 Missing: `background-position` and `object-position` are hardcoded to `center` (`backends.ts:445`
 and `:455`), so a `cover` fit always crops to the middle of the image.
 
@@ -510,6 +518,17 @@ Open: whether it is a section property (a "pinned" section) or an element proper
 editor shows, since the canvas is one continuous stack that does not scroll the way publish does.
 
 ## 18. Reading order as an output
+
+Status update: built, closed 2026-09-03. The answer turned out to be "tree order is already right,
+so guard it" rather than a new output: flow emit order IS tree order (pinned corpus-wide in
+`scripts/__tests__/reading-order.test.ts`), pagination preserves emit order (the fragment round),
+the DOM appends in command order, and the PDF draws `framed` through a straight map — so every
+backend inherits the same order. The open question is decided and pinned: decoration (negative-z
+floats) is marked `decor` and never spoken; overlays (non-negative floats) are real content read
+AFTER the flow they annotate (`layout.test.ts` pins the three-band order, `backends.dom.test.ts`
+pins the a11y presence, `node.ts` states it on `float`). Honest remainder, recorded: a windowed
+publish exposes only materialized sections to a screen reader — a windowing concern, not an order
+one. The entry below is the original inventory.
 
 Also from the interactivity investigation, which gave published pages their first real semantics
 (`link`, heading levels, alt) and exposed the next layer down.

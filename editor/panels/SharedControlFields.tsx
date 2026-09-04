@@ -366,6 +366,14 @@ export const Field: Component<{
                                 pk,
                                 item?.thumbUrl && item.thumbUrl !== v ? item.thumbUrl : undefined,
                             );
+                        // the source's own small copy, which the scaled surfaces paint instead of
+                        // fetching this at full size
+                        const tk = f().thumbKey;
+                        if (tk)
+                            props.onWrite?.(
+                                tk,
+                                item?.thumbUrl && item.thumbUrl !== v ? item.thumbUrl : undefined,
+                            );
                         // same for the source's pixel size: unknown clears it rather than keeping
                         // the previous picture's ratio
                         const dk = f().dimsKey;

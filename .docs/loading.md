@@ -133,6 +133,10 @@ DOM construction only, without style, layout, raster, or image decode):
 | 100      | 2ms    | 107ms | 4.8ms            | 1,875     |
 | 200      | 7ms    | 216ms | 14.4ms           | 3,750     |
 
+(Measured before the 2026-09-03 performance round, which left layout, paint and the node counts as
+they are and cut the cached repaint by skipping the host's child-list rewrite when the window has
+not moved. The table awaits a re-run.)
+
 So the design windows the paint, not the layout. `paintSectionStack` takes an optional
 `window: { top, bottom }` in stage coordinates and lays every section out as before, which keeps `tops`,
 the total height, and therefore the scrollbar exact, but only materializes the sections that intersect
@@ -198,8 +202,18 @@ canvas in the templates and share modals. Present's paged mode no longer lays ou
 compute the slide total: it counts up to one section ahead of the viewer and treats the rest as one
 slide each until reached.
 
+The minimap rail windows on the same rule, with the browser answering the visibility question. Each
+thumb observes itself twice against the rail: it paints in at 300px and releases its painted subtree
+once it leaves a 1500px retention band, with the two margins far enough apart that a thumb parked on
+a boundary cannot churn. Releasing leaves the wrap at the height its last paint measured, so the
+rail's geometry and its scrollbar hold while the DOM goes.
+
 Images are no longer pinned for the session: `warmImage` is a 60-entry LRU, and a real `<img>` decodes
-asynchronously.
+asynchronously. A surface small enough that the editor's copy of a photo is wasted bytes (a library
+tile, a card plate) paints with `assets: "thumb"`, which takes the picked source's own small copy
+(`MediaData.thumbSrc` → `ImageLeaf.thumb`) where there is one. The backend knows layout px and not
+the CSS scale it will be drawn at, so the surface is what declares this; everything else, editor,
+present, publish and every export, stays on the full asset by default.
 
 Export, PDF, PPTX, and print pass no window, because they genuinely need every section.
 

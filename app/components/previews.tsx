@@ -10,7 +10,14 @@ import {
     createEffect,
 } from "solid-js";
 import { Portal } from "solid-js/web";
-import type { Section, ArtifactContent, Cover, PageSize, SectionSummary } from "@model/artifact";
+import type {
+    Section,
+    ArtifactContent,
+    ArtifactSummary,
+    Cover,
+    PageSize,
+    SectionSummary,
+} from "@model/artifact";
 import { parseTarget, sectionLinkId, sectionRegionId } from "@model/artifact";
 import type { Rect, Region } from "@engine/node";
 import { profileFor } from "@engine/profile";
@@ -28,6 +35,7 @@ import {
 import { stackWindow, windowMoved } from "@canvas/render/window";
 import { SECTION_GAP } from "@canvas/render/commands";
 import { pinnedShift, sectionScrollTop } from "@canvas/render/present";
+import { createFontsInvalidator, fontsGeneration } from "@ui/fonts";
 import { LiveLayer } from "@ui/live";
 import { pressOnContent, TAP_SLOP } from "@ui/gesture";
 import { ScaledSectionCanvas } from "@ui/section";
@@ -302,8 +310,10 @@ export const ArtifactPlate: Component<{
     // one cache for the life of the plate: a re-run with a deeper stack then reuses the layers it
     // already laid out instead of paying for the whole thing again
     const cache = createSectionStackCache();
+    const fontsSettled = createFontsInvalidator(cache);
 
     createEffect(() => {
+        fontsSettled();
         const tk = resolveTheme(props.themeId).tokens;
         const profile = profileFor(props.content);
         const sections = props.content.sections.slice(0, props.depth ?? 6);
@@ -312,6 +322,7 @@ export const ArtifactPlate: Component<{
         const { height } = paintSectionStack(inner, sections, profile, tk, {
             fullW: props.layoutWidth,
             cache,
+            assets: "thumb", // a plate is a picture of the artifact, drawn at card size
         });
         const scale = props.width / props.layoutWidth;
         inner.style.cssText = scaledHostCss(props.layoutWidth, height, scale);
@@ -382,6 +393,28 @@ const CARD_PAD_TOP = 14;
  * it and the others sit proportionally narrower on the backdrop. Positions itself, so the caller
  * supplies a relative box and the height it wants.
  */
+/**
+ * The content a library summary stands for, so every surface that previews one frames it the same
+ * way. The digest carries the artifact's own backdrop, which is what lets a plate paint the one the
+ * editor paints, scrim and all. The cover image is the fallback for a row whose digest predates
+ * that field: it is the right picture with whatever paint sat behind it lost.
+ */
+export function summaryContent(
+    d: Pick<ArtifactSummary, "formatId" | "themeId" | "cover" | "page" | "background">,
+    sections: Section[],
+): ArtifactContent {
+    const background =
+        d.background ??
+        (d.cover?.image ? { kind: "image" as const, image: d.cover.image } : undefined);
+    return {
+        format: d.formatId,
+        theme: d.themeId,
+        sections,
+        ...(background ? { background } : {}),
+        ...(d.page ? { page: d.page } : {}),
+    };
+}
+
 export const PlateBox: Component<{
     content: ArtifactContent;
     themeId: string;
@@ -567,6 +600,7 @@ export const PreviewCanvas: Component<{
 
     createEffect(() => {
         props.format();
+        fontsGeneration(); // settled faces re-wrap everything, so this pane starts over too
         void props.themeId; // a theme switch repaints from scratch, like a format change
         void props.content; // track the artifact too: a different one starts a fresh stage
         stage = null;
@@ -623,7 +657,7 @@ export const PreviewCanvas: Component<{
     };
 
     // A reader's press on a `hit:` region (an faq row, a tab). Live only: with the layer off the
-    // preview is an inert plate, and the eval board's own selection owns every press.
+    // preview is an inert plate, and the host's own selection owns every press.
     let down: { x: number; y: number } | null = null;
     const onPointerDown = (e: PointerEvent): void => {
         down = props.live ? { x: e.clientX, y: e.clientY } : null;

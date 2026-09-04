@@ -5,7 +5,7 @@ import { upgradeFor } from "@model/billing";
 import type { ArtifactContent } from "@model/artifact";
 import type { MediaCredit } from "@model/media";
 import { profileFor } from "@engine/profile";
-import { sectionSlides } from "@canvas/render/commands";
+import { sectionSlideCount } from "@canvas/render/present";
 import {
     buildPdfAuto,
     buildRasterPptx,
@@ -153,7 +153,7 @@ const Body: Component = () => {
     const nSections = createMemo(() => editor.artifact.sections.length);
     const nSlides = createMemo(() =>
         editor.artifact.sections.reduce(
-            (n, s) => n + sectionSlides(s, editorTokens(), profile()).length,
+            (n, s) => n + sectionSlideCount(s, editorTokens(), profile()),
             0,
         ),
     );

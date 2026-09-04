@@ -7,6 +7,7 @@ import type { Tokens } from "@themes";
 import { paint, backdropCss, scaledHostCss } from "@canvas/render/backends";
 import { layoutPlaceholder } from "@canvas/render/placeholder";
 import { fitIntoBox, fitSectionToFrame, thumbFrame } from "@canvas/render/fit";
+import { fontsGeneration } from "./fonts";
 import {
     measureText,
     layoutSlide,
@@ -64,6 +65,7 @@ export const ScaledSectionCanvas: Component<{
 
     createEffect(() => {
         if (!visible()) return;
+        fontsGeneration(); // re-solve once the real faces land: this canvas holds no layer cache
         if (frame() === "natural") {
             const lw = props.layoutWidth ?? 1120;
             const scale = w() / lw;
@@ -78,7 +80,7 @@ export const ScaledSectionCanvas: Component<{
                       plain(),
                   );
             inner.style.cssText = scaledHostCss(lw, height, scale);
-            paint(commands, inner);
+            paint(commands, inner, "thumb");
             setNaturalH(Math.round(height * scale));
         } else {
             const fr = slideBox();
@@ -155,7 +157,7 @@ export const ScaledSectionCanvas: Component<{
                 { w: layoutW, h: contentH },
                 tile() ? "cover" : "contain",
             );
-            paint(commands, inner); // paint first — it forces position:relative
+            paint(commands, inner, "thumb"); // paint first — it forces position:relative
             inner.style.cssText =
                 `position:absolute;width:${layoutW}px;height:${contentH}px;` +
                 `transform:scale(${scale});transform-origin:top left;` +

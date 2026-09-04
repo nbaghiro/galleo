@@ -1,18 +1,6 @@
 import type { RenderCommand } from "@engine/node";
 import type { ArtifactContent } from "@model/artifact";
 import type { Tokens } from "@themes";
-import {
-    PDFDocument,
-    clip,
-    closePath,
-    concatTransformationMatrix,
-    endPath,
-    lineTo,
-    moveTo,
-    popGraphicsState,
-    pushGraphicsState,
-    rgb,
-} from "pdf-lib";
 import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
 import { EXPORT_SCALE, loadImages, paint, renderSlidePage, renderToCanvas } from "./backends";
 import { measureText, layoutSection, sectionSlides } from "./commands";
@@ -24,8 +12,10 @@ import {
     drawTextAbs,
     emitRect,
     emitText,
+    loadPdfLib,
     pdfColor,
     pdfDrawContext,
+    pdfLib,
     type Ctx,
 } from "./pdf-draw";
 
@@ -94,7 +84,7 @@ async function buildSlidePdfRaster(
     brand: boolean,
 ): Promise<Uint8Array> {
     const profile = profileFor(artifact);
-    const pdf = await PDFDocument.create();
+    const pdf = await pdfLib().PDFDocument.create();
     for (const section of artifact.sections) {
         for (const slide of sectionSlides(section, tk, profile)) {
             const canvas = await renderSlidePage(slide, tk.bg, EXPORT_SCALE);
@@ -116,7 +106,7 @@ async function buildDocPdfRaster(
 ): Promise<Uint8Array> {
     const docProfile = resolveProfile("doc");
     const layoutW = docProfile.maxContentWidth ?? 744;
-    const pdf = await PDFDocument.create();
+    const pdf = await pdfLib().PDFDocument.create();
     for (const section of artifact.sections) {
         const { commands, height } = layoutSection(section, layoutW, measureText, tk, docProfile);
         if (height < 1) continue;
@@ -170,6 +160,15 @@ async function emitCommand(
     // clockwise angle negates. Link annotations sit outside the stream and keep the flat box.
     const rot = c.rotate;
     if (rot) {
+        const {
+            clip,
+            closePath,
+            concatTransformationMatrix,
+            endPath,
+            lineTo,
+            moveTo,
+            pushGraphicsState,
+        } = pdfLib();
         const a = (-rot.deg * Math.PI) / 180;
         const cy = ctx.pageH - rot.cy;
         ctx.page.pushOperators(pushGraphicsState());
@@ -205,7 +204,7 @@ async function emitCommand(
         if (c.clip) await rasterEmbed(ctx, c);
         else c.paint(pdfDrawContext(ctx, c.box.x, c.box.y), { x: 0, y: 0, w: c.box.w, h: c.box.h });
     } else await rasterEmbed(ctx, c); // image
-    if (rot) ctx.page.pushOperators(popGraphicsState());
+    if (rot) ctx.page.pushOperators(pdfLib().popGraphicsState());
 }
 
 function drawPdfBrand(ctx: Ctx, pageW: number): void {
@@ -231,7 +230,7 @@ async function renderFramedPdf(
     tk: Tokens,
     brand: boolean,
 ): Promise<Uint8Array> {
-    const pdf = await PDFDocument.create();
+    const pdf = await pdfLib().PDFDocument.create();
     const measureCx = measureCtx();
     const allText = pages.flatMap((p) => p.framed).filter(isTextCmd);
     const fonts = await buildFontBook(pdf, allText, themeFamilies(tk), measureCx);
@@ -244,7 +243,7 @@ async function renderFramedPdf(
                 y: 0,
                 width: p.pageW,
                 height: p.pageH,
-                color: rgb(...bg.rgb),
+                color: pdfLib().rgb(...bg.rgb),
             });
         const ctx: Ctx = { doc: pdf, page, pageH: p.pageH, fonts };
         for (const c of p.framed) await emitCommand(ctx, c, measureCx);
@@ -334,6 +333,7 @@ export async function buildPdfAuto(
     opts?: ExportOptions,
 ): Promise<PdfBuild> {
     const brand = opts?.brand ?? false;
+    await loadPdfLib();
     // paper has no live layer, so interactive elements export as whatever static form they declare
     const art = applyFallbacks(artifact);
     return profileFor(art).kind === "continuous"

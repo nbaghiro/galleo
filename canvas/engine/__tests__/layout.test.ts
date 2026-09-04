@@ -642,6 +642,36 @@ describe("decor — negative-z floats are out of the reading order", () => {
     });
 });
 
+describe("reading order — overlays read after the flow", () => {
+    it("emits every overlay text after every flow text, decoration before both", () => {
+        const node: EngineNode = {
+            w: fixed(400),
+            h: fixed(200),
+            children: [
+                {
+                    ...boxNode("wash", fixed(50), fixed(50), { float: { z: -1 } }),
+                    children: [textNode("behind")],
+                },
+                textNode("first"),
+                textNode("second"),
+                {
+                    ...boxNode("badge", fixed(40), fixed(20), { float: { x: "end", y: "start" } }),
+                    children: [textNode("overlay")],
+                },
+            ],
+        };
+        const texts = cmds(node, 400, 200).flatMap((c) =>
+            c.kind === "text" ? [{ t: c.text.text, decor: !!c.decor }] : [],
+        );
+        expect(texts).toEqual([
+            { t: "behind", decor: true }, // painted first, spoken never
+            { t: "first", decor: false },
+            { t: "second", decor: false },
+            { t: "overlay", decor: false }, // real content, read after the flow it annotates
+        ]);
+    });
+});
+
 describe("float heights and the unbounded sentinel", () => {
     const SENTINEL = 100000; // what layoutSection passes as the container height
 

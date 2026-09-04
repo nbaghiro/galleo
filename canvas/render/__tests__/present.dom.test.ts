@@ -32,6 +32,32 @@ describe("sectionSlideCount", () => {
         });
         expect(sectionSlideCount(section, tokens, deck)).toBeGreaterThan(1);
     });
+
+    // a run-through asks for every prior section on every advance, so the count is memoized
+    it("counts a section once per theme and profile, and recounts when either changes", () => {
+        const paras = Array.from({ length: 60 }, (_, i) => inst("text", { text: `Line ${i}` }));
+        const section = sectionOf({
+            type: "container",
+            data: { direction: "col", children: paras },
+        });
+        let laidOut = 0;
+        const counted = {
+            ...tokens,
+            get fontBody(): string {
+                laidOut++;
+                return tokens.fontBody;
+            },
+        };
+
+        const n = sectionSlideCount(section, counted, deck);
+        const reads = laidOut;
+        expect(reads).toBeGreaterThan(0);
+        expect(sectionSlideCount(section, counted, deck)).toBe(n);
+        expect(laidOut).toBe(reads); // the second ask laid nothing out
+
+        expect(sectionSlideCount(section, counted, resolveProfile("doc"))).toBeGreaterThan(0);
+        expect(laidOut).toBeGreaterThan(reads);
+    });
 });
 
 describe("slideElement", () => {

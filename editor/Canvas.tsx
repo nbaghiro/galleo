@@ -26,7 +26,7 @@ import {
     backdropCss,
     createSectionStackCache,
     offsetRegion,
-    paint,
+    paintReconcile,
     paintSectionStack,
     scaledHostCss,
     sectionFrameHeight,
@@ -114,6 +114,7 @@ import { ElementGenStage } from "./panels/GenOverlays";
 import { TextEditor } from "./panels/TextEditor";
 import { CommentLayer } from "./panels/Comments";
 import { CollabLayer, CollabViewportChrome } from "./panels/Collab";
+import { fontsGeneration } from "@ui/fonts";
 import { LiveLayer } from "@ui/live";
 import { collabActive, cursorForPoint, elementRefFor, sendPresence } from "./core/collab";
 
@@ -243,7 +244,7 @@ export const Canvas: Component = () => {
                     ? laid.commands.filter((c) => !(c.kind === "text" && c.id === hideKey))
                     : laid.commands;
                 const el = entry?.el ?? document.createElement("div");
-                paint(commands, el);
+                paintReconcile(el, commands);
                 if (el.parentElement !== panelHost) panelHost.appendChild(el);
                 entry = {
                     el,
@@ -263,7 +264,6 @@ export const Canvas: Component = () => {
             const below = anchor.y + anchor.h + PANEL_GAP;
             const above = anchor.y - PANEL_GAP - entry.height;
             const y = below + entry.height > viewBottom && above >= viewTop ? above : below;
-            // paint() forces relative on its host, so the float is (re)stated after it, not before
             entry.el.style.position = "absolute";
             entry.el.style.pointerEvents = "auto";
             entry.el.style.left = `${x}px`;
@@ -342,22 +342,21 @@ export const Canvas: Component = () => {
                 window: win,
                 slideFrame: slideFrame(),
                 freezeFit: fitFreeze(),
-                placeholder: waiting.size
-                    ? (s, layoutW) => {
-                          const summary = waiting.get(s.id);
-                          return summary
-                              ? layoutPlaceholder(
-                                    s,
-                                    summary,
-                                    layoutW,
-                                    editorTokens(),
-                                    profile,
-                                    fullW,
-                                    knownHeight(s.id, fullW),
-                                )
-                              : undefined;
-                      }
-                    : undefined,
+                pending: waiting.size ? (s) => waiting.has(s.id) : undefined,
+                placeholder: (s, layoutW) => {
+                    const summary = waiting.get(s.id);
+                    return summary
+                        ? layoutPlaceholder(
+                              s,
+                              summary,
+                              layoutW,
+                              editorTokens(),
+                              profile,
+                              fullW,
+                              knownHeight(s.id, fullW),
+                          )
+                        : undefined;
+                },
             },
         );
         // Above a measured bound, not on every paint: the engine solves layout from text metrics on
@@ -1029,6 +1028,11 @@ export const Canvas: Component = () => {
 
 const THUMB_PLACEHOLDER_H = 80; // box an un-laid-out thumb reserves for virtualization + reorder
 
+// The rail windows like the stack does: a thumb paints in when it nears the rail and only drops
+// once it has left the far wider retention band, so one parked on a boundary cannot churn.
+const THUMB_PAINT_MARGIN = "300px 0px";
+const THUMB_KEEP_MARGIN = "1500px 0px";
+
 export const Thumb: Component<{
     section: Section;
     index: number;
@@ -1036,26 +1040,39 @@ export const Thumb: Component<{
 }> = (props) => {
     let wrap!: HTMLButtonElement;
     let inner!: HTMLDivElement;
-    // lay out only once the thumb nears the rail; once seen it stays painted
     const [seen, setSeen] = createSignal(false);
 
     onMount(() => {
         wrap.style.height = `${THUMB_PLACEHOLDER_H}px`;
+        const root = props.root?.() ?? null;
         const io = new IntersectionObserver(
             (entries) => {
-                if (entries.some((e) => e.isIntersecting)) {
-                    setSeen(true);
-                    io.disconnect();
-                }
+                if (entries.some((e) => e.isIntersecting)) setSeen(true);
             },
-            { root: props.root?.() ?? null, rootMargin: "300px 0px" },
+            { root, rootMargin: THUMB_PAINT_MARGIN },
+        );
+        const retain = new IntersectionObserver(
+            (entries) => {
+                if (!entries.some((e) => e.isIntersecting)) setSeen(false);
+            },
+            { root, rootMargin: THUMB_KEEP_MARGIN },
         );
         io.observe(wrap);
-        onCleanup(() => io.disconnect());
+        retain.observe(wrap);
+        onCleanup(() => {
+            io.disconnect();
+            retain.disconnect();
+        });
     });
 
     createEffect(() => {
-        if (!seen()) return;
+        if (!seen()) {
+            // the wrap keeps the height its last paint measured, so releasing the DOM behind the
+            // reader leaves the rail's geometry (and its scrollbar) exactly where it was
+            paintReconcile(inner, []);
+            return;
+        }
+        fontsGeneration(); // the canvas has its own listener; the rail holds a layout too
         // lay out at the canvas width, then CSS-scale down, so the thumb is a true zoomed-out copy
         const theme = editorTokens();
         const profile = profileFor(editor.artifact);
@@ -1080,8 +1097,9 @@ export const Thumb: Component<{
                   held?.id === props.section.id ? held.scale : undefined,
               )
             : layoutSection(props.section, layoutW, measureText, theme, profile);
-        inner.style.cssText = scaledHostCss(layoutW, height, scale);
-        paint(commands, inner);
+        // the reconciler leaves the host's own box alone, so the thumb states its own containing block
+        inner.style.cssText = `position:relative;${scaledHostCss(layoutW, height, scale)}`;
+        paintReconcile(inner, commands);
         wrap.style.height = `${Math.round(height * scale) + 2}px`;
     });
 

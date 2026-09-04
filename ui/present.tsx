@@ -39,6 +39,7 @@ import {
     stepHoldMs,
 } from "@canvas/render/present";
 import { Portal } from "solid-js/web";
+import { createFontsInvalidator } from "./fonts";
 import { LiveLayer } from "./live";
 import { backdropHostStyle, SlideProgress } from "./section";
 import { FloatingBar, Popover } from "./overlay";
@@ -275,6 +276,7 @@ export const PresentSurface: Component<{
     let paintHost: HTMLDivElement | null = null;
     let overlayHost: HTMLDivElement | null = null;
     const stackCache = createSectionStackCache();
+    const fontsSettled = createFontsInvalidator(stackCache);
     let lastWindow: StackWindow | null = null;
     // What this reader has opened or switched to, keyed by element address. Never written back:
     // the stored value is the author's default, this is one session's view of it.
@@ -564,6 +566,7 @@ export const PresentSurface: Component<{
         index();
         tokens();
         showOverview();
+        fontsSettled();
         void props.artifact;
         // an overview repaint must not eat the cue, or a grid click lands without motion
         const consumed = paged() && !showOverview();

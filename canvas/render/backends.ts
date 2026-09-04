@@ -2,6 +2,7 @@ import type {
     DrawContext,
     DrawStyle,
     DrawTextStyle,
+    ImageLeaf,
     PathSink,
     Run,
     TextLeaf,
@@ -472,7 +473,17 @@ function applyLink(el: HTMLElement, c: RenderCommand): void {
 // commands paint as flat siblings, so a linked one is its own anchor rather than a wrapper
 const tagFor = (c: RenderCommand): string => (c.link ? "a" : "div");
 
-function applyCommand(el: HTMLElement, c: RenderCommand): void {
+/**
+ * Which copy of a picture a paint fetches. The backend knows layout px, not the CSS scale it will
+ * be drawn at, so the surface is the only honest owner of "I am small": a tile or a plate asks for
+ * `"thumb"`, and the editor, present, publish and every export stay on the full asset.
+ */
+export type RenderAssets = "full" | "thumb";
+
+const imageSrc = (im: ImageLeaf, assets: RenderAssets): string =>
+    (assets === "thumb" ? im.thumb : undefined) ?? im.src;
+
+function applyCommand(el: HTMLElement, c: RenderCommand, assets: RenderAssets = "full"): void {
     applyLink(el, c);
     // Decoration paints but is not read: it sits behind the flow and says nothing the text does not.
     // A reused node may have been either, so the non-decor case clears what applyLink didn't own.
@@ -530,6 +541,7 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
         if (c.fill?.shadow) el.style.boxShadow = c.fill.shadow;
     } else if (c.kind === "image") {
         const im = c.image;
+        const src = imageSrc(im, assets);
         // reused elements keep their attributes; the zoomed path names itself with a real <img alt>
         el.removeAttribute("role");
         el.removeAttribute("aria-label");
@@ -542,25 +554,29 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
             el.style.overflow = "hidden";
             if (im.radius !== undefined) el.style.borderRadius = `${im.radius}px`;
             const img = document.createElement("img");
-            img.src = im.src;
+            img.src = src;
             img.alt = im.alt ?? "";
             img.draggable = false;
             img.decoding = "async"; // don't block the stack's paint on one decode
-            img.style.cssText = `width:100%;height:100%;object-fit:${im.fit};object-position:center;transform:scale(${im.zoom});display:block`;
+            const at = im.focus ? `${im.focus.x * 100}% ${im.focus.y * 100}%` : "center";
+            // transform-origin follows the focal point so the zoom crops toward it too
+            img.style.cssText = `width:100%;height:100%;object-fit:${im.fit};object-position:${at};transform:scale(${im.zoom});transform-origin:${at};display:block`;
             el.appendChild(img);
         } else {
-            warmImage(im.src);
+            warmImage(src);
             if (im.alt) {
                 el.setAttribute("role", "img");
                 el.setAttribute("aria-label", im.alt);
             }
             const scrim = im.scrim;
-            const url = `url("${im.src}")`;
+            const url = `url("${src}")`;
             el.style.backgroundImage = scrim
                 ? `linear-gradient(rgba(0,0,0,${scrim}), rgba(0,0,0,${scrim})), ${url}`
                 : url;
             el.style.backgroundSize = im.fit;
-            el.style.backgroundPosition = "center";
+            el.style.backgroundPosition = im.focus
+                ? `${im.focus.x * 100}% ${im.focus.y * 100}%`
+                : "center";
             el.style.backgroundRepeat = "no-repeat";
             if (im.radius !== undefined) el.style.borderRadius = `${im.radius}px`;
         }
@@ -579,13 +595,17 @@ function applyCommand(el: HTMLElement, c: RenderCommand): void {
 }
 
 // Returns the nodes it created, index-parallel to `commands`, for chrome that has to address one.
-export function paint(commands: RenderCommand[], host: HTMLElement): HTMLElement[] {
+export function paint(
+    commands: RenderCommand[],
+    host: HTMLElement,
+    assets: RenderAssets = "full",
+): HTMLElement[] {
     host.replaceChildren();
     host.style.position = "relative";
     const nodes: HTMLElement[] = [];
     for (const c of commands) {
         const el = document.createElement(tagFor(c));
-        applyCommand(el, c);
+        applyCommand(el, c, assets);
         host.appendChild(el);
         nodes.push(el);
     }
@@ -594,7 +614,11 @@ export function paint(commands: RenderCommand[], host: HTMLElement): HTMLElement
 
 // reset each reused node first so a kind change can't inherit old styling; a tag change (div ↔ a)
 // can only be resolved by replacing it
-function paintReconcile(host: HTMLElement, commands: RenderCommand[]): HTMLElement[] {
+export function paintReconcile(
+    host: HTMLElement,
+    commands: RenderCommand[],
+    assets: RenderAssets = "full",
+): HTMLElement[] {
     const out: HTMLElement[] = [];
     const nodes = host.childNodes;
     for (let i = 0; i < commands.length; i++) {
@@ -609,7 +633,7 @@ function paintReconcile(host: HTMLElement, commands: RenderCommand[]): HTMLEleme
             el.style.cssText = "";
             el.replaceChildren();
         }
-        applyCommand(el, commands[i]!);
+        applyCommand(el, commands[i]!, assets);
         out.push(el);
     }
     while (host.childNodes.length > commands.length) host.removeChild(host.lastChild!);
@@ -628,22 +652,19 @@ function roundRectPath(
     cx.roundRect(x, y, w, h, Math.max(0, Math.min(r, w / 2, h / 2)));
 }
 
-function drawImageFit(
-    cx: CanvasRenderingContext2D,
-    img: HTMLImageElement,
-    b: { x: number; y: number; w: number; h: number },
+/**
+ * Where a fitted image draws inside its box: the crop's slack is split by the focal point
+ * (0.5/0.5 = today's centring), so a cover crop keeps the part of the picture that matters.
+ * Exported for its tests; the DOM backend expresses the same rule as background-position.
+ */
+export function imageDrawBox(
     fit: string,
-    radius?: number,
-    scrim?: number,
+    imgRatio: number,
+    b: { x: number; y: number; w: number; h: number },
     zoom = 1,
-): void {
-    cx.save();
-    // clip when zoomed so a >1 zoom crops instead of bleeding out
-    if (radius || zoom !== 1) {
-        roundRectPath(cx, b.x, b.y, b.w, b.h, radius ?? 0);
-        cx.clip();
-    }
-    const ir = img.width / img.height || 1;
+    focus?: { x: number; y: number },
+): { x: number; y: number; w: number; h: number } {
+    const ir = imgRatio || 1;
     const br = b.w / b.h;
     let dw: number;
     let dh: number;
@@ -656,7 +677,29 @@ function drawImageFit(
     }
     dw *= zoom;
     dh *= zoom;
-    cx.drawImage(img, b.x + (b.w - dw) / 2, b.y + (b.h - dh) / 2, dw, dh);
+    const fx = focus?.x ?? 0.5;
+    const fy = focus?.y ?? 0.5;
+    return { x: b.x + (b.w - dw) * fx, y: b.y + (b.h - dh) * fy, w: dw, h: dh };
+}
+
+function drawImageFit(
+    cx: CanvasRenderingContext2D,
+    img: HTMLImageElement,
+    b: { x: number; y: number; w: number; h: number },
+    fit: string,
+    radius?: number,
+    scrim?: number,
+    zoom = 1,
+    focus?: { x: number; y: number },
+): void {
+    cx.save();
+    // clip when zoomed so a >1 zoom crops instead of bleeding out
+    if (radius || zoom !== 1) {
+        roundRectPath(cx, b.x, b.y, b.w, b.h, radius ?? 0);
+        cx.clip();
+    }
+    const d = imageDrawBox(fit, img.width / img.height, b, zoom, focus);
+    cx.drawImage(img, d.x, d.y, d.w, d.h);
     if (scrim) {
         cx.fillStyle = `rgba(0,0,0,${scrim})`;
         cx.fillRect(b.x, b.y, b.w, b.h);
@@ -759,7 +802,16 @@ function drawCommands(
         } else if (c.kind === "image") {
             const img = images.get(c.image.src);
             if (img)
-                drawImageFit(cx, img, b, c.image.fit, c.image.radius, c.image.scrim, c.image.zoom);
+                drawImageFit(
+                    cx,
+                    img,
+                    b,
+                    c.image.fit,
+                    c.image.radius,
+                    c.image.scrim,
+                    c.image.zoom,
+                    c.image.focus,
+                );
             const bd = c.image.border;
             if (bd) {
                 roundRectPath(cx, b.x, b.y, b.w, b.h, c.image.radius ?? 0);
@@ -996,7 +1048,12 @@ export function paintSectionStack(
         // The section carrying an open inline edit, so type cannot resize under the caret between
         // keystrokes; the editor re-solves on commit by dropping the freeze.
         freezeFit?: { id: string; scale: number } | null;
-        // stand-in for a section whose content hasn't loaded yet
+        // a surface small enough that the editor-grade picture is wasted bytes says so here
+        assets?: RenderAssets;
+        // Stand-in for a section whose content hasn't loaded yet, in two halves: `pending` is the
+        // cheap one and keys the cache, so a repaint that reuses a layer never lays a ghost out.
+        // `placeholder` is consulted only for a section `pending` names, and only on a miss.
+        pending?: (section: Section) => boolean;
         placeholder?: (
             section: Section,
             layoutW: number,
@@ -1011,6 +1068,7 @@ export function paintSectionStack(
     painted: number;
     layers: SectionLayer[];
 } {
+    const assets = opts.assets ?? "full";
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
     const slide = !!opts.slideFrame && profile.kind === "paged";
     // paged has no scroll to stick against, so it ignores pinning the way PNG ignores a link
@@ -1047,10 +1105,10 @@ export function paintSectionStack(
             slide && opts.freezeFit?.id === section.id ? opts.freezeFit.scale : undefined;
         const fitKey = freeze === undefined ? "" : `${freeze}`;
         const prev = cache?.entries.get(section.id);
-        const ghost = opts.placeholder?.(section, layoutW);
+        const pending = !!opts.pending?.(section);
         const reuse =
             prev &&
-            prev.ghost === !!ghost &&
+            prev.ghost === pending &&
             prev.section === section &&
             prev.layoutW === layoutW &&
             prev.theme === theme &&
@@ -1059,6 +1117,7 @@ export function paintSectionStack(
             prev.fitKey === fitKey;
 
         let entry: SectionCacheEntry;
+        const ghost = reuse || !pending ? undefined : opts.placeholder?.(section, layoutW);
         if (reuse) {
             entry = prev;
         } else if (ghost) {
@@ -1097,7 +1156,9 @@ export function paintSectionStack(
                 hideKey,
                 fitKey,
                 commands,
-                ghost: false,
+                // keyed by what was asked, not by what came back: a pending section whose stand-in
+                // the caller declined still reuses instead of re-laying-out every repaint
+                ghost: pending,
                 layer: prev?.layer ?? null,
                 nodes: [],
                 regions: res.regions,
@@ -1112,11 +1173,11 @@ export function paintSectionStack(
         if (inWindow && entry.commands.length) {
             if (!entry.layer) {
                 entry.layer = document.createElement("div");
-                entry.nodes = paint(entry.commands, entry.layer);
+                entry.nodes = paint(entry.commands, entry.layer, assets);
             } else if (!reuse) {
                 entry.nodes = cache
-                    ? paintReconcile(entry.layer, entry.commands)
-                    : paint(entry.commands, entry.layer);
+                    ? paintReconcile(entry.layer, entry.commands, assets)
+                    : paint(entry.commands, entry.layer, assets);
             }
             const layer = entry.layer;
             // paint() forces relative; keep layers out of flow. A pinned one is the exception: it
@@ -1150,7 +1211,9 @@ export function paintSectionStack(
     }
     if (cache)
         for (const id of [...cache.entries.keys()]) if (!live.has(id)) cache.entries.delete(id);
-    host.replaceChildren(...layers);
+    // re-inserting the same layers in the same order rewrites the child list for nothing, which is
+    // what a scroll repaint between edits would otherwise cost
+    if (!sameChildren(host, layers)) host.replaceChildren(...layers);
     return {
         tops,
         heights,
@@ -1166,6 +1229,13 @@ const keep = (w: StackWindow): StackWindow => ({
     top: w.top - KEEP_MARGIN,
     bottom: w.bottom + KEEP_MARGIN,
 });
+
+const sameChildren = (host: HTMLElement, layers: HTMLElement[]): boolean => {
+    const kids = host.childNodes;
+    if (kids.length !== layers.length) return false;
+    for (let i = 0; i < layers.length; i++) if (kids[i] !== layers[i]) return false;
+    return true;
+};
 
 export function fitSlideContent(
     commands: RenderCommand[],

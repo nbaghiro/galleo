@@ -10,12 +10,28 @@ import { sectionSlides } from "./commands";
 export const SLIDE_W = 1280;
 export const SLIDE_H = 720;
 
+// Counting a section's pages lays it out, and a run-through asks for every prior section on every
+// advance. Keyed by the three identities the pagination depends on, all of which are replaced
+// rather than mutated (`profileFor`/`resolveTheme` guarantee that), so a stale count cannot survive
+// a theme or page-size change; the section holds the entry, so nothing outlives the document.
+let slideCounts = new WeakMap<Section, { tokens: Tokens; profile: FormatDescriptor; n: number }>();
+
+// real metrics can repaginate a section, so a settled face invalidates the counts with the measures
+if (typeof document !== "undefined" && document.fonts)
+    document.fonts.addEventListener("loadingdone", () => {
+        slideCounts = new WeakMap();
+    });
+
 export function sectionSlideCount(
     section: Section,
     tokens: Tokens,
     profile: FormatDescriptor,
 ): number {
-    return sectionSlides(section, tokens, profile).length;
+    const hit = slideCounts.get(section);
+    if (hit && hit.tokens === tokens && hit.profile === profile) return hit.n;
+    const n = sectionSlides(section, tokens, profile).length;
+    slideCounts.set(section, { tokens, profile, n });
+    return n;
 }
 
 /** Where a flat slide index falls: which section, and which page within it. Both 0-based. */

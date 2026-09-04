@@ -1,8 +1,13 @@
 // @vitest-environment happy-dom
 import "@elements/register";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { TextLeaf } from "@engine/node";
-import { clearMeasureCache, measureText, sectionSlides } from "@canvas/render/commands";
+import type { Measured, TextLeaf } from "@engine/node";
+import {
+    clearMeasureCache,
+    measureText,
+    MEASURE_CACHE_CAP,
+    sectionSlides,
+} from "@canvas/render/commands";
 import { resolveProfile } from "@engine/profile";
 import { inst, installCanvas2D, sectionOf, tokens } from "@canvas/testkit";
 
@@ -18,6 +23,21 @@ describe("measureText", () => {
         expect(a.width).toBeGreaterThan(0);
         expect(a.height).toBeGreaterThan(0);
         expect(b).toBe(a); // cache hit returns the same object
+    });
+
+    it("evicts the least recently used, so a hit outlives an older-inserted burst", () => {
+        clearMeasureCache();
+        const at = (i: number): TextLeaf => ({ ...leaf, text: `m${i}` });
+        let second: Measured | undefined;
+        for (let i = 0; i < MEASURE_CACHE_CAP; i++) {
+            const m = measureText(at(i), 400);
+            if (i === 1) second = m;
+        }
+        const first = measureText(at(0), 400); // a hit, which is what refreshes its recency
+        measureText(at(MEASURE_CACHE_CAP), 400); // the insert that trips eviction
+
+        expect(measureText(at(0), 400)).toBe(first);
+        expect(measureText(at(1), 400)).not.toBe(second);
     });
 });
 

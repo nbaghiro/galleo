@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { inflateSync } from "node:zlib";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import {
@@ -6,6 +6,7 @@ import {
     drawTextAbs,
     emitRect,
     emitText,
+    loadPdfLib,
     pdfColor,
     pdfDrawContext,
     roundRectPath,
@@ -13,6 +14,9 @@ import {
 } from "@canvas/render/pdf-draw";
 import { toRuns } from "@model/text";
 import { textMetricsCtx } from "@canvas/testkit";
+
+// the emitters below are the ones an export entry calls after awaiting the dynamic module
+beforeAll(loadPdfLib);
 
 describe("pdfColor", () => {
     it("parses hex, shorthand, and #rrggbbaa", () => {

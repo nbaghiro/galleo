@@ -1,11 +1,28 @@
 import type { DrawContext, DrawStyle, DrawTextStyle, RenderCommand } from "@engine/node";
-import type { PDFDocument, PDFFont, PDFPage, PDFPageDrawSVGOptions } from "pdf-lib";
-import { LineCapStyle, PDFString, StandardFonts, rgb } from "pdf-lib";
+import type { LineCapStyle, PDFDocument, PDFFont, PDFPage, PDFPageDrawSVGOptions } from "pdf-lib";
 import { buildPathData } from "./svg-emit";
 import { CODE_BG, LINE_HEIGHT_FACTOR, layoutRuns, leafForRuns } from "./commands";
 import { fetchFontTtf, familyFromFont, italicFromFont, slotFor, weightFromFont } from "./fonts";
 
 type RGB = [number, number, number];
+
+type PdfLib = typeof import("pdf-lib");
+
+let lib: PdfLib | undefined;
+let loading: Promise<PdfLib> | undefined;
+
+// ~512KB parsed for an export most sessions never open, so it stays off the entry bundle: every
+// PDF entry awaits this before the synchronous emitters below reach for `pdfLib()`
+export async function loadPdfLib(): Promise<PdfLib> {
+    loading ??= import("pdf-lib");
+    lib = await loading;
+    return lib;
+}
+
+export function pdfLib(): PdfLib {
+    if (!lib) throw new Error("pdf-lib not loaded");
+    return lib;
+}
 
 // CSS color → pdf-lib rgb components (0..1) + alpha; null if unparseable (caller omits the paint)
 export function pdfColor(css: string | undefined): { rgb: RGB; alpha: number } | null {
@@ -35,12 +52,10 @@ export function pdfColor(css: string | undefined): { rgb: RGB; alpha: number } |
     return null;
 }
 
-const capStyle = (c?: DrawStyle["cap"]): LineCapStyle =>
-    c === "round"
-        ? LineCapStyle.Round
-        : c === "square"
-          ? LineCapStyle.Projecting
-          : LineCapStyle.Butt;
+const capStyle = (c?: DrawStyle["cap"]): LineCapStyle => {
+    const caps = pdfLib().LineCapStyle;
+    return c === "round" ? caps.Round : c === "square" ? caps.Projecting : caps.Butt;
+};
 
 // drawSvgPath paints one flat color, so a gradient flattens to the midpoint of its stops; shadows drop
 function flatFill(s: DrawStyle): { rgb: RGB; alpha: number } | null {
@@ -57,6 +72,7 @@ function flatFill(s: DrawStyle): { rgb: RGB; alpha: number } | null {
 
 function svgOpts(s: DrawStyle, pageH: number): PDFPageDrawSVGOptions {
     // drawSvgPath flips y, so anchoring at (0, pageH) lands an absolute-coord path at (px, pageH - py)
+    const { rgb } = pdfLib();
     const o: PDFPageDrawSVGOptions = { x: 0, y: pageH };
     const f = flatFill(s);
     if (f) {
@@ -97,7 +113,7 @@ export function addLinkAnnot(
             Subtype: "Link",
             Rect: [box.x, c.pageH - (box.y + box.h), box.x + box.w, c.pageH - box.y],
             Border: [0, 0, 0],
-            A: { Type: "Action", S: "URI", URI: PDFString.of(url) },
+            A: { Type: "Action", S: "URI", URI: pdfLib().PDFString.of(url) },
         }),
     );
     c.page.node.addAnnot(ref);
@@ -211,7 +227,7 @@ export function drawTextAbs(c: Ctx, text: string, x: number, y: number, s: DrawT
         y: c.pageH - by,
         size,
         font,
-        color: rgb(...col.rgb),
+        color: pdfLib().rgb(...col.rgb),
         opacity: col.alpha < 1 ? col.alpha : undefined,
     });
 }
@@ -308,6 +324,7 @@ export async function buildFontBook(
     themeFamilies: string[],
     measureCx: CanvasRenderingContext2D,
 ): Promise<FontResolver> {
+    const { StandardFonts } = await loadPdfLib();
     const fontkit = (await import("@pdf-lib/fontkit")).default;
     pdf.registerFontkit(fontkit);
 

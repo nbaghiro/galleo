@@ -729,7 +729,7 @@ const measureUncached = (leaf: TextLeaf, maxWidth: number): Measured => {
 
 // memoized measurement, keyed on metric-affecting inputs only; cleared on font load (below)
 const measureCache = new Map<string, Measured>();
-const MEASURE_CACHE_CAP = 6000;
+export const MEASURE_CACHE_CAP = 6000; // exported for the eviction test
 
 function measureKey(leaf: TextLeaf, maxWidth: number): string {
     const mw = leaf.wrap === "none" || !Number.isFinite(maxWidth) ? "*" : maxWidth;
@@ -754,10 +754,16 @@ export function clearMeasureCache(): void {
 export const measureText = (leaf: TextLeaf, maxWidth: number): Measured => {
     const key = measureKey(leaf, maxWidth);
     const hit = measureCache.get(key);
-    if (hit) return hit;
+    if (hit) {
+        // re-insert to refresh recency, so eviction is LRU and a burst at one width cannot take the
+        // entries the surface being typed in is hitting
+        measureCache.delete(key);
+        measureCache.set(key, hit);
+        return hit;
+    }
     const result = measureUncached(leaf, maxWidth);
     if (measureCache.size >= MEASURE_CACHE_CAP) {
-        // FIFO-evict the oldest quarter (Map preserves insertion order)
+        // evict the least recently used quarter (Map preserves insertion order)
         let n = MEASURE_CACHE_CAP >> 2;
         for (const k of measureCache.keys()) {
             measureCache.delete(k);

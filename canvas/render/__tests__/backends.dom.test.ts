@@ -8,6 +8,7 @@ import {
     createSectionStackCache,
     fitSlideContent,
     paint,
+    paintReconcile,
     paintSectionStack,
     renderSlidePage,
     renderToCanvas,
@@ -96,6 +97,81 @@ describe("paint / applyCommand", () => {
     });
 });
 
+describe("image focal point", () => {
+    const img = (extra: Record<string, unknown> = {}): RenderCommand => ({
+        kind: "image",
+        box: { x: 0, y: 0, w: 100, h: 100 },
+        image: { src: "p.png", fit: "cover", ...extra },
+    });
+
+    it("paints background-position from the focal point, centred when absent", () => {
+        const host = document.createElement("div");
+        const [plain, focused] = paint([img(), img({ focus: { x: 0.25, y: 1 } })], host);
+        expect(plain!.style.backgroundPosition).toBe("center center"); // the DOM's serialized form
+        expect(focused!.style.backgroundPosition).toBe("25% 100%");
+    });
+
+    it("a zoomed image crops toward the focal point: object-position and transform-origin agree", () => {
+        const host = document.createElement("div");
+        const [node] = paint([img({ zoom: 2, focus: { x: 0, y: 0.5 } })], host);
+        const inner = node!.querySelector("img")!;
+        expect(inner.style.objectPosition).toBe("0% 50%");
+        expect(inner.style.transformOrigin).toBe("0% 50%");
+    });
+});
+
+// a 176px tile has no use for the editor's copy of a photo; the surface says so, the backend obeys
+describe("thumb-grade assets", () => {
+    const photo = (extra: Record<string, unknown> = {}): RenderCommand => ({
+        kind: "image",
+        box: { x: 0, y: 0, w: 100, h: 100 },
+        image: { src: "full.jpg", thumb: "small.jpg", fit: "cover", ...extra },
+    });
+
+    it("paints the full asset by default, and the thumb where the surface asked for one", () => {
+        const full = paint([photo()], document.createElement("div"))[0]!;
+        expect(full.style.backgroundImage).toContain("full.jpg");
+        const small = paint([photo()], document.createElement("div"), "thumb")[0]!;
+        expect(small.style.backgroundImage).toContain("small.jpg");
+    });
+
+    it("falls back to the full asset when the source offered no small copy", () => {
+        const cmd: RenderCommand = {
+            kind: "image",
+            box: { x: 0, y: 0, w: 100, h: 100 },
+            image: { src: "only.jpg", fit: "cover" },
+        };
+        const el = paint([cmd], document.createElement("div"), "thumb")[0]!;
+        expect(el.style.backgroundImage).toContain("only.jpg");
+    });
+
+    it("reaches the zoomed <img> path and the reconciler too", () => {
+        const zoomed = paint([photo({ zoom: 2 })], document.createElement("div"), "thumb")[0]!;
+        expect(zoomed.querySelector("img")!.getAttribute("src")).toBe("small.jpg");
+        const host = document.createElement("div");
+        paintReconcile(host, [photo({ zoom: 2 })], "thumb");
+        expect(host.querySelector("img")!.getAttribute("src")).toBe("small.jpg");
+    });
+
+    it("a stack passes its choice down: the plate gets the thumb, the editor the full asset", () => {
+        const sections = [
+            sectionOf(inst("image", { src: "full.jpg", thumbSrc: "small.jpg" }), { id: "s1" }),
+        ];
+        const src = (assets?: "full" | "thumb"): string => {
+            const host = document.createElement("div");
+            paintSectionStack(host, sections, resolveProfile("deck"), tokens, {
+                fullW: 1000,
+                ...(assets ? { assets } : {}),
+            });
+            return host.innerHTML;
+        };
+        expect(src("thumb")).toContain("small.jpg");
+        expect(src("thumb")).not.toContain("full.jpg");
+        expect(src()).toContain("full.jpg");
+        expect(src()).not.toContain("small.jpg");
+    });
+});
+
 describe("inline label hiding", () => {
     it("hideId with a label: prefix hides the button's label text, nothing else", () => {
         const host = document.createElement("div");
@@ -165,6 +241,35 @@ describe("rotation", () => {
             host,
         );
         expect(el!.style.transform).toBe("");
+    });
+});
+
+// what the minimap thumb repaints through: an edit must not rebuild the rail's subtree
+describe("paintReconcile", () => {
+    const two = (a: string, b: string): RenderCommand[] => [
+        { kind: "rect", box: { x: 0, y: 0, w: 10, h: 10 }, fill: { color: a } },
+        { kind: "rect", box: { x: 0, y: 10, w: 10, h: 10 }, fill: { color: b } },
+    ];
+
+    it("keeps the nodes it already has across a repaint", () => {
+        const host = document.createElement("div");
+        const first = paintReconcile(host, two("#000", "#fff"));
+        const second = paintReconcile(host, two("#111", "#fff"));
+        expect(second[0]).toBe(first[0]);
+        expect(second[1]).toBe(first[1]);
+        expect(second[0]!.style.background).toBe("#111");
+    });
+
+    it("drops the surplus when the commands shrink, and empties the host at zero", () => {
+        const host = document.createElement("div");
+        paintReconcile(host, two("#000", "#fff"));
+        paintReconcile(host, [two("#000", "#fff")[0]!]);
+        expect(host.children).toHaveLength(1);
+        // the rail releases a thumb this way, and the host's own box survives it
+        host.style.height = "80px";
+        paintReconcile(host, []);
+        expect(host.children).toHaveLength(0);
+        expect(host.style.height).toBe("80px");
     });
 });
 
@@ -433,7 +538,8 @@ describe("paintSectionStack — windowing", () => {
         const stand = { commands: [rect(500)], height: 500 };
         const { tops, height, painted } = draw(host, sections, {
             fullW: 1000,
-            placeholder: (s) => (s.id === "s1" ? stand : undefined),
+            pending: (s) => s.id === "s1",
+            placeholder: () => stand,
         });
         expect(tops[2]! - tops[1]!).toBe(500 + SECTION_GAP);
         expect(painted).toBe(3); // the stand-in is painted like any other layer
@@ -444,11 +550,54 @@ describe("paintSectionStack — windowing", () => {
         const sections = many(2);
         const { regions } = draw(document.createElement("div"), sections, {
             fullW: 1000,
-            placeholder: (s) =>
-                s.id === "s0" ? { commands: [rect(300)], height: 300 } : undefined,
+            pending: (s) => s.id === "s0",
+            placeholder: () => ({ commands: [rect(300)], height: 300 }),
         });
         expect(regions.some((r) => r.id === "section:s0")).toBe(false);
         expect(regions.some((r) => r.id === "section:s1")).toBe(true);
+    });
+
+    it("leaves the host's child list alone when the window has not moved", () => {
+        const sections = many(12);
+        const cache = createSectionStackCache();
+        const host = document.createElement("div");
+        const geom = draw(document.createElement("div"), sections, { fullW: 1000 });
+        const win = { top: 0, bottom: geom.tops[3]! };
+        draw(host, sections, { fullW: 1000, cache, window: win });
+
+        const mo = new MutationObserver(() => {});
+        mo.observe(host, { childList: true });
+        draw(host, sections, { fullW: 1000, cache, window: win });
+        expect(mo.takeRecords()).toHaveLength(0);
+
+        // and still rewrites it when the band actually moves
+        draw(host, sections, {
+            fullW: 1000,
+            cache,
+            window: { top: geom.tops[8]!, bottom: geom.height },
+        });
+        expect(mo.takeRecords().length).toBeGreaterThan(0);
+        mo.disconnect();
+    });
+
+    it("lays a stand-in out on a miss only, never on a repaint that reuses the layer", () => {
+        const sections = many(3);
+        const cache = createSectionStackCache();
+        const host = document.createElement("div");
+        let laid = 0;
+        const opts = {
+            fullW: 1000,
+            cache,
+            pending: () => true,
+            placeholder: (): { commands: RenderCommand[]; height: number } => {
+                laid++;
+                return { commands: [rect(300)], height: 300 };
+            },
+        };
+        draw(host, sections, opts);
+        expect(laid).toBe(3);
+        draw(host, sections, opts);
+        expect(laid).toBe(3); // the repaint served the cache
     });
 
     it("repaints a section once its content replaces the stand-in", () => {
@@ -458,6 +607,7 @@ describe("paintSectionStack — windowing", () => {
         draw(host, sections, {
             fullW: 1000,
             cache,
+            pending: () => true,
             placeholder: () => ({ commands: [rect(400)], height: 400 }),
         });
         expect(cache.entries.get("s0")?.height).toBe(400);
@@ -525,6 +675,23 @@ describe("paintSectionStack — page-size cache invalidation", () => {
     });
 });
 
+describe("applyCommand — an overlay is read", () => {
+    it("a non-decor float command stays in the a11y tree", () => {
+        const host = document.createElement("div");
+        const [node] = paint(
+            [
+                {
+                    kind: "text",
+                    box: { x: 0, y: 0, w: 60, h: 20 },
+                    text: { text: "overlay", fontId: "Inter", size: 12, wrap: "none" },
+                },
+            ],
+            host,
+        );
+        expect(node!.getAttribute("aria-hidden")).toBeNull();
+    });
+});
+
 describe("applyCommand — decoration is not read", () => {
     const box = { x: 0, y: 0, w: 10, h: 10 };
     const el = (c: RenderCommand): HTMLElement => {
@@ -566,6 +733,7 @@ describe("applyCommand — decoration is not read", () => {
             paintSectionStack(host, [sec], resolveProfile("doc"), tokens, {
                 fullW: 1000,
                 cache,
+                pending: () => true,
                 placeholder: stand(decor),
             });
         };
