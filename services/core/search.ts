@@ -87,6 +87,7 @@ const toHit = (r: Row): SearchHit => ({
     updatedAt: new Date(r.updated_at).toISOString(),
     cover: r.digest?.cover ?? {},
     sections: r.digest?.sections ?? [],
+    ...(r.digest?.background ? { background: r.digest.background } : {}),
     author: r.created_by ? { name: r.author_name, avatarUrl: r.author_avatar } : null,
     lastViewedAt: r.viewed_at ? new Date(r.viewed_at).toISOString() : null,
     matchedIn: r.title_hit === false ? "content" : "title",

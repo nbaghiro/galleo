@@ -66,7 +66,13 @@ import {
 } from "@ui/icons";
 import { classifySwipe } from "@ui/gesture";
 import { isCoarsePointer } from "@ui/viewport";
-import { MiniCanvas, PLATE_CARD_W, PlateBox, SectionThumb } from "@app/components/previews";
+import {
+    MiniCanvas,
+    PLATE_CARD_W,
+    PlateBox,
+    SectionThumb,
+    summaryContent,
+} from "@app/components/previews";
 import { Sidebar, SidebarToggle } from "@app/components/Sidebar";
 
 // fills use soft/accent tints, legible on light and dark unlike line
@@ -947,11 +953,11 @@ export const LibraryView: Component = () => {
 
     // The canvas layout's card: the artifact the way the editor draws it, its own backdrop with the
     // head of the section stack standing on it at the format's own layout width, so a doc sits on
-    // more backdrop than a deck and a site runs to the card's edges. Drawn in the APP theme, like
-    // the other two layouts' tiles: a wall of plates each in its own palette reads as a stack of
-    // unrelated screenshots rather than as one library. The saved theme is still what the artifact
-    // opens in, and the card's specimen mark is where you read it. Hold the pointer still on one
-    // and it takes the wheel, so the plate reads further down the artifact without opening it.
+    // more backdrop than a deck and a site runs to the card's edges. Drawn in the ARTIFACT's own
+    // theme, unlike the tiles in the other two layouts: a plate is big enough to read as the piece
+    // itself rather than as a thumbnail inside our chrome, and its palette is part of what
+    // identifies it. Hold the pointer still on one and it takes the wheel, so the plate reads
+    // further down the artifact without opening it.
     const Plate: Component<{ d: ArtifactSummary; width: number }> = (p) => {
         const secs = (): SectionSummary[] => p.d.sections ?? [];
         const mediaH = (): number => Math.round(p.width / PLATE_ASPECT);
@@ -1032,19 +1038,7 @@ export const LibraryView: Component = () => {
                 : out;
         }, []);
 
-        // The digest carries the backdrop's image but not the paint behind it, so an artifact
-        // backed by a gradient or a colour reads as its theme's own ground here.
-        const content = createMemo(
-            (): ArtifactContent => ({
-                format: p.d.formatId,
-                theme: appTheme(),
-                sections: head(),
-                ...(p.d.cover?.image
-                    ? { background: { kind: "image" as const, image: p.d.cover.image } }
-                    : {}),
-                ...(p.d.page ? { page: p.d.page } : {}),
-            }),
-        );
+        const content = createMemo((): ArtifactContent => summaryContent(p.d, head()));
 
         return (
             <div ref={(el) => (root = el)} class={cardCls(p.d.id)}>
@@ -1062,7 +1056,7 @@ export const LibraryView: Component = () => {
                         class={`absolute inset-0 block w-full overflow-hidden ${
                             armed() ? "ring-1 ring-inset ring-accent" : ""
                         }`}
-                        style={{ background: appTk().bg }}
+                        style={{ background: resolveTheme(p.d.themeId).tokens.bg }}
                         title={p.d.title}
                         draggable={true}
                         onDragStart={(e) => startDrag(e, p.d.id, p.d.cover?.image)}
@@ -1071,7 +1065,7 @@ export const LibraryView: Component = () => {
                     >
                         <PlateBox
                             content={content()}
-                            themeId={appTheme()}
+                            themeId={p.d.themeId}
                             width={p.width}
                             depth={depth()}
                             scroll={armed()}

@@ -209,6 +209,7 @@ export async function listArtifacts(workspaceId: string, opts: ListOptions): Pro
             cover: digest?.cover ?? {},
             sections: digest?.sections ?? [],
             ...(digest?.page ? { page: digest.page } : {}),
+            ...(digest?.background ? { background: digest.background } : {}),
             access: accessFor({
                 role: opts.viewer.role,
                 userId: opts.viewer.userId,

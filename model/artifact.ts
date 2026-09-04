@@ -576,6 +576,7 @@ export interface ArtifactSummary {
     cover?: Cover;
     sections?: SectionSummary[];
     page?: PageSize; // so library thumbnails get the true aspect without reading the content
+    background?: SectionBackground; // the artifact's backdrop, so a preview paints the real one
     access?: ArtifactAccess; // the caller's own level, resolved server-side per request
 }
 
@@ -650,6 +651,11 @@ export interface ArtifactDigest {
     cover: Cover;
     sections: SectionSummary[];
     page?: PageSize;
+    // The artifact-level backdrop, whole. `cover.image` carries only the url, which is enough to
+    // tint a thumbnail but not to paint the backdrop the way the editor does: a scrim, a gradient
+    // or a flat colour is lost, and a preview without the scrim shows a state the product never
+    // renders. Absent on a row whose digest predates this field.
+    background?: SectionBackground;
 }
 
 // a matched excerpt; `marks` are [start, end) offsets into `text` the client renders highlighted
@@ -1015,9 +1021,20 @@ interface RawSection {
     root?: RawEl;
 }
 interface RawDraft {
-    background?: { image?: string };
+    background?: { kind?: unknown; image?: string };
     sections?: RawSection[];
     page?: { width?: unknown; height?: unknown };
+}
+
+const BG_KINDS = new Set(["none", "tone", "color", "gradient", "image"]);
+
+// The stored backdrop, or nothing. Client-written jsonb, so an unknown `kind` is dropped rather
+// than carried into the digest, where a renderer would have to guess what it meant.
+function backgroundOf(draft: unknown): SectionBackground | undefined {
+    const bg = asDraft(draft).background;
+    return bg && typeof bg.kind === "string" && BG_KINDS.has(bg.kind)
+        ? (bg as SectionBackground)
+        : undefined;
 }
 
 const asDraft = (draft: unknown): RawDraft =>
@@ -1284,10 +1301,12 @@ function pageOf(draft: unknown): PageSize | undefined {
 /** The list-facing derivations in one pass; stored in `artifacts.digest` on every write. */
 export const artifactDigest = (draft: unknown): ArtifactDigest => {
     const page = pageOf(draft);
+    const background = backgroundOf(draft);
     return {
         cover: coverOf(draft),
         sections: sectionsOf(draft),
         ...(page ? { page } : {}),
+        ...(background ? { background } : {}),
     };
 };
 

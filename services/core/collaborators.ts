@@ -354,6 +354,7 @@ export async function sharedWithMe(
         updatedAt: r.updatedAt.toISOString(),
         cover: r.digest?.cover ?? {},
         sections: r.digest?.sections ?? [],
+        ...(r.digest?.background ? { background: r.digest.background } : {}),
         ...(r.digest?.page ? { page: r.digest.page } : {}),
         access: r.access,
         workspaceName: r.workspaceName,
