@@ -214,8 +214,42 @@ export function ensureCardSections(id: string, want: string[]): Promise<void> {
     return Promise.all(batches).then(() => undefined);
 }
 
+/**
+ * Tell the sidebar what a membership change did to its counts, one entry per artifact that moved.
+ * Every path that moves an artifact between folders, or in and out of the library entirely,
+ * reports here: the counts are computed server-side and fetched once with the list, so a
+ * client-side move is invisible to them otherwise.
+ */
+type FolderMove = { from?: string | null; to?: string | null };
+
+// The folders store subscribes rather than being imported: it reaches the theme store and through
+// it @solidjs/router, whose module init calls a client-only API, so pulling it into this import
+// graph fails every node test that touches the library. Unsubscribed, this is a no-op.
+let countSink: ((deltas: Map<string, number>) => void) | null = null;
+export function onFolderCountShift(fn: (deltas: Map<string, number>) => void): void {
+    countSink = fn;
+}
+
+function shiftCounts(moves: FolderMove[]): void {
+    const deltas = new Map<string, number>();
+    const bump = (id: string | null | undefined, by: number): void => {
+        if (id) deltas.set(id, (deltas.get(id) ?? 0) + by);
+    };
+    for (const m of moves) {
+        if ((m.from ?? null) === (m.to ?? null)) continue;
+        bump(m.from, -1);
+        bump(m.to, 1);
+    }
+    countSink?.(deltas);
+}
+
+const folderOf = (id: string): string | null | undefined =>
+    artifacts().find((d) => d.id === id)?.folderId;
+
 export function moveArtifact(id: string, folderId: string | null): void {
+    const from = folderOf(id);
     setArtifacts(artifacts().map((d) => (d.id === id ? { ...d, folderId } : d)));
+    shiftCounts([{ from, to: folderId }]);
     api.moveArtifact(id, folderId).catch(() => {});
 }
 
@@ -232,13 +266,16 @@ export function setArtifactAccessLocal(id: string, access: ArtifactAccess | null
 
 export function moveArtifacts(ids: string[], folderId: string | null): void {
     const set = new Set(ids);
+    const moves = ids.map((id) => ({ from: folderOf(id), to: folderId }));
     setArtifacts(artifacts().map((d) => (set.has(d.id) ? { ...d, folderId } : d)));
+    shiftCounts(moves);
     for (const id of ids) api.moveArtifact(id, folderId).catch(() => {});
 }
 
 export function removeArtifact(id: string): void {
     const doc = artifacts().find((d) => d.id === id);
     setArtifacts(artifacts().filter((d) => d.id !== id));
+    shiftCounts([{ from: doc?.folderId }]); // trashed: it leaves its folder and joins none
     if (doc) setTrash([{ ...doc, trashedAt: new Date().toISOString() }, ...trash()]);
     api.trashArtifact(id).catch(() => {});
 }
@@ -248,6 +285,7 @@ export function removeArtifacts(ids: string[]): void {
     const now = new Date().toISOString();
     const moved = artifacts().filter((d) => set.has(d.id));
     setArtifacts(artifacts().filter((d) => !set.has(d.id)));
+    shiftCounts(moved.map((d) => ({ from: d.folderId })));
     if (moved.length) setTrash([...moved.map((d) => ({ ...d, trashedAt: now })), ...trash()]);
     for (const id of ids) api.trashArtifact(id).catch(() => {});
 }
@@ -264,7 +302,10 @@ export async function loadTrash(): Promise<void> {
 export function restoreFromTrash(id: string): void {
     const doc = trash().find((d) => d.id === id);
     setTrash(trash().filter((d) => d.id !== id));
-    if (doc) setArtifacts([{ ...doc, trashedAt: null }, ...artifacts()]);
+    if (doc) {
+        setArtifacts([{ ...doc, trashedAt: null }, ...artifacts()]);
+        shiftCounts([{ to: doc.folderId }]); // restored: it rejoins the folder it was trashed from
+    }
     api.restoreArtifact(id).catch(() => {});
 }
 
@@ -300,6 +341,7 @@ export async function duplicateArtifact(orig: ArtifactSummary): Promise<string |
         });
         const dup: ArtifactSummary = { ...orig, id, title, updatedAt: new Date().toISOString() };
         setArtifacts([dup, ...artifacts()]);
+        shiftCounts([{ to: orig.folderId }]); // the copy lands beside its original
         setContents({ ...contents(), [id]: content });
         seedCardSections(id, content.sections);
         return id;

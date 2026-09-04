@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { resolveTheme } from "@themes";
 import { api, type ApiFolder } from "@app/api";
+import { onFolderCountShift } from "./library";
 import { appTheme } from "./theme";
 
 const [folders, setFolders] = createSignal<ApiFolder[]>([]);
@@ -18,6 +19,24 @@ export async function loadFolders(): Promise<void> {
         loaded = false;
     }
 }
+
+/**
+ * Nudge folders' artifact counts by a signed delta each. The counts arrive once with the list and
+ * are computed server-side, so without this a drop, a trash or a duplicate leaves the sidebar
+ * showing the number the folder had when the page loaded.
+ */
+export function shiftFolderCounts(deltas: Map<string, number>): void {
+    if (!deltas.size) return;
+    setFolders(
+        folders().map((f) => {
+            const by = deltas.get(f.id);
+            return by ? { ...f, count: Math.max(0, (f.count ?? 0) + by) } : f;
+        }),
+    );
+}
+
+// the library store reports membership changes here; see onFolderCountShift for why it subscribes
+onFolderCountShift(shiftFolderCounts);
 
 export async function addFolder(name: string, parentId?: string | null): Promise<ApiFolder | null> {
     try {
