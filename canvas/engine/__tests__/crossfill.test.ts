@@ -68,3 +68,57 @@ describe("a grow child of a sized column", () => {
         expect(heightOf(sized, "visual")).toBe(400);
     });
 });
+
+// The comparison-panel shape: cards that equalize against each other, with no self-sized sibling
+// to take the row's height from. Before the fit-first measure the row collapsed to zero and the
+// overflow clip erased the cards' text (visible only through the inline editor's overlay).
+describe("a fit row of only grow children", () => {
+    const panel = (id: string, lines: string): EngineNode => ({
+        w: grow(),
+        h: grow(),
+        id,
+        direction: "col",
+        padding: { top: 20, right: 20, bottom: 20, left: 20 },
+        children: [
+            {
+                w: grow(),
+                h: fit(),
+                text: { text: lines, fontId: "f", size: 12, lineHeight: 16, wrap: "words" },
+            },
+        ],
+    });
+
+    it("takes its members' own measure instead of collapsing to zero", () => {
+        const short = panel("short", "one line");
+        const tall = panel(
+            "tall",
+            "enough words to wrap this text across several measured lines of the fake metrics",
+        );
+        const r: EngineNode = {
+            w: grow(),
+            h: fit(),
+            direction: "row",
+            gap: 16,
+            children: [short, tall],
+        };
+        const { regions } = layout(r, { x: 0, y: 0, w: 600, h: UNBOUNDED }, measure);
+        const hs = regions.find((x) => x.id === "short")!.box.h;
+        const ht = regions.find((x) => x.id === "tall")!.box.h;
+        expect(ht).toBeGreaterThan(40); // content plus padding, not zero
+        expect(hs).toBe(ht); // the shorter card stretches to the taller one
+    });
+
+    it("still compresses to a self-sized sibling when the row has one", () => {
+        const card = panel(
+            "card",
+            "enough words to wrap this text across several measured lines of the fake metrics",
+        );
+        const r: EngineNode = {
+            w: grow(),
+            h: fit(),
+            direction: "row",
+            children: [{ w: fixed(50), h: fixed(64) }, card],
+        };
+        expect(heightOf(r, "card")).toBe(64);
+    });
+});

@@ -7,6 +7,10 @@
 // 4. AGENTS.md's palette tally must match the registry. A hardcoded count rots by the week (composite
 //    went 8 to 9 the day this was written), and the tally is the first thing a contributor reads to
 //    judge whether the library already covers what they are about to add.
+// 5. Every element's default instance lays out AND stays visible: composed into a section, it must
+//    emit at least one command, and no text it emits may be erased by a zero-area box or a clip that
+//    leaves nothing showing. "Renders" without this was only "does not throw": the comparison element
+//    shipped for months painting its cards at height zero, every word clipped away, and nothing said so.
 //
 // Lives in scripts/ because it deliberately crosses the layer law (services catalog + canvas
 // registry in one process); scripts sit outside the law. Run: pnpm check:elements
@@ -18,6 +22,9 @@ import { chartTypeOptions } from "@elements/chart/render";
 import { diagramTypeOptions } from "@elements/diagram/render";
 import { CHART_TYPES, DIAGRAM_TYPES } from "@model/elements";
 import { ELEMENTS } from "@services/core/ai/prompts/catalog";
+import { layoutSection, layoutRuns, leafForRuns } from "@canvas/render/commands";
+import type { MeasureText, RenderCommand } from "@engine/node";
+import type { Section } from "@model/artifact";
 
 const w = (s: string): boolean => process.stdout.write(`${s}\n`);
 
@@ -110,6 +117,76 @@ if (drift === null) {
         .join(" · ");
     w(`ok   ${AGENTS} palette tally (${palette.length}: ${shape})`);
 }
+
+// Deterministic glyph metrics (8px/char), the same substitution the engine tests make: line boxes
+// and offsets are genuine, only advance widths are fake, so geometry findings are real. layoutRuns
+// only ever assigns `font` and calls `measureText`, so the fake carries exactly that surface.
+const fakeMetrics: Pick<CanvasRenderingContext2D, "font" | "measureText"> = {
+    font: "",
+    measureText: (t: string) => ({ width: t.length * 8 }) as TextMetrics,
+};
+const metricsCtx = fakeMetrics as CanvasRenderingContext2D;
+const measure: MeasureText = (leaf, maxW) => {
+    const laid = layoutRuns(metricsCtx, leafForRuns(leaf), maxW);
+    return { width: laid.width, height: laid.height, lines: laid.lines };
+};
+
+/** Text commands nothing will ever show: a zero-area box, or a clip leaving under a pixel of it. */
+function erasedText(commands: RenderCommand[]): string[] {
+    const out: string[] = [];
+    for (const c of commands) {
+        if (c.kind !== "text") continue;
+        let vw = c.box.w;
+        let vh = c.box.h;
+        if (c.clip) {
+            vw = Math.min(c.box.x + c.box.w, c.clip.x + c.clip.w) - Math.max(c.box.x, c.clip.x);
+            vh = Math.min(c.box.y + c.box.h, c.clip.y + c.clip.h) - Math.max(c.box.y, c.clip.y);
+        }
+        if (vw < 1 || vh < 1) out.push(c.id ?? "(unnamed)");
+    }
+    return out;
+}
+
+// Self-check: a planted fully-clipped text must be reported, or the detector below is dead.
+const PLANT: RenderCommand[] = [
+    {
+        kind: "text",
+        id: "planted",
+        box: { x: 0, y: 20, w: 100, h: 30 },
+        clip: { x: 0, y: 0, w: 100, h: 0 },
+        text: { text: "x", fontId: "f", size: 12, wrap: "words" },
+    },
+];
+if (!erasedText(PLANT).includes("planted")) {
+    w("FAIL self-check: a planted erased text was NOT reported; the check in this script is dead");
+    process.exit(1);
+}
+
+let visible = 0;
+for (const spec of listElements()) {
+    const section: Section = {
+        id: "probe",
+        root: { type: spec.type, data: spec.create() },
+    };
+    let commands: RenderCommand[];
+    try {
+        commands = layoutSection(section, 1280, measure).commands;
+    } catch (e) {
+        fail(`${spec.type}: default instance throws in layout — ${String(e)}`);
+        continue;
+    }
+    if (!commands.length) {
+        fail(`${spec.type}: default instance emits no commands`);
+        continue;
+    }
+    const erased = erasedText(commands);
+    if (erased.length) {
+        fail(`${spec.type}: text erased by zero-area box or clip — ${erased.join(", ")}`);
+        continue;
+    }
+    visible++;
+}
+if (visible) w(`ok   every element's default instance lays out with its text visible (${visible})`);
 
 if (failed) process.exit(1);
 w("check:elements clean");

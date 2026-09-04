@@ -624,6 +624,22 @@ describe("target", () => {
         expect(radii[0]!).toBeGreaterThan(radii[1]!);
         expect(radii[1]!).toBeGreaterThan(radii[2]!);
     });
+
+    // the bullseye's inner radius is 0 by construction, so its band once collapsed to the 20px
+    // minimum and its clip erased the sublabel entirely; the band now takes the bullseye's own circle
+    it("keeps some of every ring's text visible inside its band", () => {
+        const texts = composed({
+            type: "target",
+            items: "Market | everyone reachable\nSegment | the slice we serve\nCore | best fit",
+        }).filter((c) => c.kind === "text");
+        expect(texts.length).toBeGreaterThan(0);
+        for (const c of texts) {
+            const vh = c.clip
+                ? Math.min(c.box.y + c.box.h, c.clip.y + c.clip.h) - Math.max(c.box.y, c.clip.y)
+                : c.box.h;
+            expect(vh, `text at y=${Math.round(c.box.y)}`).toBeGreaterThanOrEqual(1);
+        }
+    });
 });
 
 describe("venn", () => {

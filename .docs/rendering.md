@@ -248,6 +248,12 @@ turns it into an engine tree:
   emptied group are the same thing.
 - **Per-instance layout.** `applyLayout` maps each element's optional `ElementLayout` (width
   `fit`/`fill`/`{pct}`, height `fit`/`fill`, cross-axis `align`, corner `radius`) onto the node.
+- **Row balance.** A row's cross axis defaults to the top, so a short column strands its gap at the
+  bottom. The container arrange (`balanceRow`) centres a row column whose content is a visual (chart,
+  diagram, table, image) with no body copy and no author-set height/align, so a chart beside a taller
+  text column sits centred rather than top-stranded. Only a default: an explicit `align`/`height`
+  wins, and a text column is left alone. The engine gains no element knowledge; this is the element
+  layer expressing intent through the generic `alignSelf` the solver already reads.
 - **Region ids.** Every element node is tagged with a stable **path** id (`section:…` / `el:<section>` for
   the root / `el:<section>:0.1` for a grandchild), so the engine reports its box for selection + overlays.
   A path is positional, so it moves when siblings do: an `ElementInstance` also carries an optional

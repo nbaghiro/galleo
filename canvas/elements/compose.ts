@@ -187,9 +187,17 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
     else if (layout.width === "fill") node.w = grow();
     else if (layout.width && typeof layout.width === "object")
         node.w = percent(layout.width.pct / 100);
-    // fill = stretch to row cross-height; drop aspect so it can grow (images then cover-fill via `fit`)
+    // fill = stretch to the row's cross-height; keep the element's own height as the floor, so a
+    // fill with nothing to stretch into (a chart in a fit column) renders at its natural size
+    // rather than collapsing to zero. Aspect is dropped so it can grow past that floor to cover.
     if (layout.height === "fill") {
-        node.h = grow();
+        const floor =
+            node.h.mode === "fixed"
+                ? node.h.value
+                : node.h.mode === "grow" || node.h.mode === "fit"
+                  ? node.h.min
+                  : undefined;
+        node.h = grow(floor);
         node.aspect = undefined;
     }
     if (layout.align) node.alignSelf = layout.align;

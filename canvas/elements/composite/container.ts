@@ -1,6 +1,7 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
+import { childrenRaw } from "@model/artifact";
 import { getElement, register } from "@elements/spec";
 import { stacksAtWidth } from "@engine/profile";
 import { fit, fixed, grow } from "@model/geometry";
@@ -68,11 +69,44 @@ export const gridColumnsOf = (inst?: ElementInstance): number | null =>
         ? gridCols(inst.data as ContainerData)
         : null;
 
+// A row column whose content is a visual (a chart, diagram, table or image) with no body copy sits
+// shorter than a text column beside it, and the cross axis defaults to the top, so it strands its
+// empty space at the bottom. Centre such a column when the author left its placement open, so the
+// gap reads as breathing room rather than a break. A column the author sized, or one that carries
+// body text, is left alone. Only the intent is set; the generic solver does the rest.
+const VISUAL = new Set(["chart", "diagram", "table", "image", "media"]);
+const STACKED = new Set(["container", "group", "card"]);
+const leaves = (inst: ElementInstance): ElementInstance[] =>
+    STACKED.has(inst.type) ? (childrenRaw(inst) ?? []).flatMap(leaves) : [inst];
+const isBody = (inst: ElementInstance): boolean =>
+    inst.type === "bullets" ||
+    (inst.type === "text" && ((inst.data as { style?: string }).style ?? "body") === "body") ||
+    (inst.type === "text" && (inst.data as { style?: string }).style === "quote");
+const visualLed = (inst: ElementInstance): boolean => {
+    const ls = leaves(inst);
+    return ls.some((l) => VISUAL.has(l.type)) && !ls.some(isBody);
+};
+// a column whose content is a visual with no body copy: centred vertically, so a fixed-height
+// chart or diagram in a taller (filled) column sits in the middle instead of stranded at the top
+const visualColumn = (children: ElementInstance[]): boolean => {
+    const ls = children.flatMap(leaves);
+    return ls.some((l) => VISUAL.has(l.type)) && !ls.some(isBody);
+};
+function balanceRow(children: ElementInstance[], kids: EngineNode[]): void {
+    children.forEach((child, i) => {
+        const k = kids[i];
+        if (!k || k.float || k.alignSelf !== undefined || k.h.mode === "grow") return;
+        if (child.layout?.align || child.layout?.height || child.layout?.pin) return;
+        if (visualLed(child)) k.alignSelf = "center";
+    });
+}
+
 const bare = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
     const stacked =
         (d.direction === "row" || d.direction === "grid") &&
         stacksAtWidth(ctx.format, ctx.availWidth);
     const dir: FlexDirection = stacked ? "col" : (d.direction ?? "col");
+    if (dir === "row") balanceRow(d.children, kids);
     // a stacked row's explicit `align` was a row-axis instruction, so only the text inference survives
     return {
         w: grow(),
@@ -81,7 +115,7 @@ const bare = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode 
         ...(dir === "grid" ? { columns: gridCols(d) } : {}),
         gap: 14,
         alignX: dir === "col" ? (stacked ? inferredAlign(d) : colAlign(d)) : undefined,
-        alignY: dir === "col" ? undefined : d.align,
+        alignY: dir === "col" ? (visualColumn(d.children) ? "center" : undefined) : d.align,
         ...(d.justify && dir === "row" ? { distribute: d.justify } : {}),
         // tracks own widths in a grid: a member's stale row fraction must never pin one
         children: stacked || dir === "grid" ? kids.map(unfraction) : kids,
@@ -95,6 +129,7 @@ const surfaced = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineN
     const p = 24;
     const inset = { top: p, right: p, bottom: p, left: p };
     const dir = d.direction ?? "col";
+    if (dir === "row" && !stacksAtWidth(ctx.format, ctx.availWidth)) balanceRow(d.children, kids);
     const stack = (padding: typeof inset): EngineNode => ({
         w: grow(),
         h: fit(),

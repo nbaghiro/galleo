@@ -43,7 +43,8 @@ function arrange(
         const dy = last ? 0 : -(outer + inner) / 2;
         const chord = Math.sqrt(Math.max(1, outer * outer - dy * dy));
         const w = Math.max(40, chord * 1.5);
-        const h = Math.max(MIN_BAND, last ? inner * 1.4 : outer - inner);
+        // the bullseye's inner radius is 0 by construction, so its band is sized by its own circle
+        const h = Math.max(MIN_BAND, last ? outer * 1.4 : outer - inner);
         const cell = diagramCell(kids[i * 2], kids[i * 2 + 1], nodePaint(cols[i]!, ctx.theme), {
             transparent: true,
             pad: { top: 2, bottom: 2, left: 6, right: 6 },

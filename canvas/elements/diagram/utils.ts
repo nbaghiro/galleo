@@ -656,22 +656,38 @@ export function diagramCell(
         const base = pad ?? CELL_PAD;
         pad = { ...base, left: base.left + BADGE_R * 2 + 2 };
     }
+    // A fixed-height cell (a funnel band, a process node) budgets its text to the lines that fit,
+    // so a long label ellipsizes and a detail the box cannot hold stands down, rather than the
+    // engine clipping either mid-word. Types that size their own cells pass no cellH and are
+    // unaffected.
+    const LABEL_LH = NODE_TEXT * 1.35;
+    const DETAIL_LH = 11 * 1.35;
+    const avail = o.cellH ? o.cellH - CELL_PAD_Y : Number.POSITIVE_INFINITY;
+    // the label is capped at two lines but budgeted as one, the common case, so a normal node keeps
+    // its detail; only a genuinely short cell drops it
+    const labelLines = o.cellH ? clamp(Math.floor(avail / LABEL_LH), 1, 2) : 0;
+    const detailLines = o.cellH
+        ? Math.floor((avail - LABEL_LH - CELL_LINE_GAP) / DETAIL_LH)
+        : Infinity;
     const kids: EngineNode[] = [];
     if (label?.text) {
         label.text.size = NODE_TEXT;
         label.text.weight = 600;
         label.text.color = paint.ink;
         label.text.align = "center";
+        if (o.cellH) label.text.maxLines = labelLines;
         label.w = grow();
         label.h = fit(14);
         kids.push(label);
     }
-    // an empty detail slot must not reserve a text row: the label would sit above center
-    if (detail?.text && detail.text.text.trim() !== "") {
+    // an empty detail slot must not reserve a text row: the label would sit above center; a detail
+    // the fixed cell has no room for stands down rather than clipping
+    if (detail?.text && detail.text.text.trim() !== "" && detailLines >= 1) {
         detail.text.size = 11;
         detail.text.weight = 500;
         detail.text.color = paint.dim;
         detail.text.align = "center";
+        if (o.cellH) detail.text.maxLines = Math.min(detailLines, 3);
         detail.w = grow();
         detail.h = fit(14);
         kids.push(detail);
@@ -774,14 +790,17 @@ export function bandGeometry(
         const t = (y - box.y) / (box.h || 1);
         return narrowTop ? narrow + (wide - narrow) * t : wide - (wide - narrow) * t;
     };
+    // even a taper with no values never narrows a band below its own label, or the text clips
+    const floorAt = (h: number, i: number): number =>
+        clamp(Math.max(h, minHalf?.[i] ?? 0), narrow, wide);
     const bands = items.map((_, i) => {
         const y0 = box.y + i * bandH;
         const y1 = y0 + bandH - 3;
         return {
             y0,
             y1,
-            half0: scaled ? halfFor(i) : halfAt(y0),
-            half1: scaled ? halfFor(Math.min(i + 1, n - 1)) : halfAt(y1),
+            half0: scaled ? halfFor(i) : floorAt(halfAt(y0), i),
+            half1: scaled ? halfFor(Math.min(i + 1, n - 1)) : floorAt(halfAt(y1), i),
         };
     });
     return { bands, cx };
@@ -813,6 +832,7 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
                     const cell = diagramCell(kids[i * 2], kids[i * 2 + 1], paint, {
                         transparent: true,
                         pad: { top: 2, bottom: 2, left: 8, right: 8 },
+                        cellH: bandH,
                     });
                     cell.w = percent(
                         clamp((Math.min(band.half0, band.half1) * 2) / contentW, 0.14, 0.9),

@@ -347,6 +347,16 @@ function layoutHeights(ln: LayoutNode, assignedH: number, measure: MeasureText, 
             layoutHeights(c, contentH, measure);
             maxH = Math.max(maxH, c.h);
         }
+        // A fit row of only grow members has nothing else to stretch to (the grid pass states the
+        // same rule): measure them at their own height first, or the row collapses to zero and its
+        // overflow clip erases the content.
+        if (h.mode === "fit" && maxH === 0)
+            for (const c of growKids) {
+                const g = c.node.h;
+                if (g.mode !== "grow") continue;
+                layoutHeights(c, contentH, measure, { mode: "fit", min: g.min, max: g.max });
+                maxH = Math.max(maxH, c.h);
+            }
         const crossH = h.mode === "fit" ? maxH : contentH;
         for (const c of growKids) {
             layoutHeights(c, crossH, measure);
