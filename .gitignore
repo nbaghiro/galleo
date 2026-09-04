@@ -10,6 +10,9 @@ coverage/
 # one-off generation debug output (pnpm agent:gen)
 /.gen/
 
+# eval:shots evidence (pnpm eval:shots [--write]); regenerated, never a baseline
+/shots/
+
 # transient probe dir from scripts/check-boundaries.mjs
 canvas/boundary-check-*/
 
