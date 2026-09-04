@@ -128,11 +128,16 @@ export const SectionGenPopup: Component = () => {
                         placeholder="Describe the section to add. It'll fit the story around it…"
                         class="resize-none placeholder:text-soft"
                     />
-                    <div class="mt-2 flex flex-wrap gap-1.5">
+                    {/* A column of full-width rows, not wrapped pills: the suggestions are whole
+                        sentences of uneven length, so content-sized bubbles left a ragged right
+                        edge and turned the two that wrapped into lozenges. */}
+                    <div class="mt-2 flex flex-col gap-1.5">
                         <For each={chips()}>
                             {(c) => (
                                 <Chip
                                     variant="outline"
+                                    rounded="md"
+                                    class="w-full"
                                     onClick={() => {
                                         setText(c);
                                         field?.focus();
