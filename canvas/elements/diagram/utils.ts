@@ -822,10 +822,15 @@ export function decorate(
     };
 }
 
-/** A circle as hit geometry; 24 points is indistinguishable at pointer resolution. */
-export function circlePoints(cx: number, cy: number, r: number, n = 24): [number, number][] {
-    return Array.from({ length: n }, (_, i): [number, number] => {
-        const a = (i * Math.PI * 2) / n;
+/**
+ * A circle as hit geometry. 24 points is indistinguishable at pointer resolution, but the editor
+ * also strokes this polygon when a datum is hovered, and at a target ring's radius a 24-gon reads
+ * as a faceted outline rather than a circle. Roughly one point per 3px of radius holds at any size.
+ */
+export function circlePoints(cx: number, cy: number, r: number, n?: number): [number, number][] {
+    const count = n ?? clamp(Math.round(r / 3), 24, 96);
+    return Array.from({ length: count }, (_, i): [number, number] => {
+        const a = (i * Math.PI * 2) / count;
         return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
     });
 }
