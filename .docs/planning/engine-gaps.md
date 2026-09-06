@@ -197,6 +197,11 @@ size from intrinsic content, which needs a measurement pass the engine currently
 
 ## 5. Intrinsic sizing for non-text leaves
 
+Status update: closed 2026-09-06. The width half was built (`intrinsicWidth` reads
+`image.natural.w`); the height half is decided out rather than built — `natural` is width-only by
+the E7 contract, `aspect` being the one height channel an image has. The entry below is the
+original inventory.
+
 Missing: `intrinsicWidth` returns 0 for image, fill and surface leaves (`canvas/engine/layout.ts:75`),
 and the engine never learns an image's natural dimensions. `new Image()` appears only for cache
 warming and canvas rasterization (`backends.ts:392` and `:708`), never to feed a size back into
@@ -285,6 +290,17 @@ does not); how a reference survives the referenced element being deleted or move
 
 ## 8. A richer paint model
 
+Status update: built, closed 2026-09-06 ([`paint-model.md`](paint-model.md)). One shared
+`Gradient` (multi-stop, radial) declared beside `SectionBackground`; per-corner radius; side-
+selective borders; one structured shadow across fills and surfaces; `backdropBlur` degrading to
+its own translucent fill; and an ellipse clip threaded through emit. Per-backend contract: DOM and
+2D canvas at full fidelity, PDF keeps its stated flattens plus real per-corner paths and side
+borders, PPTX rasterizes everything richer via one `classify` clause. Consumers landed with it:
+sideline/topline are real borders (the 3px fake bars deleted), a `glass` surface style, a `circle`
+panel crop, radial section backgrounds, and the open tab is tab-shaped. Not taken, recorded in the
+plan: conic gradients, blend modes, duotone, arbitrary path clips, per-side border colors, theme-
+level glass/gradient tokens. The entry below is the original inventory.
+
 Missing, all from `canvas/engine/node.ts`: two-stop linear gradients only (`:24`, `:116`), one
 uniform corner radius (`:17`, `:107`, `:117`), one all-sides border in solid or dashed (`:110`,
 `:118`), one shadow. No radial, conic or multi-stop gradients, no per-corner radius, no per-side
@@ -336,6 +352,10 @@ Open: whether the focal point lives on the element (per use) or on the asset (pe
 decides whether the same photo crops consistently everywhere it appears.
 
 ## 10. Main-axis distribution modes
+
+Status update: closed 2026-09-06. `alignX`/`distribute` landed on rows and columns earlier, and
+the E2 fix extended both to grid tracks, so the fields mean the same thing in every direction.
+The entry below is the original inventory.
 
 Missing: `mainOffset` (`canvas/engine/layout.ts:245`) supports start, center and end. There is no
 space-between, space-around or space-evenly.
@@ -468,6 +488,17 @@ Open: whether this is worth doing before there is a measured need, given the sec
 covers the common editing case; what the real ceiling is today, which nobody has measured.
 
 ## 16. Non-rectangular hit geometry
+
+Status update: built, closed 2026-09-05 ([`hit-geometry.md`](hit-geometry.md)). The mechanism had
+landed earlier without this entry noticing (`Region.shape` polygons, `inRegion`, `rotateRegion`,
+the `SurfaceLeaf.regions` callback, chart datum regions with editor hover); the closing round made
+diagrams report their item shapes (venn circles, target rings, funnel/pyramid bands, matrix/cycle/
+hub cells — connector-drawn types stay mute as decoration), carried layout regions through
+`sectionSlides` pages so paged Present sees marks (`fragment` now reports its page windows), made
+`viewerToggleAt` shape-aware, and gave Present/publish a per-datum hover tooltip
+(`viewerDatumAt`/`datumLabel` in `@elements/ops`, fine pointers only — a coarse tap belongs to the
+advance gesture). Draw-on motion and per-datum comments are unblocked and await their own docs.
+The entry below is the original inventory.
 
 Missing: `Region` is an axis-aligned rect plus a radius (`canvas/engine/node.ts:195`). Anything
 painted into a single `surface` is not individually addressable.

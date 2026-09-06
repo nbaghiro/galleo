@@ -41,6 +41,7 @@ import {
     withoutNotes,
     duckedVolume,
     sectionForms,
+    withCanonicalTypes,
 } from "@model/artifact";
 
 const leaf = (t: string): ElementInstance => ({ type: "text", data: { text: t } });
@@ -1281,5 +1282,49 @@ describe("artifactDigest section kinds after the media merge", () => {
             ],
         });
         expect(digest.sections[1]?.kind).toBe("media");
+    });
+});
+
+// the write path folds legacy shapes to canonical and repairs positional composites (L3, L8)
+describe("withCanonicalTypes", () => {
+    const content = (root: ElementInstance): ArtifactContent => ({
+        format: "deck",
+        theme: "studio",
+        sections: [{ id: "s1", root }],
+    });
+
+    it("folds group and card onto container, children included", () => {
+        const out = withCanonicalTypes(
+            content({
+                type: "group",
+                data: { children: [{ type: "card", data: { children: [] } }] },
+            }),
+        );
+        const root = out.sections[0]!.root;
+        expect(root.type).toBe("container");
+        expect((root.data as { children: ElementInstance[] }).children[0]!.type).toBe("container");
+    });
+
+    it("completes an odd faq with an empty answer instead of shifting the pairs", () => {
+        const out = withCanonicalTypes(
+            content({
+                type: "faq",
+                data: {
+                    children: [
+                        { type: "text", data: { text: "Q1", style: "h3" } },
+                        { type: "text", data: { text: "A1", style: "body" } },
+                        { type: "text", data: { text: "Q2", style: "h3" } },
+                    ],
+                },
+            }),
+        );
+        const kids = (out.sections[0]!.root.data as { children: ElementInstance[] }).children;
+        expect(kids).toHaveLength(4);
+        expect((kids[3]!.data as { text: string }).text).toBe("");
+    });
+
+    it("returns a canonical tree by identity, so nothing repaints", () => {
+        const c = content({ type: "container", data: { children: [] } });
+        expect(withCanonicalTypes(c)).toBe(c);
     });
 });

@@ -19,11 +19,26 @@ export interface ElementInstance {
 export const SECTION_TONES = ["tint", "contrast", "accent"] as const;
 export type SectionTone = (typeof SECTION_TONES)[number];
 
+// One gradient for stored backgrounds and engine paint alike. `from`/`to` are the stored
+// two-stop sugar; `stops` (0..1, ordered) wins when present; radial is centre-out and ignores
+// the angle. PDF flattens to a single color and PPTX rasterizes, both by stated decision.
+export interface GradientStop {
+    at: number;
+    color: string;
+}
+export interface Gradient {
+    from: string;
+    to: string;
+    angle?: number;
+    stops?: GradientStop[];
+    kind?: "linear" | "radial";
+}
+
 export interface SectionBackground {
     kind: "none" | "tone" | "color" | "gradient" | "image";
     tone?: SectionTone; // kind "tone" only; an unreadable value reads as "tint"
     color?: string;
-    gradient?: { from: string; to: string; angle?: number };
+    gradient?: Gradient;
     image?: string;
     scrim?: number; // 0..1 dark overlay for text legibility
     dark?: boolean; // override auto contrast
@@ -397,12 +412,29 @@ export function sectionWithElementIds(section: Section): Section {
 }
 
 /**
- * Legacy media elements folded into the one `media` element. Identity-preserving like the stamping
- * pass, so a tree already on the merged shape comes back untouched and nothing repaints.
+ * Legacy shapes folded to canonical on the write path: the old picture elements onto `media`,
+ * `group`/`card` onto `container`. Identity-preserving like the stamping pass, so a tree already
+ * canonical comes back untouched and nothing repaints.
  */
-export function withMediaKinds(content: ArtifactContent): ArtifactContent {
+export function withCanonicalTypes(content: ArtifactContent): ArtifactContent {
     const fix = (el: ElementInstance): ElementInstance => {
         const mapped = mapChildren(el, fix);
+        if (mapped.type === "group" || mapped.type === "card")
+            return { ...mapped, type: "container" };
+        // FAQ children are positional question/answer pairs; an odd count (an AI rewrite dropping
+        // one answer) would pair a question with the next question, so the write path completes
+        // the pair with an empty answer the author can fill rather than a silently shifted list.
+        if (mapped.type === "faq") {
+            const kids = (mapped.data as { children?: ElementInstance[] }).children;
+            if (Array.isArray(kids) && kids.length % 2 === 1)
+                return {
+                    ...mapped,
+                    data: {
+                        ...(mapped.data as Record<string, unknown>),
+                        children: [...kids, { type: "text", data: { text: "", style: "body" } }],
+                    },
+                };
+        }
         const kind = LEGACY_MEDIA_KINDS[mapped.type];
         if (!kind) return mapped;
         const data: Record<string, unknown> = { ...(mapped.data as Record<string, unknown>), kind };
@@ -484,6 +516,18 @@ export const contentRegionId = (a: ElementAddress): string =>
 // Sub-element geometry an element paints for itself (a chart's bars): `index` addresses the row the
 // data editor shows, so one id serves hover in both directions. parseTarget ignores the prefix, so a
 // datum is never a selection; several regions may share one id (a grouped bar's per-series rects).
+// A field's interactive rectangle, minted by the form family's paint so the live overlay can put
+// a real control exactly over it. Same family as `label:` and `datum:`: a convention on region
+// ids, never an engine concept.
+const INPUT = "input:";
+export const inputRegionId = (element: string): string => `${INPUT}${element}`;
+export const parseInputRegion = (id: string): string | null =>
+    id.startsWith(INPUT) ? id.slice(INPUT.length) : null;
+
+// The one place the `el:` prefix is asked about, so a consumer (the render bridge's cover-fit
+// cell sniff) couples to the grammar's own API rather than to a string it must keep in sync.
+export const isElementRegionId = (id: string | undefined): boolean => !!id?.startsWith("el:");
+
 const DATUM = "datum:";
 export const datumRegionId = (element: string, index: number): string =>
     `${DATUM}${element}:${index}`;

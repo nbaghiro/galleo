@@ -9,10 +9,10 @@ import type {
 } from "@model/artifact";
 import type { TextLeaf } from "@engine/node";
 import type { Tokens } from "@themes";
-import { getElement } from "@elements/spec";
+import { getElement, canonicalType } from "@elements/spec";
 import { SECTION_TONES, elementRegionId, sectionRegionId } from "@model/artifact";
 import { scaleDrawContext } from "@engine/drawscale";
-import { containedWidth, rampScale, sectionBleeds } from "@engine/profile";
+import { composeScale, containedWidth, sectionBleeds } from "@engine/profile";
 import type { ElementLayout, Size } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
 import { fontStack, hexA, hexToRgb, hsl2hex, luminance, mix, rgb2hsl } from "@themes";
@@ -130,7 +130,14 @@ export function scaleTokens(node: EngineNode, k: number): EngineNode {
             size: node.text.size * k,
             ...(node.text.lineHeight !== undefined ? { lineHeight: node.text.lineHeight * k } : {}),
         };
-    if (node.fill?.radius !== undefined) out.fill = { ...node.fill, radius: node.fill.radius * k };
+    if (node.fill?.radius !== undefined)
+        out.fill = {
+            ...node.fill,
+            radius:
+                typeof node.fill.radius === "number"
+                    ? node.fill.radius * k
+                    : (node.fill.radius.map((r) => r * k) as [number, number, number, number]),
+        };
     if (node.image?.radius !== undefined)
         out.image = { ...node.image, radius: node.image.radius * k };
     // A surface draws its own text and geometry, out of reach of this walk, so scale its space instead:
@@ -225,12 +232,12 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
 }
 
 // group/card are pre-migration aliases for container; see scripts/migrate-container.ts
-const STACK_TYPES = new Set(["container", "group", "card"]);
 
 // fraction of the parent's width each child of a row occupies; null when the parent isn't a row
 function rowShares(inst: ElementInstance, kids: ElementInstance[]): number[] | null {
     const row =
-        STACK_TYPES.has(inst.type) && (inst.data as { direction?: string }).direction === "row";
+        canonicalType(inst.type) === "container" &&
+        (inst.data as { direction?: string }).direction === "row";
     if (!row || kids.length === 0) return null;
     const own = (k: ElementInstance): number | null => {
         const w = k.layout?.width;
@@ -511,7 +518,7 @@ export function composeSection(section: Section, ctx: LayoutCtx): EngineNode {
     // children size against (stacksAtWidth, rowShares): scaling padding afterwards would leave them
     // measured against a width the section no longer has. Autofit rides the same factor for the
     // same reason.
-    const k = rampScale(ctx.format, ctx.availWidth) * (ctx.fitScale ?? 1);
+    const k = composeScale(ctx.format, ctx.availWidth, ctx.fitScale ?? 1);
     // A site has no contained sections to line up with, so its column is the profile's own cap. A doc
     // has: a band lays out at the full width, so `containedWidth` here is the exact width its
     // contained neighbours get, and taking their side padding off it leaves the column they share.

@@ -40,11 +40,12 @@ export function composite(
     label: string,
     create: () => CompositeData,
     arrange: (d: CompositeData, ctx: LayoutCtx, kids: EngineNode[]) => EngineNode,
+    opts?: { category?: string; open?: true },
 ): ElementSpec<CompositeData> {
     return {
         type,
         label,
-        category: "composite",
+        category: opts?.category ?? "composite",
         tier: "unit",
         create,
         layout: (d, ctx) => arrange(d, ctx, composeKids(d.children, ctx)),
@@ -53,8 +54,9 @@ export function composite(
             arrange,
             withChildren: (d, children) => ({ ...d, children }),
             // a smart block is a unit: its children edit in place (testimonial/faq even index
-            // into fixed slots), and the block moves whole — unlike the freeform card/group
-            closed: true,
+            // into fixed slots), and the block moves whole. `open` is for the simple stacks
+            // (stat, quote) whose children add and remove like any container's.
+            ...(opts?.open ? {} : { closed: true }),
         },
         controls: [],
     };

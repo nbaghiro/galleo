@@ -254,3 +254,38 @@ describe("grid — column spans", () => {
         near(boxOf(r, "wide").w, boxOf(r, "a").w);
     });
 });
+
+// E2: a grid answers alignX and distribute with the row's own semantics, applied to its tracks.
+describe("grid main-axis alignment", () => {
+    const cells = (): EngineNode[] => [
+        boxNode("a", fixed(40), fixed(20)),
+        boxNode("b", fixed(40), fixed(20)),
+        boxNode("c", fixed(40), fixed(20)),
+        boxNode("d", fixed(40), fixed(20)),
+    ];
+
+    it("centers the track block when the tracks leave slack", () => {
+        const g = gridNode(cells(), 2, { alignX: "center", gap: 0 });
+        // two 40px tracks in 200px: 120 slack, 60 leads the block
+        near(boxOf(reg(g), "a").x, 60);
+        near(boxOf(reg(g), "b").x, 100);
+    });
+
+    it("ends the track block at the right edge for alignX end", () => {
+        const g = gridNode(cells(), 2, { alignX: "end", gap: 0 });
+        near(boxOf(reg(g), "b").x + 40, 200);
+    });
+
+    it("spreads slack between tracks for distribute between", () => {
+        const g = gridNode(cells(), 2, { distribute: "between", gap: 0 });
+        near(boxOf(reg(g), "a").x, 0);
+        near(boxOf(reg(g), "b").x, 160);
+        near(boxOf(reg(g), "d").x, 160); // the second row shares the same tracks
+    });
+
+    it("stays flush left with no alignment, as before", () => {
+        const g = gridNode(cells(), 2, { gap: 0 });
+        near(boxOf(reg(g), "a").x, 0);
+        near(boxOf(reg(g), "b").x, 40);
+    });
+});

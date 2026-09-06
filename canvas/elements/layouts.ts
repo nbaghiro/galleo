@@ -1,6 +1,6 @@
 import type { ElementInstance, Section, SectionBackground } from "@model/artifact";
 import { LAYOUT_PRESETS, childrenRaw, colGroup, mediaKindOf, rowGroup } from "@model/artifact";
-import { getElement } from "@elements/spec";
+import { getElement, canonicalType } from "@elements/spec";
 import { columnFractions, splitSection, stripWidth } from "@elements/ops";
 
 export interface SectionLayout {
@@ -19,7 +19,8 @@ const roleOf = (inst: ElementInstance): Role =>
 
 // unwrap transparent `group` scaffolding down to real content elements
 function flatten(inst: ElementInstance, out: ElementInstance[]): void {
-    if (inst.type === "container") for (const k of childrenRaw(inst) ?? []) flatten(k, out);
+    if (canonicalType(inst.type) === "container")
+        for (const k of childrenRaw(inst) ?? []) flatten(k, out);
     else out.push(inst);
 }
 
@@ -42,7 +43,7 @@ const stack = (kids: ElementInstance[]): ElementInstance =>
     kids.length === 1 ? kids[0]! : colGroup(kids);
 
 const dirOf = (inst: ElementInstance): "row" | "col" | null =>
-    inst.type === "container"
+    canonicalType(inst.type) === "container"
         ? (inst.data as { direction?: string }).direction === "row"
             ? "row"
             : "col"

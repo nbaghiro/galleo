@@ -1,5 +1,5 @@
 import type { ElementSpec, LayoutCtx } from "@elements/spec";
-import { LINE_HEIGHT_FACTOR } from "@canvas/render/commands";
+import { LINE_HEIGHT_FACTOR } from "@model/text";
 import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import type { BulletMarker } from "@model/elements";

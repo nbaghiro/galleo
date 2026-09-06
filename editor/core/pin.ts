@@ -4,7 +4,7 @@ import type { Rect, Region } from "@engine/node";
 import { elementRegionId } from "@model/artifact";
 import { getElementAt, setElementLayout } from "@elements/ops";
 import { applyDrop, movable, type DropTarget } from "./dnd";
-import { profileFor, rampScale } from "@engine/profile";
+import { composeScale, profileFor, rampScale } from "@engine/profile";
 import { layoutSection, measureText } from "@canvas/render/commands";
 import { sectionLayoutWidth } from "@canvas/render/backends";
 import { capture } from "@ui/analytics";
@@ -99,7 +99,7 @@ export function pinGestureScale(sectionId: string): number {
     const w = section
         ? sectionLayoutWidth(section, profile, canvasContentWidth())
         : canvasContentWidth();
-    return rampScale(profile, w) * sectionFitScale(sectionId);
+    return composeScale(profile, w, sectionFitScale(sectionId));
 }
 
 export const parentAddress = (address: ElementAddress): ElementAddress => ({

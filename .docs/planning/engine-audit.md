@@ -110,73 +110,91 @@ validate `ly` per crossing command (on-grid, cut within [KEEP, count−KEEP]). S
 
 # Engine misfits (solver · node model · measurement)
 
-**E1 Three grow-height protocols, one per direction.** Grid measures grow members fit-first then
+**E1 ✔ Three grow-height protocols, one per direction.** Grid measures grow members fit-first then
 stretches to the row (`layout.ts:318-329`); a fit-height row of only grow children collapses to
 their mins (`:346-357`); a column gives grow its distribute share. The same author intent answers
 differently by direction, and the row-collapse workaround lives in the LLM prompt
 (`catalog.ts:662`) rather than the engine. Direction: adopt the grid's fit-first measure for the
 all-grow fit row (a behavior change; `crossfill.test.ts` pins the neighboring case). Size: S.
+**Fixed 2026-09-04**, found in the wild first: an AI-written comparison element painted its cards at
+height zero with every text zero-clipped (visible only through the inline editor's overlay). The fix
+is the Direction line verbatim — the row branch measures an all-grow row's members fit-first when
+nothing else sizes it — pinned in `crossfill.test.ts`, with the mixed-row compression pinned beside
+it so grid parity cannot drift in. `check:elements` now lays out every element's default instance
+and fails on any text erased by a zero-area box or clip, which is the guard that would have caught
+this class years earlier (it flagged the target bullseye band the day it landed).
 
-**E2 Grid ignores `alignX` and `distribute`.** The grid positions branch applies no main-axis
+**E2 ✔ Grid ignores `alignX` and `distribute`.** The grid positions branch applies no main-axis
 offset (`layout.ts:443-466`); both fields silently no-op under `direction:"grid"` — a half-honored
 node field an element author discovers empirically. Direction: apply `alignX` to the track block,
 or document the limit on `EngineNode.direction`. Size: XS-S.
+**Fixed 2026-09-06**: the grid positions branch answers both with the row's own `mainOffset`/`spread` applied to its tracks; pinned in `grid.test.ts` (centre, end, between, and flush-left unchanged).
 
-**E3 The render bridge patches solver output by mutation.** Three post-passes rewrite solved or
+**E3 ✔ The render bridge patches solver output by mutation.** Three post-passes rewrite solved or
 composed trees in place: the section-ground stretch (`commands.ts:80-88`), `coverFitMedia` (B2),
 `centreInFrame` (`:233-237`); `coverFitMedia` also recognizes content cells by sniffing
 `id?.startsWith("el:")`, string-coupling the bridge to compose's region-id grammar. B2 is the
 escaped consequence. Direction: contain mutations to the branch that commits to them. Size: S.
+**Fixed 2026-09-06**: `coverFitMedia` is a pure find and `commitCoverFit` the one mutation site, applied only by branches that commit; `collapsedHeight` snapshots and restores both height channels; the paginate fall-through returns the untouched node (B2's recompose is no longer needed and its pins stay green); `centreInFrame` returns a copy; the `el:` sniff reads `isElementRegionId` from the grammar. The section-ground stretch stays: it rewrites objects `layoutSection` itself just created.
 
-**E4 Node leaf co-existence is typed free-for-all, documented "one leaf", honored three ways.**
+**E4 ✔ Node leaf co-existence is typed free-for-all, documented "one leaf", honored three ways.**
 `intrinsicWidth` prefers text over children (`layout.ts:132`), the height pass prefers children
 over text (`:297` — the text still paints, with no room reserved), `firstBaseline` prefers text.
 Direction: state the precedence on `EngineNode`, or assert leaves are leaves. Size: S.
+**Fixed 2026-09-06** by stating the precedence on `EngineNode`: width measures text, height sizes by children, baseline reads text; recorded as load-bearing rather than changed.
 
-**E5 Small measurement debts.** The run serialization in `measureKey` concatenates flags+text with
+**E5 ✔ Small measurement debts.** The run serialization in `measureKey` concatenates flags+text with
 no delimiter (`commands.ts:747-751`) — theoretical collisions; `intrinsicWidth` is O(n·depth)
 unmemoized for fit chains (`layout.ts:131-156`) — latent, multiplied by autofit probes;
 `layoutRuns` measures every word twice on a cache miss (`:641-645` then `:572-574`). Direction:
 delimit the key; per-run WeakMap memo; carry box widths into frags. Size: XS each.
+**Fixed 2026-09-06** (the delimiter half landed in the bug round): `intrinsicWidth` is cached per (measure, node) WeakMap pair, and `layoutRuns` measures each piece once, carrying the width from the wrap decision into the frag (pinned by a counting-context test).
 
-**E6 `layoutSection` counts clipped-away phantom height.** `bottom()` ignores `c.clip`, so content
+**E6 ✔ `layoutSection` counts clipped-away phantom height.** `bottom()` ignores `c.clip`, so content
 clipped by a bounded column still stretches the section ground and leaves trailing whitespace
 (`commands.ts:47-65,82-88`). Size: XS-S.
+**Fixed 2026-09-06**: `lowest()` clamps a clipped command to its clip bottom; pinned red-first (a 400px child in a 100px box now measures 100).
 
-**E7 Field promises the paint doesn't keep.** `image.natural.h` is never read (fit-height images
+**E7 ✔ Field promises the paint doesn't keep.** `image.natural.h` is never read (fit-height images
 collapse; use `aspect`); `FillLeaf.shadow` paints in the DOM backend only, acknowledged in a pptx
 comment rather than on the field; regions ignore clip, so hover can land on invisible pixels.
 Direction: one-line docs on the fields; decide the region-clip semantics and pin it. Size: XS.
+**Fixed 2026-09-06** by decision, stated on the fields: `image.natural` is width-only (`aspect` is the height channel), `FillLeaf.shadow` is DOM/canvas-only the way PNG drops `link`, and regions stay unclipped so the editor can select clipped-away content (pinned).
 
-**E8 The compose-scale formula is mirrored in pin math.** `compose.ts:506` and
+**E8 ✔ The compose-scale formula is mirrored in pin math.** `compose.ts:506` and
 `editor/core/pin.ts:102` both compute `rampScale × fitScale`; a third factor added to one drifts
 the other silently, no test ties them. Direction: export one `composeScale()` from
 `@engine/profile`. Size: XS.
+**Fixed 2026-09-06**: `composeScale()` exported from `@engine/profile`; compose and pin both call it (pin's `localBoxes` keeps its documented ramp-only variant); pinned in `profile.test.ts`.
 
 ---
 
 # Element system
 
-**L1 The two `HIDDEN` lists disagree, and the guarded palette tally counts a hidden element.**
+**L1 ✔ The two `HIDDEN` lists disagree, and the guarded palette tally counts a hidden element.**
 `scripts/check-elements.ts:66` hides four types; `editor/Editor.tsx:695` also hides `container` —
 the enforced "62 palette elements" overstates the real 61 and the guard verifies the wrong set.
 Direction: one exported HIDDEN set (or `ElementSpec.hidden`). Size: XS.
+**Fixed 2026-09-06**: `ElementSpec.hidden` is the one flag; both consumers filter it, the two sets are deleted, and the tally now guards the true 67.
 
-**L2 `.docs/rendering.md` §5.1-5.2 describes the pre-merge element world** (separate picture
+**L2 ✔ `.docs/rendering.md` §5.1-5.2 describes the pre-merge element world** (separate picture
 elements, 65 types, group/card unregistered). Doc-only, but it is the stated single reference.
 Size: S.
+**Fixed, verified 2026-09-05**: §5.1-5.2 now describes the post-merge world (kind-switched media, the registry as it is).
 
-**L3 The `group`/`card` legacy aliases mean two different things.** Compose honors them as rows
+**L3 ✔ The `group`/`card` legacy aliases mean two different things.** Compose honors them as rows
 (`compose.ts:220` STACK_TYPES) while ops' `isRow`/`isGrid` and layouts' `flatten` test
 `type === "container"` only — a legacy tree renders as a row but width renormalization and layout
 presets treat it as a leaf. The prompt still teaches "group / card" (`prompts/generate.ts:350`).
 Direction: normalize on read (the `withMediaKinds` precedent) and collapse the special cases, or
 declare the alias render-only and fix the prompt. Size: S.
+**Fixed 2026-09-06**: `canonicalType()` exported beside `LEGACY_TYPES`; compose's STACK_TYPES, ops' `isRow`/`isGrid` and layouts' flatten all read through it; the write path folds group/card onto container in the renamed `withCanonicalTypes`; the prompt's alias mention is gone.
 
-**L4 One element three times.** `stat`, `quote`, `feature` are the identical unit column stack
+**L4 ✔ One element three times.** `stat`, `quote`, `feature` are the identical unit column stack
 differing only in gap, kept apart because the `composite()` factory hardcodes category and
 `closed` (`composite/shared.ts:47-57`). Direction: give the factory those options and fold them
 in. Size: S.
+**Fixed 2026-09-06**: `composite()` takes `{ category, open }`; stat and quote re-declare through it (46 lines each became 17), arranges byte-identical.
 
 **L5 Recurring compose patterns, hand-rolled.** The children-compose walk exists 9× (each
 `children.map(inst => getElement(...)?.layout(...) ?? fallback)`, fallback height drifting); the
@@ -185,80 +203,116 @@ painter twice with drifted constants; direction-of-a-container is read 4 ways (`
 `isRow`, `dirOf`, `groupAxis`) with L3 living in their gaps. Direction: `layoutChildren()`,
 `panelFill()`, `directionOf()` — three helpers, each replacing ≥3 sites. Size: S.
 
-**L6 Corner radius lives in three regimes.** `frame:true` → the universal layout slider (four
+**L6 ✔ Corner radius lives in three regimes.** `frame:true` → the universal layout slider (four
 elements); media → its own `data.radius`; container/button → a `shape` enum, with a surfaced
 container having no fine radius control at all — the editor sweep hit the same wall from the user
 side. Direction: converge on `frame`, starting with container. Size: S.
+**Fixed before this round** (verified 2026-09-06): container carries `frame: true` and `applyLayout` writes the slider's radius onto the fill — landed in the editor-controls round.
 
-**L7 Capability bits split between hardcoded sets and the registry.** Chart keeps
+**L7 ✔ Capability bits split between hardcoded sets and the registry.** Chart keeps
 STACKED/SMOOTH/VALUES/GRID_TYPES sets in `element.ts` while diagram carries flags on
 `DiagramType` — and also keeps two sets. Adding a chart type means editing two files. Direction:
 move capability bits onto the type entries. Size: S.
+**Fixed before this round** (verified 2026-09-06): the four chart sets are gone; `honours(flag)` reads capability bits off the type entries, mirroring the diagram flags.
 
-**L8 Positional-children composites are sealed against dnd but open to the AI.** testimonial /
+**L8 ✔ Positional-children composites are sealed against dnd but open to the AI.** testimonial /
 comparison / faq / diagram index children by position; nothing stops an AI regenerate writing an
 odd count, after which faq pairs a question with the next question. Direction: a shape guard at
 the one entry point AI-written composites pass. Size: S.
+**Fixed 2026-09-06**: the write-path canonical pass completes an odd FAQ with an empty answer instead of letting the pairs shift; testimonial/comparison already render index-safe through `at()`.
 
-**L9 Registration hygiene.** `walkElements` is dead and raw-reads children (misses owned cells);
+**L9 ✔ Registration hygiene.** `walkElements` is dead and raw-reads children (misses owned cells);
 `previews.ts` keeps `card:`/`group:` tiles nothing can request; the media LEGACY_TYPES aliases are
 currently shadowed by live registrations; `tier:"primitive"` is read nowhere; `fallback` is
 declared twice as identity and walked on every export for nothing; `bullets.ts` imports
 `LINE_HEIGHT_FACTOR` from the render bridge above it. Direction: sweep. Size: XS each.
+**Fixed 2026-09-06**: dead `walkElements` deleted with its tests; the unreachable card/group preview tiles gone; `LINE_HEIGHT_FACTOR` moved down to `@model/text` (bullets' upward import gone); the media aliases and the export fallback had already been cleaned by earlier rounds. `tier: "primitive"` stays as declarative taxonomy, by decision.
 
-**L10 A new element can be forgotten silently in two places.** The register-manifest import and
+**L10 ✔ A new element can be forgotten silently in two places.** The register-manifest import and
 the palette preview both fail silent; `check:elements` asserts catalog ⊆ registry but not the
 reverse, and can't tell a deliberately-untaught element from an oversight. Direction: extend
 `check:elements` (every `register(` caller reachable from register.ts; every non-hidden spec has a
 non-fallback preview). Size: S.
+**Fixed 2026-09-06**: `check:elements` walks register.ts's import graph (every `register()` caller must be reachable; 28 files) and requires drawn preview art for every palette element — the art check caught the form family shipping on the fallback tile the day it landed, and six tiles were drawn.
 
 ---
 
 # Editor interaction
 
-**U1 A bullets list can never gain or lose an item by direct manipulation.** Delete/duplicate are
+**U1 ✔ A bullets list can never gain or lose an item by direct manipulation.** Delete/duplicate are
 gated by `movable`, foreign drops rejected, paste re-anchors outside, and Enter ends editing
 (`TextEditor.tsx:215-218`). A three-point list is stuck at three points. Direction:
 Enter-splits-item / Backspace-at-start-merges inside the unit. Size: M.
+**Fixed 2026-09-06** (delete/duplicate had landed earlier with child-actions): `splitUnitItem`/
+`mergeUnitItem` in `@elements/ops` (pure, marks rebased through `spliceText`, op-level pins in
+`ops.test.ts`); `TextEditor` maps Enter/Backspace-at-start through the `unitItem` gate and hands
+editing to the landed item via the `pendingSel` remount path. Key wiring is manual QA.
 
-**U2 Inspector and bar text/number fields commit one undo entry per keystroke.** Both writers
+**U2 ✔ Inspector and bar text/number fields commit one undo entry per keystroke.** Both writers
 coalesce only `slider|color` (`RightPanel.tsx:76-79`, `ControlBars.tsx:111-114`); typing a button
 label costs ~10 undo steps and room batches, where canvas typing costs one. Direction: extend the
 coalesce key to `text`/`number`. Size: S.
+**Fixed, verified 2026-09-05**: both writers now pass `coalesce` keys (`panel:…`, bar sliders and color drags stream into one undo step); landed in the editor-controls round.
 
-**U3 The two insert surfaces have opposite gestures and neither supports the other.** Palette
+**U3 ✔ The two insert surfaces have opposite gestures and neither supports the other.** Palette
 tiles are drag-only (a click flashes a ghost and drops nothing, `Insert.tsx:137-145`); the
 empty-region quick picker is click-only and hardcodes 10 types with no search. Direction: click on
 a palette tile inserts at selection; reuse the searchable palette in the quick popover. Size: S+S.
+**Fixed 2026-09-06**: a tile click (≤4px slop; drag unchanged) runs `insertFromPalette` in
+`commands.ts` — the paste-anchor rule (beside the selection outside a seal, into a selected
+section, else the last section's end), pinned in `commands.test.ts`; the quick picker searches the
+whole registry (`listElements()` minus hidden, `@ui/fuzzy`), its hardcoded list deleted.
 
-**U4 The section padding ring is a dead zone for element drops.** Gap hitboxes stop at the root
+**U4 ✔ The section padding ring is a dead zone for element drops.** Gap hitboxes stop at the root
 container's box; only an empty root extends to the section card (`dnd.ts:449-452`) — a drop in a
 populated section's padding does nothing, indicator gone. Direction: extend the root's first/last
 gap hitboxes to the card, as the empty case already does. Size: S.
+**Fixed 2026-09-06**: `gapSlot`/`gridGapSlots`/`wrapSlots` take a `reach` rect the hitboxes tile
+(indicators stay on the content box); the root passes the painted card, so the whole ring lands in
+the nearest edge slot. Pinned in `dnd.test.ts` ("the padding ring"), outside-the-card still null.
 
-**U5 Wrap-beside exists only at the section root.** "Place this beside that" for a nested leaf is
+**U5 ✔ Wrap-beside exists only at the section root.** "Place this beside that" for a nested leaf is
 group-then-flip-direction, two non-obvious steps, though `wrapWith` already takes any path
 (`ops.ts:389-390`). Direction: edge wrap slots on non-root leaves. Size: M.
+**Fixed 2026-09-06**: `besideSlots` in `dnd.ts` — narrow ±EDGE strips on every nested col member's
+vertical edges, resolving to `op: "wrap"` at the member's own path (`place` already handled any
+path). Root children skip them (their edges are column boundaries); unit interiors never get them
+(the walk stops at seals). Pinned in `dnd.test.ts`, including the move payload path.
 
-**U6 Column boundary bands outrank every nested gap within 24px** (`dnd.ts:315,620`) — honest
+**U6 ✔ Column boundary bands outrank every nested gap within 24px** (`dnd.ts:315,620`) — honest
 indicator, grabby feel. Direction: shrink `EDGE` when a deeper slot's hitbox overlaps. Size: S.
+**Fixed 2026-09-06**, differently than the direction suggested: `activeSlot` resolves by distance
+across classes (bands win only when their line is nearest, class breaks ties within 4px) while
+element gaps keep depth-first resolution among themselves — their hitboxes are tiled claims, so
+pure distance would hand a deep tile to a nearer root line (the hysteresis pin catches exactly
+that). Every prior pin holds unchanged; the misfire pin flipped by design ("distance beats class").
 
 **U7 Width and vertical alignment have no control surface where they're most needed.** A lone
 element in a column can't be made 60% wide (dividers need ≥2 siblings); row children have no
 vertical self-alignment control (`canAlign` bails for row parents, `ControlBars.tsx:127-131`), the
 only knob moving all children at once. Size: M+S.
 
-**U8 No marquee selection**; multi-select is shift-click only and does not exist on phones. A
+**U8 ✔ No marquee selection**; multi-select is shift-click only and does not exist on phones. A
 non-conforming grip grab silently collapses the set to a single drag (`Selection.tsx:240-246`).
 Direction: rubber-band over the stage; a cue on collapse. Size: M+XS.
+**Fixed 2026-09-06** (desktop): a fine-pointer press on nothing (gutter or section ground) sweeps
+a rectangle; release resolves through `marqueeTargets` in `dnd.ts` (pure, pinned) — the root's
+direct children the rect crosses, a swept branch answering as its depth-one ancestor, a container
+root never answering — into `selectMany`. Phones stay tap-only, recorded: a touch marquee fights
+scroll and the right gesture deserves its own decision. The collapse cue was not taken this round.
 
-**U9 Rotation/layer live on Pin and nothing says so** — a user hunting "rotate" won't find
+**U9 ✔ Rotation/layer live on Pin and nothing says so** — a user hunting "rotate" won't find
 Pin → Rotation. Direction: a palette command or inspector copy. Size: XS.
+**Fixed 2026-09-06**: the inspector's layout section shows a one-line affordance under the Pin row
+("Rotate, layer and offset unlock when the element is pinned. Pin it now.") that pins in place.
 
-**U10 Small asymmetries.** Copy works on sealed children but cut/paste don't (`commands.ts:214-223`);
+**U10 ✔ Small asymmetries.** Copy works on sealed children but cut/paste don't (`commands.ts:214-223`);
 multi-select block moves are confined to their parent with no hint why targets vanished;
 `ungroupAt` gates on tier and so accepts `popup`, splicing its panel out and dropping the trigger
 (`ops.ts:411`). Size: XS each.
+**Cut fixed 2026-09-06**: `edit.cut` is literally copy + the child-aware delete (its
+`actionableSet` gate deleted), pinned on a sealed child. Paste's outside-the-seal anchor stays as
+documented behavior. The block-move hint and the `ungroupAt` popup gate were not taken this round.
 
 ---
 

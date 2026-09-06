@@ -10,16 +10,18 @@ import type {
     TextLeaf,
     TextLine,
 } from "@engine/node";
+import { LINE_HEIGHT_FACTOR } from "@model/text";
 import type { Section } from "@model/artifact";
-import { sectionRegionId } from "@model/artifact";
+import { isElementRegionId, sectionRegionId } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { composeSection } from "@elements/compose";
 import { skeletonize } from "@elements/spec";
-import { fragment, layout, rotatedExtent } from "@engine/layout";
+import { ghostBody, ghostColors } from "@elements/ghost";
+import { fragment, layout, regionWindow, rotatedExtent } from "@engine/layout";
 import { DEFAULT_PROFILE, FIT_FLOOR, MIN_TEXT_PX, sectionFrame } from "@engine/profile";
 import { fixed, grow } from "@model/geometry";
-import { DEFAULT_THEME, mix } from "@themes";
+import { DEFAULT_THEME } from "@themes";
 
 export const SECTION_GAP = 22;
 
@@ -43,8 +45,12 @@ export function ctxFor(
     };
 }
 
-// a rotated command's painted extent is its turned corners, not its flat box
-const lowest = (c: RenderCommand): number => rotatedExtent(c).bottom;
+// a rotated command's painted extent is its turned corners, not its flat box; a clipped one ends
+// where its clip does, so content a bounded box trimmed away cannot stretch the section ground
+const lowest = (c: RenderCommand): number => {
+    const b = rotatedExtent(c).bottom;
+    return c.clip ? Math.min(b, c.clip.y + c.clip.h) : b;
+};
 
 function bottom(commands: RenderCommand[]): number {
     return commands.reduce((m, c) => Math.max(m, lowest(c)), 0);
@@ -73,12 +79,10 @@ export function layoutSection(
     return { commands, regions, height };
 }
 
-function ghostColorsFor(theme: Tokens): { bar: string; panel: string; line: string } {
-    return { bar: mix(theme.surface, theme.ink, 0.2), panel: theme.surface, line: theme.line };
-}
-
 // An outline card: the plan's own words where they will sit, a ghost for every other block, so a
-// stat column reads as "a number lands here" rather than inventing one.
+// stat column reads as "a number lands here" rather than inventing one. A column whose kind the
+// outline names (`ghosts`) draws that kind's silhouette instead of a greyed guess; the rest are
+// skeletonized shape only.
 export function layoutOutline(
     section: Section,
     copyId: string,
@@ -86,17 +90,40 @@ export function layoutOutline(
     measure: MeasureText,
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
+    ghosts: Record<string, string> = {},
 ): { commands: RenderCommand[]; regions: Region[]; height: number } {
     const node = composeSection(section, ctxFor(width, theme, format, false, measure));
-    const ghosts = ghostColorsFor(theme);
+    const colors = ghostColors(theme);
     const holds = (n: EngineNode): boolean => n.id === copyId || (n.children?.some(holds) ?? false);
+    // size a silhouette to the box its column lays out into, measured in a first pass; only pay for
+    // that pass when a silhouette is actually wanted
+    const heights = Object.keys(ghosts).length
+        ? new Map(
+              layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure).regions.map(
+                  (r) => [r.id, r.box.h] as const,
+              ),
+          )
+        : new Map<string, number>();
+    const silhouette = (n: EngineNode, kind: string): EngineNode => {
+        const h = heights.get(n.id ?? "") ?? 220;
+        return {
+            w: n.w,
+            h: fixed(h),
+            span: n.span,
+            direction: "col",
+            gap: 12,
+            children: ghostBody(kind, colors, h),
+        };
+    };
     // everything off the path to the copy column is shape only
     const ghostAround = (n: EngineNode): EngineNode =>
         n.id === copyId
             ? n
             : holds(n)
               ? { ...n, children: n.children?.map(ghostAround) }
-              : skeletonize(n, ghosts);
+              : n.id && ghosts[n.id]
+                ? silhouette(n, ghosts[n.id]!)
+                : skeletonize(n, colors);
     const { commands, regions } = layout(
         ghostAround(node),
         { x: 0, y: 0, w: width, h: 100000 },
@@ -115,7 +142,7 @@ export function layoutSectionSkeleton(
 ): { commands: RenderCommand[]; height: number } {
     const node = skeletonize(
         composeSection(section, ctxFor(width, theme, format, false, measure)),
-        ghostColorsFor(theme),
+        ghostColors(theme),
     );
     const { commands } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
     return { commands, height: bottom(commands) };
@@ -133,19 +160,21 @@ function findAspectMedia(n: EngineNode): EngineNode | null {
 
 interface CoverFit {
     containers: EngineNode[];
+    cells: EngineNode[];
     media: EngineNode[];
     chain: EngineNode[];
 }
 
-// fill-and-crop the dominant media so it absorbs slide slack instead of forcing a scale-down
+// Find the dominant media a slide could fill-and-crop. A pure read: asking mutates nothing, so a
+// caller that decides against it (the paginate fall-through) keeps an untouched tree.
 function coverFitMedia(root: EngineNode): CoverFit {
-    // el:… ids mark real content-flow cells (composeElement tags them), not a leaf's internal layout
+    // el: ids mark real content-flow cells (composeElement tags them), not a leaf's internal layout
     const flows: EngineNode[] = [];
     const parent = new Map<EngineNode, EngineNode>();
     const collect = (n: EngineNode): void => {
         if (
             (n.direction === "row" || n.direction === "col") &&
-            (n.children ?? []).some((c) => c.id?.startsWith("el:"))
+            (n.children ?? []).some((c) => isElementRegionId(c.id))
         )
             flows.push(n);
         for (const c of n.children ?? []) {
@@ -155,21 +184,16 @@ function coverFitMedia(root: EngineNode): CoverFit {
     };
     collect(root);
     const containers: EngineNode[] = [];
+    const cells: EngineNode[] = [];
     const media: EngineNode[] = [];
     const chain = new Set<EngineNode>();
     for (const flow of flows) {
-        const cells = (flow.children ?? []).filter((c) => c.id?.startsWith("el:"));
-        const mediaCells = cells.filter((c) => findAspectMedia(c));
+        const flowCells = (flow.children ?? []).filter((c) => isElementRegionId(c.id));
+        const mediaCells = flowCells.filter((c) => findAspectMedia(c));
         // only cover-fit a single dominant media; multi-media sections are better paginated (left tall here)
-        if (cells.length < 2 || mediaCells.length !== 1) continue;
-        for (const cell of mediaCells) {
-            const m = findAspectMedia(cell)!;
-            cell.h = grow();
-            m.h = grow();
-            m.aspect = undefined;
-            if (m.image) m.image = { ...m.image, fit: "cover" };
-            media.push(m);
-        }
+        if (flowCells.length < 2 || mediaCells.length !== 1) continue;
+        cells.push(mediaCells[0]!);
+        media.push(findAspectMedia(mediaCells[0]!)!);
         containers.push(flow);
         // Every wrapper between the slide frame and this container must pass the height down: a `fit`
         // ancestor (composeSection's gutter box) hands a grow child its minimum, collapsing the media
@@ -177,7 +201,19 @@ function coverFitMedia(root: EngineNode): CoverFit {
         for (let a = parent.get(flow); a && a !== root; a = parent.get(a))
             if (a.h.mode === "fit") chain.add(a);
     }
-    return { containers, media, chain: [...chain] };
+    return { containers, cells, media, chain: [...chain] };
+}
+
+// The one place cover-fit mutates: applied only by a branch that commits to the crop.
+function commitCoverFit(c: CoverFit): void {
+    for (const cell of c.cells) cell.h = grow();
+    for (const m of c.media) {
+        m.h = grow();
+        m.aspect = undefined;
+        if (m.image) m.image = { ...m.image, fit: "cover" };
+    }
+    for (const flow of c.containers) flow.h = grow();
+    for (const a of c.chain) a.h = grow();
 }
 
 const naturalHeight = (node: EngineNode, w: number, measure: MeasureText): number =>
@@ -202,24 +238,32 @@ function composeSlideNode(
     return node;
 }
 
-// what the section measures with its media absorbed away: coverFitMedia's precondition
+// What the section measures with its media absorbed away. The media still carry their authored
+// aspect at this point (the find is pure), so both height channels are parked and restored.
 function collapsedHeight(
     node: EngineNode,
     media: EngineNode[],
     w: number,
     measure: MeasureText,
 ): number {
-    for (const m of media) m.h = fixed(0);
+    const kept = media.map((m) => ({ m, h: m.h, aspect: m.aspect }));
+    for (const m of media) {
+        m.h = fixed(0);
+        m.aspect = undefined;
+    }
     const min = naturalHeight(node, w, measure);
-    for (const m of media) m.h = grow();
+    for (const k of kept) {
+        k.m.h = k.h;
+        k.m.aspect = k.aspect;
+    }
     return min;
 }
 
-function centreInFrame(node: EngineNode, h: number): EngineNode {
-    node.h = fixed(h);
-    node.alignY = "center";
-    return node;
-}
+const centreInFrame = (node: EngineNode, h: number): EngineNode => ({
+    ...node,
+    h: fixed(h),
+    alignY: "center",
+});
 
 // Threshold of the "paginate" policy: taller than this × its frame splits; below, it scales onto one
 // page. An "fit" format never splits, however tall — the caller scales it instead.
@@ -309,8 +353,7 @@ function prepareSlideNode(
             // probe with media collapsed: if the rest fits, media can absorb the overflow
             const minH = collapsedHeight(node, cover.media, w, measure);
             if (minH <= h) {
-                for (const c of cover.containers) c.h = grow();
-                for (const a of cover.chain) a.h = grow();
+                commitCoverFit(cover);
                 return { node: centreInFrame(node, h), targetH: h, fitScale };
             }
             // The media can only absorb the slack once the text leaves it room, so the objective
@@ -327,8 +370,7 @@ function prepareSlideNode(
                     return m;
                 });
                 if (best.at) {
-                    for (const c of best.at.cover.containers) c.h = grow();
-                    for (const a of best.at.cover.chain) a.h = grow();
+                    commitCoverFit(best.at.cover);
                     return {
                         node: centreInFrame(best.at.node, h),
                         targetH: h,
@@ -336,12 +378,10 @@ function prepareSlideNode(
                     };
                 }
             }
-            // The cover-fit could not be committed, and `node` is already mutated by the probe
-            // (aspects stripped, media grown): recompose clean rather than let it escape, and
-            // paginate at the clean natural height so the photo keeps its aspect on every page.
-            const clean = compose(fitScale);
-            const cleanH = Math.max(h, naturalHeight(clean, w, measure));
-            return { node: centreInFrame(clean, cleanH), targetH: cleanH, fitScale };
+            // The cover-fit was not committed and the find is pure, so `node` is untouched:
+            // paginate at its own natural height and the photo keeps its aspect on every page.
+            const cleanH = Math.max(h, natural);
+            return { node: centreInFrame(node, cleanH), targetH: cleanH, fitScale };
         } else if (freeze === undefined && !paginates(natural)) {
             const best: { at: { node: EngineNode; height: number } | null } = { at: null };
             const solved = solveFitScale(h, natural, fitFloor(node), (f) => {
@@ -384,6 +424,7 @@ export function layoutSlide(
 
 export interface SlidePage {
     commands: RenderCommand[];
+    regions: Region[]; // the layout's own regions for this page's window; commands carry no datums
     w: number;
     h: number;
     contentH: number; // height the commands span; caller scales it to fit h (== h for a paginated page)
@@ -408,11 +449,12 @@ export function sectionSlides(
         format,
         plain,
     );
-    const { commands } = layout(node, { x: 0, y: 0, w, h: targetH }, measureText);
+    const { commands, regions } = layout(node, { x: 0, y: 0, w, h: targetH }, measureText);
     if (format.overflow === "fit" || targetH <= h * PAGINATE_ABOVE)
-        return [{ commands, w, h, contentH: targetH, fitScale }];
-    return fragment(commands, targetH, h).map((cmds) => ({
-        commands: cmds,
+        return [{ commands, regions, w, h, contentH: targetH, fitScale }];
+    return fragment(commands, targetH, h).map((p) => ({
+        commands: p.commands,
+        regions: regionWindow(regions, p.top, p.bottom),
         w,
         h,
         contentH: h,
@@ -430,7 +472,7 @@ export function layoutSlideSkeleton(
 ): { commands: RenderCommand[]; height: number } {
     const { node, targetH } = prepareSlideNode(section, w, h, measure, theme, format);
     const { commands } = layout(
-        skeletonize(node, ghostColorsFor(theme)),
+        skeletonize(node, ghostColors(theme)),
         { x: 0, y: 0, w, h: targetH },
         measure,
     );
@@ -479,8 +521,6 @@ export interface RunLayout {
     height: number;
     lineHeight: number;
 }
-
-export const LINE_HEIGHT_FACTOR = 1.35;
 
 // Per-font-string metrics, from the font bounding box so they never jitter with content; the "Hg"
 // probe is only a carrier string. Falls back to em-square factors where the boxes are unsupported.
@@ -559,9 +599,7 @@ function tokenize(leaf: TextLeaf): Token[] {
     return tokens;
 }
 
-function toFrag(cx: CanvasRenderingContext2D, piece: Piece, x: number): TextFrag {
-    cx.font = piece.font;
-    const width = cx.measureText(piece.text).width;
+function toFrag(piece: Piece, x: number, width: number): TextFrag {
     const r = piece.run;
     return {
         text: piece.text,
@@ -612,10 +650,10 @@ export function layoutRuns(
         pendingGlue = undefined;
         lineStart = nextStart;
     };
-    const place = (piece: Piece): void => {
-        const frag = toFrag(cx, piece, width);
-        frags.push(frag);
-        width += frag.width;
+    // width measured once, at the wrap decision, and carried into the frag
+    const place = (piece: Piece, pieceW: number): void => {
+        frags.push(toFrag(piece, width, pieceW));
+        width += pieceW;
     };
 
     for (const tok of tokens) {
@@ -628,10 +666,13 @@ export function layoutRuns(
             continue;
         }
         // a word (may cross run/font boundaries) is one indivisible box
+        const pieceW: number[] = [];
         let boxW = 0;
         for (const p of tok.pieces) {
             cx.font = p.font;
-            boxW += cx.measureText(p.text).width;
+            const pw = cx.measureText(p.text).width;
+            pieceW.push(pw);
+            boxW += pw;
         }
         const hasLead = frags.length > 0;
         let glueW = 0;
@@ -641,11 +682,11 @@ export function layoutRuns(
         }
         if (!noWrap && hasLead && width + glueW + boxW > maxWidth) {
             endLine(tok.pieces[0]!.from); // wrap: the leading space is dropped at the new line's start
-            for (const p of tok.pieces) place(p);
+            tok.pieces.forEach((p, i) => place(p, pieceW[i]!));
         } else {
-            if (pendingGlue && hasLead) place(pendingGlue);
+            if (pendingGlue && hasLead) place(pendingGlue, glueW);
             pendingGlue = undefined;
-            for (const p of tok.pieces) place(p);
+            tok.pieces.forEach((p, i) => place(p, pieceW[i]!));
         }
     }
     endLine(0);

@@ -10,6 +10,7 @@ import {
     sectionBleeds,
     sectionFrame,
     stacksAtWidth,
+    composeScale,
 } from "@engine/profile";
 import type { ArtifactContent, Section } from "@model/artifact";
 
@@ -276,5 +277,14 @@ describe("rampScale", () => {
     it("every shipped format carries the shared ramp", () => {
         for (const p of [PROFILES.deck!, PROFILES.doc!, PROFILES.web!])
             expect(p.ramp).toEqual(PROFILES.web!.ramp);
+    });
+});
+
+// E8: compose and pin math both read this one product, so a third factor cannot drift them apart.
+describe("composeScale", () => {
+    it("is the ramp times the autofit factor, defaulting fit to 1", () => {
+        const p = resolveProfile("deck");
+        expect(composeScale(p, 2000)).toBe(rampScale(p, 2000));
+        expect(composeScale(p, 2000, 0.9)).toBeCloseTo(rampScale(p, 2000) * 0.9, 10);
     });
 });

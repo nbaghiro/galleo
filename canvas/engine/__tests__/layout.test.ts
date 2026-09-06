@@ -721,3 +721,31 @@ describe("float heights and the unbounded sentinel", () => {
         expect(boxOf(runLayout(grid, 200, SENTINEL).regions, "f").h).toBeLessThan(200);
     });
 });
+
+// item 8: an ellipse crop travels from the node's clip config to its subtree's commands, and
+// degrades to the plain rect the moment a descendant narrows the clip.
+describe("ellipse clip threading", () => {
+    it("children carry the shape; a narrowing descendant drops it", () => {
+        const node: EngineNode = {
+            w: fixed(100),
+            h: fixed(100),
+            clip: { x: true, y: true, shape: "ellipse" },
+            direction: "col",
+            children: [
+                { id: "kid", w: grow(), h: fixed(40), fill: { color: "#eee" } },
+                {
+                    id: "narrower",
+                    w: grow(),
+                    h: fixed(20),
+                    clip: { y: true },
+                    direction: "col",
+                    children: [{ id: "inner", w: grow(), h: fixed(60), fill: { color: "#ddd" } }],
+                },
+            ],
+        };
+        const { commands } = runLayout(node, 100, 100);
+        const by = (id: string) => commands.find((c) => c.id === id)!;
+        expect(by("kid").clipShape).toBe("ellipse");
+        expect(by("inner").clipShape).toBeUndefined();
+    });
+});

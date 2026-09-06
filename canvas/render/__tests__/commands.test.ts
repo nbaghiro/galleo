@@ -6,6 +6,7 @@ import {
     ctxFor,
     layoutNode,
     layoutRuns,
+    leafForRuns,
     layoutSection,
     layoutSlide,
     runFont,
@@ -96,5 +97,54 @@ describe("layoutRuns — run-aware wrap", () => {
     });
     it("line height defaults to size × 1.35", () => {
         expect(layoutRuns(cx, leaf("hi"), 999).lineHeight).toBeCloseTo(12 * 1.35, 5);
+    });
+});
+
+// E6: a command clipped by a bounded box must not stretch the measured height past its clip.
+describe("clipped phantom height", () => {
+    it("counts a clipped command at its visible bottom, not its content bottom", () => {
+        const node = {
+            w: grow(),
+            h: fixed(100),
+            direction: "col" as const,
+            children: [
+                {
+                    w: grow(),
+                    h: fixed(400),
+                    fill: { color: "#eee" },
+                },
+            ],
+        };
+        const { height } = layoutNode(node, 600, measure);
+        expect(height).toBe(100);
+    });
+
+    it("keeps the clipped child's region unclipped, so the editor can still select it", () => {
+        const node = {
+            w: grow(),
+            h: fixed(100),
+            direction: "col" as const,
+            children: [{ id: "tall", w: grow(), h: fixed(400), fill: { color: "#eee" } }],
+        };
+        const { regions } = layoutNode(node, 600, measure);
+        expect(regions.find((r) => r.id === "tall")?.box.h).toBe(400);
+    });
+});
+
+// E5: building lines must measure each piece once; the wrap decision and the frag share the width.
+describe("layoutRuns measure economy", () => {
+    it("measures each word and glue exactly once", () => {
+        let calls = 0;
+        const counting: Pick<CanvasRenderingContext2D, "font" | "measureText"> = {
+            font: "",
+            measureText: (t: string) => {
+                calls += 1;
+                return { width: t.length * 8 } as TextMetrics;
+            },
+        };
+        const leaf: TextLeaf = { text: "aa bb cc", fontId: "f", size: 12, wrap: "words" };
+        layoutRuns(counting as CanvasRenderingContext2D, leafForRuns(leaf), 1000);
+        // three words + two glue spaces; one measurement each
+        expect(calls).toBe(5);
     });
 });

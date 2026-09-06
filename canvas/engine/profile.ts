@@ -112,6 +112,15 @@ export function rampScale(profile: FormatDescriptor, availWidth: number): number
     return base * Math.max(r.min, availWidth / r.reference);
 }
 
+/**
+ * The one compose scale: the fluid ramp times the section's autofit factor. Compose sizes tokens
+ * by it and pin math divides by it; a third factor added to one without the other would drift
+ * them apart, which is why both call this instead of multiplying inline.
+ */
+export function composeScale(profile: FormatDescriptor, availWidth: number, fitScale = 1): number {
+    return rampScale(profile, availWidth) * fitScale;
+}
+
 /** The width a contained section lays out at: the reading column, held off the board's edges. */
 export function containedWidth(profile: FormatDescriptor, fullW: number): number {
     return Math.min(fullW - (profile.stackInset ?? 64), profile.maxContentWidth ?? 1080);

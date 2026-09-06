@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { eq } from "drizzle-orm";
-import { LEGACY_MEDIA_KINDS, asContent, withMediaKinds } from "@model/artifact";
+import { LEGACY_MEDIA_KINDS, asContent, withCanonicalTypes } from "@model/artifact";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { contentColumns } from "@services/core/artifacts";
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
         }
         // written unconditionally: the digest is derived from the tree, and the cover reads the
         // media element, so a row already merged still needs its derivations refreshed once
-        const merged = withMediaKinds(asContent(row.draftContent));
+        const merged = withCanonicalTypes(asContent(row.draftContent));
         const { columns } = await contentColumns(row.workspaceId, merged, db);
         await db.update(schema.artifacts).set(columns).where(eq(schema.artifacts.id, row.id));
     }

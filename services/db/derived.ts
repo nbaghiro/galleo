@@ -3,7 +3,7 @@ import {
     artifactDigest,
     artifactSearchText,
     contentWithElementIds,
-    withMediaKinds,
+    withCanonicalTypes,
 } from "@model/artifact";
 
 // A tree reaching a write may have been authored anywhere: an old row, an AI turn, a client that
@@ -40,7 +40,9 @@ export function contentWrite(content: unknown): {
     digest: ArtifactDigest;
     searchText: string;
 } {
-    const stamped = stampable(content) ? withMediaKinds(contentWithElementIds(content)) : content;
+    const stamped = stampable(content)
+        ? withCanonicalTypes(contentWithElementIds(content))
+        : content;
     return {
         draftContent: stamped ?? {},
         digest: artifactDigest(stamped),
