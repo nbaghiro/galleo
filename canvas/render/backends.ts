@@ -647,12 +647,90 @@ export function paint(
     return nodes;
 }
 
+// FLIP for a preview repaint: a command that moved plays its inverted delta as a `translate`
+// gliding to identity (composing under any `transform` rotation), an appeared one fades in, and
+// the end state is the pristine paint. Keys are structural (id | kind | ordinal), so a stable
+// element matches across frames and a kind change reads as new.
+export interface FlipShift {
+    box: Rect;
+    dx: number;
+    dy: number;
+}
+export interface FlipFeel {
+    ms: number;
+    easing: string;
+}
+
+const flipKey = (c: RenderCommand, seen: Map<string, number>): string => {
+    const base = `${c.id ?? ""}|${c.kind}`;
+    const n = seen.get(base) ?? 0;
+    seen.set(base, n + 1);
+    return `${base}|${n}`;
+};
+
+export function flipBoxes(commands: RenderCommand[]): Map<string, Rect> {
+    const seen = new Map<string, number>();
+    const out = new Map<string, Rect>();
+    for (const c of commands) out.set(flipKey(c, seen), c.box);
+    return out;
+}
+
+export function flipShifts(
+    prev: Map<string, Rect>,
+    commands: RenderCommand[],
+): ({ dx: number; dy: number } | "appeared" | null)[] {
+    const seen = new Map<string, number>();
+    return commands.map((c) => {
+        const was = prev.get(flipKey(c, seen));
+        if (!was) return "appeared";
+        const dx = was.x - c.box.x;
+        const dy = was.y - c.box.y;
+        return dx || dy ? { dx, dy } : null;
+    });
+}
+
+// one flight per node: a newer flip cancels the older, and the cancelled one leaves no residue
+const flights = new WeakMap<HTMLElement, Animation>();
+
+// interruption: a node caught mid-glide composes its current animated offset into the new delta,
+// so the map always plays from what is on screen, never from where the last flight was headed
+const midFlight = (el: HTMLElement): { x: number; y: number } => {
+    if (!flights.has(el) || typeof getComputedStyle !== "function") return { x: 0, y: 0 };
+    const t = getComputedStyle(el).translate;
+    if (!t || t === "none") return { x: 0, y: 0 };
+    const [xs, ys] = t.split(" ");
+    return { x: parseFloat(xs ?? "0") || 0, y: parseFloat(ys ?? "0") || 0 };
+};
+
+const playFlip = (
+    el: HTMLElement,
+    shift: { dx: number; dy: number } | "appeared",
+    feel: FlipFeel,
+): void => {
+    if (typeof el.animate !== "function") return;
+    const opts = { duration: feel.ms, easing: feel.easing };
+    const cur = midFlight(el);
+    flights.get(el)?.cancel();
+    const anim =
+        shift === "appeared"
+            ? el.animate([{ opacity: 0 }], opts)
+            : el.animate(
+                  [
+                      { translate: `${shift.dx + cur.x}px ${shift.dy + cur.y}px` },
+                      { translate: "0px 0px" },
+                  ],
+                  opts,
+              );
+    flights.set(el, anim);
+};
+
 // reset each reused node first so a kind change can't inherit old styling; a tag change (div ↔ a)
 // can only be resolved by replacing it
 export function paintReconcile(
     host: HTMLElement,
     commands: RenderCommand[],
     assets: RenderAssets = "full",
+    flip?: FlipFeel & { shifts: ({ dx: number; dy: number } | "appeared" | null)[] },
 ): HTMLElement[] {
     const out: HTMLElement[] = [];
     const nodes = host.childNodes;
@@ -669,6 +747,8 @@ export function paintReconcile(
             el.replaceChildren();
         }
         applyCommand(el, commands[i]!, assets);
+        const shift = flip?.shifts[i];
+        if (shift) playFlip(el, shift, flip!);
         out.push(el);
     }
     while (host.childNodes.length > commands.length) host.removeChild(host.lastChild!);
@@ -1031,6 +1111,7 @@ export interface SectionLayer {
     el: HTMLElement;
     commands: RenderCommand[];
     nodes: HTMLElement[];
+    regions: Region[]; // section-local, the same space as `commands` (the return's are stage-offset)
 }
 
 export function createSectionStackCache(): SectionStackCache {
@@ -1129,6 +1210,9 @@ export function paintSectionStack(
             section: Section,
             layoutW: number,
         ) => { commands: RenderCommand[]; height: number } | undefined;
+        // editor drag previews only: repaints glide (FLIP) instead of snapping, and the stage-space
+        // deltas come back in `shifts` so the drag layer can aim through the parting
+        flip?: FlipFeel;
     },
 ): {
     tops: number[];
@@ -1138,6 +1222,7 @@ export function paintSectionStack(
     height: number;
     painted: number;
     layers: SectionLayer[];
+    shifts: FlipShift[];
 } {
     const assets = opts.assets ?? "full";
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
@@ -1154,6 +1239,7 @@ export function paintSectionStack(
     const regions: Region[] = [];
     const layers: HTMLElement[] = [];
     const painted: SectionLayer[] = [];
+    const shifts: FlipShift[] = [];
     const live = new Set<string>();
     let y = opts.startY ?? 0;
     // Pinned layers are the only ones left in normal flow, so the flow cursor counts just them and a
@@ -1242,15 +1328,41 @@ export function paintSectionStack(
         // a stuck nav bar must exist however far past its own slot the reader has scrolled
         const inWindow = !win || pin || intersects(y, entry.height, win);
         if (inWindow && entry.commands.length) {
+            const flip = opts.flip && !pin && !pending && prev && !prev.ghost ? opts.flip : null;
             if (!entry.layer) {
                 entry.layer = document.createElement("div");
                 entry.nodes = paint(entry.commands, entry.layer, assets);
             } else if (!reuse) {
+                const inner = flip && flipShifts(flipBoxes(prev!.commands), entry.commands);
                 entry.nodes = cache
-                    ? paintReconcile(entry.layer, entry.commands, assets)
+                    ? paintReconcile(
+                          entry.layer,
+                          entry.commands,
+                          assets,
+                          inner ? { ...flip!, shifts: inner } : undefined,
+                      )
                     : paint(entry.commands, entry.layer, assets);
+                if (inner)
+                    for (const [i, sh] of inner.entries())
+                        if (sh && sh !== "appeared") {
+                            const b = entry.commands[i]!.box;
+                            shifts.push({ box: { x: b.x + x, y: b.y + y, w: b.w, h: b.h }, ...sh });
+                        }
             }
             const layer = entry.layer;
+            if (flip) {
+                const px = parseFloat(layer.style.left) || 0;
+                const py = parseFloat(layer.style.top) || 0;
+                const moved = layer.style.top !== "" && (px !== x || py !== y);
+                if (moved) {
+                    playFlip(layer, { dx: px - x, dy: py - y }, flip);
+                    shifts.push({
+                        box: { x, y, w: layoutW, h: entry.height },
+                        dx: px - x,
+                        dy: py - y,
+                    });
+                }
+            }
             // paint() forces relative; keep layers out of flow. A pinned one is the exception: it
             // sticks, which needs flow, and rides above its siblings once it does.
             layer.style.position = pin ? "sticky" : "absolute";
@@ -1270,6 +1382,7 @@ export function paintSectionStack(
                 el: layer,
                 commands: entry.commands,
                 nodes: entry.nodes,
+                regions: entry.regions,
             });
             for (const r of entry.regions) regions.push(offsetRegion(r, x, y));
         } else if (win && !pin && entry.layer && !intersects(y, entry.height, keep(win))) {
@@ -1293,6 +1406,7 @@ export function paintSectionStack(
         height: y,
         painted: layers.length,
         layers: painted,
+        shifts,
     };
 }
 

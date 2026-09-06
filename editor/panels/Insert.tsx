@@ -1,11 +1,7 @@
 import type { Rect } from "@engine/node";
 import type { ElementAddress, ElementInstance, Target } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
-import { createMemo, createSignal, onMount, Show, For } from "solid-js";
-import { layout } from "@engine/layout";
-import { measureText } from "@canvas/render/commands";
-import { paint } from "@canvas/render/backends";
-import { paintedNodeFor } from "@editor/core/leaf";
+import { createMemo, createSignal, Show, For } from "solid-js";
 import { getElementAt, replaceAt } from "@elements/ops";
 import { elementRegionId } from "@model/artifact";
 import {
@@ -272,83 +268,50 @@ export const ContextMenu: Component = () => (
     </Show>
 );
 
-// a move drag's cursor ghost: the element exactly as painted, dimmed, laid out once per gesture
-const MoveGhost: Component<{ from: ElementAddress; w: number; h: number }> = (props) => {
-    let host!: HTMLDivElement;
-    onMount(() => {
-        const node = paintedNodeFor(props.from);
-        if (!node) return;
-        const { commands } = layout(node, { x: 0, y: 0, w: props.w, h: props.h }, measureText);
-        paint(commands, host);
-    });
-    return <div ref={host} class="relative h-full w-full" />;
-};
-
-// always mounted; only visibility toggles
+// always mounted; only visibility toggles. A move drag carries no painted cursor ghost: the
+// parting preview already shows the element in the slot, so the cursor keeps only the label pill
 export const DragGhost: Component = () => {
-    // a new-element drag carries its palette tile along; section drags keep the label pill
+    // a new-element drag carries its palette tile along; moves and sections keep the label pill
     const newType = (): string | null => {
         const p = drag()?.payload;
         return p?.kind === "new" ? p.type : null;
     };
-    const moveSrc = createMemo(() => {
+    const pinHint = (): boolean => {
         const p = drag()?.payload;
-        if (p?.kind !== "move") return null;
-        const box = regions().find((r) => r.id === elementRegionId(p.from))?.box;
-        return box ? { from: p.from, w: box.w, h: box.h } : null;
-    });
+        return p?.kind === "move" && pinnable(editor.artifact, p.from);
+    };
     return (
-        <Show
-            when={moveSrc()}
-            fallback={
+        <>
+            <div
+                data-testid="drag-ghost"
+                class="pointer-events-none fixed z-overlay flex items-center gap-2 rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
+                style={{
+                    display: drag() ? "flex" : "none",
+                    left: `${(drag()?.x ?? 0) + 14}px`,
+                    top: `${(drag()?.y ?? 0) + 14}px`,
+                }}
+            >
+                <Show when={newType()}>
+                    {(t) => (
+                        <span
+                            class="-my-0.5 block h-5 w-9 overflow-hidden rounded border border-line bg-canvas"
+                            innerHTML={previewSvg(t())}
+                        />
+                    )}
+                </Show>
+                {drag()?.label}
+            </div>
+            <Show when={drag() && pinHint()}>
                 <div
-                    data-testid="drag-ghost"
-                    class="pointer-events-none fixed z-overlay flex items-center gap-2 rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
+                    class="pointer-events-none fixed z-overlay rounded-full border border-line bg-panel/95 px-2.5 py-1 text-[11px] font-medium text-muted shadow-md"
                     style={{
-                        display: drag() ? "flex" : "none",
                         left: `${(drag()?.x ?? 0) + 14}px`,
-                        top: `${(drag()?.y ?? 0) + 14}px`,
+                        top: `${(drag()?.y ?? 0) - 26}px`,
                     }}
                 >
-                    <Show when={newType()}>
-                        {(t) => (
-                            <span
-                                class="-my-0.5 block h-5 w-9 overflow-hidden rounded border border-line bg-canvas"
-                                innerHTML={previewSvg(t())}
-                            />
-                        )}
-                    </Show>
-                    {drag()?.label}
+                    Space places it freely
                 </div>
-            }
-        >
-            {(src) => (
-                <>
-                    <div
-                        data-testid="drag-ghost"
-                        class="pointer-events-none fixed z-overlay opacity-55"
-                        style={{
-                            left: `${(drag()?.x ?? 0) + 10}px`,
-                            top: `${(drag()?.y ?? 0) + 10}px`,
-                            width: `${src().w}px`,
-                            height: `${src().h}px`,
-                        }}
-                    >
-                        <MoveGhost from={src().from} w={src().w} h={src().h} />
-                    </div>
-                    <Show when={pinnable(editor.artifact, src().from)}>
-                        <div
-                            class="pointer-events-none fixed z-overlay rounded-full border border-line bg-panel/95 px-2.5 py-1 text-[11px] font-medium text-muted shadow-md"
-                            style={{
-                                left: `${(drag()?.x ?? 0) + 14}px`,
-                                top: `${(drag()?.y ?? 0) - 26}px`,
-                            }}
-                        >
-                            Space places it freely
-                        </div>
-                    </Show>
-                </>
-            )}
-        </Show>
+            </Show>
+        </>
     );
 };
