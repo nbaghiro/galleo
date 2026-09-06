@@ -78,3 +78,42 @@ describe("outlineSection as painted", () => {
         expect(text).not.toContain("key metric");
     });
 });
+
+describe("outlineSection ghost silhouettes", () => {
+    const chartCard = (): ReturnType<typeof outlineSection> =>
+        outlineSection({
+            id: "sg",
+            layout: "split-6040",
+            blocks: ["text", "chart"],
+            heading: "Growth",
+            lead: "Where the curve bends.",
+            points: ["one", "two"],
+        });
+
+    it("maps a data column to its kind, and never the copy column", () => {
+        const card = chartCard();
+        const ids = Object.keys(card.ghosts);
+        expect(ids).toHaveLength(1);
+        expect(card.ghosts[ids[0]!]).toBe("chart");
+        expect(ids).not.toContain(card.copyId);
+    });
+
+    it("draws the chart column as a silhouette of bars, not a greyed guess", () => {
+        const card = chartCard();
+        const out = layoutOutline(
+            card.section,
+            card.copyId,
+            900,
+            measure,
+            tokens,
+            resolveProfile("deck"),
+            card.ghosts,
+        );
+        // the chart silhouette is a panel plus several bars, all filled rects
+        expect(out.commands.filter((c) => c.kind === "rect").length).toBeGreaterThan(3);
+    });
+
+    it("has no ghost column in a single-column outline", () => {
+        expect(outlineSection({ id: "solo", layout: "full", heading: "Solo" }).ghosts).toEqual({});
+    });
+});

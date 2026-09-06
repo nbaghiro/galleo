@@ -31,6 +31,10 @@ export const OUTLINE_PLACEHOLDER = {
 // kinds that carry data the outline has no words for, so copy never lands in them
 const MEDIA_KINDS = new Set(["image", "chart", "stat", "table", "diagram"]);
 
+// data kinds whose ghost reads better as a recognizable silhouette (bars, tiles, rows) than as a
+// greyed guess at content the model has not written yet; image already ghosts well as a panel
+const SILHOUETTE_KINDS = new Set(["chart", "stat", "table", "diagram"]);
+
 const t = (text: string, style: string): ElementInstance => ({
     type: "text",
     data: { text, style },
@@ -146,6 +150,7 @@ export function outlineSection(plan: SectionBlueprint & OutlineCopy): {
     section: Section;
     fields: Record<string, OutlineField>;
     copyId: string; // the column holding the plan's words; every other block renders as a ghost
+    ghosts: Record<string, string>; // region id of a data column, to the kind's silhouette it draws
 } {
     const { kinds, copyAt } = columnPlan(plan);
     const points = plan.points?.length ? plan.points : [""];
@@ -178,5 +183,11 @@ export function outlineSection(plan: SectionBlueprint & OutlineCopy): {
     points.forEach((_, i) => {
         fields[at([...prefix, 2, i])] = { kind: "point", index: i };
     });
-    return { section: assemble(plan, columns), fields, copyId: at(prefix) };
+    // a column is addressed at its own top-level path; single-column outlines have no ghost column
+    const ghosts: Record<string, string> = {};
+    if (columns.length > 1)
+        kinds.forEach((k, i) => {
+            if (i !== copyAt && SILHOUETTE_KINDS.has(k)) ghosts[at([i])] = k;
+        });
+    return { section: assemble(plan, columns), fields, copyId: at(prefix), ghosts };
 }

@@ -333,7 +333,15 @@ const Frame: Component<{
         const rendered = sec
             ? layoutSection(sec, w, measureText, tk, profile)
             : outline
-              ? layoutOutline(outline.section, outline.copyId, w, measureText, tk, profile)
+              ? layoutOutline(
+                    outline.section,
+                    outline.copyId,
+                    w,
+                    measureText,
+                    tk,
+                    profile,
+                    outline.ghosts,
+                )
               : null;
         const out =
             rendered ??
