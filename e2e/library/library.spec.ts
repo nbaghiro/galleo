@@ -93,6 +93,15 @@ test("a plate takes the wheel only once the pointer has held still on it", async
             () => getComputedStyle(document.querySelector('[data-testid="plate"]')!).overflowY,
         );
 
+    // A plate fills with its sections on a fetch of its own, so on a loaded run the wheel below can
+    // arrive while the card still holds fewer sections than fit its box, and a scrollTop that
+    // cannot move reads as the feature being broken. Wait for the overflow the test is about.
+    const scrollable = (): Promise<boolean> =>
+        page.evaluate(() => {
+            const el = document.querySelector('[data-testid="plate"]')!;
+            return el.scrollHeight > el.clientHeight + 1;
+        });
+
     // A scroll event is dispatched a frame after the scroll that caused it, and on a loaded run that
     // frame can land after the next pointermove: the dwell would then be started and immediately
     // cancelled by an event belonging to the scroll before it. A real pointer emits a stream of
@@ -131,6 +140,7 @@ test("a plate takes the wheel only once the pointer has held still on it", async
     // moving the pointer again starts a fresh dwell, and holding hands the wheel to the plate
     await page.evaluate(() => document.querySelector("main")!.scrollTo({ top: 0 }));
     await settled();
+    await expect.poll(scrollable).toBe(true);
     await page.mouse.move(x + 4, y + 4);
     await expect.poll(overflow).toBe("auto");
     await page.mouse.wheel(0, 250);
