@@ -13,6 +13,9 @@ coverage/
 # eval:shots evidence (pnpm eval:shots [--write]); regenerated, never a baseline
 /shots/
 
+# stray screenshots dropped at the root while planning; the repo tracks no raster images
+/*.png
+
 # transient probe dir from scripts/check-boundaries.mjs
 canvas/boundary-check-*/
 
