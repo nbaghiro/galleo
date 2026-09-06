@@ -60,6 +60,16 @@ function inferredAlign(d: ContainerData): Align | undefined {
 const colAlign = (d: ContainerData): Align | undefined =>
     d.align === "baseline" ? inferredAlign(d) : (d.align ?? inferredAlign(d));
 
+// a row's whole main axis through one key: pack values ride the engine's alignX, spread values
+// its distribute, so the two can never contradict
+const packOf = (d: ContainerData): Align | undefined =>
+    d.justify === "center" || d.justify === "end" ? d.justify : undefined;
+const justified = (d: ContainerData, dir: FlexDirection): Partial<EngineNode> => {
+    const j = d.justify;
+    if (dir !== "row" || !j) return {};
+    return j === "center" || j === "end" ? { alignX: j } : { distribute: j };
+};
+
 // column fractions describe a row; once stacked each block owns the full width
 const unfraction = (n: EngineNode): EngineNode =>
     n.w.mode === "percent" ? { ...n, w: grow() } : n;
@@ -110,16 +120,18 @@ const bare = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode 
         stacksAtWidth(ctx.format, ctx.availWidth);
     const dir: FlexDirection = stacked ? "col" : (d.direction ?? "col");
     if (dir === "row") balanceRow(d.children, kids);
-    // a stacked row's explicit `align` was a row-axis instruction, so only the text inference survives
+    // a stacked row's explicit `align` was a row-axis instruction, so only the text inference
+    // survives; a justify pack keeps its horizontal meaning across the flip and carries over
     return {
         w: grow(),
         h: fit(),
         direction: dir,
         ...(dir === "grid" ? { columns: gridCols(d) } : {}),
         gap: d.gap ?? 14,
-        alignX: dir === "col" ? (stacked ? inferredAlign(d) : colAlign(d)) : undefined,
+        alignX:
+            dir === "col" ? (stacked ? (packOf(d) ?? inferredAlign(d)) : colAlign(d)) : undefined,
         alignY: dir === "col" ? (visualColumn(d.children) ? "center" : undefined) : d.align,
-        ...(d.justify && dir === "row" ? { distribute: d.justify } : {}),
+        ...justified(d, dir),
         // tracks own widths in a grid: a member's stale row fraction must never pin one
         children: stacked || dir === "grid" ? kids.map(unfraction) : kids,
     };
@@ -143,7 +155,7 @@ const surfaced = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineN
         ...(dir === "grid" ? { columns: gridCols(d) } : {}),
         gap: d.gap ?? 12,
         padding,
-        ...(d.justify && dir === "row" ? { distribute: d.justify } : {}),
+        ...justified(d, dir),
         children: dir === "grid" ? kids.map(unfraction) : kids,
     });
     const style = d.surface ?? "solid";
@@ -232,12 +244,14 @@ export const containerElement: ElementSpec<ContainerData> = {
         },
         {
             key: "justify",
-            label: "Distribute",
-            control: "segmented",
-            // a column is fit-height, so it never has leftover space to spread
+            label: "Justify",
+            control: "select",
+            // a column is fit-height, so it never has leftover space to place children in
             visibleWhen: (d) => d.direction === "row",
             options: [
-                { label: "Off", value: "" },
+                { label: "Start", value: "" },
+                { label: "Center", value: "center" },
+                { label: "End", value: "end" },
                 { label: "Between", value: "between" },
                 { label: "Around", value: "around" },
                 { label: "Evenly", value: "evenly" },

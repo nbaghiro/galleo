@@ -83,7 +83,7 @@ export const checks = (...items: string[]): ElementInstance => ({
 interface ContainerOpts {
     gap?: number;
     align?: "start" | "center" | "end" | "baseline";
-    justify?: "between" | "around" | "evenly";
+    justify?: "center" | "end" | "between" | "around" | "evenly";
     surface?: "solid" | "outline" | "sideline" | "topline" | "plain";
     bg?: string;
     shape?: "sharp" | "rounded";

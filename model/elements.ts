@@ -92,8 +92,9 @@ export type ShapeKind = (typeof SHAPE_KINDS)[number];
 export const FLEX_DIRECTION = ["row", "col", "grid"] as const;
 export type FlexDirection = (typeof FLEX_DIRECTION)[number];
 
-// main-axis distribution of leftover space; absent = pack the children and align them
-export const FLEX_JUSTIFY = ["between", "around", "evenly"] as const;
+// the main axis in one key: center/end pack the children there, the rest spread the leftover
+// space between/around them; absent packs at the start
+export const FLEX_JUSTIFY = ["center", "end", "between", "around", "evenly"] as const;
 export type FlexJustify = (typeof FLEX_JUSTIFY)[number];
 
 export const BUTTON_VARIANTS = ["filled", "outline", "soft", "ghost"] as const;
