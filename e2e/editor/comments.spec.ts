@@ -1,6 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "@e2e/fixtures";
-import { colOf, makeArtifact, paintedText, sec, txt } from "@e2e/helpers";
+import { colOf, makeArtifact, paintedText, rowOf, sec, txt } from "@e2e/helpers";
 
 // Commenting is interaction-only chrome (a chip on the selection, a marker in the section's border
 // revealed on hover, a floating thread), so the browser is the only place the whole path can be
@@ -292,30 +292,25 @@ test("the rail flyout closes on a press outside it, and the inspector still auto
 });
 
 // Same rule as the thread menu above, one surface over: a dropdown opened inside the docked
-// inspector portals to the body, and the flyout has to read that press as its own.
+// inspector portals to the body, and the flyout has to read that press as its own. A control the
+// spec lists in `bar` is shown there and not repeated here, so this drives one the panel owns
+// outright: a row container's Justify.
 test("an inspector dropdown applies its option and leaves the flyout open", async ({ page }) => {
     const id = await makeArtifact(page.request, "e2e inspector dropdown", [
-        sec(
-            "s1",
-            colOf([
-                txt("Loose line", "h3"),
-                { type: "callout", data: { tone: "note", children: [txt("Callout body")] } },
-            ]),
-        ),
+        sec("s1", colOf([txt("Loose line", "h3"), rowOf([txt("Left cell"), txt("Right cell")])])),
     ]);
     await page.goto(`/edit/${id}`);
-    // a callout is framed rather than edited in place, so selecting it opens the docked inspector
-    await paintedText(page, "Callout body").click();
+    await paintedText(page, "Left cell").click();
     await page.keyboard.press("Escape"); // out of the text session, onto the line
-    await page.keyboard.press("Escape"); // up to the callout that frames it
+    await page.keyboard.press("Escape"); // up to the row that holds it
     const flyout = page.getByTestId("right-flyout");
-    await expect(flyout).toContainText("Callout");
+    await expect(flyout).toContainText("Justify");
 
-    await flyout.getByRole("button", { name: "Note", exact: true }).click();
-    await page.getByRole("button", { name: "Warning", exact: true }).click();
+    await flyout.getByRole("button", { name: "Start", exact: true }).click();
+    await page.getByRole("button", { name: "Center", exact: true }).click();
 
     await expect(flyout).toBeVisible();
-    await expect(flyout.getByRole("button", { name: "Warning", exact: true })).toBeVisible();
+    await expect(flyout.getByRole("button", { name: "Center", exact: true })).toBeVisible();
 });
 
 // The screenshot case: inline-editing a cell inside a composite floated the chip over the cell,

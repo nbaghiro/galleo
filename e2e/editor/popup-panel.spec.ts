@@ -36,6 +36,14 @@ const build = (page: Page): Promise<string> =>
         "web",
     );
 
+// The trigger paints its label then a chevron, 8px apart inside a 13px-right padding. Nothing
+// draws text in the chevron, so it is reached by geometry rather than by role.
+const CHEVRON = 13;
+const clickChevron = async (page: Page): Promise<void> => {
+    const label = await boxOf(paintedText(page, "More"));
+    await page.mouse.click(label.x + label.width + 8 + CHEVRON / 2, label.y + label.height / 2);
+};
+
 test("the panel floats over the canvas without changing the section it hangs off", async ({
     page,
 }) => {
@@ -60,8 +68,10 @@ test("the panel floats over the canvas without changing the section it hangs off
     expect(shutBrand.y).toBeCloseTo(openBrand.y, 0);
     expect(shutUnder.y).toBeCloseTo(openUnder.y, 0);
 
-    // and the trigger toggles it straight back
-    await paintedText(page, "More").click();
+    // and the chevron toggles it straight back. The trigger's words are the popup's inline label,
+    // so once the element is selected a press on them opens the label for editing; the chevron
+    // beside them is what stays a toggle.
+    await clickChevron(page);
     await expect(paintedText(page, FIRST)).toBeVisible();
 });
 
