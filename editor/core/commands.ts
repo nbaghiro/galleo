@@ -4,6 +4,7 @@ import { FORMATS } from "@ui/formats";
 import {
     duplicableAt,
     duplicateMany,
+    elementIdMap,
     getElementAt,
     groupSelection,
     removeMany,
@@ -12,14 +13,23 @@ import {
     ungroupAt,
 } from "@elements/ops";
 import { getElement } from "@elements/spec";
-import type { ElementAddress, ElementInstance } from "@model/artifact";
-import { elementRegionId, parentTarget, type Target } from "@model/artifact";
+import type { Connection, ElementAddress, ElementInstance } from "@model/artifact";
+import {
+    addressesEqual,
+    contentWithElementIds,
+    elementRegionId,
+    newConnectionId,
+    parentTarget,
+    type Target,
+} from "@model/artifact";
+import { capture } from "@ui/analytics";
 import {
     addSectionAfter,
     canRedo,
     canUndo,
     clearExtras,
     commit,
+    connectFrom,
     duplicateSectionAt,
     editing,
     editor,
@@ -35,6 +45,8 @@ import {
     requestShare,
     selectedAddresses,
     selectMany,
+    setConnectFrom,
+    setSelectedConnection,
     selection,
     setLeftOpen,
     setRightTab,
@@ -142,6 +154,67 @@ export function duplicateSelectedElements(): void {
     if (res.addresses.length) selectMany(res.addresses);
 }
 
+// The connect gesture: armed from the selection, completed by the next canvas press. Ends are
+// stored by stable element id, so the ids are stamped before anything points at them.
+export function startConnect(): void {
+    const s = selection();
+    if (s?.kind !== "element") return;
+    setConnectFrom(movableAncestor(editor.artifact, s.address));
+}
+
+export function completeConnect(to: { address: ElementAddress; datum?: number }): boolean {
+    const from = connectFrom();
+    setConnectFrom(null);
+    if (!from) return false;
+    const target = movableAncestor(editor.artifact, to.address);
+    if (addressesEqual(from, target)) return false;
+    const content = contentWithElementIds(editor.artifact);
+    const fromEl = getElementAt(content, from);
+    const toEl = getElementAt(content, target);
+    if (!fromEl?.id || !toEl?.id) return false;
+    const connection: Connection = {
+        id: newConnectionId(),
+        from: { element: fromEl.id },
+        to: { element: toEl.id, ...(to.datum !== undefined ? { datum: to.datum } : {}) },
+    };
+    commit({ ...content, connections: [...(content.connections ?? []), connection] });
+    setSelectedConnection(connection.id);
+    capture("connection_created", {
+        from_type: fromEl.type,
+        to_type: toEl.type,
+        to_datum: to.datum !== undefined,
+        cross_section: from.section !== target.section,
+    });
+    return true;
+}
+
+const connectionSections = (c: Connection): boolean => {
+    const addrs = elementIdMap(editor.artifact);
+    const a = addrs.get(c.from.element)?.section;
+    const b = addrs.get(c.to.element)?.section;
+    return !!a && !!b && a !== b;
+};
+
+export function removeConnection(id: string): void {
+    const list = editor.artifact.connections ?? [];
+    const gone = list.find((c) => c.id === id);
+    if (!gone) return;
+    const kept = list.filter((c) => c.id !== id);
+    const { connections: _connections, ...rest } = editor.artifact;
+    commit(kept.length ? { ...editor.artifact, connections: kept } : rest);
+    setSelectedConnection(null);
+    capture("connection_deleted", { cross_section: connectionSections(gone) });
+}
+
+export function setConnectionStyle(id: string, patch: NonNullable<Connection["style"]>): void {
+    const list = editor.artifact.connections ?? [];
+    if (!list.some((c) => c.id === id)) return;
+    commit({
+        ...editor.artifact,
+        connections: list.map((c) => (c.id === id ? { ...c, style: { ...c.style, ...patch } } : c)),
+    });
+}
+
 // A palette CLICK inserts where a paste would: beside the selection (outside a seal), into the
 // selected section, else at the end of the last section. Drag keeps choosing its own slot.
 export function insertFromPalette(inst: ElementInstance): boolean {
@@ -236,6 +309,14 @@ registerCommands([
             const els = selectedElements();
             if (els.length) copyToClipboard(els);
         },
+    },
+    {
+        id: "insert.connect",
+        title: "Draw connection",
+        group: "insert",
+        icon: "arrowUpRight",
+        when: (c) => inEditor(c) && c.has("editor.element") && notTyping(c),
+        run: () => startConnect(),
     },
     {
         id: "edit.cut",

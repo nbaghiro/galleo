@@ -1,5 +1,6 @@
 import type {
     ArtifactContent,
+    Connection,
     ElementInstance,
     Section,
     SectionBackground,
@@ -7,7 +8,13 @@ import type {
 } from "@model/artifact";
 import type { Tokens } from "@model/theme";
 import type { MediaItem } from "@model/media";
-import { LAYOUT_PRESETS, diffSections, removeAtPath, updateAtPath } from "@model/artifact";
+import {
+    LAYOUT_PRESETS,
+    diffSections,
+    pruneConnections,
+    removeAtPath,
+    updateAtPath,
+} from "@model/artifact";
 
 export type Surface = "deck" | "doc" | "web";
 
@@ -234,6 +241,7 @@ export type ChatBlock =
 
 export type PatchOp =
     | { op: "setMeta"; theme?: string; format?: string; background?: SectionBackground | null }
+    | { op: "setConnections"; connections: Connection[] }
     | { op: "addSection"; afterId?: string | null; section: Section } // null ⇒ front, absent ⇒ append
     | { op: "replaceSection"; id: string; section: Section }
     | { op: "removeSection"; id: string }
@@ -279,6 +287,9 @@ function applyOp(content: ArtifactContent, op: PatchOp): ArtifactContent {
             if (op.background !== undefined) next.background = op.background ?? undefined;
             return next;
         }
+        // pruned on apply: an id the model misremembered degrades to no arrow, never a crash
+        case "setConnections":
+            return pruneConnections({ ...content, connections: op.connections });
         case "addSection":
             return {
                 ...content,

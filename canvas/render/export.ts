@@ -86,7 +86,7 @@ async function buildSlidePdfRaster(
     const profile = profileFor(artifact);
     const pdf = await pdfLib().PDFDocument.create();
     for (const section of artifact.sections) {
-        for (const slide of sectionSlides(section, tk, profile)) {
+        for (const slide of sectionSlides(section, tk, profile, false, artifact.connections)) {
             const canvas = await renderSlidePage(slide, tk.bg, EXPORT_SCALE);
             const cx = canvas.getContext("2d");
             if (brand && cx) stampBrand(cx, canvas.width, canvas.height, EXPORT_SCALE);
@@ -108,7 +108,15 @@ async function buildDocPdfRaster(
     const layoutW = docProfile.maxContentWidth ?? 744;
     const pdf = await pdfLib().PDFDocument.create();
     for (const section of artifact.sections) {
-        const { commands, height } = layoutSection(section, layoutW, measureText, tk, docProfile);
+        const { commands, height } = layoutSection(
+            section,
+            layoutW,
+            measureText,
+            tk,
+            docProfile,
+            false,
+            artifact.connections,
+        );
         if (height < 1) continue;
         const canvas = await renderToCanvas(commands, layoutW, height, tk.bg, EXPORT_SCALE);
         const cx = canvas.getContext("2d");
@@ -260,7 +268,7 @@ async function buildSlidePdfVector(
     const profile = profileFor(artifact);
     const pages: FramedPage[] = [];
     for (const section of artifact.sections) {
-        for (const slide of sectionSlides(section, tk, profile)) {
+        for (const slide of sectionSlides(section, tk, profile, false, artifact.connections)) {
             const { w: pageW, h: pageH } = slidePdfPageSize(slide);
             const contentFit = Math.min(1, slide.h / slide.contentH);
             const frameScale = pageW / slide.w; // == pageH / slide.h
@@ -289,7 +297,15 @@ async function buildDocPdfVector(
     const layoutW = docProfile.maxContentWidth ?? 744;
     const pages: FramedPage[] = [];
     for (const section of artifact.sections) {
-        const { commands, height } = layoutSection(section, layoutW, measureText, tk, docProfile);
+        const { commands, height } = layoutSection(
+            section,
+            layoutW,
+            measureText,
+            tk,
+            docProfile,
+            false,
+            artifact.connections,
+        );
         if (height < 1) continue;
         const { w: pageW, h: pageH } = docSectionPageSize(layoutW, height);
         const t: Transform = { fit: pageW / layoutW, offX: 0, offY: 0 };
@@ -387,14 +403,22 @@ export async function buildSectionPngs(
     for (const [ix, section] of art.sections.entries()) {
         const stem = `${pad(ix + 1)}-${section.id}`;
         if (asDoc) {
-            const { commands, height } = layoutSection(section, layoutW, measureText, tk, profile);
+            const { commands, height } = layoutSection(
+                section,
+                layoutW,
+                measureText,
+                tk,
+                profile,
+                false,
+                artifact.connections,
+            );
             if (height < 1) continue;
             await addPage(
                 await renderToCanvas(commands, layoutW, height, tk.bg, EXPORT_SCALE),
                 `${stem}.png`,
             );
         } else {
-            const slides = sectionSlides(section, tk, profile);
+            const slides = sectionSlides(section, tk, profile, false, artifact.connections);
             for (const [part, slide] of slides.entries()) {
                 const name = slides.length > 1 ? `${stem}-${part + 1}.png` : `${stem}.png`;
                 await addPage(await renderSlidePage(slide, tk.bg, EXPORT_SCALE), name);
@@ -441,7 +465,7 @@ export async function buildRasterPptx(
     pptx.layout = "GALLEO_PAGE";
     const bgHex = cssColorHex(tk.bg) ?? "FFFFFF";
     for (const section of art.sections) {
-        for (const page of sectionSlides(section, tk, profile)) {
+        for (const page of sectionSlides(section, tk, profile, false, artifact.connections)) {
             const canvas = await renderSlidePage(page, tk.bg, EXPORT_SCALE);
             const cx = canvas.getContext("2d");
             if (brand && cx) stampBrand(cx, canvas.width, canvas.height, EXPORT_SCALE);

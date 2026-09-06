@@ -170,6 +170,11 @@ const [selection, setSelectionOnly] = createSignal<Target | null>(null, {
 export { selection };
 export const [hover, setHover] = createSignal<Target | null>(null, { equals: targetsEqual });
 
+// The connect gesture: armed with the source element, the next canvas press picks the target.
+// A drawn arrow selected on the canvas rides its own signal, since a Target cannot name one.
+export const [connectFrom, setConnectFrom] = createSignal<ElementAddress | null>(null);
+export const [selectedConnection, setSelectedConnection] = createSignal<string | null>(null);
+
 // The chart datum under the pointer, as a `datum:` region id. One signal for both directions: the
 // canvas writes it on hover and the open data grid lights the matching row, and the grid writes it
 // on row hover and the canvas outlines every mark that carries the id.

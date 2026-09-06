@@ -27,11 +27,13 @@ import { previewContentProfile, profileFor, sectionFrame } from "@engine/profile
 import { motionFor, resolveTheme } from "@themes";
 import {
     createSectionStackCache,
+    paint,
     paintSectionStack,
     PINNED_Z,
     type SectionLayer,
     type StackWindow,
 } from "@canvas/render/backends";
+import { connectionCommands } from "@canvas/render/connect";
 import { stackWindow, windowMoved } from "@canvas/render/window";
 import {
     continuousSteps,
@@ -54,7 +56,7 @@ import { Z } from "./z";
 import { IconButton, Spinner } from "./button";
 import { classifySwipe, pressOnContent, TAP_SLOP, tapZone } from "./gesture";
 import { isCoarsePointer, isPhone, prefersReducedMotion } from "./viewport";
-import { buildGroups, runBuild, runTransition } from "./motion";
+import { buildGroups, drawOnPlans, runBuild, runTransition } from "./motion";
 import { asFormat as asSurface } from "@model/analytics";
 import { capture } from "./analytics";
 import { Icon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "./icons";
@@ -216,7 +218,7 @@ export const PresentSurface: Component<{
         const section = props.artifact.sections[si];
         if (!section) return;
         const { w, h } = sectionFrame(section, profile());
-        const slide = slideElement(section, tokens(), profile(), page);
+        const slide = slideElement(section, tokens(), profile(), page, shownContent().connections);
         setLiveRegions(slide.regions);
         setLiveFormat(profile());
         setLiveHost(slide.content);
@@ -239,7 +241,12 @@ export const PresentSurface: Component<{
             host.appendChild(stage);
             void runTransition(outgoing, stage, m, dir).then(() => outgoing?.remove());
         }
-        if (motion !== "none") runBuild(buildGroups(section.root, slide.commands, slide.nodes), m);
+        if (motion !== "none")
+            runBuild(
+                buildGroups(section.root, slide.commands, slide.nodes),
+                m,
+                drawOnPlans(slide.commands, slide.nodes, slide.regions),
+            );
     };
     // Reveals are one-shot per section per session: windowing drops a layer's DOM outside the
     // retention band and rebuilds it, so tracking this on the element would re-fire on the way back.
@@ -265,6 +272,7 @@ export const PresentSurface: Component<{
                             runBuild(
                                 buildGroups(layer.section.root, layer.commands, layer.nodes),
                                 motionFor(tokens()),
+                                drawOnPlans(layer.commands, layer.nodes, layer.regions),
                             );
                         revealed.add(layer.id);
                         reveals?.unobserve(e.target);
@@ -284,6 +292,7 @@ export const PresentSurface: Component<{
     // one stage for the life of the surface, so a repaint on scroll swaps layers instead of the document
     let stage: HTMLDivElement | null = null;
     let paintHost: HTMLDivElement | null = null;
+    let connectHost: HTMLDivElement | null = null;
     let overlayHost: HTMLDivElement | null = null;
     const stackCache = createSectionStackCache();
     const fontsSettled = createFontsInvalidator(stackCache);
@@ -305,12 +314,16 @@ export const PresentSurface: Component<{
             stage = document.createElement("div");
             paintHost = document.createElement("div");
             paintHost.style.cssText = "position:absolute;inset:0";
+            // auto-z: arrows ride above the flow but under a stuck nav (connections into a
+            // pinned section are skipped by the resolver, so nothing here ever detaches)
+            connectHost = document.createElement("div");
+            connectHost.style.cssText = "position:absolute;inset:0;pointer-events:none";
             overlayHost = document.createElement("div");
             // Above the pinned layers: `stage` opens no stacking context, so an auto-z overlay
             // sits UNDER a stuck nav and every press on a live element in one falls through to
             // the painted stack (and from there to the viewer-toggle scan).
             overlayHost.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:${PINNED_Z + 1}`;
-            stage.append(paintHost, overlayHost);
+            stage.append(paintHost, connectHost, overlayHost);
         }
         setLiveHost(overlayHost);
         if (stage.parentElement !== host) host.replaceChildren(stage);
@@ -326,6 +339,8 @@ export const PresentSurface: Component<{
             { fullW, cache: stackCache, window: win, pinned: true },
         );
         observeReveals(layers);
+        const conn = connectionCommands(shownContent(), regions, tokens(), { skipPinned: true });
+        if (connectHost) paint(conn.commands, connectHost);
         sectionTops = tops;
         sectionHeights = heights;
         stackRegions = regions;
@@ -363,7 +378,7 @@ export const PresentSurface: Component<{
             const first = firstSlideOf(counts, i);
             const fr = sectionFrame(section, profile()); // per-section: a section may set its own aspect
             const s = MINI_W / fr.w;
-            const slide = slideElement(section, tk, profile()).el;
+            const slide = slideElement(section, tk, profile(), 0, shownContent().connections).el;
             slide.style.transform = `scale(${s})`;
             slide.style.transformOrigin = "top left";
             const cell = document.createElement("button");

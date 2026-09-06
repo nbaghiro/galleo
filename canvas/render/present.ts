@@ -1,7 +1,7 @@
 import type { Region, RenderCommand } from "@engine/node";
 import { rotateRegion } from "@engine/layout";
 import { maxRadius } from "@engine/node";
-import type { Section } from "@model/artifact";
+import type { Section, Connection } from "@model/artifact";
 import { parseDatumRegion } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
@@ -177,6 +177,7 @@ export function slideElement(
     tokens: Tokens,
     profile: FormatDescriptor,
     page = 0,
+    connections?: Connection[],
 ): {
     el: HTMLDivElement;
     content: HTMLDivElement;
@@ -184,7 +185,7 @@ export function slideElement(
     nodes: HTMLElement[];
     regions: Region[];
 } {
-    const pages = sectionSlides(section, tokens, profile);
+    const pages = sectionSlides(section, tokens, profile, false, connections);
     const p = pages[Math.min(Math.max(0, page), pages.length - 1)]!;
     const slide = document.createElement("div");
     // flex-shrink:0 — a shrunk slide would then be scaled again by the transform

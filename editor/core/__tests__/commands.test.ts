@@ -1,6 +1,12 @@
 // @vitest-environment happy-dom
 import "@elements/register"; // the predicate reads element specs, so the registry has to be up
-import { insertFromPalette } from "@editor/core/commands"; // also registers commands + keymap
+import {
+    completeConnect,
+    insertFromPalette,
+    removeConnection,
+    setConnectionStyle,
+    startConnect,
+} from "@editor/core/commands"; // also registers commands + keymap
 import { getElementAt } from "@elements/ops";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -20,6 +26,7 @@ import {
     selectedAddresses,
     selection,
     setSelection,
+    selectedConnection,
     toggleExtra,
     undo,
 } from "@editor/core/store";
@@ -495,5 +502,72 @@ describe("insertFromPalette", () => {
         setSelection(null);
         expect(insertFromPalette({ type: "divider", data: {} })).toBe(true);
         expect(rootChildren().at(-1)?.type).toBe("divider");
+    });
+});
+
+describe("connections", () => {
+    const doc = (): ArtifactContent => ({
+        format: "deck",
+        theme: "studio",
+        sections: [
+            {
+                id: "s1",
+                root: {
+                    type: "container",
+                    data: {
+                        direction: "col",
+                        children: [
+                            { type: "text", data: { text: "from here" } },
+                            { type: "text", data: { text: "to there" } },
+                        ],
+                    },
+                },
+            },
+        ],
+    });
+
+    it("completeConnect stamps ids and stores the pair", () => {
+        loadArtifactContent("conn-make", doc());
+        setSelection({ kind: "element", address: { section: "s1", path: [0] } });
+        startConnect();
+        expect(completeConnect({ address: { section: "s1", path: [1] } })).toBe(true);
+        const list = editor.artifact.connections!;
+        expect(list).toHaveLength(1);
+        const from = getElementAt(editor.artifact, { section: "s1", path: [0] })!;
+        const to = getElementAt(editor.artifact, { section: "s1", path: [1] })!;
+        expect(list[0]!.from.element).toBe(from.id);
+        expect(list[0]!.to.element).toBe(to.id);
+        expect(selectedConnection()).toBe(list[0]!.id);
+    });
+
+    it("connecting an element to itself refuses", () => {
+        loadArtifactContent("conn-self", doc());
+        setSelection({ kind: "element", address: { section: "s1", path: [0] } });
+        startConnect();
+        expect(completeConnect({ address: { section: "s1", path: [0] } })).toBe(false);
+        expect(editor.artifact.connections).toBeUndefined();
+    });
+
+    it("removeConnection drops the entry and undo restores it", () => {
+        loadArtifactContent("conn-del", doc());
+        setSelection({ kind: "element", address: { section: "s1", path: [0] } });
+        startConnect();
+        completeConnect({ address: { section: "s1", path: [1] } });
+        const id = editor.artifact.connections![0]!.id;
+        removeConnection(id);
+        expect(editor.artifact.connections).toBeUndefined();
+        undo();
+        expect(editor.artifact.connections).toHaveLength(1);
+    });
+
+    it("setConnectionStyle patches without clobbering the rest", () => {
+        loadArtifactContent("conn-style", doc());
+        setSelection({ kind: "element", address: { section: "s1", path: [0] } });
+        startConnect();
+        completeConnect({ address: { section: "s1", path: [1] } });
+        const id = editor.artifact.connections![0]!.id;
+        setConnectionStyle(id, { dashed: true });
+        setConnectionStyle(id, { tone: "accent" });
+        expect(editor.artifact.connections![0]!.style).toEqual({ dashed: true, tone: "accent" });
     });
 });

@@ -75,9 +75,12 @@ of them is not ready to be designed.
 
 ## 1. Layout diffing and tweening
 
-**Built** (transitions, structural build-in, theme motion, continuous reveals). What remains of
-this item: cross-slide morph (content-based correspondence, deliberately unscheduled), chart and
-diagram draw-on (blocked on item 16), and live drag reflow (wants item 15). See
+**Built** (transitions, structural build-in, theme motion, continuous reveals; chart/diagram
+draw-on landed 2026-09-06, [`draw-on.md`](draw-on.md) — per-datum reveals choreographed by the
+motion layer over item 16's datum regions, zero renderer changes). What remains of this item:
+cross-slide morph (content-based correspondence, deliberately unscheduled); live drag reflow
+landed 2026-09-06 ([`live-reflow.md`](live-reflow.md)) — frozen aiming kept, parting previewed
+through the drop's own pure ops and FLIP-animated at the paint layer, without item 15. See
 [`motion-build.md`](motion-build.md); the rest of this entry is the original summary.\*\*
 
 Missing: nothing in `canvas/` refers to animation, tween, keyframes or easing. `layout()` emits a
@@ -108,6 +111,13 @@ content-based correspondence, not an id lookup. `motion.md` works through the co
 
 ## 2. Line boxes as an engine output
 
+Status update: built 2026-08-27 (the typography round, `5d3992f`; the plan is
+[`typography.md`](typography.md), whose header predates the build). `Measured.lines` carries
+per-line geometry (`TextLine` in `@engine/node`), text commands carry `lines`, `fragment` breaks
+at line boundaries with a keep-lines guard (`layout.ts`), the backends read command lines instead
+of re-deriving (`c.lines ?? layoutRuns(...)` fallback in `backends.ts`), and the comment chrome's
+`rangeRects` reads engine offsets. The entry below is the original inventory.
+
 Missing: a text leaf becomes exactly one `RenderCommand` (`canvas/engine/layout.ts:302`). Line
 geometry is recomputed inside the backend by `layoutRuns` (`commands.ts:353`) and never returned to
 the engine or to the caller.
@@ -134,7 +144,10 @@ line metadata attached, which is cheaper but leaves two representations.
 
 ## 3. Autofit as a layout mode
 
-**Designed. See [`autofit.md`](autofit.md); this entry is the summary.**
+**Built except phase D: [`autofit.md`](autofit.md) phases A–C shipped (workstream W-C of the
+engine round) — the bounded tokenScale search, the media unblock, the "Fitted N%" indicator.
+Phase D stays deferred by decision: per-element shrink priorities on `ElementSpec`, and the
+generation prompts' content-volume guidance revisit. This entry is the original summary.**
 
 Missing: when a section overflows its frame, there are two answers: paginate, or scale the pixels
 uniformly (`fitSlideContent`, `backends.ts:988`, and `renderSlidePage`, `:743`, both
@@ -167,9 +180,11 @@ per-section property, a format property, or always on.
 
 ## 4. Grid and shared track sizing
 
-Status update: the solver half is built (`direction: "grid"` + shared tracks, see
-[`engine-round.md`](engine-round.md)) and the table sits on it; the authorable half — container,
-editor, AI, spans — is planned in [`grid.md`](grid.md). The entry below is the original inventory.
+Status update: closed — the solver half landed with [`engine-round.md`](engine-round.md), and the
+authorable half is built, all three phases of [`grid.md`](grid.md): the container speaks grid
+(`direction: "grid"` + the columns control), the editor drops into one (`gridGapSlots`), the AI
+catalog teaches when to reach for it, and a cell can span (`ElementLayout.span`,
+`model/geometry.ts`). The entry below is the original inventory.
 
 Missing: the engine has row and column only. There is no way for two boxes in different rows to
 share a column width, and no way for a column's width to be the widest content across all rows. This
@@ -267,6 +282,18 @@ drag layer treats it as a separate priority class in `computeDropSlots`.
 
 ## 7. Cross-node references
 
+Status update: built 2026-09-06 ([`cross-node-refs.md`](cross-node-refs.md)). Connections live on
+`ArtifactShell` (stable element ids + optional datum index, synced by the existing shell op,
+pruned on write), resolved entirely above the engine by `canvas/render/connect.ts` against the
+regions every surface already holds, and painted as ordinary surface commands through the
+diagrams' own `drawLink` — the engine itself is untouched. Paint-only and both-ends-or-nothing by
+decision: no layout-affecting constraints, and a cross-page or pinned-section endpoint draws
+nothing rather than wrong ink. The editor connects from the context bar (crosshair aim, element or
+datum target), selects an arrow by its `ref:` route polygon, and styles it from a floating bar.
+The AI holds the `setConnections` patch op and the catalog paragraph; a model-authorable connect
+tool waits on an id-exposing inspect surface, recorded in the plan doc. The entry below is the
+original inventory.
+
 Missing: regions are produced by `emit` only after layout completes (`canvas/engine/layout.ts:302`)
 and nothing feeds them back in. There is no mechanism for node A to resolve against node B's box.
 
@@ -353,7 +380,9 @@ decides whether the same photo crops consistently everywhere it appears.
 
 ## 10. Main-axis distribution modes
 
-Status update: closed 2026-09-06. `alignX`/`distribute` landed on rows and columns earlier, and
+Status update: closed 2026-09-06. (Same day, the container's `justify` gained `center`/`end` pack
+values mapped onto row `alignX`, so the main axis is authorable end to end.)
+`alignX`/`distribute` landed on rows and columns earlier, and
 the E2 fix extended both to grid tracks, so the fields mean the same thing in every direction.
 The entry below is the original inventory.
 
@@ -421,6 +450,12 @@ the segments we are likely to enter first).
 
 ## 13. Real font metrics
 
+Status update: built 2026-08-27 (the typography round, `5d3992f`). `Measured.ascent/descent`
+populate from `fontBoundingBoxAscent/Descent` (`commands.ts`), and rows align on a shared first
+baseline (`alignY: "baseline"`, stated on the node contract). Deferred, recorded in
+[`typography.md`](typography.md): exact PDF baselines, tight display leading from cap metrics,
+optical icon alignment. The entry below is the original inventory.
+
 Missing: `Measured` is `{ width, height }` (`canvas/engine/node.ts:80`, unchanged). The `baseline` field on
 `DrawTextStyle` (`:36`) is a draw hint for surfaces and is never a layout input. Canvas
 `TextMetrics` already exposes `actualBoundingBoxAscent` and `actualBoundingBoxDescent`, so this costs
@@ -445,6 +480,12 @@ has to change, given metrics are already keyed on font and size.
 
 ## 14. Truncation and per-node overflow policy
 
+Status update: built 2026-08-27 (the typography round, `5d3992f`). `TextLeaf.maxLines` +
+`overflow: "clip" | "ellipsis"`, honored in measure and the backends; the text element carries the
+bar control and the `text_clamped` event exists in the catalog. Deferred, recorded: per-node
+shrink (resolves against autofit's phase D) and default clamps on card titles. The entry below is
+the original inventory.
+
 Missing: no `maxLines`, no ellipsis, no overflow policy on a node. The only overflow behavior is the
 implicit `clip.y` set when a resolved height is smaller than its content
 (`canvas/engine/layout.ts:212` and `:242`), which slices glyphs horizontally.
@@ -466,6 +507,11 @@ Open: whether shrink here and autofit in item 3 are the same mechanism at two sc
 probably are, and if so which one is built first.
 
 ## 15. Incremental layout
+
+Status update 2026-09-06: measured out of live-reflow's critical path (135 corpus sections,
+worst solve 0.94ms; see [`live-reflow.md`](live-reflow.md)) and reflow shipped without it the
+same day, so it stays parked until document
+scale demands it.
 
 Missing: every paint recomputes the visible stack from scratch. Caching is section-granular and keyed
 on object identity (`canvas/render/backends.ts:853`), which is effective precisely because the ops in
@@ -521,6 +567,13 @@ Open: whether surfaces report their own regions (which means every chart and dia
 responsibility) or whether the engine derives them, which it cannot do for arbitrary paint.
 
 ## 17. Viewport-anchored (sticky) positioning
+
+Status update: the section half is built — a pinned section rides `position: sticky` in the DOM
+backend (`backends.ts`, the pin branch of the section layer), and `layout.dock: "top"` lifts a
+row out of flow to the top of its section band (the docked-nav idiom the templates and the site
+prompt both use). The remainder is element-level sticky: nothing can stick WITHIN a scrolling
+section (a long doc's table header, a persistent aside), which is the part that bends the
+absolute-command invariant and still wants its own decision.
 
 Found during the interactivity investigation; recorded here because it is a layout-contract gap,
 not an element.

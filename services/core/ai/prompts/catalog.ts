@@ -622,7 +622,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "justify",
                 type: "enum",
                 values: FLEX_JUSTIFY,
-                desc: "row only: spread the leftover width between / around / evenly instead of packing the children together. `between` pins the first child to the left edge and the last to the right, which is how a footer row is built; `evenly` is the logo strip",
+                desc: "row only, the main axis: `center` packs the children in the middle of the row (a hero's pair of buttons), `end` packs them at the right; `between` / `around` / `evenly` spread the leftover width instead. `between` pins the first child to the left edge and the last to the right, which is how a footer row is built; `evenly` is the logo strip. Omit to pack at the start. To center a row of buttons horizontally, this is the key, not `align`",
             },
             {
                 key: "surface",
@@ -806,6 +806,8 @@ export function layoutCatalog(): string {
         '- `pin`: `{ "x": "start"|"center"|"end", "y": "start"|"center"|"end", "dx"?, "dy"?, "z"?, "rotate"? }` lifts this child out of the flow and anchors it to a point of its parent\'s box, offset in px, and a small `rotate` (about 2 degrees) turns a badge into a stamp. For a small overlay that carries something true, riding on a photo: a date badge on a cover, a corner price flash, a sold-out chip. One or two in the whole piece, width `"fit"`, insets of 16 to 32 px, small rotation, and never body content; a piece that needs none is the common case.',
         "",
         "A row stacks itself into a column on narrow screens, so never write a second mobile variant of a section. For more cells than one row should hold, nest: a `col` container of row containers, which is also how an uneven grid is built (a 2-up above a 3-up).",
+        "",
+        "An artifact may also carry `connections`, drawn arrows between two elements that live outside every section tree: each is `{ id, from: { element }, to: { element, datum? } }` where `element` is a stable element id and `datum` names one mark on a chart or diagram (a bar, a band). They are for a remark pointing at the thing it remarks on, a callout to one bar, a line joining two related cards. Arrows re-route automatically when their elements move, and one whose element is gone simply stops drawing, so never reach for a `flow` diagram just to join two things already on the canvas.",
     ].join("\n");
 }
 

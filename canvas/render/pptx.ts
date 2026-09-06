@@ -512,7 +512,7 @@ export async function buildPptx(
     const usedFonts: UsedFonts = new Map();
 
     for (const section of art.sections) {
-        for (const page of sectionSlides(section, tk, profile)) {
+        for (const page of sectionSlides(section, tk, profile, false, art.connections)) {
             const slide = pptx.addSlide();
             slide.background = { color: bgHex };
             const t = slideTransform(page, slideBox);

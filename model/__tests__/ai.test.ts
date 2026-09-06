@@ -41,6 +41,45 @@ describe("applyContentOps · setMeta", () => {
     });
 });
 
+describe("applyContentOps · setConnections", () => {
+    const withIds = (): Section => ({
+        id: "s1",
+        root: {
+            type: "container",
+            data: {
+                direction: "col",
+                children: [
+                    { type: "text", id: "e-a", data: { text: "a" } },
+                    { type: "text", id: "e-b", data: { text: "b" } },
+                ],
+            },
+        },
+    });
+
+    it("sets the list, pruning any end the tree does not hold", () => {
+        const out = applyContentOps(content([withIds()]), [
+            {
+                op: "setConnections",
+                connections: [
+                    { id: "c1", from: { element: "e-a" }, to: { element: "e-b" } },
+                    { id: "c2", from: { element: "e-a" }, to: { element: "e-ghost" } },
+                ],
+            },
+        ]);
+        expect(out.connections?.map((c) => c.id)).toEqual(["c1"]);
+    });
+
+    it("an all-dead list clears the field", () => {
+        const out = applyContentOps(content([withIds()]), [
+            {
+                op: "setConnections",
+                connections: [{ id: "c1", from: { element: "e-x" }, to: { element: "e-y" } }],
+            },
+        ]);
+        expect(out.connections).toBeUndefined();
+    });
+});
+
 describe("applyContentOps · addSection", () => {
     it("prepends when afterId is null", () => {
         const out = applyContentOps(content([sect("a")]), [

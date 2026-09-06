@@ -94,6 +94,23 @@ export interface ArtifactShell {
     // the instrumental bed heard while this piece is presented; `trackId` is a soundtracks row,
     // either a house preset or one written for this artifact
     music?: ArtifactMusic;
+    // drawn arrows between elements; resolved against regions at paint time, never at layout
+    connections?: Connection[];
+}
+
+// One end of a drawn connection. `element` is the stable ElementInstance.id, so the arrow follows
+// its target through moves and reorders and dies with it; `datum` names a datum: region index on
+// that element (a bar, a band) and falls back to the element's own box when the index is gone.
+export interface ConnectionEnd {
+    element: Id;
+    datum?: number;
+}
+
+export interface Connection {
+    id: Id;
+    from: ConnectionEnd;
+    to: ConnectionEnd;
+    style?: { dashed?: boolean; head?: "arrow" | "none"; tone?: "muted" | "accent" };
 }
 
 export interface ArtifactMusic {
@@ -136,8 +153,35 @@ export const asContent = (draft: unknown): ArtifactContent => {
         ...(d.page ? { page: d.page } : {}),
         ...(d.voice ? { voice: d.voice } : {}),
         ...(d.music ? { music: d.music } : {}),
+        ...(Array.isArray(d.connections) && d.connections.length
+            ? { connections: d.connections }
+            : {}),
     };
 };
+
+/** Connections whose ends both still resolve; called where content is written, so dead arrows
+ * never accumulate in the row. Identity-preserving when nothing is dead. The walk mirrors
+ * findElement's (CHILD_KEYS), so an end inside a grid cell counts as alive. */
+export function pruneConnections(content: ArtifactContent): ArtifactContent {
+    const list = content.connections;
+    if (!list?.length) return content;
+    const ids = new Set<Id>();
+    const walk = (el: ElementInstance): void => {
+        if (el.id) ids.add(el.id);
+        if (!el.data || typeof el.data !== "object") return;
+        for (const key of CHILD_KEYS)
+            for (const kid of asElements((el.data as Record<string, unknown>)[key]) ?? [])
+                if (kid) walk(kid);
+    };
+    for (const s of content.sections) walk(s.root);
+    const kept = list.filter((c) => ids.has(c.from.element) && ids.has(c.to.element));
+    if (kept.length === list.length) return content;
+    if (!kept.length) {
+        const { connections: _connections, ...rest } = content;
+        return rest;
+    }
+    return { ...content, connections: kept };
+}
 
 /**
  * Content with every section's notes removed, for the publish boundary. Presenter cues are written
@@ -366,6 +410,7 @@ export function removeAtPath(root: ElementInstance, path: number[]): ElementInst
 const CHILD_KEYS = ["children", "cells"] as const;
 
 export const newElementId = (): Id => `e-${crypto.randomUUID().slice(0, 8)}`;
+export const newConnectionId = (): Id => `c-${crypto.randomUUID().slice(0, 8)}`;
 
 const asElements = (v: unknown): ElementInstance[] | null =>
     Array.isArray(v) &&
@@ -527,6 +572,13 @@ export const parseInputRegion = (id: string): string | null =>
 // The one place the `el:` prefix is asked about, so a consumer (the render bridge's cover-fit
 // cell sniff) couples to the grammar's own API rather than to a string it must keep in sync.
 export const isElementRegionId = (id: string | undefined): boolean => !!id?.startsWith("el:");
+
+// A drawn connection's own hit area (the thin polygon along its route). parseTarget ignores the
+// prefix, so an arrow is never an element selection; the editor dispatches on it explicitly.
+const REF = "ref:";
+export const refRegionId = (id: Id): string => `${REF}${id}`;
+export const parseRefRegion = (id: string): Id | null =>
+    id.startsWith(REF) && id.length > REF.length ? id.slice(REF.length) : null;
 
 const DATUM = "datum:";
 export const datumRegionId = (element: string, index: number): string =>

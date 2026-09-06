@@ -3,7 +3,7 @@ import type { ControlField } from "@elements/spec";
 import type { Component } from "solid-js";
 import { createEffect, createMemo, For, onCleanup, Show, createSignal } from "solid-js";
 import type { ElementAddress } from "@model/artifact";
-import { elementRegionId, parentTarget } from "@model/artifact";
+import { elementRegionId, parentTarget, refRegionId } from "@model/artifact";
 import { profileFor } from "@engine/profile";
 import { measureText } from "@canvas/render/commands";
 import { isPhone } from "@ui/viewport";
@@ -13,17 +13,25 @@ import { barControls, getElement } from "@elements/spec";
 import {
     boardGutterL,
     commit,
+    connectFrom,
     editing,
     editor,
     multiSelected,
     regions,
     rightInset,
     selectedAddresses,
+    selectedConnection,
     selection,
     stageEl,
     editorTokens,
 } from "@editor/core/store";
-import { deleteSelectedElements, duplicateSelectedElements } from "@editor/core/commands";
+import {
+    deleteSelectedElements,
+    duplicateSelectedElements,
+    removeConnection,
+    setConnectionStyle,
+    startConnect,
+} from "@editor/core/commands";
 import { drag, movable } from "@editor/core/dnd";
 import { isPinned, pinnable, togglePin } from "@editor/core/pin";
 import { union } from "./Selection";
@@ -55,6 +63,105 @@ import {
 } from "@editor/core/text";
 
 const BAR_GAP = 10;
+
+// the bar for a selected arrow: style toggles and delete, floated over the route's box
+export const ConnectionBar: Component = () => {
+    const conn = createMemo(() => {
+        const id = selectedConnection();
+        return id ? editor.artifact.connections?.find((c) => c.id === id) : undefined;
+    });
+    const box = createMemo((): Rect | null => {
+        const c = conn();
+        const r = c && regions().find((k) => k.id === refRegionId(c.id));
+        return r?.box ?? null;
+    });
+    const toggle = (patch: (c: NonNullable<ReturnType<typeof conn>>) => void): void => {
+        const c = conn();
+        if (c) patch(c);
+    };
+    return (
+        <Show when={conn() && box()}>
+            {(_) => {
+                const b = box()!;
+                const c = (): NonNullable<ReturnType<typeof conn>> => conn()!;
+                return (
+                    <FloatingBar
+                        tone="panel"
+                        rounded="xl"
+                        pad="sm"
+                        shadow="2xl"
+                        anchor="free"
+                        gap="0.5"
+                        data-galleo-toolbar="true"
+                        class="absolute z-chrome w-max -translate-x-1/2"
+                        style={{
+                            left: `${b.x + b.w / 2}px`,
+                            top: `${Math.max(0, b.y - BAR_H - BAR_GAP)}px`,
+                        }}
+                        onPointerDown={(e) => e.stopPropagation()}
+                    >
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            class={c().style?.dashed ? "text-accent" : undefined}
+                            title="Dashed"
+                            onClick={() =>
+                                toggle((k) =>
+                                    setConnectionStyle(k.id, { dashed: !k.style?.dashed }),
+                                )
+                            }
+                        >
+                            <Icon name="divider" size={15} />
+                        </IconButton>
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            class={c().style?.head === "none" ? undefined : "text-accent"}
+                            title="Arrowhead"
+                            onClick={() =>
+                                toggle((k) =>
+                                    setConnectionStyle(k.id, {
+                                        head: k.style?.head === "none" ? "arrow" : "none",
+                                    }),
+                                )
+                            }
+                        >
+                            <Icon name="arrowUpRight" size={15} />
+                        </IconButton>
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            class={c().style?.tone === "accent" ? "text-accent" : undefined}
+                            title="Accent color"
+                            onClick={() =>
+                                toggle((k) =>
+                                    setConnectionStyle(k.id, {
+                                        tone: k.style?.tone === "accent" ? "muted" : "accent",
+                                    }),
+                                )
+                            }
+                        >
+                            <Icon name="sparkle" size={15} />
+                        </IconButton>
+                        <Separator vertical class="mx-0.5" />
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            title="Delete connection"
+                            onClick={() => toggle((k) => removeConnection(k.id))}
+                        >
+                            <Icon name="trash" size={15} />
+                        </IconButton>
+                    </FloatingBar>
+                );
+            }}
+        </Show>
+    );
+};
 const BAR_H = 42;
 const EDGE = 8; // breathing room between the bar and whatever bounds it
 
@@ -310,6 +417,18 @@ export const ContextBar: Component = () => {
                             onClick={() => runCommand("edit.ungroup")}
                         >
                             <Icon name="layers" size={15} />
+                        </IconButton>
+                    </Show>
+                    <Show when={!set() && addr()}>
+                        <IconButton
+                            size="md"
+                            rounded="md"
+                            tone="ink"
+                            class={connectFrom() ? "text-accent" : undefined}
+                            title="Draw connection"
+                            onClick={startConnect}
+                        >
+                            <Icon name="arrowUpRight" size={15} />
                         </IconButton>
                     </Show>
                     <Show when={!set() && addr() && pinnable(editor.artifact, addr()!)}>

@@ -15,6 +15,7 @@ import {
     elementRegionId,
     parseDatumRegion,
     parseHitRegion,
+    parseRefRegion,
     parseTarget,
     sectionLinkId,
     specificity,
@@ -26,6 +27,7 @@ import {
     backdropCss,
     createSectionStackCache,
     offsetRegion,
+    paint,
     paintReconcile,
     paintSectionStack,
     scaledHostCss,
@@ -33,6 +35,7 @@ import {
     sectionLayoutWidth,
     type StackWindow,
 } from "@canvas/render/backends";
+import { connectionCommands } from "@canvas/render/connect";
 import {
     planSectionRequests,
     stackWindow,
@@ -45,21 +48,26 @@ import { measureText, layoutNode, layoutSection, layoutSlide } from "@canvas/ren
 import { openPopups, panelFor } from "./core/leaf";
 import { openDataEditor } from "./panels/DataEditor";
 import {
-    activeSlot,
     applyDrop,
-    computeDropSlots,
+    classifyDrop,
     drag,
-    dragSlots,
     endDrag,
     marqueeTargets,
     movableAncestor,
+    compensatePoint,
+    part,
+    partingHere,
+    PART_FEEL,
+    previewFor,
     setDrag,
-    setDragSlots,
+    setPart,
 } from "./core/dnd";
+import { completeConnect } from "./core/commands";
 import { applyLiveEdit, liveEdit } from "./panels/Selection";
 import {
     canvasContentWidth,
     commit,
+    connectFrom,
     currentArtifactId,
     editSeq,
     editing,
@@ -81,6 +89,7 @@ import {
     setBoardGutterL,
     setCanvasContentWidth,
     setCanvasEl,
+    setConnectFrom,
     setDatum,
     setHover,
     setRegions,
@@ -88,7 +97,9 @@ import {
     setSectionTops,
     setSelection,
     noteDropSelection,
+    selectedConnection,
     selectMany,
+    setSelectedConnection,
     setStageEl,
     slideFrame,
     startEditing,
@@ -98,7 +109,7 @@ import {
     zoom,
 } from "./core/store";
 import { EmptyRegionAdd, ContextMenu, openContextMenu } from "./panels/Insert";
-import { DropIndicators, LiftVeil } from "./panels/DropIndicators";
+import { DropIndicators, GhostVeil, LiftVeil } from "./panels/DropIndicators";
 import {
     beginElementMove,
     DragHandle,
@@ -107,7 +118,7 @@ import {
     ResizeHandles,
 } from "./panels/Selection";
 import { nearestPinPlacement, pinnable, pinnedAncestor, pinnedLayout } from "@editor/core/pin";
-import { ContextBar } from "./panels/ControlBars";
+import { ConnectionBar, ContextBar } from "./panels/ControlBars";
 import { Overlay, SectionActions } from "./panels/Selection";
 import { SectionGenPopup } from "./panels/GenPrompt";
 import { SectionGenStage } from "./panels/GenOverlays";
@@ -151,6 +162,7 @@ export const Canvas: Component = () => {
     let scrollEl!: HTMLElement;
     let stageEl!: HTMLDivElement;
     let paintHost!: HTMLDivElement;
+    let connectHost!: HTMLDivElement;
     let panelHost!: HTMLDivElement;
 
     // The laid-out stack's height, in layout coordinates. The sizer around the stage carries the
@@ -301,8 +313,14 @@ export const Canvas: Component = () => {
         );
     };
 
-    const draw = (preview?: Section[] | null, track = false, dimId?: string | null): void => {
+    const draw = (
+        preview?: Section[] | null,
+        track = false,
+        dimId?: string | null,
+        ghost?: ElementAddress | null, // set (even null) = a parting preview paint
+    ): void => {
         if (!paintHost) return;
+        const flip = ghost !== undefined;
         const profile = profileFor(editor.artifact);
         // a bleeding format (site) covers the backdrop entirely on phone; others keep the sliver
         const phonePad = profile.bleedSections ? 0 : PHONE_PAD;
@@ -330,7 +348,7 @@ export const Canvas: Component = () => {
         const waiting = pendingSections();
         const beforeTops = editor.sectionTops;
         const paintStartedAt = performance.now();
-        const { tops, heights, fitScales, regions, height } = paintSectionStack(
+        const { tops, heights, fitScales, regions, height, shifts } = paintSectionStack(
             paintHost,
             preview ?? editor.artifact.sections,
             profile,
@@ -341,6 +359,7 @@ export const Canvas: Component = () => {
                 dimId,
                 cache: stackCache,
                 window: win,
+                flip: flip ? PART_FEEL : undefined,
                 slideFrame: slideFrame(),
                 freezeFit: fitFreeze(),
                 pending: waiting.size ? (s) => waiting.has(s.id) : undefined,
@@ -371,7 +390,23 @@ export const Canvas: Component = () => {
                 where: presenting() ? "present" : "editor",
             });
         setStackHeight(height);
+        setPart(
+            flip
+                ? {
+                      ghost:
+                          (ghost && regions.find((r) => r.id === elementRegionId(ghost))) || null,
+                      shifts,
+                  }
+                : null,
+        );
         const drawn = preview ?? editor.artifact.sections;
+        // arrows resolve against the stage regions this frame produced, so they follow every move
+        const conn = connectionCommands(
+            preview ? { ...editor.artifact, sections: preview } : editor.artifact,
+            regions,
+            editorTokens(),
+        );
+        if (connectHost) paint(conn.commands, connectHost);
         for (const [i, sec] of drawn.entries())
             if (!waiting.has(sec.id)) rememberHeight(sec.id, fullW, heights[i] ?? 0);
         // a loaded section rarely matches its estimate; absorb the difference to hold the reader's place
@@ -382,7 +417,8 @@ export const Canvas: Component = () => {
         if (waiting.size) scheduleFetch(viewH);
         if (!preview || track) {
             const panelRegions = drawPanels(regions, profile.id, editAddr);
-            setRegions(panelRegions.length ? [...regions, ...panelRegions] : regions);
+            const all = conn.regions.length ? [...regions, ...conn.regions] : regions;
+            setRegions(panelRegions.length ? [...all, ...panelRegions] : all);
             const hits: { target: Target; spec: number; region: Region }[] = [];
             const aff: { action: string; address: ElementAddress; box: Rect }[] = [];
             const marks: Region[] = [];
@@ -454,19 +490,25 @@ export const Canvas: Component = () => {
 
     // one paint per frame; the latest queued state wins
     let rafId = 0;
-    let queued: { sections: Section[] | null; track: boolean; dimId?: string | null } | null = null;
+    let queued: {
+        sections: Section[] | null;
+        track: boolean;
+        dimId?: string | null;
+        ghost?: ElementAddress | null;
+    } | null = null;
     const scheduleDraw = (
         sections: Section[] | null,
         track: boolean,
         dimId?: string | null,
+        ghost?: ElementAddress | null,
     ): void => {
-        queued = { sections, track, dimId };
+        queued = { sections, track, dimId, ghost };
         if (rafId) return;
         rafId = requestAnimationFrame(() => {
             rafId = 0;
             const q = queued;
             queued = null;
-            if (q) draw(q.sections, q.track, q.dimId);
+            if (q) draw(q.sections, q.track, q.dimId, q.ghost);
         });
     };
 
@@ -622,11 +664,13 @@ export const Canvas: Component = () => {
         const over = hitTest(hx, hy);
         setHover(over);
         setDatum(datumAt(hx, hy));
-        scrollEl.style.cursor = affordanceAt(hx, hy)
-            ? "pointer"
-            : over?.kind === "element" && pinnedAncestor(editor.artifact, over.address)
-              ? "grab"
-              : "";
+        scrollEl.style.cursor = connectFrom()
+            ? "crosshair"
+            : affordanceAt(hx, hy)
+              ? "pointer"
+              : over?.kind === "element" && pinnedAncestor(editor.artifact, over.address)
+                ? "grab"
+                : "";
     };
 
     const onPointerLeaveCanvas = (): void => {
@@ -638,6 +682,21 @@ export const Canvas: Component = () => {
     };
 
     const onPointerUp = (e: PointerEvent): void => {
+        // the armed connect gesture takes the press whole: an element or a datum completes it,
+        // anything else cancels; normal selection never runs underneath
+        if (connectFrom()) {
+            const t = pending?.target ?? null;
+            const datumHit = pendingDatum;
+            pending = null;
+            pendingAffordance = null;
+            pendingDatum = null;
+            const mark = datumHit ? parseDatumRegion(datumHit) : null;
+            const ownerAddr = mark && ownerOf(datumHit!);
+            if (ownerAddr && mark) completeConnect({ address: ownerAddr, datum: mark.index });
+            else if (t?.kind === "element") completeConnect({ address: t.address });
+            else setConnectFrom(null);
+            return;
+        }
         const sweep = marquee();
         if (sweep) {
             setMarquee(null);
@@ -676,6 +735,20 @@ export const Canvas: Component = () => {
             return;
         }
         const t = pending.target;
+        // a press on nothing may still land on a drawn arrow's route
+        if (!t) {
+            const [px, py] = point(e);
+            const arrow = regions().find((r) => parseRefRegion(r.id) && inRegion(r, px, py));
+            if (arrow) {
+                pending = null;
+                pendingDatum = null;
+                if (editing()) stopEditing();
+                setSelection(null);
+                setSelectedConnection(parseRefRegion(arrow.id));
+                return;
+            }
+        }
+        if (selectedConnection()) setSelectedConnection(null);
         const caret = { x: pending.x, y: pending.y };
         const datumHit =
             pendingDatum && pendingDatum === datumAt(...point(e)) ? pendingDatum : null;
@@ -729,6 +802,11 @@ export const Canvas: Component = () => {
     onMount(() => {
         setCanvasEl(scrollEl);
         setStageEl(stageEl);
+        const onConnectKey = (ev: KeyboardEvent): void => {
+            if (ev.key === "Escape" && connectFrom()) setConnectFrom(null);
+        };
+        window.addEventListener("keydown", onConnectKey);
+        onCleanup(() => window.removeEventListener("keydown", onConnectKey));
         // on canvas a click selects; cmd/ctrl-click follows the link, as design tools do
         const onLinkClick = (e: MouseEvent): void => {
             const a = (e.target as HTMLElement | null)?.closest("a");
@@ -784,16 +862,26 @@ export const Canvas: Component = () => {
         });
     });
 
-    // element and section drags never reflow the canvas: the document stays frozen, insertion
-    // indicators mark the slots, and the single mutation happens at drop
-    const preview = createMemo<{ sections: Section[]; track: boolean; dimId?: string } | null>(
-        () => {
-            const edit = liveEdit();
-            if (edit)
-                return { sections: applyLiveEdit(editor.artifact, edit).sections, track: true };
-            return null;
-        },
-    );
+    // Aiming stays frozen during a drag (slots, regions, hitboxes), but the PICTURE parts: with a
+    // slot active, the drop's own pure path paints the post-drop tree, FLIP-animated, and the drag
+    // aims through it via compensatePoint. A foreign edit mid-drag (AI stream, collab) stands the
+    // parting down for the gesture rather than animating across an edit nobody made here.
+    const [dragBase, setDragBase] = createSignal<typeof editor.artifact | null>(null);
+    const preview = createMemo<{
+        sections: Section[];
+        track: boolean;
+        dimId?: string;
+        ghost?: ElementAddress | null;
+    } | null>(() => {
+        const edit = liveEdit();
+        if (edit) return { sections: applyLiveEdit(editor.artifact, edit).sections, track: true };
+        const d = drag();
+        if (d?.target && partingHere() && editor.artifact === dragBase()) {
+            const p = previewFor(editor.artifact, d.target, d.payload);
+            if (p) return { sections: p.sections, track: false, ghost: p.at };
+        }
+        return null;
+    });
 
     // draw runs later in a rAF, outside tracking: read every repaint dep here or it won't redraw
     createEffect(() => {
@@ -806,7 +894,7 @@ export const Canvas: Component = () => {
         editorTokens();
         slideFrame();
         const p = preview();
-        scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null);
+        scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null, p?.ghost);
     });
 
     /**
@@ -833,30 +921,27 @@ export const Canvas: Component = () => {
         }),
     );
 
-    // Slots enumerate once per gesture (the canvas doesn't reflow during an element drag) and
-    // re-enumerate only when the canvas republishes regions underneath the drag — a scroll
-    // materializing new windowed sections, AI streaming, a collaborative write.
-    createEffect(() => {
-        const d = drag();
-        if (!d) {
-            setDragSlots([]);
-            return;
-        }
-        setDragSlots(computeDropSlots(editor.artifact, regions(), d.payload));
-    });
-
     // the drag cursor can leave the canvas, so track it on the window
     const isDragging = createMemo(() => drag() !== null);
     createEffect(() => {
         if (!isDragging()) return;
+        setDragBase(editor.artifact);
+        onCleanup(() => setDragBase(null));
         let clientX = drag()?.x ?? 0;
         let clientY = drag()?.y ?? 0;
         const retarget = (): void => {
-            const [px, py] = point({ clientX, clientY });
+            const [vx, vy] = point({ clientX, clientY });
+            const [px, py] = compensatePoint(vx, vy, part()?.shifts ?? []);
             setDrag((d) => {
                 if (!d) return d;
-                const slot = activeSlot(dragSlots(), px, py, d.target);
-                return { ...d, x: clientX, y: clientY, target: slot?.target ?? null };
+                const hit = classifyDrop(editor.artifact, regions(), d.payload, px, py, d.target);
+                return {
+                    ...d,
+                    x: clientX,
+                    y: clientY,
+                    target: hit?.target ?? null,
+                    indicator: hit?.indicator ?? null,
+                };
             });
         };
         const move = (e: PointerEvent): void => {
@@ -1037,6 +1122,10 @@ export const Canvas: Component = () => {
                     }}
                 >
                     <div ref={paintHost} class="absolute inset-0 select-none" />
+                    <div
+                        ref={connectHost}
+                        class="pointer-events-none absolute inset-0 select-none"
+                    />
                     {/* popup panels float over the stack: after paintHost so they cover it, before
                         the chrome below (which carries a z-* utility) so nothing of the editor is
                         buried. Only the panels take the pointer, so the bare stage stays clickable */}
@@ -1051,6 +1140,7 @@ export const Canvas: Component = () => {
                     />
                     <Overlay />
                     <LiftVeil />
+                    <GhostVeil />
                     <DropIndicators />
                     {/* precision-pointer affordances; at phone width the reflowed layout no longer
                         matches the geometry they edit, so the section sheet + presets stand in */}
@@ -1080,6 +1170,7 @@ export const Canvas: Component = () => {
                     <SectionGenPopup />
                     <ElementGenStage />
                     <ContextBar />
+                    <ConnectionBar />
                     <CommentLayer />
                     <CollabLayer />
                     <EmptyRegionAdd />
