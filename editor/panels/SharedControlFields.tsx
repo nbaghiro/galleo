@@ -435,6 +435,7 @@ export const Field: Component<{
                     value={str()}
                     options={options()}
                     placeholder={f().placeholder}
+                    label={f().label}
                     onChange={(v) => props.onChange(f().numeric ? Number(v) : v)}
                     compact={props.compact}
                     toolbar

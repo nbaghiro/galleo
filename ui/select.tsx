@@ -56,6 +56,7 @@ export const Dropdown: Component<{
     onChange: (v: string) => void;
     compact?: boolean;
     placeholder?: string;
+    label?: string; // what it sets, for a trigger reading a placeholder that says nothing
     toolbar?: boolean;
     disabled?: boolean;
 }> = (props) => {
@@ -117,6 +118,10 @@ export const Dropdown: Component<{
                 ref={trigger}
                 type="button"
                 class={`${triggerCls()} disabled:pointer-events-none disabled:opacity-60`}
+                // A chosen value names the control ("Heading", "Note"); a placeholder does not, and
+                // a toolbar can stand two of them side by side reading "Auto" with nothing to tell
+                // them apart. Naming only that case leaves every self-describing trigger alone.
+                aria-label={placeholding() ? props.label : undefined}
                 disabled={props.disabled}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => (open() ? setOpen(false) : openMenu())}
@@ -179,6 +184,7 @@ export const SelectField: Component<{
     options: DropdownOption[];
     onChange: (v: string) => void;
     placeholder?: string;
+    label?: string;
     compact?: boolean;
     toolbar?: boolean; // keeps an inline text editor alive when used mid-edit
 }> = (props) => (
@@ -187,6 +193,7 @@ export const SelectField: Component<{
         options={props.options}
         onChange={props.onChange}
         placeholder={props.placeholder}
+        label={props.label}
         compact={props.compact}
         toolbar={props.toolbar}
     />
