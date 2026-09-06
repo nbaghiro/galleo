@@ -18,6 +18,18 @@ export type BulletMarker = (typeof BULLET_MARKERS)[number];
 
 // "expanded" is the stored default: every answer reads at once, which is what a printed FAQ wants
 export const FAQ_COLLAPSE = ["expanded", "collapsible"] as const;
+
+// the input kinds a form field can be; the field element paints each, the live overlay mounts it
+export const FORM_FIELDS = [
+    "text",
+    "email",
+    "phone",
+    "textarea",
+    "select",
+    "checkbox",
+    "choice",
+] as const;
+export type FormFieldKind = (typeof FORM_FIELDS)[number];
 export type FaqCollapse = (typeof FAQ_COLLAPSE)[number];
 
 // "panel" is a paragraph or two behind a trigger; "menu" is a tight column of links
@@ -57,11 +69,11 @@ export type MediaElementKind = (typeof MEDIA_KINDS)[number];
 export const MEDIA_SHAPES = ["frame", "circle"] as const;
 export type MediaShape = (typeof MEDIA_SHAPES)[number];
 
-export const CARD_STYLES = ["solid", "outline", "sideline", "topline", "plain"] as const;
+export const CARD_STYLES = ["solid", "outline", "sideline", "topline", "glass", "plain"] as const;
 export type CardStyle = (typeof CARD_STYLES)[number];
 
 // rounded (default) uses the theme radius; sharp is crisp
-export const CARD_SHAPES = ["sharp", "rounded"] as const;
+export const CARD_SHAPES = ["sharp", "rounded", "circle"] as const;
 export type CardShape = (typeof CARD_SHAPES)[number];
 
 // what the Shape element can draw; the picker offers exactly this list, guarded by a render test

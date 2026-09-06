@@ -16,6 +16,7 @@ const Surface: Component<{
     narration?: NarrationSource;
     soundtrack?: SoundtrackSource;
     onProgress: (reached: number, total: number) => void;
+    submitForm?: (elementId: string, values: Record<string, string>) => Promise<boolean>;
 }> = (props) => {
     const tokens = createMemo(() => resolveTheme(props.artifact.theme).tokens);
     return (
@@ -28,6 +29,7 @@ const Surface: Component<{
                 narration={props.narration}
                 soundtrack={props.soundtrack}
                 onProgress={props.onProgress}
+                submitForm={props.submitForm}
             >
                 <Show when={props.branded}>
                     <a
@@ -272,6 +274,14 @@ export const PublicView: Component = () => {
                         narration={narrationSource()}
                         soundtrack={soundtrackSource()}
                         onProgress={onProgress}
+                        submitForm={(elementId, values) =>
+                            params.slug
+                                ? publicApi.submitForm(params.slug, elementId, values, {
+                                      k: token(),
+                                      pw: accepted(),
+                                  })
+                                : Promise.resolve(false)
+                        }
                     />
                     <MediaCredits credits={c().credits} />
                 </>

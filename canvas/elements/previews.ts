@@ -20,6 +20,50 @@ export const CSS_VAR_PALETTE: PreviewPalette = {
 function elementPreviews(c: PreviewPalette): Record<string, string> {
     const { accent, ink, muted, surface, line, onaccent } = c;
     return {
+        field: `
+        <rect x="14" y="16" width="42" height="6" rx="3" fill="${ink}" opacity="0.75"/>
+        <rect x="14" y="28" width="112" height="26" rx="6" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <rect x="24" y="38" width="58" height="6" rx="3" fill="${muted}" opacity="0.6"/>`,
+
+        contactForm: `
+        <rect x="14" y="10" width="52" height="12" rx="4" fill="${surface}" stroke="${line}"/>
+        <rect x="72" y="10" width="54" height="12" rx="4" fill="${surface}" stroke="${line}"/>
+        <rect x="14" y="27" width="112" height="20" rx="4" fill="${surface}" stroke="${line}"/>
+        <rect x="14" y="53" width="42" height="12" rx="5" fill="${accent}"/>
+        <rect x="21" y="57.5" width="28" height="3.5" rx="1.75" fill="${onaccent}"/>`,
+
+        signupForm: `
+        <rect x="14" y="28" width="72" height="18" rx="5" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
+        <rect x="22" y="35" width="42" height="4.5" rx="2.25" fill="${muted}" opacity="0.6"/>
+        <rect x="92" y="28" width="34" height="18" rx="5" fill="${accent}"/>
+        <rect x="99" y="34.5" width="20" height="4.5" rx="2.25" fill="${onaccent}"/>`,
+
+        rsvpForm: `
+        <rect x="14" y="12" width="112" height="16" rx="4" fill="${surface}" stroke="${line}"/>
+        <circle cx="22" cy="42" r="4.5" fill="${surface}" stroke="${accent}" stroke-width="2"/>
+        <circle cx="22" cy="42" r="2" fill="${accent}"/>
+        <rect x="32" y="39" width="30" height="5.5" rx="2.75" fill="${ink}" opacity="0.7"/>
+        <circle cx="76" cy="42" r="4.5" fill="${surface}" stroke="${line}" stroke-width="2"/>
+        <rect x="86" y="39" width="24" height="5.5" rx="2.75" fill="${ink}" opacity="0.45"/>
+        <rect x="14" y="53" width="36" height="11" rx="4.5" fill="${accent}"/>`,
+
+        pollForm: `
+        <circle cx="20" cy="18" r="4.5" fill="${surface}" stroke="${accent}" stroke-width="2"/>
+        <circle cx="20" cy="18" r="2" fill="${accent}"/>
+        <rect x="30" y="15" width="86" height="6" rx="3" fill="${ink}" opacity="0.75"/>
+        <circle cx="20" cy="35" r="4.5" fill="${surface}" stroke="${line}" stroke-width="2"/>
+        <rect x="30" y="32" width="72" height="6" rx="3" fill="${ink}" opacity="0.55"/>
+        <circle cx="20" cy="52" r="4.5" fill="${surface}" stroke="${line}" stroke-width="2"/>
+        <rect x="30" y="49" width="60" height="6" rx="3" fill="${ink}" opacity="0.4"/>`,
+
+        feedbackForm: `
+        <circle cx="20" cy="16" r="4" fill="${surface}" stroke="${accent}" stroke-width="2"/>
+        <rect x="29" y="13" width="34" height="5.5" rx="2.75" fill="${ink}" opacity="0.6"/>
+        <circle cx="76" cy="16" r="4" fill="${surface}" stroke="${line}" stroke-width="2"/>
+        <rect x="85" y="13" width="26" height="5.5" rx="2.75" fill="${ink}" opacity="0.4"/>
+        <rect x="14" y="27" width="112" height="22" rx="4" fill="${surface}" stroke="${line}"/>
+        <rect x="14" y="55" width="46" height="11" rx="4.5" fill="${accent}"/>`,
+
         text: `
         <rect x="14" y="15" width="78" height="11" rx="3.5" fill="${ink}"/>
         <rect x="14" y="34" width="112" height="6" rx="3" fill="${muted}" opacity="0.8"/>
@@ -413,18 +457,6 @@ function elementPreviews(c: PreviewPalette): Record<string, string> {
         <rect x="50" y="30" width="58" height="6" rx="3" fill="${ink}" opacity="0.8"/>
         <rect x="50" y="42" width="42" height="5" rx="2.5" fill="${muted}" opacity="0.7"/>`,
 
-        card: `
-        <rect x="14" y="14" width="112" height="46" rx="9" fill="${surface}" stroke="${line}" stroke-width="1.5"/>
-        <rect x="26" y="24" width="54" height="8" rx="3" fill="${ink}"/>
-        <rect x="26" y="37" width="80" height="5.5" rx="2.5" fill="${muted}" opacity="0.7"/>
-        <rect x="26" y="46" width="36" height="11" rx="5.5" fill="${accent}"/>`,
-
-        group: `
-        <rect x="20" y="18" width="100" height="10" rx="3" fill="${ink}" opacity="0.8"/>
-        <rect x="20" y="33" width="84" height="7" rx="3" fill="${muted}" opacity="0.6"/>
-        <rect x="20" y="44" width="92" height="7" rx="3" fill="${muted}" opacity="0.5"/>
-        <rect x="20" y="55" width="58" height="7" rx="3" fill="${muted}" opacity="0.4"/>`,
-
         feature: `
         <rect x="14" y="15" width="22" height="22" rx="6" fill="${accent}" opacity="0.16"/>
         <path d="M25 19l1.6 4.4L31 25l-4.4 1.6L25 31l-1.6-4.4L19 25l4.4-1.6z" fill="${accent}"/>
@@ -489,6 +521,10 @@ const fallback = (c: PreviewPalette): string =>
     `<rect x="20" y="20" width="100" height="32" rx="7" fill="${c.muted}" opacity="0.25"/>`;
 
 // inner shapes only, no <svg> wrapper
+/** Whether the palette has drawn art for this type, or would fall back to the generic tile. */
+export const hasOwnPreview = (type: string): boolean =>
+    elementPreviews(CSS_VAR_PALETTE)[type] !== undefined;
+
 export function previewBody(type: string, c: PreviewPalette = CSS_VAR_PALETTE): string {
     return elementPreviews(c)[type] ?? fallback(c);
 }

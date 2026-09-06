@@ -91,6 +91,22 @@ export const publicApi = {
         return (await res.json()) as NarrationManifest;
     },
 
+    // A form's response, behind the same gate. `false` is the only failure a viewer sees.
+    submitForm: async (
+        slug: string,
+        elementId: string,
+        values: Record<string, string>,
+        opts?: { pw?: string; k?: string },
+    ): Promise<boolean> => {
+        const res = await fetch(`/api/p/${slug}/submit${gated(opts)}`, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ form: elementId, values }),
+        });
+        return res.ok;
+    },
+
     getPublicContent: async (
         slug: string,
         opts?: { pw?: string; k?: string; ref?: string },

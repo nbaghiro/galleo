@@ -44,7 +44,7 @@ with high-fidelity export. Net-new, TypeScript.
   blocks and the stored thread; the LLM-facing element catalog lives with its prompt in
   `services/core/ai/prompts/catalog.ts`), `credits` (metered credits +
   the AiTask steps), `tools` (the one tool catalog: identity, surfaces, pricing), `billing` (plans, seats,
-  add-ons + the entitlement resolver), `eval` (the traced-run contract the eval playground reads),
+  bought credits + the entitlement resolver), `eval` (the traced-run contract the eval playground reads),
   `workspace` (the person, not the tenant: user + prefs + memberships + folder + the auth/account DTOs),
   `text` (rich-text core + the render-facing `Run`),
   `comments` (the anchors, thread DTOs + wire bodies, and the pure anchor-resolution helpers),
@@ -278,9 +278,9 @@ The layout engine (`canvas/engine/layout.ts`, Clay-style 3-pass solver) drives a
 state) and inline text editing (`panels/TextEditor.tsx`). State in `core/store.ts` (Solid store); painting
 is the `@canvas` layer — the engine's commands paint into refs (`@canvas/render/backends`, with a
 2D-canvas mirror for Present + PDF/PNG export). Sections compose via `@elements/compose`; every element
-has a structural ghost (`skeletonize` in `@elements/spec`). **62 palette elements** register via
-`canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 10 composite · 7 basic ·
-15 chart · 16 diagram), plus the five registered internals the palette hides (`container`, `avatar`, and
+has a structural ghost (`skeletonize` in `@elements/spec`). **67 palette elements** register via
+`canvas/elements/register.ts`'s side-effect imports (5 text · 7 media · 2 table · 9 composite · 7 basic ·
+15 chart · 16 diagram · 6 form), plus the five registered internals the palette hides (`container`, `avatar`, and
 the `chart`/`diagram`/`media` storage elements; `group` and `card` are not elements at all, they are legacy type
 aliases onto `container`); format-as-view
 (`@engine/profile` + `fragment`) is built, so one artifact renders as deck / doc / web.

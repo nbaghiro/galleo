@@ -4,10 +4,11 @@ import { getCookie } from "hono/cookie";
 import { SESSION_COOKIE } from "@services/utils/auth";
 import { z } from "zod";
 import { canPublish } from "@model/workspace";
-import { BAD_BODY, readJson, requireFeature } from "@services/utils/http";
+import { BAD_BODY, rateLimit, readJson, requireFeature } from "@services/utils/http";
 import { capture } from "@services/utils/analytics";
 import { asVisibility } from "@model/analytics";
 import { artifactCredits } from "@services/core/media";
+import { listSubmissions, recordSubmission } from "@services/core/submissions";
 import { currentUser, currentWorkspace } from "@services/core/accounts";
 import {
     addRecipients,
@@ -268,6 +269,43 @@ links.get("/p/:slug/content", async (c) => {
         // Unsplash and Pexels both ask for a visible credit where the picture is shown
         credits: await artifactCredits(read.artifactId),
     });
+});
+
+const zSubmit = z.object({
+    form: z.string().min(1).max(200),
+    values: z.record(z.string().max(120), z.string().max(2000)),
+    _hp: z.string().max(200).optional(),
+});
+const submitLimiter = rateLimit({ name: "form-submit", limit: 20, windowMs: 60_000 });
+
+// UNAUTHENTICATED — behind the same gate the content read passed; a miss never reveals the slug.
+links.post("/p/:slug/submit", submitLimiter, async (c) => {
+    const read = await publicRead(c.req.param("slug"), {
+        password: c.req.query("pw"),
+        token: c.req.query("k"),
+    });
+    if (read.status !== 200) return c.json({ error: "not found" }, 404);
+    const body = await readJson(c, zSubmit);
+    if (!body) return c.json(BAD_BODY, 400);
+    const entries = Object.entries(body.values).slice(0, 24);
+    const ok = await recordSubmission({
+        artifactId: read.artifactId,
+        workspaceId: read.workspaceId,
+        format: read.format,
+        viewerKey: read.linkId,
+        elementId: body.form,
+        values: Object.fromEntries(entries.map(([k, v]) => [k.slice(0, 120), v])),
+        honeypot: body._hp,
+    });
+    return ok ? c.json({ ok: true }) : c.json({ error: "not accepted" }, 429);
+});
+
+// what the artifact's forms collected, for the Share modal's Responses tab
+links.get("/artifacts/:id/submissions", requireWorkspace, async (c) => {
+    const artifactId = c.req.param("id");
+    const gate = await gateArtifact(c, artifactId, "view");
+    if (isResponse(gate)) return gate;
+    return c.json({ submissions: await listSubmissions(artifactId) });
 });
 
 // UNAUTHENTICATED — never reveals whether the slug exists.

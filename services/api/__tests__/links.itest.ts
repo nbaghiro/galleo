@@ -690,3 +690,72 @@ describe("link management — list / update / recipients / delete", () => {
         expect(res.status).toBe(404);
     });
 });
+
+describe("POST /p/:slug/submit", () => {
+    const submit = (slug: string, body: Record<string, unknown>, qs = ""): Promise<Response> =>
+        request(`/p/${slug}/submit${qs}`, jsonInit("POST", body));
+
+    const stored = (artifactId: string) =>
+        db
+            .select()
+            .from(schema.formSubmissions)
+            .where(eq(schema.formSubmissions.artifactId, artifactId));
+
+    it("stores a submission behind a public link", async () => {
+        const { artifactId, slug } = await seedShared();
+        const res = await submit(slug, {
+            form: "e-form1",
+            values: { Name: "Jane", Email: "jane@example.com" },
+        });
+        expect(res.status).toBe(200);
+        const rows = await stored(artifactId);
+        expect(rows).toHaveLength(1);
+        expect(rows[0]!.elementId).toBe("e-form1");
+        expect(rows[0]!.payload).toEqual({ Name: "Jane", Email: "jane@example.com" });
+    });
+
+    it("a filled honeypot answers ok and stores nothing", async () => {
+        const { artifactId, slug } = await seedShared();
+        const res = await submit(slug, { form: "e1", values: { Name: "x" }, _hp: "spam" });
+        expect(res.status).toBe(200);
+        expect(await stored(artifactId)).toHaveLength(0);
+    });
+
+    it("a protected link takes the same gate as the content read", async () => {
+        const { artifactId, slug } = await seedShared({
+            visibility: "protected",
+            password: "s3cret-pw",
+        });
+        expect((await submit(slug, { form: "e1", values: { A: "1" } })).status).toBe(404);
+        expect(
+            (await submit(slug, { form: "e1", values: { A: "1" } }, "?pw=s3cret-pw")).status,
+        ).toBe(200);
+        expect(await stored(artifactId)).toHaveLength(1);
+    });
+
+    it("rejects a body that is not the shape, and an unknown slug reveals nothing", async () => {
+        const { slug } = await seedShared();
+        expect((await submit(slug, { form: "", values: {} })).status).toBe(400);
+        expect((await submit("no-such-slug", { form: "e1", values: { A: "1" } })).status).toBe(404);
+    });
+});
+
+describe("GET /artifacts/:id/submissions", () => {
+    it("lists what the artifact's forms collected, workspace-gated", async () => {
+        const { userId, artifactId, slug } = await seedShared();
+        await request(
+            `/p/${slug}/submit`,
+            jsonInit("POST", { form: "e1", values: { Name: "Jane" } }),
+        );
+        const res = await authed(userId, `/artifacts/${artifactId}/submissions`);
+        expect(res.status).toBe(200);
+        const { submissions } = (await res.json()) as {
+            submissions: { elementId: string; payload: Record<string, string> }[];
+        };
+        expect(submissions).toHaveLength(1);
+        expect(submissions[0]!.payload.Name).toBe("Jane");
+        // a stranger's session sees nothing
+        const { userId: outsider } = await seedUser();
+        expect((await authed(outsider, `/artifacts/${artifactId}/submissions`)).status).toBe(404);
+    });
+});

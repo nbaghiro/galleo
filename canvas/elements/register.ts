@@ -20,6 +20,7 @@ import "@elements/composite/faq";
 import "@elements/composite/tabs";
 import "@elements/composite/popup";
 import "@elements/composite/comparison";
+import "@elements/form/element";
 
 import "@elements/basic/button";
 import "@elements/basic/badge";

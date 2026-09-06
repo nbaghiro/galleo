@@ -60,6 +60,88 @@ const TYPES: { id: Visibility; label: string; hint: string; icon: Component<{ si
 const typeOf = (v: Visibility): (typeof TYPES)[number] => TYPES.find((t) => t.id === v)!;
 const views = (n: number): string => `${n} view${n === 1 ? "" : "s"}`;
 
+// What the published forms collected: loaded on first expand, downloadable as CSV.
+const Responses: Component<{ artifactId: string }> = (props) => {
+    const [open, setOpen] = createSignal(false);
+    const [rows, setRows] = createSignal<
+        { id: string; elementId: string; payload: Record<string, string>; createdAt: string }[]
+    >([]);
+    const [loaded, setLoaded] = createSignal(false);
+    const toggle = async (): Promise<void> => {
+        setOpen(!open());
+        if (loaded() || !open()) return;
+        try {
+            const { submissions } = await api.getSubmissions(props.artifactId);
+            setRows(submissions);
+            setLoaded(true);
+            capture("form_responses_viewed", { submission_count: submissions.length });
+        } catch {
+            setLoaded(true);
+        }
+    };
+    const csv = (): void => {
+        const keys = [...new Set(rows().flatMap((r) => Object.keys(r.payload)))];
+        const esc = (v: string): string => `"${v.replaceAll('"', '""')}"`;
+        const lines = [
+            ["Submitted", ...keys].map(esc).join(","),
+            ...rows().map((r) =>
+                [r.createdAt, ...keys.map((k) => r.payload[k] ?? "")].map(esc).join(","),
+            ),
+        ];
+        const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "responses.csv";
+        a.click();
+        URL.revokeObjectURL(a.href);
+    };
+    return (
+        <div class="mt-4 border-t border-line pt-3">
+            <button
+                class="flex w-full items-center justify-between text-[12px] font-medium text-ink"
+                onClick={() => void toggle()}
+            >
+                <span>Form responses</span>
+                <Show when={open()} fallback={<ChevronDownIcon size={14} />}>
+                    <ChevronUpIcon size={14} />
+                </Show>
+            </button>
+            <Show when={open()}>
+                <Show
+                    when={rows().length}
+                    fallback={
+                        <p class="mt-2 text-[12px] text-muted">
+                            {loaded() ? "Nothing collected yet." : "Loading responses…"}
+                        </p>
+                    }
+                >
+                    <div class="mt-2 flex flex-col gap-1.5">
+                        <For each={rows().slice(0, 50)}>
+                            {(r) => (
+                                <div class="rounded-lg border border-line bg-canvas px-3 py-2 text-[12px]">
+                                    <div class="mb-0.5 text-[10.5px] text-muted">
+                                        {relativeTime(r.createdAt)}
+                                    </div>
+                                    <For each={Object.entries(r.payload)}>
+                                        {([k, v]) => (
+                                            <div class="truncate">
+                                                <span class="text-muted">{k}:</span> {v}
+                                            </div>
+                                        )}
+                                    </For>
+                                </div>
+                            )}
+                        </For>
+                    </div>
+                    <Button variant="tool" size="sm" class="mt-2" onClick={csv}>
+                        Download CSV
+                    </Button>
+                </Show>
+            </Show>
+        </div>
+    );
+};
+
 export const ShareModal: Component = () => (
     <Show when={shareRequest()}>{(req) => <SharePanel req={req()} />}</Show>
 );
@@ -240,6 +322,7 @@ const SharePanel: Component<{ req: ShareRequest }> = (props) => {
                                 </Show>
                             </div>
                         </Show>
+                        <Responses artifactId={props.req.artifactId} />
                     </Show>
                 </Show>
             </div>
