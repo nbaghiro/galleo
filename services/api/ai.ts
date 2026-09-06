@@ -178,13 +178,19 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                             chat && embeddingReady()
                                 ? (q) => recallConversation(ws.id, chatKey, q)
                                 : undefined,
-                        // the document the browser holds rides in the body; the executor loads a
-                        // generation's draft instead when the call names one
-                        ...(chat && chat.context.content && !chat.context.generationId
-                            ? { artifact: chat.context.content }
-                            : req.artifact && !generationId
-                              ? { artifact: req.artifact }
-                              : {}),
+                        // ask-assistant names its generation nested in the ChatInput, so the
+                        // executor's top-level-generationId load never fires; hand it in here
+                        ...(chat && gen
+                            ? {
+                                  generation: gen.generation,
+                                  artifact: gen.content,
+                                  artifactId: gen.generation.artifactId,
+                              }
+                            : chat && chat.context.content && !chat.context.generationId
+                              ? { artifact: chat.context.content }
+                              : req.artifact && !generationId
+                                ? { artifact: req.artifact }
+                                : {}),
                         ...(chat?.context.pending ? { pending: chat.context.pending } : {}),
                     },
                     models: overrides,
