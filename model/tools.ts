@@ -12,11 +12,10 @@ import type { ZodType } from "zod";
 import type { ChatInput, Patch } from "./ai";
 import type { Features } from "./billing";
 import type { UnitPrices, Usage } from "./credits";
-import { creditsForUsd, DEFAULT_UNIT_PRICES, usdOfUsage } from "./credits";
+import { creditsForUsd, usdOfUsage } from "./credits";
 
 export type ToolId =
     | "generate-artifact"
-    | "revise-artifact"
     | "add-section"
     | "rewrite-section"
     | "suggest-section-layouts"
@@ -31,14 +30,10 @@ export type ToolId =
     | "refine-prompt"
     | "rewrite-passage"
     | "translate-text"
-    | "translate-artifact"
-    | "suggest-title"
     | "generate-theme"
     | "generate-image"
     | "generate-video"
     | "reimage"
-    | "write-summary"
-    | "write-alt-text"
     | "write-speaker-notes"
     | "narrate-artifact"
     | "audition-voice"
@@ -126,9 +121,6 @@ export type ToolFeature = {
     [K in keyof Features]: Features[K] extends boolean ? K : never;
 }[keyof Features];
 
-// showcase grouping for the credits table
-type ToolCategory = "create" | "edit" | "text" | "media" | "theme" | "assist";
-
 export interface MeterParams {
     length?: string; // "Short" | "Standard" | "In-depth"
     sections?: number;
@@ -170,29 +162,19 @@ interface ToolMeta {
      */
     free?: true;
     // A free doorway to a priced step: refuse when this much could not be paid for, without
-    // charging. Keeps the step's refusal from landing after the doorway created something
-    // (a draft with no plan it can afford); the step itself still reserves atomically.
+    // charging, so the refusal lands before the doorway creates something (a draft with no plan it
+    // can afford). The step itself still reserves atomically.
     gate?: Usage;
-    // present on credit-costing tools; absent = free
-    category?: ToolCategory;
     usage?: Usage; // the units a typical run produces; priced by the caller's UnitPrices
     meter?: (m: MeterParams) => Usage; // scales cost with the job; absent = fixed-cost
-    // What to HOLD before the work starts, when the real cost has no bound the estimate can see.
-    // Absent = hold the estimate. The settle refunds the difference either way, so this only moves
-    // where the gate sits, never what the user ends up paying.
-    ceiling?: Usage;
-    live?: boolean; // false/undefined = planned (no route yet)
 }
 
 type Traits = Pick<
     ToolMeta,
-    | "category"
     | "free"
     | "gate"
     | "usage"
     | "meter"
-    | "ceiling"
-    | "live"
     | "effect"
     | "scope"
     | "requires"
@@ -219,6 +201,9 @@ const AGENT_DIRECT: ToolSurface[] = ["agent", "direct"];
 // they are allowed to reach.
 const OVER_MCP: ToolSurface[] = ["agent", "direct", "mcp", "api"];
 const INTERNAL: ToolSurface[] = ["internal"];
+
+// the outline's hard ceiling on every plan; credits bound the rest
+export const MAX_SECTIONS = 75;
 
 // length chip → expected section count
 export function sectionsForLength(length?: string): number {
@@ -248,8 +233,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         ["direct", "mcp", "api"],
         {
             effect: "write",
-            category: "create",
-            live: true,
             confirm: "before",
             // the stock-photo default, which is the path a run takes unless the intake form opts
             // into AI images; the meter below adds those only when it does
@@ -268,7 +251,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         OVER_MCP,
         {
             effect: "write",
-            live: true,
             free: true,
             gate: { plan: 1 },
             confirm: "before",
@@ -283,8 +265,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         OVER_MCP,
         {
             effect: "write",
-            category: "create",
-            live: true,
             confirm: "before",
             needs: ["generation"],
             usage: { plan: 1 },
@@ -296,7 +276,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Change what a generation is for, who it is for, and what it must cover",
         "action",
         OVER_MCP,
-        { effect: "write", live: true, free: true, confirm: "never", needs: ["generation"] },
+        { effect: "write", free: true, confirm: "never", needs: ["generation"] },
     ),
     "revise-outline": meta(
         "revise-outline",
@@ -304,7 +284,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Add, remove, reorder or rewrite the beats of a generation",
         "action",
         OVER_MCP,
-        { effect: "write", live: true, free: true, confirm: "after", needs: ["generation"] },
+        { effect: "write", free: true, confirm: "after", needs: ["generation"] },
     ),
     "steer-generation": meta(
         "steer-generation",
@@ -312,7 +292,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Set the standing note every section still to be written must follow",
         "action",
         OVER_MCP,
-        { effect: "write", live: true, free: true, confirm: "never", needs: ["generation"] },
+        { effect: "write", free: true, confirm: "never", needs: ["generation"] },
     ),
     "write-beat": meta(
         "write-beat",
@@ -322,8 +302,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         OVER_MCP,
         {
             effect: "write",
-            category: "create",
-            live: true,
             confirm: "before",
             needs: ["generation"],
             usage: { section: 1 },
@@ -338,8 +316,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         OVER_MCP,
         {
             effect: "write",
-            category: "create",
-            live: true,
             confirm: "before",
             needs: ["generation"],
             usage: { section: 12 },
@@ -352,7 +328,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Make one take of a section the one the piece carries",
         "action",
         OVER_MCP,
-        { effect: "write", live: true, free: true, confirm: "never", needs: ["generation"] },
+        { effect: "write", free: true, confirm: "never", needs: ["generation"] },
     ),
     "read-generation": meta(
         "read-generation",
@@ -360,7 +336,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "The brief, the outline, the standing note and what is written so far",
         "action",
         OVER_MCP,
-        { effect: "read", live: true, free: true, confirm: "never", needs: ["generation"] },
+        { effect: "read", free: true, confirm: "never", needs: ["generation"] },
     ),
     "finish-generation": meta(
         "finish-generation",
@@ -368,7 +344,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Close a generation and record how the piece was made",
         "action",
         OVER_MCP,
-        { effect: "write", live: true, free: true, confirm: "never", needs: ["generation"] },
+        { effect: "write", free: true, confirm: "never", needs: ["generation"] },
     ),
     "apply-patch": meta(
         "apply-patch",
@@ -376,21 +352,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Apply a change the agent proposed and the user approved",
         "action",
         AGENT_DIRECT,
-        { effect: "write", live: true, free: true, confirm: "never" },
-    ),
-    "revise-artifact": meta(
-        "revise-artifact",
-        "Revise artifact",
-        "Revise the whole piece per an instruction",
-        "composite",
-        AGENT_DIRECT,
-        {
-            category: "edit",
-            confirm: "after",
-            needs: ["artifact"],
-            usage: { section: 10 },
-            meter: (m) => ({ section: Math.max(3, m.sections ?? 10) }),
-        },
+        { effect: "write", free: true, confirm: "never" },
     ),
     "add-section": meta(
         "add-section",
@@ -399,8 +361,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "composite",
         OVER_MCP,
         {
-            category: "create",
-            live: true,
             confirm: "after",
             needs: ["artifact"],
             usage: { section: 1 },
@@ -413,8 +373,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "composite",
         OVER_MCP,
         {
-            category: "edit",
-            live: true,
             confirm: "after",
             needs: ["artifact"],
             usage: { section: 1 },
@@ -427,8 +385,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "composite",
         AGENT_DIRECT,
         {
-            category: "edit",
-            live: true,
             confirm: "after",
             needs: ["artifact"],
             usage: { section: 3 },
@@ -443,8 +399,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         OVER_MCP,
         {
             effect: "write",
-            category: "edit",
-            live: true,
             confirm: "after",
             needs: ["library"],
             without: ["generation"],
@@ -489,7 +443,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Rework a single element or cell",
         "composite",
         OVER_MCP,
-        { category: "edit", live: true, confirm: "after", needs: ["artifact"], usage: { text: 2 } },
+        { confirm: "after", needs: ["artifact"], usage: { text: 2 } },
     ),
     "ask-assistant": meta(
         "ask-assistant",
@@ -498,12 +452,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "composite",
         ["direct"],
         {
-            category: "assist",
-            live: true,
             usage: { reply: 1 },
-            // a turn is one reply plus however many tools the agent decides to chain; hold enough
-            // for roughly four section-sized calls so a near-empty balance cannot start one
-            ceiling: { reply: 5 },
         },
     ),
     "rewrite-text": meta(
@@ -512,7 +461,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Rewrite one text run per an instruction",
         "action",
         AGENT_DIRECT,
-        { category: "text", live: true, confirm: "never", usage: { text: 1 } },
+        { confirm: "never", usage: { text: 1 } },
     ),
     // direct only: refining is a button the user presses, never something a run does on its own
     "refine-prompt": meta(
@@ -521,7 +470,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Turn a rough prompt into a fuller one for image, video, or theme generation",
         "action",
         ["direct"],
-        { category: "assist", live: true, usage: { text: 1 } },
+        { usage: { text: 1 } },
     ),
     "rewrite-passage": meta(
         "rewrite-passage",
@@ -529,7 +478,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Rewrite one passage inside a section, in place",
         "action",
         ["agent"],
-        { category: "text", live: true, confirm: "after", needs: ["artifact"], usage: { text: 1 } },
+        { confirm: "after", needs: ["artifact"], usage: { text: 1 } },
     ),
     "translate-text": meta(
         "translate-text",
@@ -537,29 +486,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Translate one text run",
         "action",
         AGENT_DIRECT,
-        { category: "text", live: true, confirm: "never", usage: { text: 1 } },
-    ),
-    "translate-artifact": meta(
-        "translate-artifact",
-        "Translate artifact",
-        "Translate the whole piece",
-        "action",
-        AGENT_DIRECT,
-        {
-            category: "text",
-            confirm: "after",
-            needs: ["artifact"],
-            usage: { text: 12 },
-            meter: (m) => ({ text: Math.max(1, m.textRuns ?? 12) }),
-        },
-    ),
-    "suggest-title": meta(
-        "suggest-title",
-        "Suggest title",
-        "Propose a title for the artifact",
-        "action",
-        AGENT_DIRECT,
-        { category: "assist", confirm: "never", needs: ["artifact"], usage: { text: 1 } },
+        { confirm: "never", usage: { text: 1 } },
     ),
     "generate-theme": meta(
         "generate-theme",
@@ -567,7 +494,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Create a theme from a prompt",
         "action",
         AGENT_DIRECT,
-        { category: "theme", live: true, confirm: "never", usage: { theme: 1 } },
+        { confirm: "never", usage: { theme: 1 } },
     ),
     // Free in itself: it sources a picture the way the run does, so stock costs nothing and an AI
     // picture is counted by the turn that made it, the same as one landing in a fresh section.
@@ -577,7 +504,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Re-source a section's image or backdrop from a new description",
         "action",
         ["agent"],
-        { category: "media", free: true, confirm: "after", needs: ["artifact"] },
+        { free: true, confirm: "after", needs: ["artifact"] },
     ),
     // direct only: the agent re-sources through reimage, which places the picture as well
     "generate-image": meta(
@@ -587,8 +514,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         ["direct"],
         {
-            category: "media",
-            live: true,
             usage: { image: 1 },
             meter: (m) => ({ image: Math.max(1, m.variations ?? 1) }),
         },
@@ -600,23 +525,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Create a short video clip with AI",
         "action",
         ["direct"],
-        { category: "media", live: true, usage: { video: 1 } },
-    ),
-    "write-summary": meta(
-        "write-summary",
-        "Write summary",
-        "Write a summary of the piece",
-        "action",
-        AGENT_DIRECT,
-        { category: "assist", confirm: "never", needs: ["artifact"], usage: { reply: 1 } },
-    ),
-    "write-alt-text": meta(
-        "write-alt-text",
-        "Write alt text",
-        "Write alt text for an image",
-        "action",
-        AGENT_DIRECT,
-        { category: "assist", confirm: "after", needs: ["artifact"], usage: { text: 1 } },
+        { usage: { video: 1 } },
     ),
     "write-speaker-notes": meta(
         "write-speaker-notes",
@@ -625,8 +534,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         AGENT_DIRECT,
         {
-            category: "assist",
-            live: true,
             confirm: "after",
             needs: ["artifact"],
             // one call over the whole piece, but the work in it scales with how much there is to read
@@ -641,9 +548,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         ["direct"],
         {
-            category: "media",
-            live: true,
-            requires: "voiceNarration",
+            requires: "audio",
             // one unit is 1000 characters; a 12-section deck at ~700 each is about nine
             usage: { speech: 9 },
             meter: (m) => ({ speech: Math.max(1, m.speechUnits ?? 9) }),
@@ -656,9 +561,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         ["direct"],
         {
-            category: "media",
-            live: true,
-            requires: "backgroundMusic",
+            requires: "audio",
             // a two minute bed; a narrated piece asks for one as long as the voice
             usage: { music: 2 },
             meter: (m) => ({ music: Math.max(1, m.musicMinutes ?? 2) }),
@@ -672,7 +575,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         ["direct"],
         // one short line, capped at 200 characters server-side. A `speech` unit would round a
         // 200-character sample up to a whole thousand, so this prices flat and closer to the truth.
-        { category: "media", live: true, requires: "voiceNarration", usage: { text: 1 } },
+        { requires: "audio", usage: { text: 1 } },
     ),
     "design-voice": meta(
         "design-voice",
@@ -681,15 +584,10 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         ["direct"],
         {
-            category: "media",
-            live: true,
-            requires: "voiceDesign",
-            // The provider documents no flat price for this and each of the three candidates carries
-            // a 100-1000 character sample, so the real cost is somewhere between 300 and 3000
-            // characters. MEASURE IT against a real account before setting this. Until then the
-            // ceiling holds the pessimistic end and the settle refunds the difference.
+            requires: "audio",
+            // unmeasured: three candidates of 100 to 1000 characters each; the settle bills the
+            // real spend
             usage: { speech: 1 },
-            ceiling: { speech: 3 },
         },
     ),
     "suggest-sections": meta(
@@ -699,8 +597,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "action",
         AGENT_DIRECT,
         {
-            category: "assist",
-            live: true,
             confirm: "never",
             needs: ["artifact"],
             usage: { reply: 1 },
@@ -837,7 +733,6 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         OVER_MCP,
         {
             effect: "write",
-            live: true,
             free: true,
             confirm: "before",
             needs: ["library"],
@@ -850,7 +745,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "The workspaces this account can reach, and which one is used by default",
         "action",
         OVER_MCP,
-        { effect: "read", live: true, free: true, confirm: "never", needs: ["library"] },
+        { effect: "read", free: true, confirm: "never", needs: ["library"] },
     ),
     "find-templates": meta(
         "find-templates",
@@ -876,7 +771,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         "Read an image or a scanned document that has no text layer",
         "action",
         ["direct"],
-        { category: "assist", live: true, usage: { reply: 1 } },
+        { usage: { reply: 1 } },
     ),
     "plan-section": meta(
         "plan-section",
@@ -895,7 +790,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
         ["agent"],
         // agent-only, so it always runs under the turn's own reserve: the retrieval's embedding
         // spend lands in that turn's meter and is billed there
-        { live: true, free: true, confirm: "never", needs: ["contexts"] },
+        { free: true, confirm: "never", needs: ["contexts"] },
     ),
     "write-section": meta(
         "write-section",
@@ -922,8 +817,7 @@ export const TOOLS: Record<ToolId, ToolMeta> = {
     ),
 };
 
-// only tools that are BOTH priced (usage) and live, so no unbuyable prices
-export const PRICED_TOOLS: ToolMeta[] = Object.values(TOOLS).filter((t) => t.usage && t.live);
+export const PRICED_TOOLS: ToolMeta[] = Object.values(TOOLS).filter((t) => t.usage);
 
 /** Needs no account: callable before a client has a token at all. */
 export const isPublicTool = (id: ToolId): boolean => TOOLS[id]?.public === true;
@@ -973,71 +867,24 @@ const isFree = (id: ToolId): boolean =>
 const priceOf = (usage: Usage, prices: UnitPrices): number =>
     creditsForUsd(usdOfUsage(usage, prices));
 
-// what a run typically costs: the number the UI previews and the credits table lists
-export function estimateCost(
-    id: ToolId,
-    m?: MeterParams,
-    prices: UnitPrices = DEFAULT_UNIT_PRICES,
-): number {
+// what a run costs at these prices: the hold the executor takes and the number the UI previews
+export function estimateCost(id: ToolId, m: MeterParams | undefined, prices: UnitPrices): number {
     return isFree(id) ? 0 : priceOf(usageFor(id, m), prices);
 }
 
-// what the pre-flight gate holds, which is the estimate unless the tool declares a ceiling
-export function reserveCost(
-    id: ToolId,
-    m?: MeterParams,
-    prices: UnitPrices = DEFAULT_UNIT_PRICES,
-): number {
-    const ceiling = TOOLS[id].ceiling;
-    return ceiling && !isFree(id) ? priceOf(ceiling, prices) : estimateCost(id, m, prices);
-}
-
 // what a free doorway must see affordable before it opens; zero for everything ungated
-export function gateCost(id: ToolId, prices: UnitPrices = DEFAULT_UNIT_PRICES): number {
+export function gateCost(id: ToolId, prices: UnitPrices): number {
     const gate = TOOLS[id].gate;
     return gate ? priceOf(gate, prices) : 0;
 }
 
 // headline cost, ignoring job size
-export function typicalCost(id: ToolId, prices: UnitPrices = DEFAULT_UNIT_PRICES): number {
+export function typicalCost(id: ToolId, prices: UnitPrices): number {
     return isFree(id) ? 0 : priceOf(TOOLS[id].usage ?? {}, prices);
 }
 
 export function isMetered(id: ToolId): boolean {
     return !!TOOLS[id].meter;
-}
-
-// min == max for fixed-cost tools
-const SMALL: MeterParams = {
-    length: "Short",
-    sections: 6,
-    textRuns: 5,
-    speechUnits: 4, // a short deck's scripts, in thousands of characters
-    musicMinutes: 2,
-    images: 2,
-    variations: 1,
-    imageSource: "stock",
-};
-const LARGE: MeterParams = {
-    length: "In-depth",
-    sections: 20,
-    textRuns: 40,
-    speechUnits: 18,
-    musicMinutes: 8,
-    images: 6,
-    variations: 4,
-    imageSource: "ai",
-};
-export function costRange(
-    id: ToolId,
-    prices: UnitPrices = DEFAULT_UNIT_PRICES,
-): { min: number; max: number } {
-    const t = TOOLS[id];
-    if (!t.meter) {
-        const c = typicalCost(id, prices);
-        return { min: c, max: c };
-    }
-    return { min: priceOf(t.meter(SMALL), prices), max: priceOf(t.meter(LARGE), prices) };
 }
 
 // shared input fragments, used by more than one tool
@@ -1326,8 +1173,12 @@ export const TOOL_SPEC = {
         input: z.object({
             generationId: z.string().optional(),
             proposal: z.string().optional().describe("the id of the pending proposal to apply"),
+            // looseObject (not z.custom) so the model's tool schema still converts to JSON Schema;
+            // refine keeps the Patch type and the guard. A z.custom here cannot be represented and
+            // fails the whole agent tool-set conversion, which silently breaks chat.
             patch: z
-                .custom<Patch>(isPatch)
+                .looseObject({})
+                .refine(isPatch)
                 .optional()
                 .describe("a literal patch, for a caller that holds one"),
         }),

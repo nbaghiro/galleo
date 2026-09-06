@@ -3,7 +3,6 @@ import { eq } from "drizzle-orm";
 import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { chargeCredits } from "@services/core/ledger";
 
 const setSeats = (wsId: string, seats: number) =>
     db.update(schema.workspaces).set({ seats }).where(eq(schema.workspaces.id, wsId));
@@ -26,19 +25,6 @@ describe("GET /workspace", () => {
         expect(body.members[0]).toMatchObject({ email, isOwner: true });
         expect(body.memberships).toHaveLength(1);
         expect(body.memberships[0].active).toBe(true);
-    });
-
-    it("carries each member's spend this cycle only when asked, so a cap can be set against real numbers without every boot paying for the aggregation", async () => {
-        const { userId, workspaceId } = await seedUser({ plan: "pro" });
-        const [ws] = await db
-            .select()
-            .from(schema.workspaces)
-            .where(eq(schema.workspaces.id, workspaceId));
-        await chargeCredits(ws!, 7, "rewrite-text", userId, { text: 7 });
-        const plain = await (await authed(userId, "/workspace")).json();
-        expect(plain.members[0].spend).toBeUndefined();
-        const body = await (await authed(userId, "/workspace?spend=1")).json();
-        expect(body.members[0].spend).toBe(7);
     });
 });
 

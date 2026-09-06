@@ -1,4 +1,3 @@
-import type { ModelTier } from "@model/billing";
 import { generateText } from "ai";
 import { implement } from "@services/core/ai/tools";
 import { modelFor, type ModelOverrides } from "@services/core/models";
@@ -7,7 +6,6 @@ import { refinePromptParts, themeContext, type RefineKind } from "@services/core
 
 interface RefineOpts {
     models?: ModelOverrides;
-    tier?: ModelTier;
     context?: string;
     themeId?: string; // folded in as context so a refined image reads as part of the piece
     signal?: AbortSignal;
@@ -29,7 +27,7 @@ export async function refinePrompt(
     const context = opts.context ?? themeContext(opts.themeId);
     const parts = refinePromptParts(kind, prompt, context);
     const { text } = await generateText({
-        ...modelCall(modelFor("rewrite", opts.tier, opts.models), 0.8),
+        ...modelCall(modelFor("rewrite", opts.models), 0.8),
         system: parts.system,
         prompt: parts.prompt,
         abortSignal: opts.signal,
@@ -42,7 +40,6 @@ export async function refinePrompt(
 implement("refine-prompt", async function* (input, ctx) {
     return await refinePrompt(input.kind, input.prompt, {
         context: input.context,
-        tier: ctx.tier,
         models: ctx.models,
     });
 });

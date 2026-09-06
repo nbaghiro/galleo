@@ -1,27 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { CREDIT_USD, DEFAULT_UNIT_PRICES, creditsForUsd, usdOfUsage } from "@model/credits";
-import { owed, settledUsage } from "@services/core/spend";
+import type { UnitPrices } from "@model/credits";
+import { CREDIT_USD, creditsForUsd, usdOfUsage } from "@model/credits";
+import { owed } from "@services/core/spend";
 
 const FLASH = "google:gemini-3.5-flash";
-const P = DEFAULT_UNIT_PRICES;
+// the default models' unit prices as of 2026-08-30, fixed here so the figures below stay readable
+const P: UnitPrices = {
+    plan: 0.0190455,
+    section: 0.0181605,
+    text: 0.00735,
+    theme: 0.01875,
+    reply: 0.0192,
+    image: 0.071,
+    video: 1.42,
+    speech: 0.1,
+    music: 0.15,
+};
 const use = (input: number, output: number) => [{ modelId: FLASH, input, output }];
 
 describe("what a run owes", () => {
     it("bills nothing when it burned nothing and produced nothing", () => {
-        expect(owed([], {})).toBe(0);
+        expect(owed([], {}, 0, P)).toBe(0);
     });
 
     it("still bills nothing when an asset count came back zero", () => {
-        expect(owed([], { image: 0 })).toBe(0);
+        expect(owed([], { image: 0 }, 0, P)).toBe(0);
     });
 
     it("prices tokens at the provider's list rate", () => {
         const usd = (1e6 / 1e6) * 1.5 + (1e6 / 1e6) * 9;
-        expect(owed(use(1e6, 1e6), {})).toBe(creditsForUsd(usd));
+        expect(owed(use(1e6, 1e6), {}, 0, P)).toBe(creditsForUsd(usd));
     });
 
     it("charges a real but tiny call the one-credit floor rather than zero", () => {
-        expect(owed(use(10, 10), {})).toBe(1);
+        expect(owed(use(10, 10), {}, 0, P)).toBe(1);
     });
 
     it("adds produced assets to the token bill, converting the whole sum once", () => {
@@ -54,14 +66,14 @@ describe("what a run owes", () => {
     });
 
     it("ignores models it cannot price rather than guessing", () => {
-        expect(owed([{ modelId: "made-up:model", input: 1e9, output: 1e9 }], {})).toBe(0);
+        expect(owed([{ modelId: "made-up:model", input: 1e9, output: 1e9 }], {}, 0, P)).toBe(0);
     });
 
     // cached input is a tenth of standard on this model; billing it at the full rate would charge
     // the customer for a discount the provider gave us
     it("charges cached input at the cached rate", () => {
-        const fresh = owed([{ modelId: FLASH, input: 1e6, output: 0 }], {});
-        const cached = owed([{ modelId: FLASH, input: 1e6, output: 0, cached: 1e6 }], {});
+        const fresh = owed([{ modelId: FLASH, input: 1e6, output: 0 }], {}, 0, P);
+        const cached = owed([{ modelId: FLASH, input: 1e6, output: 0, cached: 1e6 }], {}, 0, P);
         expect(cached).toBeLessThan(fresh);
         expect(cached).toBe(creditsForUsd(0.15));
         expect(fresh).toBe(creditsForUsd(1.5));
@@ -69,42 +81,20 @@ describe("what a run owes", () => {
 
     it("prices a model with no cached rate exactly as it did before", () => {
         const opus = "anthropic:claude-opus-5";
-        const plain = owed([{ modelId: opus, input: 1e6, output: 0 }], {});
-        expect(owed([{ modelId: opus, input: 1e6, output: 0, cached: 1e6 }], {})).toBe(plain);
+        const plain = owed([{ modelId: opus, input: 1e6, output: 0 }], {}, 0, P);
+        expect(owed([{ modelId: opus, input: 1e6, output: 0, cached: 1e6 }], {}, 0, P)).toBe(plain);
     });
 
     it("adds spend that was priced at the call site, like embeddings", () => {
-        expect(owed([], {}, CREDIT_USD * 4)).toBe(4);
+        expect(owed([], {}, CREDIT_USD * 4, P)).toBe(4);
     });
 
     it("bills call-site spend and token spend as one sum, not two floors", () => {
         const tiny = CREDIT_USD / 4;
-        expect(owed(use(10, 10), {}, tiny)).toBe(1);
+        expect(owed(use(10, 10), {}, tiny, P)).toBe(1);
     });
 
     it("keeps one credit worth the same as the anchor", () => {
         expect(creditsForUsd(CREDIT_USD)).toBe(1);
-    });
-});
-
-describe("what the settled row says it bought", () => {
-    it("keeps the estimate when the run reported nothing", () => {
-        expect(settledUsage({ text: 1 }, {})).toBeUndefined();
-    });
-
-    it("keeps the estimate when the actuals match it", () => {
-        expect(settledUsage({ image: 3 }, { image: 3 })).toBeUndefined();
-    });
-
-    it("replaces reported units and keeps token-billed ones", () => {
-        expect(settledUsage({ plan: 1, section: 12, image: 3 }, { image: 2 })).toEqual({
-            plan: 1,
-            section: 12,
-            image: 2,
-        });
-    });
-
-    it("clears the row when the run reported zero of the only unit", () => {
-        expect(settledUsage({ speech: 1 }, { speech: 0 })).toBeNull();
     });
 });

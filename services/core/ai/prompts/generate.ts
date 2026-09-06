@@ -1,6 +1,7 @@
 import type { GenerateInput, SectionInput, Surface } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section, SectionForm } from "@model/artifact";
 import { BLOCK_KINDS } from "@model/elements";
+import { MAX_SECTIONS } from "@model/tools";
 import type { Beat, Outline } from "@services/core/ai/schema";
 import { PERSONA, surfaceVoice } from "./persona";
 import { describeTheme, elementCatalog, layoutCatalog, presetList, siteAnatomy } from "./catalog";
@@ -51,7 +52,6 @@ function sourceForSection(source?: string): string | undefined {
 }
 
 export interface OutlineOpts {
-    maxSections?: number;
     pack?: string;
     /** The starter whose shapes this run borrows, if the reader picked one. */
     forms?: readonly SectionForm[];
@@ -59,7 +59,7 @@ export interface OutlineOpts {
 }
 
 export function outlineParts(input: GenerateInput, opts: OutlineOpts = {}): PromptParts {
-    const { maxSections, pack, forms, shapeName } = opts;
+    const { pack, forms, shapeName } = opts;
     return {
         // static fragments first and the surface- and theme-specific ones last, so the provider's
         // prompt cache keeps the shared prefix across runs that differ only in those
@@ -79,9 +79,7 @@ export function outlineParts(input: GenerateInput, opts: OutlineOpts = {}): Prom
             retrievedContext(pack),
             shapeToFollow(forms, shapeName),
             lengthGuidance(input.length),
-            maxSections
-                ? `Hard limit: plan at MOST ${maxSections} sections, anything beyond is discarded.`
-                : "",
+            `Hard limit: plan at MOST ${MAX_SECTIONS} sections, anything beyond is discarded.`,
             input.mustInclude?.length
                 ? `Every "Must cover" point in the brief gets a home: for each beat, set \`covers\` to the point(s) it covers, copied VERBATIM from the list. Every point appears in at least one beat's \`covers\`; leave \`covers\` off beats that cover none. Echo that same list back as \`mustInclude\`.`
                 : `Name the 2–5 points this piece must cover for the brief to be satisfied (\`mustInclude\`), then give each one a home: set each beat's \`covers\` to the point(s) it covers, copied VERBATIM from your own list. Every point appears in at least one beat's \`covers\`; leave \`covers\` off beats that cover none.`,
@@ -379,7 +377,7 @@ export function relayoutSectionParts(
 const ELEMENT_OUTPUT = `## Output, return ONE JSON object and nothing else
 No prose, no explanation, no markdown fences. A single element in this exact shape:
 { "type": "<the SAME type as the original element>", "data": { /* the fields the catalog lists for that type */ } }
-Keep "type" identical to the original. You are rewriting its CONTENT, not changing what kind of element it is. If it's a container (group / card / quote / stat / bullets / callout), return it with its \`data.children\` fully populated. Every string is real, finished copy. Never placeholder text.`;
+Keep "type" identical to the original. You are rewriting its CONTENT, not changing what kind of element it is. If it's a container (or a quote / stat / bullets / callout), return it with its \`data.children\` fully populated. Every string is real, finished copy. Never placeholder text.`;
 
 function elementSystem(surface: Surface, theme: string): string {
     return stack(

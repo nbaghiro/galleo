@@ -497,7 +497,7 @@ export const Sidebar: Component = () => {
 const PAIR_ROW = "flex flex-wrap items-baseline justify-between gap-x-2";
 
 // The plan-at-a-glance card: what's left to spend this cycle, and anything that needs attention
-// (failed payment, pending downgrade). Detail lives in settings; this is the glance.
+// (a pending cancel). Detail lives in settings; this is the glance.
 const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }> = (props) => {
     const remaining = (): number => props.b.credits.balance;
     const grantIn = (): number =>
@@ -506,12 +506,9 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
             Math.ceil((new Date(props.b.credits.resetAt).getTime() - Date.now()) / 86_400_000),
         );
     const low = (): boolean => remaining() < 2 * props.b.credits.perGeneration;
-    const pastDue = (): boolean => props.b.status === "past_due";
     const lapsing = (): boolean => props.b.cancelAtPeriodEnd && props.b.plan !== "free";
     return (
-        <div
-            class={`mt-3 flex-none rounded-xl border bg-canvas p-3 ${pastDue() ? "border-accent" : "border-line"}`}
-        >
+        <div class="mt-3 flex-none rounded-xl border border-line bg-canvas p-3">
             <div class={`${PAIR_ROW} text-[11.5px] font-semibold text-soft`}>
                 <span class="whitespace-nowrap capitalize">{props.b.plan} plan</span>
                 <Show when={props.b.seats > 1}>
@@ -539,23 +536,15 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
                 </span>
             </div>
             {/* a capped member's real ceiling is their own, not the pool's */}
-            <Show when={props.b.credits.myCap != null}>
-                <div class="mt-0.5 text-[10.5px] tabular-nums text-muted">
-                    You: {props.b.credits.mySpend.toLocaleString()} /{" "}
-                    {props.b.credits.myCap!.toLocaleString()} cr
-                </div>
-            </Show>
             <a
                 class="mt-1.5 block cursor-pointer whitespace-nowrap text-[11.5px] font-semibold text-accent"
-                onClick={() => props.navigate(pastDue() ? "/settings/billing" : "/settings/plan")}
+                onClick={() => props.navigate("/settings/plan")}
             >
-                {pastDue()
-                    ? "Payment failed →"
-                    : lapsing()
-                      ? "Plan ends soon. Resume →"
-                      : props.b.plan === "free"
-                        ? "Get more credits →"
-                        : "Manage plan →"}
+                {lapsing()
+                    ? "Plan ends soon. Resume →"
+                    : props.b.plan === "free"
+                      ? "Get more credits →"
+                      : "Manage plan →"}
             </a>
         </div>
     );

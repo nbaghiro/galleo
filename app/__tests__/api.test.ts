@@ -321,12 +321,6 @@ describe("access + workspace policy methods", () => {
         expect(call.init?.method).toBe("PATCH");
         expect(bodyOf(call)).toEqual({ publishPolicy: "admins" });
     });
-
-    it("updateWorkspaceSettings sends a null cap to clear the limit", async () => {
-        const calls = stubFetch(jsonResponse({ ok: true }));
-        await api.updateWorkspaceSettings({ memberCreditCap: null });
-        expect(bodyOf(firstCall(calls))).toEqual({ memberCreditCap: null });
-    });
 });
 
 describe("workspace API credentials", () => {

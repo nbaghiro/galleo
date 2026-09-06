@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { monthlyGrantFor } from "@model/billing";
+import { grantFor } from "@model/billing";
 import { eq } from "drizzle-orm";
 import { authed, seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
@@ -24,7 +24,7 @@ describe("credit-window rollover (currentWorkspace)", () => {
             .select()
             .from(schema.workspaces)
             .where(eq(schema.workspaces.id, workspaceId));
-        expect(ws!.aiCreditsBalance).toBe(99 + monthlyGrantFor(ws!));
+        expect(ws!.aiCreditsBalance).toBe(99 + grantFor(ws!));
         const reset = ws!.creditsResetAt.getTime();
         expect(reset).toBeGreaterThan(before + THIRTY_DAYS - 60_000);
         expect(reset).toBeLessThan(Date.now() + THIRTY_DAYS + 60_000);

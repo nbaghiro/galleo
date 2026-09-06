@@ -1,4 +1,3 @@
-import type { ModelTier } from "@model/billing";
 import { generateText } from "ai";
 import { implement } from "@services/core/ai/tools";
 import { modelFor, type ModelOverrides } from "@services/core/models";
@@ -10,7 +9,6 @@ import { findPassage, replacePassage, textNodes } from "@services/core/ai/locate
 interface TextOpts {
     models?: ModelOverrides;
     context?: string; // surrounding text, when only a sub-range is edited
-    tier?: ModelTier;
     signal?: AbortSignal;
 }
 
@@ -35,7 +33,7 @@ async function rewriteText(
     opts: TextOpts = {},
 ): Promise<string> {
     const parts = rewriteTextParts(text, instruction, opts.context);
-    const modelId = modelFor("rewrite", opts.tier, opts.models);
+    const modelId = modelFor("rewrite", opts.models);
     const { text: out } = await generateText({
         ...modelCall(modelId, 0.5),
         system: parts.system,
@@ -47,7 +45,7 @@ async function rewriteText(
 
 async function translateText(text: string, language: string, opts: TextOpts = {}): Promise<string> {
     const parts = translateTextParts(text, language, opts.context);
-    const modelId = modelFor("translate", opts.tier, opts.models);
+    const modelId = modelFor("translate", opts.models);
     const { text: out } = await generateText({
         ...modelCall(modelId, 0.5),
         system: parts.system,
@@ -62,7 +60,6 @@ implement(
     async function* (input, ctx) {
         return await rewriteText(input.text, input.instruction, {
             signal: ctx.signal,
-            tier: ctx.tier,
             models: ctx.models,
             ...(input.context ? { context: input.context } : {}),
         });
@@ -75,7 +72,6 @@ implement(
     async function* (input, ctx) {
         return await translateText(input.text, input.language, {
             signal: ctx.signal,
-            tier: ctx.tier,
             models: ctx.models,
             ...(input.context ? { context: input.context } : {}),
         });
@@ -100,7 +96,6 @@ implement(
         }
         const rewritten = await rewriteText(hit.text, input.instruction, {
             signal: ctx.signal,
-            tier: ctx.tier,
             models: ctx.models,
         });
         return replacePassage(section, hit.path, rewritten.trim() || hit.text);

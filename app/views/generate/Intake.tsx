@@ -12,9 +12,7 @@ import { artifactSearchText } from "@model/artifact";
 import { api } from "@app/api";
 import { closeGenerate, gen, planCost, startSession, type Surface } from "@app/stores/generate";
 import { unitPrices } from "@app/stores/model-usage";
-import { estimateCost, sectionsForLength } from "@model/tools";
-import { limitOf } from "@app/stores/features";
-import { UpgradeLock } from "@app/components/Upgrade";
+import { estimateCost } from "@model/tools";
 import { createBlank, formatLabel } from "@app/stores/library";
 import { reportError } from "@app/stores/errors";
 import { IMAGE_SOURCES, LENGTHS, PLACEHOLDER, SURFACES } from "./prompts";
@@ -162,11 +160,6 @@ export const Intake: Component = () => {
     });
 
     const overLimit = (): number => Math.max(0, sourceLength(items()) - SOURCE_LIMIT);
-    // the plan's section ceiling, when the picked size would blow past it: billed and built trimmed
-    const clampedTo = (): number => {
-        const cap = limitOf("maxSectionsPerGeneration");
-        return cap >= 0 && sectionsForLength(length()) > cap ? cap : 0;
-    };
     const ready = (): boolean => !!prompt().trim() || items().length > 0;
     // the whole run at the chosen size, so the price is known before the first credit moves
     const fullRunCost = (): number =>
@@ -175,7 +168,6 @@ export const Intake: Component = () => {
             {
                 length: length(),
                 // the server bills the plan-trimmed size, so the quote matches it
-                ...(clampedTo() > 0 ? { sections: clampedTo() } : {}),
                 imageSource: imageSource() === "ai" ? "ai" : "stock",
             },
             unitPrices(),
@@ -430,15 +422,6 @@ export const Intake: Component = () => {
                                 <Credits n={fullRunCost()} />. You approve the outline before
                                 anything is written.
                             </p>
-
-                            <Show when={clampedTo() > 0}>
-                                <p class="mt-2 text-[11.5px] leading-snug text-muted">
-                                    <UpgradeLock feature="maxSectionsPerGeneration">
-                                        Your plan writes up to {clampedTo()} sections per
-                                        generation, so this size is trimmed to fit.
-                                    </UpgradeLock>
-                                </p>
-                            </Show>
 
                             <Show when={fileError()}>
                                 <p class="mt-2 text-[11.5px] leading-snug text-accent">

@@ -21,7 +21,7 @@ import {
 } from "@services/core/voices";
 import { SpeechError } from "@services/core/ai/speech";
 
-import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
+import { OUT_OF_CREDITS, rateLimit, readJson } from "@services/utils/http";
 
 // The voice surface: browsing the provider's community library, saving to a workspace's shelf, and
 // hearing a candidate read a real line. Adoption and the shelf rules are core/voices.ts; synthesis
@@ -79,18 +79,6 @@ const zSave = z.object({
 voices.post("/voices", requireWorkspace, async (c) => {
     const body = await readJson(c, zSave);
     if (!body) return c.json({ error: "invalid body" }, 400);
-    const feats = featuresFor(c.get("ws"));
-    const shelf = await shelfFor(c.get("ws").id);
-    if (feats.maxWorkspaceVoices >= 0 && shelf.length >= feats.maxWorkspaceVoices)
-        return c.json(
-            {
-                error: "This workspace has as many voices as its plan allows.",
-                reason: "feature" as const,
-                feature: "maxWorkspaceVoices",
-                upgrade: true,
-            },
-            402,
-        );
     try {
         const row = await adopt(body);
         await shelve(c.get("ws").id, row.id, { makeDefault: body.makeDefault });
@@ -133,12 +121,12 @@ const DESC_MAX = 1000;
 
 voices.post("/voices/design", requireWorkspace, async (c) => {
     const ws = c.get("ws");
-    if (!featuresFor(ws).voiceDesign)
+    if (!featuresFor(ws).audio)
         return c.json(
             {
                 error: "Designing a voice needs a higher plan.",
                 reason: "feature" as const,
-                feature: "voiceDesign",
+                feature: "audio",
                 upgrade: true,
             },
             402,
@@ -185,13 +173,12 @@ const zKeep = z.object({
 
 voices.post("/voices/design/keep", requireWorkspace, async (c) => {
     const ws = c.get("ws");
-    const feats = featuresFor(ws);
-    if (!feats.voiceDesign)
+    if (!featuresFor(ws).audio)
         return c.json(
             {
                 error: "Designing a voice needs a higher plan.",
                 reason: "feature" as const,
-                feature: "voiceDesign",
+                feature: "audio",
                 upgrade: true,
             },
             402,
@@ -199,19 +186,6 @@ voices.post("/voices/design/keep", requireWorkspace, async (c) => {
     const body = await readJson(c, zKeep);
     if (!body?.generatedVoiceId || !body.name.trim())
         return c.json({ error: "a candidate and a name are required" }, 400);
-
-    // the workspace's own cap, which is a plan limit and has an upgrade to offer
-    const shelf = await shelfFor(ws.id);
-    if (feats.maxWorkspaceVoices >= 0 && shelf.length >= feats.maxWorkspaceVoices)
-        return c.json(
-            {
-                error: "This workspace has as many voices as its plan allows.",
-                reason: "feature" as const,
-                feature: "maxWorkspaceVoices",
-                upgrade: true,
-            },
-            402,
-        );
 
     try {
         // the install ceiling is ours and has no upgrade, so keepDesigned raises its own message
@@ -268,7 +242,7 @@ function refused(
     out: Extract<ToolOutcome<unknown>, { ok: false }>,
 ): Response {
     const ws = c.get("ws");
-    if (out.reason === "credits") return c.json(creditRefusal(ws, out), 402);
+    if (out.reason === "credits") return c.json(OUT_OF_CREDITS(ws, out.remaining), 402);
     if (out.reason === "entitlement")
         return c.json(
             {

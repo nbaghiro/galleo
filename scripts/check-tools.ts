@@ -171,14 +171,12 @@ for (const [id, def] of Object.entries(TOOLS)) {
     if (def.surfaces.includes("mcp") && id.length > 64)
         catalogFaults.push(`${id}: an mcp tool name may be at most 64 characters`);
 }
-// A planned tool (`live` unset) may name where it will live; a live one may not, on any surface:
-// the executor answers "unknown-tool" for a body the registry never saw, which is how the chat
-// turn went dark when the last import of its file was cleaned away.
+// Every tool on a caller-facing surface needs a body: the executor answers "unknown-tool" for one
+// the registry never saw, which is how the chat turn went dark when the last import of its file
+// was cleaned away.
 for (const [id, def] of Object.entries(TOOLS))
-    if (def.surfaces.some((s) => s !== "internal") && def.live && !getTool(id as ToolId))
-        catalogFaults.push(
-            `${id}: live on ${def.surfaces.join("/")} with no implementation to run`,
-        );
+    if (def.surfaces.some((s) => s !== "internal") && !getTool(id as ToolId))
+        catalogFaults.push(`${id}: on ${def.surfaces.join("/")} with no implementation to run`);
 // MCP publishes an output schema per tool and the REST listing does the same, so a tool on either
 // surface without one ships a contract with half its shape missing.
 for (const [id, def] of Object.entries(TOOLS))

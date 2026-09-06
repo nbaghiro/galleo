@@ -19,7 +19,7 @@ export async function reviseElement(
     const section = content.sections.find((s) => s.id === sectionId);
     if (!section) throw new Error("that section is not in the artifact");
     const parts = reviseElementParts(content, section, element, instruction);
-    const modelId = modelFor("section", ctx.tier, ctx.models);
+    const modelId = modelFor("section", ctx.models);
     const call = modelCall(modelId);
     let note = "";
     for (let attempt = 0; attempt < 2; attempt++) {

@@ -1,6 +1,7 @@
 import type { ArtifactContent, Section } from "@model/artifact";
 import type { ToolContext } from "@services/core/ai/tools";
 import { sectionForms } from "@model/artifact";
+import { MAX_SECTIONS } from "@model/tools";
 import { generateObject, generateText, streamObject } from "ai";
 import { implement, report } from "@services/core/ai/tools";
 import { withStep } from "@services/core/ai/meter";
@@ -183,15 +184,14 @@ export async function* planOutlineFor(
     const shape = await shapeSource(input.shapeTemplateId, ctx);
     const forms = shape ? sectionForms(shape.content) : undefined;
     const op = outlineParts(input, {
-        maxSections: ctx.maxSections,
         pack,
         forms,
         shapeName: shape?.name,
     });
-    const model = modelFor("outline", ctx.tier, ctx.models);
+    const model = modelFor("outline", ctx.models);
     const outline = yield* streamOutline(op, model, ctx.signal, opts.onBackdrop);
     // the prompt asks for the cap; the slice guarantees it
-    if (ctx.maxSections) outline.beats = outline.beats.slice(0, ctx.maxSections);
+    outline.beats = outline.beats.slice(0, MAX_SECTIONS);
     // and the same rule for the designs: `zBeat.design` is a free string, so asking is not
     // enough. A beat takes the design it named and one that named none is left alone; only the
     // three shape fields travel, so the story and its length stay the planner's.
@@ -251,7 +251,7 @@ export const planOutlineTool = implement(
             length: gen.brief.length ?? "Standard",
             beat_count: beats.length,
             ms: Date.now() - startedAt,
-            model_id: modelFor("outline", ctx.tier, ctx.models),
+            model_id: modelFor("outline", ctx.models),
             ...(gen.brief.shapeTemplateId ? { shape_template_id: gen.brief.shapeTemplateId } : {}),
         });
         yield {
@@ -301,7 +301,7 @@ export const planOutlineTool = implement(
 export const planSectionTool = implement(
     "plan-section",
     async function* (input: PromptParts, ctx): AsyncGenerator<never, SectionPlan> {
-        const model = modelFor("outline", ctx.tier, ctx.models);
+        const model = modelFor("outline", ctx.models);
         const { object } = await withStep("plan-section", () =>
             generateObject({
                 ...modelCall(model, 0.9),
@@ -329,7 +329,7 @@ export const SECTION_ATTEMPTS = 3;
 export const writeSectionTool = implement(
     "write-section",
     async function* (input: WriteSectionInput, ctx): AsyncGenerator<never, Section> {
-        const modelId = modelFor("section", ctx.tier, ctx.models) || defaultModelFor("section");
+        const modelId = modelFor("section", ctx.models) || defaultModelFor("section");
         const call = modelCall(modelId);
         let note = ""; // feedback appended to the prompt when the reply was not JSON
         let repair: PromptParts | null = null; // the previous object and its problems, on a failed check

@@ -1,6 +1,6 @@
 import type { Beat } from "@model/ai";
 import type { UnitPrices } from "@model/credits";
-import { creditsForUsd, DEFAULT_UNIT_PRICES, usdOfUsage } from "@model/credits";
+import { creditsForUsd, usdOfUsage } from "@model/credits";
 import { LAYOUT_PRESETS } from "@model/artifact";
 import { estimateCost } from "@model/tools";
 
@@ -21,8 +21,8 @@ export function coverageMap(mustInclude: string[], beats: Beat[]): Map<string, s
     return map;
 }
 
-export const planCost = (prices?: UnitPrices): number => estimateCost("plan-outline", {}, prices);
-export const sectionCost = (prices?: UnitPrices): number => estimateCost("write-beat", {}, prices);
+export const planCost = (prices: UnitPrices): number => estimateCost("plan-outline", {}, prices);
+export const sectionCost = (prices: UnitPrices): number => estimateCost("write-beat", {}, prices);
 
 /**
  * What writing the remaining beats costs. Priced over the whole build and rounded once, not summed
@@ -31,8 +31,8 @@ export const sectionCost = (prices?: UnitPrices): number => estimateCost("write-
  */
 export function buildCost(
     beats: Beat[],
-    imageSource?: "stock" | "ai",
-    prices: UnitPrices = DEFAULT_UNIT_PRICES,
+    imageSource: "stock" | "ai" | undefined,
+    prices: UnitPrices,
 ): number {
     const images = imageSource === "ai" ? beats.filter((b) => b.image).length : 0;
     if (!beats.length && !images) return 0;

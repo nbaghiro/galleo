@@ -15,7 +15,7 @@ import { DEFAULT_MS } from "@services/core/ai/music";
 import { pruneOrphans, spokenOf, unitsFor } from "@services/core/narration";
 import type { Composed, Narrated } from "@services/core/ai/tools/audio";
 import { bedMinutes } from "@services/core/soundtrack";
-import { pricesFor } from "@services/core/spend";
+import { unitPricesFor } from "@services/core/models";
 import { warn } from "@services/utils/env";
 
 /**
@@ -64,12 +64,9 @@ const refusedRecently = (workspaceId: string): boolean =>
  * Whether the workspace can pay for the first thing a pass would ask for. Checked before the pass
  * starts rather than left to the hold, since a refused hold is still a trace and an event.
  */
-export function affordable(
-    ws: { aiCreditsBalance: number } & Parameters<typeof pricesFor>[0],
-): boolean {
+export function affordable(ws: { aiCreditsBalance: number }): boolean {
     return (
-        ws.aiCreditsBalance >=
-        estimateCost("write-speaker-notes", { sections: 1 }, pricesFor(ws, {}))
+        ws.aiCreditsBalance >= estimateCost("write-speaker-notes", { sections: 1 }, unitPricesFor())
     );
 }
 
@@ -135,14 +132,14 @@ export async function prepare({ artifactId, workspaceId }: PrepareTarget): Promi
     let content = asContent(row.content);
     if (!content.sections.length) return;
 
-    if (features.voiceNarration && speechReady()) {
+    if (features.audio && speechReady()) {
         if (aiReady()) content = await fillScripts(artifactId, workspaceId, ws, spender, content);
         // audio for sections that are no longer here, and for scripts since rewritten
         await pruneOrphans(artifactId, content).catch(() => 0);
         await recordSections(artifactId, workspaceId, ws, spender, content);
     }
 
-    if (features.backgroundMusic && musicReady() && !content.music?.trackId)
+    if (features.audio && musicReady() && !content.music?.trackId)
         await composeBed(artifactId, workspaceId, ws, spender, content);
 }
 

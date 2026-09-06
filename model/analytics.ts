@@ -1,8 +1,7 @@
 import type { BeatRole, Generation, Surface } from "./ai";
 import { BEAT_ROLES } from "./ai";
 import type { ArtifactAccess, SectionTone } from "./artifact";
-import type { AddOnId, ExportFormat, FeatureKey, Interval, PlanId } from "./billing";
-import type { AiTask } from "./credits";
+import type { ExportFormat, FeatureKey, Interval, PlanId } from "./billing";
 import type { MediaSource } from "./media";
 import type { SectionArchetype } from "./eval";
 import type { VoiceSource } from "./speech";
@@ -38,7 +37,8 @@ export type ElementCategory =
     | "composite"
     | "basic"
     | "chart"
-    | "diagram";
+    | "diagram"
+    | "form";
 
 /** Where the generation studio was entered from during the first session. */
 export type StudioEntry = "checklist" | "library" | "empty_state" | "editor";
@@ -249,13 +249,11 @@ export interface Events {
 
     // AI actions. Three events for every tool, with `tool_id` as a property, so a tool added later
     // is instrumented the moment its id exists.
-    // `task` is absent for the two media units, which run on their own models rather than a text
-    // task. `model_id` is absent on start, since nothing has picked a model yet, and on a run that
-    // died before its first model call. `tool_surface` is where the call came in on, passed by the
+    // `model_id` is absent on start, since nothing has picked a model yet, and on a run that died
+    // before its first model call. `tool_surface` is where the call came in on, passed by the
     // caller: a tool declares several and the one it was reached through is the answerable half.
     ai_action_started: {
         tool_id: ToolId;
-        task?: AiTask;
         tool_surface: ToolSurface;
         model_id?: string;
         estimated_credits: number;
@@ -263,7 +261,6 @@ export interface Events {
     };
     ai_action_completed: {
         tool_id: ToolId;
-        task?: AiTask;
         model_id?: string;
         credits_charged: number;
         ms: number;
@@ -273,7 +270,6 @@ export interface Events {
     };
     ai_action_failed: {
         tool_id: ToolId;
-        task?: AiTask;
         model_id?: string;
         ms: number;
         reason: AiFailureReason;
@@ -470,6 +466,17 @@ export interface Events {
         credits_charged: number;
         ms: number;
     };
+    // A published form collected a response. Server-emitted (the page may close mid-flight);
+    // field_count is the payload's size, never its content.
+    form_submitted: { artifact_format: Surface; field_count: number };
+    // the workspace side opening what a form collected
+    form_responses_viewed: { submission_count: number };
+    // A viewer inspecting a chart mark or diagram part; the type and where, never the values shown.
+    datum_hovered: {
+        where: "present" | "publish";
+        artifact_format: Surface;
+        element_type: string;
+    };
     soundtrack_played: {
         where: "present" | "publish";
         artifact_format: Surface;
@@ -535,7 +542,6 @@ export interface Events {
         target_plan: PlanId;
         interval: Interval;
         seats: number;
-        addons: AddOnId[];
     };
     checkout_completed: { plan_id: PlanId; interval: Interval; seats: number; mrr_usd: number };
     // fired on the return from a Checkout the user backed out of (?status=cancel)
@@ -547,7 +553,6 @@ export interface Events {
         to_interval: Interval;
         direction: "upgrade" | "downgrade" | "interval";
     };
-    downgrade_scheduled: { from_plan: PlanId; to_plan: PlanId; effective_at: string };
     downgrade_cancelled: { plan_id: PlanId };
     plan_cancelled: { plan_id: PlanId; days_active: number; artifacts_created: number };
     topup_purchased: { credits: number; usd: number };

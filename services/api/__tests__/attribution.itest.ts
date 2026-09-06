@@ -3,17 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { authed, seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { chargeCredits, settleCredits } from "@services/core/ledger";
-
-async function addMember(wsId: string, role = "member"): Promise<{ userId: string }> {
-    const u = await seedUser();
-    await db.insert(schema.members).values({ workspaceId: wsId, userId: u.userId, role });
-    await db
-        .update(schema.users)
-        .set({ activeWorkspaceId: wsId })
-        .where(eq(schema.users.id, u.userId));
-    return { userId: u.userId };
-}
+import { chargeCredits } from "@services/core/ledger";
 
 const wsOf = async (workspaceId: string) => {
     const [row] = await db
@@ -66,44 +56,6 @@ describe("ledger attribution", () => {
         expect(grant).toBeTruthy();
         expect(grant.user).toBeNull();
         expect(grant.delta).toBeGreaterThan(0); // money in, not a counter being wiped
-    });
-
-    it("mySpend counts only the caller's own spend this cycle", async () => {
-        const owner = await seedUser({ plan: "pro" });
-        await db
-            .update(schema.workspaces)
-            .set({ seats: 2 })
-            .where(eq(schema.workspaces.id, owner.workspaceId));
-        const teammate = await addMember(owner.workspaceId);
-        await spend(owner.userId, owner.workspaceId, 30);
-        await spend(teammate.userId, owner.workspaceId, 12);
-
-        const mine = await (await authed(owner.userId, "/billing")).json();
-        const theirs = await (await authed(teammate.userId, "/billing")).json();
-        expect(mine.credits.mySpend).toBe(30);
-        expect(theirs.credits.mySpend).toBe(12);
-        // one shared balance, so both spends came out of the same number
-        expect(mine.credits.balance).toBe(theirs.credits.balance);
-    });
-
-    it("mySpend is net of refunds, and forgets spend from before the window rolled", async () => {
-        const owner = await seedUser({ plan: "pro" });
-        const charge = await chargeCredits(
-            await wsOf(owner.workspaceId),
-            10,
-            "ask-assistant",
-            owner.userId,
-        );
-        await settleCredits(await wsOf(owner.workspaceId), charge.entryId!, -4);
-        expect((await (await authed(owner.userId, "/billing")).json()).credits.mySpend).toBe(6);
-
-        // a rolled window starts the meter over
-        await db
-            .update(schema.workspaces)
-            .set({ creditsResetAt: new Date(Date.now() - 1000) })
-            .where(eq(schema.workspaces.id, owner.workspaceId));
-        await authed(owner.userId, "/workspace"); // triggers the roll
-        expect((await (await authed(owner.userId, "/billing")).json()).credits.mySpend).toBe(0);
     });
 });
 

@@ -5,7 +5,7 @@ import { emptyPatch } from "@model/ai";
 import type { Section } from "@model/artifact";
 import { confirmFor, estimateCost, TOOLS } from "@model/tools";
 import { modelCall } from "./provider";
-import { modelFor, modelNote } from "@services/core/models";
+import { modelFor, modelNote, unitPricesFor } from "@services/core/models";
 import { chatSystem } from "./prompts/chat";
 import { firstText, heading, retrievedContext, stack } from "./prompts/system";
 import { thinkingSteps } from "./thinking";
@@ -86,8 +86,8 @@ function summaryOf(t: AnyTool, result: unknown, input: unknown): string {
 
 // What the model reads back when the tool declares no note: the string it returned, or what the
 // card says, so a follow-up turn knows what stands.
-function noteOf(t: AnyTool, result: unknown, blocks: ChatBlock[]): string {
-    if (t.note) return t.note(result, undefined);
+function noteOf(t: AnyTool, result: unknown, input: unknown, blocks: ChatBlock[]): string {
+    if (t.note) return t.note(result, input);
     if (typeof result === "string") return result;
     const card = blocks.find((b) => b.type === "proposal");
     if (card && card.type === "proposal")
@@ -137,7 +137,7 @@ export async function* runChat(input: ChatInput, ctx: ToolContext): AsyncGenerat
                             id: crypto.randomUUID(),
                             tool: t.id,
                             summary: summaryOf(t, null, input),
-                            cost: estimateCost(t.id, size ?? undefined),
+                            cost: estimateCost(t.id, size ?? undefined, unitPricesFor(ctx.models)),
                             call: { input },
                         };
                         ch.push({ type: "chat.block", blockId: toolCallId, block });
@@ -172,7 +172,7 @@ export async function* runChat(input: ChatInput, ctx: ToolContext): AsyncGenerat
                                 : [];
                     for (const block of blocks)
                         ch.push({ type: "chat.block", blockId: toolCallId, block });
-                    return noteOf(t, ran.result, blocks);
+                    return noteOf(t, ran.result, input, blocks);
                 } catch (e) {
                     ch.push({
                         type: "chat.text",
@@ -223,7 +223,7 @@ export async function* runChat(input: ChatInput, ctx: ToolContext): AsyncGenerat
     const recallText = (await ctx.recall?.(input.message).catch(() => null)) ?? null;
 
     const agent = new ToolLoopAgent({
-        ...modelCall(modelFor("chat", ctx.tier, ctx.models)),
+        ...modelCall(modelFor("chat", ctx.models)),
         instructions: stack(
             chatSystem({
                 context: input.context,

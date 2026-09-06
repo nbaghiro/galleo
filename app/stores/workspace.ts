@@ -13,14 +13,9 @@ export { workspaceState };
 // would drag this store's whole graph under every consumer of billing state.
 export const canManageBilling = (): boolean => (workspaceState()?.role ?? "owner") === "owner";
 
-// Sticky: once a surface asks for per-member spend, later refetches keep it, so the settings
-// roster survives the mutations that reload this store. Boot fetches never pay for it.
-let wantSpend = false;
-
-export async function loadWorkspace(opts?: { spend?: boolean }): Promise<void> {
-    if (opts?.spend) wantSpend = true;
+export async function loadWorkspace(): Promise<void> {
     try {
-        const state = await api.getWorkspace(wantSpend);
+        const state = await api.getWorkspace();
         setWorkspaceState(state);
         report(state);
     } catch {
@@ -64,7 +59,6 @@ export async function renameWorkspace(name: string): Promise<void> {
 export async function updateWorkspaceSettings(patch: {
     defaultArtifactAccess?: ArtifactAccess;
     publishPolicy?: PublishPolicy;
-    memberCreditCap?: number | null;
     prepareAudio?: boolean;
 }): Promise<void> {
     await api.updateWorkspaceSettings(patch);

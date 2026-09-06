@@ -23,7 +23,6 @@ export const canPublish = (role: WorkspaceRole, policy: PublishPolicy): boolean 
 export interface WorkspaceSettings {
     defaultArtifactAccess: ArtifactAccess; // what a member gets on an artifact that sets no level
     publishPolicy: PublishPolicy;
-    memberCreditCap: number | null; // per member, per credit window; null = uncapped
     // narration (and a bed) written ahead of anyone asking, so present plays at once
     prepareAudio: boolean;
 }

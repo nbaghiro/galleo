@@ -13,7 +13,7 @@ import type {
 } from "@model/media";
 import { assetIdFromUrl, assetUrl, isEmbedVideoUrl, KIND_PROVIDERS, vimeoRef } from "@model/media";
 import { mapMediaRefs, mediaRefKinds, mediaRefs } from "@model/artifact";
-import type { FeatureOverrides, Features, ModelTier } from "@model/billing";
+import type { FeatureOverrides } from "@model/billing";
 import type { ImageOptions } from "./ai/images";
 import { featuresFor, isUnlimited } from "@model/billing";
 import { imageModelId, videoModelId } from "./models";
@@ -513,8 +513,7 @@ const STYLE_PREFIX: Record<MediaGenStyle, string> = {
     watercolor: "Loose watercolor painting, soft washes, textured paper, of ",
 };
 
-// basic tier always renders on the base model; paid tiers use the (possibly better) env override.
-// Both resolvers live in core/models.ts beside the prices they bill at, so the two cannot drift.
+// both resolvers live in core/models.ts beside the prices they bill at, so the two cannot drift
 const MODEL = imageModelId;
 const VIDEO_MODEL = videoModelId;
 
@@ -571,10 +570,9 @@ async function generateOne(
     aspect: string | undefined,
     style: MediaGenStyle,
     ref?: GenRef,
-    tier?: ModelTier,
 ): Promise<GeneratedImage | null> {
     const key = process.env.GOOGLE_API_KEY!;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL(tier)}:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL()}:generateContent`;
     const styled = `${STYLE_PREFIX[style]}${prompt}`;
     const parts = ref
         ? [{ inlineData: { mimeType: ref.mime, data: ref.data } }, { text: prompt }]
@@ -603,10 +601,9 @@ export async function generateImage(
     prompt: string,
     aspect: string | undefined,
     style: MediaGenStyle = "photo",
-    tier?: ModelTier,
     ref?: GenRef,
 ): Promise<GeneratedImage | null> {
-    return generateOne(prompt, aspect, style, ref, tier).catch(() => null);
+    return generateOne(prompt, aspect, style, ref).catch(() => null);
 }
 
 export interface GeneratedVideo {
@@ -696,14 +693,13 @@ export async function* streamImages(
     n: number,
     style: MediaGenStyle = "photo",
     ref?: GenRef,
-    tier?: ModelTier,
 ): AsyncGenerator<GeneratedImage | null> {
     const count = Math.max(1, Math.min(4, n || 1));
     const pending = new Map<number, Promise<{ i: number; img: GeneratedImage | null }>>();
     for (let i = 0; i < count; i++)
         pending.set(
             i,
-            generateOne(prompt, aspect, style, ref, tier).then(
+            generateOne(prompt, aspect, style, ref).then(
                 (img) => ({ i, img }),
                 () => ({ i, img: null }),
             ),
@@ -1327,11 +1323,7 @@ export interface AiImages {
 // The one place a run's image strategy is built: sourced pictures are adopted into the workspace
 // library so attribution survives, and an AI picture is generated, stored and counted when the
 // brief asked for it and the model is wired. Stock stays free and uncounted.
-export function aiImageOptions(
-    ws: { id: string },
-    feats: Pick<Features, "imageModelTier">,
-    source: "stock" | "ai" | undefined,
-): AiImages {
+export function aiImageOptions(ws: { id: string }, source: "stock" | "ai" | undefined): AiImages {
     let made = 0;
     const adopt = async (item: MediaItem): Promise<string> => (await useItem(ws.id, item)).url;
     const wantsAi = source === "ai" && imageGenReady();
@@ -1350,13 +1342,7 @@ export function aiImageOptions(
                       // a ref only resolves for an image we hold bytes for
                       const refId = assetIdFromUrl(refUrl);
                       const ref = refId ? ((await refImage(ws.id, refId)) ?? undefined) : undefined;
-                      const img = await generateImage(
-                          phrase,
-                          aspect,
-                          "photo",
-                          feats.imageModelTier,
-                          ref,
-                      );
+                      const img = await generateImage(phrase, aspect, "photo", ref);
                       if (!img) return null;
                       const item = await storeGenerated(ws.id, "image", img, phrase, {
                           style: "photo",

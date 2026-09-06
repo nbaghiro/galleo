@@ -2,7 +2,6 @@ import { z } from "zod";
 import { generateObject } from "ai";
 import type { ArtifactContent, Section, SectionNotes } from "@model/artifact";
 import { sectionFingerprint } from "@model/artifact";
-import type { ModelTier } from "@model/billing";
 import { implement } from "@services/core/ai/tools";
 import { modelFor, type ModelOverrides } from "@services/core/models";
 import { modelCall } from "@services/core/ai/provider";
@@ -34,7 +33,6 @@ export interface WrittenNotes {
 }
 
 interface NotesOpts {
-    tier?: ModelTier;
     models?: ModelOverrides;
     guidance?: string;
     signal?: AbortSignal;
@@ -111,7 +109,7 @@ async function writeSpeakerNotes(
     if (!targets.length) return [];
 
     const parts = speakerNotesParts(content, targets, opts.guidance);
-    const modelId = modelFor("section", opts.tier, opts.models);
+    const modelId = modelFor("section", opts.models);
     const { object } = await generateObject({
         ...modelCall(modelId, 0.7),
         schema: zNotes,
@@ -128,7 +126,6 @@ implement(
     async function* (input, ctx) {
         if (!ctx.artifact) throw new Error("There is no open artifact to write notes for.");
         const rows = await writeSpeakerNotes(ctx.artifact, input.sectionIds, {
-            tier: ctx.tier,
             models: ctx.models,
             signal: ctx.signal,
             guidance: input.guidance,

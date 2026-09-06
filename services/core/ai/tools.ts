@@ -4,7 +4,6 @@ import type { ToolInput } from "@model/tools";
 import type { ToolSpec } from "@model/tools";
 import { TOOL_SPEC, TOOLS, availableTo } from "@model/tools";
 import type { ModelOverrides } from "@services/core/models";
-import type { ModelTier } from "@model/billing";
 import type {
     ArtifactRef,
     Brief,
@@ -80,9 +79,7 @@ export interface ToolContext {
     account?: AccountReader;
     principal?: ToolPrincipal;
     signal?: AbortSignal;
-    tier?: ModelTier; // threaded to every model call in the turn
     models?: ModelOverrides; // per-step model choice (see ../models.ts)
-    maxSections?: number;
     // retrieval over the request's attached contexts; absent when none are attached
     pack?: (query: string) => Promise<string | null>;
     // chat only: relevant exchanges older than the client's verbatim history window

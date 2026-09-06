@@ -36,7 +36,6 @@ implement("generate-image", async function* (input, ctx): AsyncGenerator<TurnEve
         input.variations ?? 1,
         input.style ?? "photo",
         ref,
-        ctx.tier,
     )) {
         if (!img) {
             yield { type: "media.failed" };

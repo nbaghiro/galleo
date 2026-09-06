@@ -6,7 +6,7 @@ import { applyContentOps } from "@model/ai";
 import type { Generation } from "@model/ai";
 import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { asContent } from "@model/artifact";
-import { limitsFor } from "@model/billing";
+import { grantFor } from "@model/billing";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { makeWorkspaceReader } from "@services/core/ai/reader";
@@ -77,7 +77,7 @@ async function loadEnv(): Promise<Env> {
         recent: rows.slice(0, 6).map((r) => ({ title: r.title, format: fmtLabel(r.formatId) })),
         folders: flds,
     };
-    const limit = limitsFor(ws.plan).includedCredits;
+    const limit = grantFor(ws);
     const sample = asContent((rows.find((r) => r.formatId === "deck") ?? rows[0]!).draftContent);
     const store = memoryGenerationStore(ws.id);
     const opened = await store.create({

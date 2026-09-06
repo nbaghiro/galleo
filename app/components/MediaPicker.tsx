@@ -31,6 +31,7 @@ import {
 } from "@app/api";
 import { queryBucket } from "@model/analytics";
 import { estimateCost } from "@model/tools";
+import { unitPrices } from "@app/stores/model-usage";
 import { capture } from "@ui/analytics";
 import { Credits } from "@app/components/Credits";
 import { reportError } from "@app/stores/errors";
@@ -50,9 +51,10 @@ import { createSentinel } from "@ui/scroll";
 
 type Source = "library" | "upload" | "link" | MediaProvider | "generate" | "icons";
 
-// flat catalog prices, shown before a tap spends them; video is heavy enough to ask first
-const IMAGE_COST = estimateCost("generate-image");
-const VIDEO_COST = estimateCost("generate-video");
+// catalog prices at the caller's models, shown before a tap spends them; video is heavy enough
+// to ask first
+const imageCost = (): number => estimateCost("generate-image", {}, unitPrices());
+const videoCost = (): number => estimateCost("generate-video", {}, unitPrices());
 const STOCK: MediaProvider[] = ["openverse", "unsplash", "pexels", "pixabay", "giphy"];
 
 const KIND_TITLE: Record<MediaKind, string> = {
@@ -1188,7 +1190,11 @@ export const MediaPicker: Component = () => {
                                             <Show when={!loading()}>
                                                 {" · "}
                                                 <Credits
-                                                    n={kind() === "video" ? VIDEO_COST : IMAGE_COST}
+                                                    n={
+                                                        kind() === "video"
+                                                            ? videoCost()
+                                                            : imageCost()
+                                                    }
                                                 />
                                             </Show>
                                         </Button>
@@ -1196,7 +1202,7 @@ export const MediaPicker: Component = () => {
                                 </div>
                                 <Show when={kind() === "video"}>
                                     <div class="mt-1.5 text-[11px] text-muted">
-                                        8-second clip with audio · 720p · {VIDEO_COST} credits ·
+                                        8-second clip with audio · 720p · {videoCost()} credits ·
                                         takes about a minute or two
                                     </div>
                                 </Show>
@@ -1282,8 +1288,8 @@ export const MediaPicker: Component = () => {
                 <Show when={confirmingVideo()}>
                     <ConfirmModal
                         title="Generate a video?"
-                        body={`An 8 second clip costs ${VIDEO_COST} credits and takes a minute or two to make.`}
-                        confirmLabel={`Generate for ${VIDEO_COST} credits`}
+                        body={`An 8 second clip costs ${videoCost()} credits and takes a minute or two to make.`}
+                        confirmLabel={`Generate for ${videoCost()} credits`}
                         onConfirm={() => {
                             setConfirmingVideo(false);
                             void generateVideoClip();

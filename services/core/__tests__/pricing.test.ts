@@ -41,7 +41,7 @@ describe("textUnitPrice", () => {
 
 describe("unitPricesFor", () => {
     it("covers every unit the product can bill", () => {
-        const p = unitPricesFor("premium");
+        const p = unitPricesFor();
         for (const unit of ["plan", "section", "text", "theme", "reply", "image", "video"] as const)
             expect(p[unit], unit).toBeGreaterThan(0);
     });

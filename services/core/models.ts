@@ -1,4 +1,3 @@
-import type { ModelTier } from "@model/billing";
 import type { AiTask, CostUnit, UnitPrices } from "@model/credits";
 import { AI_TASKS, unitPricesFrom } from "@model/credits";
 import { out } from "@services/utils/env";
@@ -39,8 +38,6 @@ export interface ModelInfo {
     // Input per 1M when the provider serves the tokens from its prompt cache, roughly a tenth of
     // the standard rate. Absent = the provider publishes none, so cached tokens price as standard.
     cachedUsd?: number;
-    // the plan tier that unlocks this model as an override; the default per task ignores it
-    minTier?: ModelTier;
     // Claude 4.7+ rejects temperature/top_p/top_k with a 400; see samplingFor()
     sampling?: false;
     // Rejects thinkingConfig.thinkingBudget, so the call must not try to switch thinking off: Google
@@ -52,7 +49,6 @@ export interface ModelInfo {
 export const MODELS: readonly ModelInfo[] = [
     {
         id: "anthropic:claude-fable-5",
-        minTier: "premium",
         provider: "anthropic",
         model: "claude-fable-5",
         label: "Claude Fable 5",
@@ -66,7 +62,6 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "anthropic:claude-opus-5",
-        minTier: "premium",
         provider: "anthropic",
         model: "claude-opus-5",
         label: "Claude Opus 5",
@@ -80,7 +75,6 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "anthropic:claude-opus-4-8",
-        minTier: "premium",
         provider: "anthropic",
         model: "claude-opus-4-8",
         label: "Claude Opus 4.8",
@@ -94,7 +88,6 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "anthropic:claude-sonnet-5",
-        minTier: "premium",
         provider: "anthropic",
         model: "claude-sonnet-5",
         label: "Claude Sonnet 5",
@@ -120,7 +113,6 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "openai:gpt-5.5",
-        minTier: "premium",
         provider: "openai",
         model: "gpt-5.5",
         label: "GPT-5.5",
@@ -134,7 +126,6 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "openai:gpt-5.4",
-        minTier: "premium",
         provider: "openai",
         model: "gpt-5.4",
         label: "GPT-5.4",
@@ -174,7 +165,6 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "google:gemini-2.5-pro",
-        minTier: "premium",
         provider: "google",
         model: "gemini-2.5-pro",
         label: "Gemini 2.5 Pro",
@@ -257,7 +247,6 @@ export const MODELS: readonly ModelInfo[] = [
     },
     {
         id: "google:gemini-3.1-pro-preview",
-        minTier: "premium",
         provider: "google",
         model: "gemini-3.1-pro-preview",
         label: "Gemini 3.1 Pro (preview)",
@@ -337,38 +326,20 @@ export function defaultModelFor(task: AiTask): string {
     return DEFAULT_MODELS[task];
 }
 
-// empty today: basic and premium resolve alike until a task earns a heavier model on paid plans
-const BASIC_OVERRIDES: Partial<Record<AiTask, string>> = {};
-
-// debug-only: the route honours it behind an env flag, since model choice moves our cost, not the
-// user's charge
+// A per-step model choice, pinned by the client over MODEL_HEADER. Any registered model may be
+// picked: the run is priced at that model's rate, so the pick moves the bill, never the margin.
 export type ModelOverrides = Partial<Record<AiTask, string>>;
 
-const TIER_RANK: Record<ModelTier, number> = { basic: 0, advanced: 1, premium: 2 };
-
-// a model with no minTier is open to every plan; the task defaults bypass this on purpose
-export function tierAllows(tier: ModelTier, id: string): boolean {
-    const min = MODELS_BY_ID[id]?.minTier;
-    return !min || TIER_RANK[tier] >= TIER_RANK[min];
-}
-
 // the models that will actually run for every task, not the overrides that were asked for
-export function modelMap(tier: ModelTier, overrides: ModelOverrides = {}): Record<string, string> {
+export function modelMap(overrides: ModelOverrides = {}): Record<string, string> {
     const models: Record<string, string> = {};
-    for (const task of AI_TASKS) models[task] = modelFor(task, tier, overrides);
+    for (const task of AI_TASKS) models[task] = modelFor(task, overrides);
     return models;
 }
 
-export function modelFor(
-    task: AiTask,
-    tier: ModelTier = "premium",
-    overrides?: ModelOverrides,
-): string {
+export function modelFor(task: AiTask, overrides?: ModelOverrides): string {
     const picked = overrides?.[task];
-    const id =
-        picked && MODELS_BY_ID[picked] && tierAllows(tier, picked)
-            ? picked
-            : ((tier === "basic" ? BASIC_OVERRIDES[task] : undefined) ?? DEFAULT_MODELS[task]);
+    const id = picked && MODELS_BY_ID[picked] ? picked : DEFAULT_MODELS[task];
     // only the overridden calls: the defaults are known, and a line per call would drown the log
     if (id === picked) out(`[ai:model] ${task} → ${id} (override)`);
     return id;
@@ -533,8 +504,7 @@ const MEDIA_BY_ID: Record<string, MediaModelInfo> = Object.fromEntries(
 
 // The image and video ids live here rather than beside the fetch calls in core/media.ts, so the
 // model that runs and the price it bills at cannot drift apart.
-export const imageModelId = (tier?: ModelTier): string =>
-    tier === "basic" ? BASE_IMAGE_MODEL : process.env.GEMINI_IMAGE_MODEL || BASE_IMAGE_MODEL;
+export const imageModelId = (): string => process.env.GEMINI_IMAGE_MODEL || BASE_IMAGE_MODEL;
 
 export const videoModelId = (): string => process.env.GEMINI_VIDEO_MODEL || BASE_VIDEO_MODEL;
 
@@ -543,9 +513,9 @@ export const MEDIA_UNITS: readonly MediaUnit[] = ["image", "video", "speech", "m
 const isMediaUnit = (unit: CostUnit): unit is MediaUnit =>
     (MEDIA_UNITS as readonly CostUnit[]).includes(unit);
 
-/** The media model actually in play for a unit, given the caller's image tier. */
-export function mediaModelFor(unit: MediaUnit, tier?: ModelTier): string {
-    if (unit === "image") return imageModelId(tier);
+/** The media model actually in play for a unit. */
+export function mediaModelFor(unit: MediaUnit): string {
+    if (unit === "image") return imageModelId();
     if (unit === "video") return videoModelId();
     return unit === "speech" ? NARRATION_MODEL : MUSIC_MODEL;
 }
@@ -555,26 +525,22 @@ export function mediaModelFor(unit: MediaUnit, tier?: ModelTier): string {
  * on a pro model bills more than the same picture on a lite one. Undefined for a unit that is token
  * work rather than media, or for a model we have not priced.
  */
-export function mediaUnitPrice(unit: CostUnit, tier?: ModelTier): number | undefined {
+export function mediaUnitPrice(unit: CostUnit): number | undefined {
     if (!isMediaUnit(unit)) return undefined;
-    return MEDIA_BY_ID[mediaModelFor(unit, tier)]?.usdPerUnit;
+    return MEDIA_BY_ID[mediaModelFor(unit)]?.usdPerUnit;
 }
 
-/** Every media unit's price for a tier, which does not vary with the text model a caller pinned. */
-const mediaPricesFor = (tier?: ModelTier): UnitPrices =>
-    Object.fromEntries(MEDIA_UNITS.map((u) => [u, mediaUnitPrice(u, tier)]));
+/** Every media unit's price, which does not vary with the text model a caller pinned. */
+const mediaPrices = (): UnitPrices =>
+    Object.fromEntries(MEDIA_UNITS.map((u) => [u, mediaUnitPrice(u)]));
 
 /**
  * The dollar price of every unit for one caller: text units from the model their task resolves to,
  * media units from the model that serves them. The single input to every credit figure the product
  * quotes or charges.
  */
-export function unitPricesFor(tier: ModelTier, overrides: ModelOverrides = {}): UnitPrices {
-    return unitPricesFrom(
-        (task) => modelFor(task, tier, overrides),
-        textUnitPrice,
-        (unit) => mediaUnitPrice(unit, tier),
-    );
+export function unitPricesFor(overrides: ModelOverrides = {}): UnitPrices {
+    return unitPricesFrom((task) => modelFor(task, overrides), textUnitPrice, mediaUnitPrice);
 }
 
 // The client may pin any step to a specific model. Only ids the registry serves survive parsing, so
@@ -583,7 +549,7 @@ export const MODEL_HEADER = "x-galleo-models";
 
 export interface ModelCatalogue {
     tasks: readonly AiTask[];
-    models: { id: string; label: string; provider: string; locked: boolean }[];
+    models: { id: string; label: string; provider: string }[];
     defaults: Record<string, string>;
     // USD per text unit on each model, so a client pricing a pinned model needs no registry of its
     // own, and media prices, which do not vary with the text model a caller picks.
@@ -591,21 +557,15 @@ export interface ModelCatalogue {
     mediaPrices: UnitPrices;
 }
 
-// Each task's default is resolved for the caller's tier here, so the client never re-derives what
-// the server would have picked.
-export function modelCatalogue(tier: ModelTier): ModelCatalogue {
+// Each task's default is resolved here, so the client never re-derives what the server would pick.
+export function modelCatalogue(): ModelCatalogue {
     return {
         tasks: AI_TASKS,
         models: [...MODELS]
             .sort((a, b) => PROVIDER_ORDER.indexOf(a.provider) - PROVIDER_ORDER.indexOf(b.provider))
-            .map((m) => ({
-                id: m.id,
-                label: m.label,
-                provider: PROVIDER_LABEL[m.provider],
-                locked: !tierAllows(tier, m.id), // the picker greys these instead of silently ignoring them
-            })),
-        defaults: Object.fromEntries(AI_TASKS.map((t) => [t, modelFor(t, tier)])),
+            .map((m) => ({ id: m.id, label: m.label, provider: PROVIDER_LABEL[m.provider] })),
+        defaults: modelMap(),
         unitPrices: Object.fromEntries(MODELS.map((m) => [m.id, textPricesOf(m.id)])),
-        mediaPrices: mediaPricesFor(tier),
+        mediaPrices: mediaPrices(),
     };
 }

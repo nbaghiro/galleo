@@ -399,19 +399,17 @@ const SEED_SHELF = 6;
  * "unconfigured means invisible" rule dictation already follows.
  */
 export async function seedShelf(
-    workspaces: readonly { id: string; cap: number }[],
+    workspaces: readonly string[],
     fetchFn: typeof fetch = fetch,
 ): Promise<number> {
     if (!process.env.ELEVENLABS_API_KEY || !workspaces.length) return 0;
     const found = await searchLibrary({ useCase: "narrative_story" }, fetchFn);
     const picked = found.slice(0, SEED_SHELF);
     let adopted = 0;
-    for (const [i, v] of picked.entries()) {
+    for (const v of picked) {
         const row = await adopt(v, fetchFn);
         adopted++;
-        // the seed respects each plan's shelf cap, or a Free demo workspace would open holding six
-        // voices it could never have saved itself
-        for (const ws of workspaces) if (ws.cap < 0 || i < ws.cap) await shelve(ws.id, row.id);
+        for (const ws of workspaces) await shelve(ws, row.id);
     }
     return adopted;
 }

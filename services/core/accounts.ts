@@ -18,7 +18,7 @@ import {
     VERIFY_CODE_LENGTH,
 } from "@model/workspace";
 import { db } from "@services/db/client";
-import { freshCreditWindow, rollCreditWindow } from "./ledger";
+import { freshCreditWindow, rollIfLapsed } from "./ledger";
 import { schema } from "@services/db/schema";
 import { hashPassword, readSessionPayload, verifyPassword } from "@services/utils/auth";
 import { capture, identify } from "@services/utils/analytics";
@@ -98,7 +98,7 @@ export async function currentMembership(
         .orderBy(schema.members.createdAt);
     const row = rows.find((r) => r.ws.id === r.active) ?? rows[0];
     if (!row) return null;
-    const rolled = await rollCreditWindow(row.ws);
+    const rolled = await rollIfLapsed(row.ws);
     if (rolled) Object.assign(row.ws, rolled);
     return { ws: row.ws, role: row.ws.ownerId === userId ? "owner" : asRole(row.role) };
 }
@@ -119,7 +119,7 @@ export async function membershipFor(
         .innerJoin(schema.workspaces, eq(schema.members.workspaceId, schema.workspaces.id))
         .where(and(eq(schema.members.userId, userId), eq(schema.members.workspaceId, workspaceId)));
     if (!row) return null;
-    const rolled = await rollCreditWindow(row.ws);
+    const rolled = await rollIfLapsed(row.ws);
     if (rolled) Object.assign(row.ws, rolled);
     return { ws: row.ws, role: row.ws.ownerId === userId ? "owner" : asRole(row.role) };
 }

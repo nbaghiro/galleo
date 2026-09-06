@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkspaceVoice } from "@model/speech";
 import { typicalCost } from "@model/tools";
+import { unitPricesFor } from "@services/core/models";
 import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 import { adopt, shelve } from "@services/core/voices";
 
@@ -110,7 +111,7 @@ describe("POST /voices/audition", () => {
      * hold, which made every real audition free.
      */
     it("keeps the flat charge after a successful synthesis", async () => {
-        const cost = typicalCost("audition-voice");
+        const cost = typicalCost("audition-voice", unitPricesFor());
         const { userId, voices } = await shelved();
         const realFetch = globalThis.fetch;
         globalThis.fetch = ((url: string) => {
@@ -218,38 +219,5 @@ describe("POST /voices/design", () => {
         const { userId } = await seedUser({ plan: "pro" });
         const res = await authed(userId, "/voices/design", jsonInit("POST", { description: "hi" }));
         expect(res.status).toBe(400);
-    });
-});
-
-describe("POST /voices/design/keep", () => {
-    it("402s on a plan without designed voices", async () => {
-        const { userId } = await seedUser({ plan: "starter" });
-        const res = await authed(
-            userId,
-            "/voices/design/keep",
-            jsonInit("POST", { generatedVoiceId: "g1", name: "Ada" }),
-        );
-        expect(res.status).toBe(402);
-    });
-});
-
-describe("the plan's shelf cap", () => {
-    it("refuses a save past it, with an upgrade to offer", async () => {
-        const { userId, workspaceId } = await seedUser({ plan: "starter" }); // 3 voices
-        for (let i = 0; i < 3; i++) {
-            n += 1;
-            const v = await adopt(
-                { externalId: `cap-${n}-${Date.now()}`, ownerId: "o", name: `V${n}` },
-                fake,
-            );
-            await shelve(workspaceId, v.id);
-        }
-        const res = await authed(
-            userId,
-            "/voices",
-            jsonInit("POST", { externalId: "one-too-many", ownerId: "o", name: "Extra" }),
-        );
-        expect(res.status).toBe(402);
-        expect(((await res.json()) as { upgrade?: boolean }).upgrade).toBe(true);
     });
 });

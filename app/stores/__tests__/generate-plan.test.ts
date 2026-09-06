@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { Beat } from "@model/ai";
+import type { UnitPrices } from "@model/credits";
 import { buildCost, coverageMap, pointFromQuestion } from "@app/stores/generate-plan";
+
+// the default models' unit prices as of 2026-08-30, fixed so the figures below stay readable
+const P: UnitPrices = { section: 0.0181605, image: 0.071 };
 
 const beats: Beat[] = [
     { id: "s1", label: "Cover", role: "scene", covers: ["the team"] },
@@ -20,12 +24,12 @@ describe("buildCost", () => {
     // priced over the whole build and rounded once: a section costs well under a credit, so
     // rounding each one first would quote several times the real charge
     it("prices the sections, and adds AI images per image-leading beat", () => {
-        expect(buildCost(beats, "stock")).toBe(22);
-        expect(buildCost(beats, "ai")).toBe(50);
+        expect(buildCost(beats, "stock", P)).toBe(22);
+        expect(buildCost(beats, "ai", P)).toBe(50);
     });
 
     it("costs nothing when there is nothing left to build", () => {
-        expect(buildCost([], "stock")).toBe(0);
+        expect(buildCost([], "stock", P)).toBe(0);
     });
 });
 

@@ -11,7 +11,7 @@ import { flushTraces, memoryTraceStore, setTraceStore } from "@services/core/tra
 
 // the executor loads the whole registry; the stubs below replace the bodies this test drives
 
-const ws: WorkspaceCreditFields = { id: "ws1", plan: null, seats: 1 };
+const ws: WorkspaceCreditFields = { id: "ws1", plan: null };
 const principal = { userId: "u1", ws, role: "owner" as const };
 const base = { ctx: { image: {} } };
 
@@ -27,7 +27,7 @@ implement("rewrite-text", async function* (): AsyncGenerator<TurnEvent, string> 
     return "rewritten";
 });
 
-// entitlement-gated (requires: "voiceNarration"), and it must not run on a plan without it
+// entitlement-gated (requires: "audio"), and it must not run on a plan without it
 implement("narrate-artifact", async function* (): AsyncGenerator<TurnEvent, string> {
     throw new Error("the entitlement gate let a call through");
 });
@@ -146,7 +146,7 @@ describe("runTool", () => {
             principal,
             { ...base, holds: "caller" },
         );
-        expect(out).toEqual({ ok: false, reason: "entitlement", feature: "voiceNarration" });
+        expect(out).toEqual({ ok: false, reason: "entitlement", feature: "audio" });
     });
 
     it("bills nothing of its own when an enclosing turn already holds the credits", async () => {
@@ -353,10 +353,9 @@ describe("the trace around a call", () => {
 });
 
 describe("the registry the executor runs", () => {
-    it("has a body for every live tool a caller can reach, the chat turn included", () => {
+    it("has a body for every tool a caller can reach, the chat turn included", () => {
         const missing = (Object.keys(TOOLS) as ToolId[]).filter(
-            (id) =>
-                TOOLS[id].live && TOOLS[id].surfaces.some((s) => s !== "internal") && !getTool(id),
+            (id) => TOOLS[id].surfaces.some((s) => s !== "internal") && !getTool(id),
         );
         expect(missing).toEqual([]);
     });

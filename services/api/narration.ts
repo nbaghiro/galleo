@@ -36,7 +36,7 @@ import { runTool } from "@services/core/ai/execute";
 import type { ToolOutcome } from "@services/core/ai/execute";
 import type { WorkspaceRow } from "@services/core/accounts";
 import type { Composed, Narrated } from "@services/core/ai/tools/audio";
-import { creditRefusal, readJson } from "@services/utils/http";
+import { OUT_OF_CREDITS, readJson } from "@services/utils/http";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { eq } from "drizzle-orm";
@@ -120,12 +120,12 @@ narration.post("/artifacts/:id/narration", requireWorkspace, async (c) => {
     // plan governs. A grantee has no membership there, so they are capped as an ordinary member.
     const ws = gate.ws;
     const role = gate.role ?? "member";
-    if (!featuresFor(ws).voiceNarration)
+    if (!featuresFor(ws).audio)
         return c.json(
             {
                 error: "Narration needs a higher plan.",
                 reason: "feature" as const,
-                feature: "voiceNarration",
+                feature: "audio",
                 upgrade: true,
             },
             402,
@@ -195,12 +195,12 @@ narration.post("/artifacts/:id/narration/section/:sectionId", requireWorkspace, 
     // plan governs. A grantee has no membership there, so they are capped as an ordinary member.
     const ws = gate.ws;
     const role = gate.role ?? "member";
-    if (!featuresFor(ws).voiceNarration)
+    if (!featuresFor(ws).audio)
         return c.json(
             {
                 error: "Narration needs a higher plan.",
                 reason: "feature" as const,
-                feature: "voiceNarration",
+                feature: "audio",
                 upgrade: true,
             },
             402,
@@ -288,7 +288,7 @@ const zShelve = z.object({ presetId: z.string().optional(), name: z.string().opt
 narration.post("/music/shelf", requireWorkspace, async (c) => {
     if (!musicReady()) return c.json({ error: "music is not configured on this server" }, 503);
     const ws = c.get("ws");
-    if (!featuresFor(ws).backgroundMusic)
+    if (!featuresFor(ws).audio)
         return c.json({ error: "Background music needs a higher plan.", upgrade: true }, 402);
     const body = await readJson(c, zShelve);
     if (!body?.presetId) return c.json({ error: "which preset" }, 400);
@@ -319,7 +319,7 @@ const zCompose = z.object({ description: z.string().optional() });
 narration.post("/music/shelf/compose", requireWorkspace, async (c) => {
     if (!musicReady()) return c.json({ error: "music is not configured on this server" }, 503);
     const ws = c.get("ws");
-    if (!featuresFor(ws).backgroundMusic)
+    if (!featuresFor(ws).audio)
         return c.json({ error: "Background music needs a higher plan.", upgrade: true }, 402);
     const body = await readJson(c, zCompose);
     const said = body?.description?.trim();
@@ -375,12 +375,12 @@ narration.post("/artifacts/:id/soundtrack", requireWorkspace, async (c) => {
     const gate = await gateShared(c, id, "edit");
     if (isResponse(gate)) return gate;
     const ws = gate.ws; // the artifact's tenant pays, as narration already does
-    if (!featuresFor(ws).backgroundMusic)
+    if (!featuresFor(ws).audio)
         return c.json(
             {
                 error: "Background music needs a higher plan.",
                 reason: "feature" as const,
-                feature: "backgroundMusic",
+                feature: "audio",
                 upgrade: true,
             },
             402,
@@ -548,7 +548,7 @@ function refused(
     ws: WorkspaceRow,
     out: Extract<ToolOutcome<unknown>, { ok: false }>,
 ): Response {
-    if (out.reason === "credits") return c.json(creditRefusal(ws, out), 402);
+    if (out.reason === "credits") return c.json(OUT_OF_CREDITS(ws, out.remaining), 402);
     if (out.reason === "entitlement")
         return c.json(
             {

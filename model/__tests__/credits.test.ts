@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { UnitPrices } from "@model/credits";
 import {
     AI_TASKS,
     COST_UNITS_ALL,
     CREDIT_USD,
-    DEFAULT_UNIT_PRICES,
     creditsForUsd,
     describeUsage,
     unitPricesFrom,
@@ -17,19 +17,28 @@ import {
     scopesForTools,
     TOOL_SCOPES,
     TOOLS,
-    costRange,
     estimateCost,
     gateCost,
     isMetered,
-    reserveCost,
     sectionsForLength,
     typicalCost,
     usageFor,
 } from "@model/tools";
 import type { ToolId } from "@model/tools";
 
-// One rule prices everything: credits = creditsForUsd(sum of unit dollars).
-const P = DEFAULT_UNIT_PRICES;
+// One rule prices everything: credits = creditsForUsd(sum of unit dollars). These are the default
+// models' unit prices as of 2026-08-30, fixed here so the figures below stay readable.
+const P: UnitPrices = {
+    plan: 0.0190455,
+    section: 0.0181605,
+    text: 0.00735,
+    theme: 0.01875,
+    reply: 0.0192,
+    image: 0.071,
+    video: 1.42,
+    speech: 0.1,
+    music: 0.15,
+};
 
 describe("usdOfUsage", () => {
     it("sums unit price × count", () => {
@@ -177,10 +186,8 @@ describe("sectionsForLength", () => {
 });
 
 describe("studio tools", () => {
-    it("plan-outline is a live, direct, plan-priced step (the outline gate charges it)", () => {
-        const t = TOOLS["plan-outline"];
-        expect(t.surfaces).toContain("direct");
-        expect(t.live).toBe(true);
+    it("plan-outline is a direct, plan-priced step", () => {
+        expect(TOOLS["plan-outline"].surfaces).toContain("direct");
         expect(estimateCost("plan-outline", {}, P)).toBe(8);
     });
     it("start-generation is free but gated on the plan step it opens the door to", () => {
@@ -195,15 +202,9 @@ describe("studio tools", () => {
     });
 });
 
-describe("costRange / isMetered", () => {
-    it("collapses to a point for a fixed-cost tool", () => {
-        const range = costRange("add-section");
-        expect(range.min).toBe(range.max);
+describe("isMetered", () => {
+    it("tells a fixed-cost tool from one that scales with the job", () => {
         expect(isMetered("add-section")).toBe(false);
-    });
-    it("spans small → large for a metered tool", () => {
-        const range = costRange("generate-artifact");
-        expect(range.min).toBeLessThanOrEqual(range.max);
         expect(isMetered("generate-artifact")).toBe(true);
     });
 });
@@ -213,9 +214,8 @@ describe("free tools", () => {
     const FREE = ["reorder-section", "remove-section", "set-format", "set-theme"] as const;
 
     it.each(FREE)("%s reserves nothing, despite the 1-credit floor on a real call", (id) => {
-        expect(estimateCost(id)).toBe(0);
-        expect(typicalCost(id)).toBe(0);
-        expect(costRange(id)).toEqual({ min: 0, max: 0 });
+        expect(estimateCost(id, {}, P)).toBe(0);
+        expect(typicalCost(id, P)).toBe(0);
     });
 
     it("keeps them off the credits table", () => {
@@ -235,7 +235,7 @@ describe("free tools", () => {
 
 describe("the credits table", () => {
     it("prices every action it lists", () => {
-        for (const t of PRICED_TOOLS) expect(estimateCost(t.id)).toBeGreaterThan(0);
+        for (const t of PRICED_TOOLS) expect(estimateCost(t.id, {}, P)).toBeGreaterThan(0);
     });
 
     it("lists exactly the actions we bill for", () => {
@@ -274,35 +274,10 @@ describe("the credits table", () => {
     });
 });
 
-describe("what the gate holds", () => {
-    it("holds the estimate when a tool has no ceiling", () => {
-        expect(reserveCost("add-section", {}, P)).toBe(estimateCost("add-section", {}, P));
-        expect(reserveCost("generate-artifact", { length: "Short" }, P)).toBe(
-            estimateCost("generate-artifact", { length: "Short" }, P),
-        );
-    });
-
-    it("holds more than it shows for a chat turn, whose tool loop has no bound", () => {
-        expect(reserveCost("ask-assistant", {}, P)).toBeGreaterThan(
-            estimateCost("ask-assistant", {}, P),
-        );
-        expect(reserveCost("ask-assistant", {}, P)).toBe(creditsForUsd(5 * P.reply!));
-    });
-
-    it("keeps the shown price out of the ceiling, so the table is unaffected", () => {
+describe("the hold", () => {
+    it("is the estimate for every tool, a chat turn included", () => {
         expect(typicalCost("ask-assistant", P)).toBe(creditsForUsd(P.reply!));
-    });
-
-    it("prices a ceiling against the caller's models too", () => {
-        const dear = { ...P, reply: P.reply! * 10 };
-        expect(reserveCost("ask-assistant", {}, dear)).toBe(creditsForUsd(5 * dear.reply));
-        expect(reserveCost("ask-assistant", {}, dear)).toBeGreaterThan(
-            9 * reserveCost("ask-assistant", {}, P),
-        );
-    });
-
-    it("never holds anything for a free tool", () => {
-        expect(reserveCost("reorder-section")).toBe(0);
+        expect(estimateCost("ask-assistant", {}, P)).toBe(typicalCost("ask-assistant", P));
     });
 });
 

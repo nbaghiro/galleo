@@ -1,7 +1,7 @@
 import type { Component } from "solid-js";
 import { createSignal, For, Show } from "solid-js";
 import type { Interval, Plan, PlanId } from "@model/billing";
-import { ADD_ONS } from "@model/billing";
+import { clampSeats, planRank, sellsSeats } from "@model/billing";
 import { CheckIcon } from "@ui/icons";
 import { Badge, Button } from "@ui/button";
 import { Segmented, TextField } from "@ui/inputs";
@@ -18,8 +18,6 @@ import { canManageBilling } from "@app/stores/workspace";
 // The plan grid and the flow behind it, in one place so /pricing and any wall that wants to sell a
 // plan without leaving the page render the same thing and take the same path through Stripe.
 
-const RANK: Record<PlanId, number> = { free: 0, pro: 1, premium: 2 };
-
 export const UpgradePageContent: Component = () => {
     const b = billing;
     const current = (): PlanId => b()?.plan ?? "free";
@@ -28,14 +26,12 @@ export const UpgradePageContent: Component = () => {
     const [interval, setInterval] = createSignal<Interval>("month");
     const [seats, setSeats] = createSignal(1);
 
-    // only a plan that sells seat add-ons responds to the seat control; Free and Pro are solo
-    const sellsSeats = (plan: Plan): boolean => plan.billing.sellsSeats;
     const unitPrice = (plan: Plan): number =>
         chosenInterval() === "year" ? plan.billing.priceAnnualMonthly : plan.billing.priceMonthly;
-    const seatsFor = (plan: Plan): number => Math.max(seats(), plan.billing.includedSeats);
-    const extraSeats = (plan: Plan): number => seatsFor(plan) - plan.billing.includedSeats;
-    const monthlyTotal = (plan: Plan): number =>
-        unitPrice(plan) + (sellsSeats(plan) ? extraSeats(plan) * ADD_ONS.seat.priceUsd : 0);
+    // every price is per seat; the seat field only moves a plan that sells seats, and a solo plan
+    // is one seat whatever it says
+    const seatsFor = (plan: Plan): number => clampSeats(plan.id, seats());
+    const monthlyTotal = (plan: Plan): number => unitPrice(plan) * seatsFor(plan);
 
     const busy = billingBusy;
     const anyBusy = anyBillingBusy;
@@ -54,12 +50,7 @@ export const UpgradePageContent: Component = () => {
             void run(plan.id, () => changePlan({ plan: "free" })); // cancel at period end
             return;
         }
-        const opts = {
-            plan: plan.id,
-            interval: chosenInterval(),
-            // explicit even on solo plans, so a downgrade never inherits the seats it is shedding
-            seats: sellsSeats(plan) ? seatsFor(plan) : plan.billing.includedSeats,
-        };
+        const opts = { plan: plan.id, interval: chosenInterval(), seats: seatsFor(plan) };
         // free → paid needs Checkout (collect a payment method); paid → paid is an in-app change.
         void run(plan.id, () => (current() === "free" ? startCheckout(opts) : changePlan(opts)));
     };
@@ -76,7 +67,7 @@ export const UpgradePageContent: Component = () => {
         if (plan.id === current()) return "Current plan";
         if (plan.id === "free") return "Downgrade to Free";
         if (current() === "free") return `Upgrade to ${plan.name}`;
-        return RANK[plan.id] > RANK[current()]
+        return planRank(plan.id) > planRank(current())
             ? `Upgrade to ${plan.name}`
             : `Switch to ${plan.name}`;
     };
@@ -117,6 +108,7 @@ export const UpgradePageContent: Component = () => {
                 <For each={b()?.catalog ?? []}>
                     {(plan) => {
                         const isCurrent = (): boolean => plan.id === current();
+                        const team = (): boolean => sellsSeats(plan.id);
                         // paying users see THEIR tier featured; Pro is the upsell card only for free
                         const featured = (): boolean =>
                             plan.id === (current() === "free" ? "pro" : current());
@@ -144,19 +136,18 @@ export const UpgradePageContent: Component = () => {
                                     <span class="text-[30px] font-bold tracking-[-0.02em]">
                                         ${unitPrice(plan)}
                                     </span>
-                                    <span class="text-[13px] text-muted">/ mo</span>
+                                    <span class="text-[13px] text-muted">
+                                        {team() ? "/ seat / mo" : "/ mo"}
+                                    </span>
                                 </div>
                                 <div class="mt-0.5 min-h-4 text-[11.5px] text-muted">
                                     <Show when={chosenInterval() === "year" && unitPrice(plan) > 0}>
                                         billed annually
                                     </Show>
-                                    <Show when={plan.billing.includedSeats > 1}>
-                                        {" · "}
-                                        {plan.billing.includedSeats} seats included
-                                    </Show>
-                                    <Show when={sellsSeats(plan) && extraSeats(plan) > 0}>
-                                        {" · "}${monthlyTotal(plan)}/mo with {extraSeats(plan)}{" "}
-                                        extra
+                                    <Show when={team()}>
+                                        {chosenInterval() === "year" ? " · " : ""}
+                                        {plan.billing.minSeats} seats minimum · $
+                                        {monthlyTotal(plan)}/mo for {seatsFor(plan)} seats
                                     </Show>
                                 </div>
                                 <ul class="mt-4 flex flex-1 flex-col gap-2">

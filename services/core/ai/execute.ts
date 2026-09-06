@@ -4,11 +4,10 @@ import type { ArtifactContent } from "@model/artifact";
 import type { Usage } from "@model/credits";
 import { featuresFor } from "@model/billing";
 import type { MeterParams, ToolId, ToolScope, ToolSurface } from "@model/tools";
-import type { ModelTier } from "@model/billing";
-import { scopeFor, sectionsForLength, TOOLS } from "@model/tools";
-import { pricesFor, reserve } from "@services/core/spend";
+import { scopeFor, TOOLS } from "@model/tools";
+import { reserve } from "@services/core/spend";
 import type { ModelOverrides } from "@services/core/models";
-import { modelMap } from "@services/core/models";
+import { modelMap, unitPricesFor } from "@services/core/models";
 import type { SpanHandle } from "@services/core/traces";
 import { traceCall } from "@services/core/traces";
 import { getTool, makeContext } from "./tools";
@@ -32,7 +31,7 @@ export interface ToolRun {
 }
 
 export interface RunToolOptions {
-    ctx: Omit<ToolContext, "use" | "tier">;
+    ctx: Omit<ToolContext, "use">;
     size?: MeterParams; // scales the estimate for metered tools the executor cannot size itself
     models?: ModelOverrides;
     // Who holds the credits. "caller" means an enclosing turn already reserved for this work, which
@@ -67,7 +66,7 @@ type Outcome<R> =
     | { ok: false; reason: "not-found"; message: string }
     // another writer holds the generation; the caller waits for the section in flight to land
     | { ok: false; reason: "busy" }
-    | { ok: false; reason: "credits"; remaining: number; capped?: number };
+    | { ok: false; reason: "credits"; remaining: number };
 
 // `traceId` names the trace the call is part of, present when a store will keep it
 export type ToolOutcome<R> = Outcome<R> & { traceId?: string };
@@ -83,33 +82,25 @@ function sizeOf(id: ToolId, input: unknown, ctx: ToolContext, given?: MeterParam
     if (gen) return { ...given, ...gen };
     if (id === "generate-artifact") {
         const g = input as { length?: string; imageSource?: "stock" | "ai" };
-        const n = sectionsForLength(g.length);
-        return {
-            length: g.length,
-            imageSource: g.imageSource,
-            ...(ctx.maxSections ? { sections: Math.min(n, ctx.maxSections) } : {}),
-            ...given,
-        };
+        return { length: g.length, imageSource: g.imageSource, ...given };
     }
     return given ?? {};
 }
 
 /**
- * `principal` is null for a public tool, which has no account to bill or gate: it runs at the free
- * plan's model tier and never opens the ledger. The catalog decides which those are, and
- * `check:tools` refuses to let a priced tool claim to be one.
+ * `principal` is null for a public tool, which has no account to bill or gate and never opens the
+ * ledger. The catalog decides which those are, and `check:tools` refuses to let a priced tool claim
+ * to be one.
  */
 export async function runTool<R = unknown>(
     call: ToolRun,
     principal: ToolPrincipal | null,
     opts: RunToolOptions,
 ): Promise<ToolOutcome<R>> {
-    // a public tool has no plan behind it, so it runs at the free tier's model choice
-    const tier = featuresFor(principal?.ws ?? { plan: null }).textModelTier;
     return traceCall(
-        { tool: call.id, surface: call.surface, principal, models: modelMap(tier, opts.models) },
+        { tool: call.id, surface: call.surface, principal, models: modelMap(opts.models) },
         async (span) => {
-            const out = await execute<R>(call, principal, opts, tier, span);
+            const out = await execute<R>(call, principal, opts, span);
             span.end(out.ok ? "ok" : "refused", out.ok ? undefined : out.reason);
             return span.traceId ? { ...out, traceId: span.traceId } : out;
         },
@@ -120,7 +111,6 @@ async function execute<R>(
     call: ToolRun,
     principal: ToolPrincipal | null,
     opts: RunToolOptions,
-    tier: ModelTier,
     span: SpanHandle,
 ): Promise<Outcome<R>> {
     const def = TOOLS[call.id];
@@ -149,7 +139,7 @@ async function execute<R>(
         };
 
     span.note({ input: parsed.data });
-    const ctx = makeContext({ ...opts.ctx, tier, principal: principal ?? undefined });
+    const ctx = makeContext({ ...opts.ctx, principal: principal ?? undefined });
     if (ctx.artifactId) span.note({ artifactId: ctx.artifactId });
 
     // the generation a tool acts on is loaded here, once, so a body reads state rather than a row
@@ -249,14 +239,13 @@ async function execute<R>(
 
     const held = await reserve(principal.ws, principal.userId, call.id, {
         size: sizeOf(call.id, parsed.data, ctx, opts.size),
-        prices: pricesFor(principal.ws, opts.models ?? {}),
-        role: principal.role,
+        prices: unitPricesFor(opts.models),
         // the surface the call came in on, so a run from an MCP client is not reported as a chat one
         surface: call.surface,
     });
     if (!held.ok) {
         if (writes) await ctx.generations!.release(writes);
-        return { ok: false, reason: "credits", remaining: held.remaining, capped: held.capped };
+        return { ok: false, reason: "credits", remaining: held.remaining };
     }
 
     opts.onHeld?.();

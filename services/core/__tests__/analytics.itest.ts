@@ -2,7 +2,7 @@ import { gunzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import Stripe from "stripe";
-import { creditPurchaseUsd } from "@model/billing";
+import { CREDIT_PRICE_USD } from "@model/billing";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import type { Transport } from "@services/utils/analytics";
@@ -10,6 +10,7 @@ import { initAnalytics, shutdownAnalytics } from "@services/utils/analytics";
 import { reserve } from "@services/core/spend";
 import { runTool } from "@services/core/ai/execute";
 import { estimateCost } from "@model/tools";
+import { unitPricesFor } from "@services/core/models";
 import { consumeWebhook, stripe } from "@services/core/billing";
 import {
     createMachineClient,
@@ -71,9 +72,11 @@ describe("the credit wall, against a real ledger", () => {
 
     it("reports the wall when the balance cannot cover the action", async () => {
         const { userId, workspaceId } = await seedUser();
-        await setBalance(workspaceId, 3); // ask-assistant reserves 10
+        await setBalance(workspaceId, 3); // ask-assistant reserves 8
 
-        const held = await reserve(await workspaceRow(workspaceId), userId, "ask-assistant");
+        const held = await reserve(await workspaceRow(workspaceId), userId, "ask-assistant", {
+            prices: unitPricesFor(),
+        });
         expect(held.ok).toBe(false);
 
         const [wall] = await eventsNamed("credits_exhausted");
@@ -82,27 +85,6 @@ describe("the credit wall, against a real ledger", () => {
         expect(wall?.properties.credits_remaining).toBe(3);
         // Free can upgrade but may not buy packs, so exactly one remedy is on offer
         expect(wall?.properties.upgrade_offered).toBe(true);
-        expect(wall?.properties.topup_offered).toBe(false);
-    });
-
-    // A member over their own ceiling is a different wall from an empty pool: the pool may be full,
-    // and only an admin can raise the cap, so neither remedy applies and offering one would be a lie.
-    it("offers nothing when a member hits their own cap rather than the pool", async () => {
-        const { userId, workspaceId } = await seedUser({ plan: "pro" });
-        await setBalance(workspaceId, 5_000);
-        await db
-            .update(schema.workspaces)
-            .set({ memberCreditCap: 1 })
-            .where(eq(schema.workspaces.id, workspaceId));
-
-        const held = await reserve(await workspaceRow(workspaceId), userId, "ask-assistant", {
-            role: "member",
-        });
-        expect(held.ok).toBe(false);
-
-        const [wall] = await eventsNamed("credits_exhausted");
-        expect(wall?.properties.plan_id).toBe("pro");
-        expect(wall?.properties.upgrade_offered).toBe(false);
         expect(wall?.properties.topup_offered).toBe(false);
     });
 
@@ -149,7 +131,7 @@ describe("the credit wall, against a real ledger", () => {
         const ledger = rows.reduce((n, r) => n - r.delta, 0);
         expect(charged).toBe(ledger);
         // and the estimate was above zero, so the settle really did move it
-        expect(charged).toBeLessThan(estimateCost("rewrite-text"));
+        expect(charged).toBeLessThan(estimateCost("rewrite-text", {}, unitPricesFor()));
 
         const after = await workspaceRow(workspaceId);
         expect(after.aiCreditsBalance).toBe(1_000 - ledger);
@@ -182,7 +164,7 @@ describe("the Stripe webhook, which has no client in the request", () => {
     it("reports a credit purchase and grants the credits it reports", async () => {
         const { workspaceId } = await seedUser();
         const before = (await workspaceRow(workspaceId)).aiCreditsBalance;
-        const usd = creditPurchaseUsd(BOUGHT);
+        const usd = BOUGHT * CREDIT_PRICE_USD;
 
         const payload = JSON.stringify({
             id: "evt_topup_1",

@@ -4,7 +4,6 @@ import { isAccess } from "@model/artifact";
 import { z } from "zod";
 import { BAD_BODY, readJson } from "@services/utils/http";
 import { featuresFor, sellsSeats } from "@model/billing";
-import { spendByMember } from "@services/core/ledger";
 import {
     createMachineClient,
     machineClientsFor,
@@ -39,13 +38,10 @@ const grantable = (raw: unknown): raw is "admin" | "member" => raw === "admin" |
 
 workspace.get("/workspace", requireWorkspace, async (c) => {
     const [user, ws, role] = [c.get("user"), c.get("ws"), c.get("role")];
-    // the ledger aggregation is priced work; only the settings roster asks for it
-    const withSpend = c.req.query("spend") === "1";
-    const [members, invites, memberships, spend] = await Promise.all([
+    const [members, invites, memberships] = await Promise.all([
         liveMembers(ws.id),
         role === "member" ? Promise.resolve([]) : pendingInvites(ws.id),
         membershipsOf(user.id),
-        withSpend ? spendByMember(ws) : Promise.resolve(null),
     ]);
     return c.json({
         workspace: {
@@ -56,14 +52,12 @@ workspace.get("/workspace", requireWorkspace, async (c) => {
             defaultArtifactAccess: ws.defaultArtifactAccess,
             publishPolicy: ws.publishPolicy,
             prepareAudio: ws.prepareAudio,
-            memberCreditCap: ws.memberCreditCap,
         },
         role,
         members: members.map((m) => ({
             ...m,
             role: m.userId === ws.ownerId ? "owner" : asRole(m.role),
             isOwner: m.userId === ws.ownerId,
-            ...(spend ? { spend: spend.get(m.userId) ?? 0 } : {}),
         })),
         invites,
         memberships: memberships.map((m) => ({ ...m, active: m.id === ws.id })),
@@ -74,8 +68,6 @@ const zSettings = z.object({
     name: z.string().optional(),
     defaultArtifactAccess: z.string().optional(),
     publishPolicy: z.string().optional(),
-    // null clears the cap back to uncapped, which is why this is nullish rather than optional
-    memberCreditCap: z.number().nullish(),
     prepareAudio: z.boolean().optional(),
 });
 const zInvite = z.object({ email: z.string().optional(), role: z.string().optional() });
@@ -84,7 +76,7 @@ const zRole = z.object({ role: z.string().optional() });
 const zWorkspaceId = z.object({ workspaceId: z.string().optional() });
 const zUserId = z.object({ userId: z.string().optional() });
 
-// One admin-gated patch for the whole workspace: the name and the three policy settings.
+// One admin-gated patch for the whole workspace: the name and the policy settings.
 workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) => {
     const body = await readJson(c, zSettings);
     if (!body) return c.json(BAD_BODY, 400);
@@ -106,12 +98,6 @@ workspace.patch("/workspace", requireWorkspace, requireRole("admin"), async (c) 
         patch.publishPolicy = body.publishPolicy;
     }
     if (body.prepareAudio !== undefined) patch.prepareAudio = body.prepareAudio;
-    if (body.memberCreditCap !== undefined) {
-        const cap = body.memberCreditCap;
-        if (cap !== null && (!Number.isFinite(cap) || cap < 0))
-            return c.json({ error: "a credit cap is a positive number, or none" }, 400);
-        patch.memberCreditCap = cap === null ? null : Math.trunc(cap);
-    }
 
     if (!Object.keys(patch).length) return c.json({ error: "nothing to update" }, 400);
     const ws = c.get("ws");

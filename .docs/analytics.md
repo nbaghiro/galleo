@@ -300,8 +300,8 @@ than the first one the catalog declares.
 refuse before a workspace is resolved, which is what lets it run without a database: the scope a
 refusal needed, the anonymous attribution of a call that arrived with no token, and a tool name the
 catalog does not hold. `services/core/__tests__/analytics.itest.ts` covers what only a real database
-shows: that the wall fires when a balance is genuinely short, that a member over their own cap is
-offered neither remedy, that `credits_charged` equals the ledger row rather than the estimate, and that
+shows: that the wall fires when a balance is genuinely short, that `credits_charged` equals the
+ledger row rather than the estimate, and that
 a signed top-up webhook both reports and grants. Each was checked by breaking the code it guards and
 confirming the right test failed. `services/api/__tests__/ingest.test.ts` pins the proxy's path rewriting and the
 fact that it strips the session cookie. `ui/__tests__/analytics.test.ts` asserts the capture policy and
@@ -342,7 +342,7 @@ same as one driven from the board.
   orders of magnitude above that is dominated by font metrics or paint. Revisit it against real browser
   timings, which `eval:shots` does not record today.
 - **The subscription webhooks are still uncovered.** `services/core/__tests__/analytics.itest.ts`
-  covers the credit wall, the member-cap wall, the settle-versus-ledger invariant, and the top-up
+  covers the credit wall, the settle-versus-ledger invariant, and the top-up
   webhook, which is the one that settles entirely from its own payload. The plan-change and
   cancellation paths re-read the subscription from Stripe before they act, so testing them means
   faking that call; worth doing when someone next touches `handleEvent`.
@@ -383,6 +383,10 @@ rather than a count, exactly as the generation events already do.
   customer's content, so it never does.
 - `soundtrack_played` — one row per listen, same shape as `narration_played`: where, which kind of
   bed, whether it spent the session ducked under a voice, ms.
+
+- `form_submitted` — server-emitted when a published form stores a response: format and field
+  count, never a value. `form_responses_viewed` fires when the Share modal's responses section
+  loads, with the count.
 
 `voice_auditioned` carries `kind: "preview" | "own_text"` and is the one worth watching early: a free
 provider preview and a metered synthesis of the customer's own line are different acts, and which one

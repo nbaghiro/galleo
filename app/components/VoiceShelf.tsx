@@ -270,7 +270,7 @@ export const VoiceShelf: Component<{ canDesign?: boolean }> = (props) => {
                                   // walled rather than hidden; derivation and reporting live in
                                   // the shared seam
                                   designLocked: featureWall(
-                                      "voiceDesign",
+                                      "audio",
                                       "Designing a voice from a description",
                                   ),
                               }),

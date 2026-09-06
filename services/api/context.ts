@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { requireWorkspace, type WorkspaceEnv } from "./middleware";
 import { z } from "zod";
-import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
+import { OUT_OF_CREDITS, rateLimit, readJson } from "@services/utils/http";
 import { fetchWebpage } from "@services/utils/webpage";
 import { embeddingReady } from "@services/core/ai/provider";
 import { ExtractError, extractUpload, type ImageReader } from "@services/core/extract";
@@ -88,7 +88,7 @@ context.post("/extract", requireWorkspace, extractLimiter, extractBody, async (c
     // spreadsheet is parsed locally and must stay free, and only extractUpload knows which branch a
     // file takes. Wrapping the reader also puts a meter in scope, without which the vision call's
     // tokens were not merely unbilled but unrecorded.
-    let refused: { remaining: number; capped?: number } | null = null;
+    let refused: { remaining: number } | undefined;
     const metered: ImageReader = async (file) => {
         const out = await runTool<string>(
             { id: "read-file", surface: "direct", input: { mime: file.mime, data: file.data } },
@@ -108,7 +108,7 @@ context.post("/extract", requireWorkspace, extractLimiter, extractBody, async (c
         );
         return c.json(out);
     } catch (e) {
-        if (refused) return c.json(creditRefusal(ws, refused), 402);
+        if (refused) return c.json(OUT_OF_CREDITS(ws, refused.remaining), 402);
         if (e instanceof ExtractError) return c.json({ error: e.message }, e.status);
         throw e;
     }

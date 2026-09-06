@@ -27,7 +27,7 @@ import {
 import { sql } from "drizzle-orm";
 import type { GenMeta, ArtifactDigest, ArtifactAccess } from "@model/artifact";
 import type { CommentAnchor } from "@model/comments";
-import type { FeatureOverrides, Interval, ScheduledChange } from "@model/billing";
+import type { FeatureOverrides, Interval } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { SpeechAlignment, VoiceLabels } from "@model/speech";
 import type { ArtifactContent } from "@model/artifact";
@@ -98,15 +98,12 @@ export const workspaces = pgTable("workspaces", {
         .notNull()
         .references(() => users.id),
     plan: text("plan").notNull().default("free"), // free | pro | premium (see @model/billing)
-    // month | year while subscribed, synced by the webhook; decides which path grants credits
-    // (monthly = the cycle invoice, annual = the lazy roll). Null = no subscription.
-    planInterval: text("plan_interval").$type<Interval>(),
+    planInterval: text("plan_interval").$type<Interval>(), // month | year while subscribed; null = none
     stripeCustomerId: text("stripe_customer_id"),
     stripeSubscriptionId: text("stripe_subscription_id"),
-    planStatus: text("plan_status").notNull().default("active"), // active | past_due | canceled
     planPeriodEnd: timestamp("plan_period_end"),
-    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false), // scheduled downgrade to Free at planPeriodEnd
-    seats: integer("seats").notNull().default(1), // plan's included seats + the seat add-on's quantity
+    cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false), // lapses to Free at planPeriodEnd
+    seats: integer("seats").notNull().default(1), // the subscription's quantity; the member cap
     aiCreditsBalance: integer("ai_credits_balance").notNull().default(0),
     // The only credit counter, and a balance rather than a usage tally: the monthly grant is added
     // at the roll and unspent credits carry, so a one-off purchase is just another addition and
@@ -118,8 +115,6 @@ export const workspaces = pgTable("workspaces", {
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
     // when the current credit window opened; every writer of credits_reset_at sets both
     creditsStartedAt: timestamp("credits_started_at").notNull().defaultNow(),
-    // a downgrade waiting at period end (Stripe subscription schedule); null = none
-    scheduledChange: jsonb("scheduled_change").$type<ScheduledChange>(),
     // per-workspace grants that override the plan; see @model/billing
     featureOverrides: jsonb("feature_overrides").$type<FeatureOverrides>(),
     // what a member gets on an artifact that sets no level of its own (@model/artifact accessFor)
@@ -128,8 +123,6 @@ export const workspaces = pgTable("workspaces", {
         .notNull()
         .default("edit"),
     publishPolicy: text("publish_policy").$type<PublishPolicy>().notNull().default("members"),
-    // per member, per credit window; null = uncapped. Owners and admins are never capped.
-    memberCreditCap: integer("member_credit_cap"),
     // Off unless asked for: it writes scripts and records audio for pieces nobody has played yet,
     // which is real credit spend with nobody watching it happen.
     prepareAudio: boolean("prepare_audio").notNull().default(false),
@@ -434,6 +427,21 @@ export const linkRecipients = pgTable(
         lastViewedAt: timestamp("last_viewed_at"), // populated by view analytics
     },
     (t) => [unique().on(t.linkId, t.email)],
+);
+
+// what a published form collected; one row per submission, gone with the artifact
+export const formSubmissions = pgTable(
+    "form_submissions",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        artifactId: uuid("artifact_id")
+            .notNull()
+            .references(() => artifacts.id, { onDelete: "cascade" }),
+        elementId: text("element_id").notNull(), // the form element's stamped id
+        payload: jsonb("payload").$type<Record<string, string>>().notNull(), // label -> value
+        createdAt: timestamp("created_at").notNull().defaultNow(),
+    },
+    (t) => [index("form_submissions_artifact_idx").on(t.artifactId, t.createdAt)],
 );
 
 export const credits = pgTable(
@@ -858,6 +866,7 @@ export const schema = {
     links,
     linkRecipients,
     linkViews,
+    formSubmissions,
     credits,
     contexts,
     contextItems,

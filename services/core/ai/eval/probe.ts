@@ -18,7 +18,7 @@ import type { Beat, GenerateInput } from "@model/ai";
 //   pnpm ai:probe --model=openai:gpt-5.5 one model
 //   pnpm ai:probe --json                 also check structured output, which the pipeline leans on
 //   pnpm ai:probe --turn                 run the REAL flows: the outline plan → a full chat turn
-//   pnpm ai:probe --turn --sections=12   plan at the size the studio really asks for (default 3)
+//   pnpm ai:probe --turn --length=Standard  plan at the size the studio really asks for (default Short)
 
 const args = process.argv.slice(2);
 const flag = (name: string): string | undefined =>
@@ -33,9 +33,9 @@ const onlyProvider = flag("provider");
 const onlyModel = flag("model");
 const checkJson = has("json");
 const checkTurn = has("turn");
-// the outline the studio really asks for is a dozen beats, not three; a small one is cheap but is
-// also an easier ask, so the size is a knob when comparing models on a realistic outline
-const sections = Number(flag("sections")) || 3;
+// the outline the studio really asks for is a dozen beats; a Short one is cheap but is also an
+// easier ask, so the size is a knob when comparing models on a realistic outline
+const length = flag("length") ?? "Short";
 
 const TIMEOUT_MS = 60_000;
 // a reasoning model spends its budget thinking before it writes anything, so a tight cap comes back
@@ -97,14 +97,13 @@ async function realFlows(id: string, signal: AbortSignal): Promise<string | null
             .join("  ");
 
     try {
-        const input: GenerateInput = { prompt: PROMPT, surface: "deck", theme: "studio" };
+        const input: GenerateInput = { prompt: PROMPT, surface: "deck", theme: "studio", length };
         const outline = await timed("outline", () =>
             drain(
                 planOutlineFor(
                     input,
                     makeContext({
                         models: { outline: id },
-                        maxSections: sections,
                         signal,
                         // the real turn sources a backdrop; stock is the product default and needs no key
                         image: { source: "stock" },

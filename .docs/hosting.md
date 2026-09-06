@@ -96,7 +96,8 @@ degrades gracefully (billing/media/mail report "not configured").
 | `RESEND_API_KEY`                                                 | ⬜   | ✅     | transactional email; the sender and reply-to are constants in `services/core/mail.ts`        |
 | `STRIPE_SECRET_KEY`                                              | ⬜²  | ✅     | live/test secret key                                                                         |
 | `STRIPE_WEBHOOK_SECRET`                                          | ⬜²  | ✅     | from the webhook endpoint → `https://<origin>/api/billing/webhook`                           |
-| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring per-seat price ids                                                        |
+| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring per-seat price ids; the subscription's quantity is the seat count         |
+| `STRIPE_PRICE_CREDIT`                                            | ⬜   | no     | the one-off price of one credit, bought by quantity; packs stay off until it is set          |
 | `STRIPE_PORTAL_CONFIG`                                           | ⬜   | no     | Customer Portal config id (optional)                                                         |
 | `POSTHOG_KEY`                                                    | ⬜³  | no     | PostHog project key (`phc_…`) — write-only, also shipped to the browser                      |
 | `POSTHOG_HOST`                                                   | ⬜   | no     | ingest host; defaults to `https://us.i.posthog.com` (US Cloud, project 567553)               |
@@ -345,8 +346,12 @@ first real bottleneck is media storage, not compute (below).
 **Domain (galleo.app)** — DNS at the registrar per **Custom domain** above (apex ALIAS + `www` CNAME to the
 Render targets); Render issues TLS.
 
-**Stripe (only when enabling paid plans)** — the four price ids + secret key + a webhook endpoint at
-`https://galleo.app/api/billing/webhook` → its signing secret.
+**Stripe (only when enabling paid plans)** — `pnpm stripe:setup` against the live key for the five
+price ids, the secret key, and a webhook endpoint at `https://galleo.app/api/billing/webhook`
+subscribed to `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+`customer.subscription.updated` and `customer.subscription.deleted` → its signing secret. The Customer
+Portal needs a saved configuration in the dashboard (or `STRIPE_PORTAL_CONFIG`) before `/billing/portal`
+can open one.
 
 ## Planned / deferred
 

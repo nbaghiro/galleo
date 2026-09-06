@@ -1,16 +1,17 @@
 import "dotenv/config";
 import { execFileSync } from "node:child_process";
 import Stripe from "stripe";
-import type { AddOnId, Interval, PlanId } from "@model/billing";
-import { ADD_ONS, ADD_ON_IDS, CREDIT_PRICE_USD, PLANS, PLAN_ORDER } from "@model/billing";
+import type { Interval, PlanId } from "@model/billing";
+import { CREDIT_PRICE_USD, PLANS, PLAN_ORDER } from "@model/billing";
 
 /**
  * Creates (or updates) the Stripe products and prices Galleo sells, from the catalog in
  * model/billing.ts, and prints the env block that wires them up.
  *
  * Safe to re-run and safe against a fresh account: everything is matched by a stable key rather than
- * by name, so a second run finds what the first made instead of duplicating it. Point it at another
- * account by exporting that account's STRIPE_SECRET_KEY.
+ * by name, so a second run finds what the first made instead of duplicating it, and any galleo_
+ * price the catalog no longer wants is archived so the account converges on the catalog. Point it
+ * at another account by exporting that account's STRIPE_SECRET_KEY.
  *
  *   pnpm stripe:setup              apply
  *   pnpm stripe:setup --dry-run    print what would change, touch nothing
@@ -46,13 +47,18 @@ const yearly = (monthly: number): number => Math.round(monthly * 12 * 100);
 function wanted(): WantedPrice[] {
     const out: WantedPrice[] = [];
 
+    // every plan price is per seat and the subscription's quantity is the seat count
     for (const id of PLAN_ORDER) {
         const plan = PLANS[id];
         if (!plan.billing.priceMonthly) continue; // Free is not sold
+        const seats =
+            plan.billing.maxSeats > 1
+                ? `per seat, ${plan.billing.minSeats} seats minimum`
+                : "one seat";
         const product: WantedProduct = {
             id: `plan_${id}`,
             name: `Galleo ${plan.name}`,
-            description: `${plan.billing.includedSeats} seat(s) and ${plan.ai.includedCredits.toLocaleString()} AI credits a month.`,
+            description: `${plan.ai.creditsPerSeat.toLocaleString()} AI credits a month, ${seats}.`,
         };
         const ENV = id.toUpperCase() as Uppercase<PlanId>;
         out.push({
@@ -71,40 +77,8 @@ function wanted(): WantedPrice[] {
         });
     }
 
-    for (const id of ADD_ON_IDS) {
-        const addOn = ADD_ONS[id];
-        const unit = [
-            addOn.seats ? `${addOn.seats} seat` : null,
-            `${addOn.credits.toLocaleString()} AI credits`,
-        ]
-            .filter(Boolean)
-            .join(" and ");
-        const product: WantedProduct = {
-            id: `addon_${id}`,
-            name: `Galleo ${addOn.label}`,
-            description: `Adds ${unit} a month. Billed as part of the workspace subscription.`,
-        };
-        const ENV = id.toUpperCase() as Uppercase<AddOnId>;
-        out.push({
-            lookup: `galleo_${id}_month`,
-            envVar: `STRIPE_PRICE_${ENV}_MONTH`,
-            interval: "month",
-            cents: Math.round(addOn.priceUsd * 100),
-            product,
-        });
-        // An annual subscription cannot mix intervals, so an annual plan needs annual add-ons or the
-        // add-on line is dropped. No annual discount on add-ons today.
-        out.push({
-            lookup: `galleo_${id}_year`,
-            envVar: `STRIPE_PRICE_${ENV}_YEAR`,
-            interval: "year",
-            cents: yearly(addOn.priceUsd),
-            product,
-        });
-    }
-
-    // One price for ONE credit, charged by quantity, so any amount is buyable from a single id. A
-    // one-off price, not recurring, or Stripe would bill the whole purchase again every month.
+    // One price for ONE credit, charged by quantity, so every preset is buyable from a single id.
+    // A one-off price, not recurring, or Stripe would bill the whole purchase again every month.
     out.push({
         lookup: "galleo_credit",
         envVar: "STRIPE_PRICE_CREDIT",
@@ -211,6 +185,15 @@ async function ensurePrice(stripe: Stripe, want: WantedPrice, productId: string)
     return created.id;
 }
 
+/** Archive every active galleo_ price the catalog no longer sells, so a retired shape cannot be bought. */
+async function archiveUnwanted(stripe: Stripe, keep: ReadonlySet<string>): Promise<void> {
+    for await (const p of stripe.prices.list({ limit: 100, active: true })) {
+        if (!p.lookup_key?.startsWith("galleo_") || keep.has(p.lookup_key)) continue;
+        log(`  - ${p.lookup_key.padEnd(24)} archived (no longer in the catalog)`);
+        if (!DRY) await stripe.prices.update(p.id, { active: false });
+    }
+}
+
 async function main(): Promise<void> {
     const key = secretKey(); // resolved once: the CLI fallback logs which source it used
     const stripe = new Stripe(key, { apiVersion: "2026-06-24.dahlia" });
@@ -221,7 +204,8 @@ async function main(): Promise<void> {
 
     const env: string[] = [];
     const byProduct = new Map<string, string>();
-    for (const want of wanted()) {
+    const wants = wanted();
+    for (const want of wants) {
         let productId = byProduct.get(want.product.id);
         if (!productId) {
             productId = await ensureProduct(stripe, want.product);
@@ -229,6 +213,7 @@ async function main(): Promise<void> {
         }
         env.push(`${want.envVar}=${await ensurePrice(stripe, want, productId)}`);
     }
+    await archiveUnwanted(stripe, new Set(wants.map((w) => w.lookup)));
 
     log(`\n${DRY ? "Would write" : "Set"} these in .env and in Render:\n`);
     log(env.join("\n"));

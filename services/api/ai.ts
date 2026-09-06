@@ -20,12 +20,11 @@ import {
     type WorkspaceEnv,
 } from "./middleware";
 import type { ArtifactContent } from "@model/artifact";
-import { featuresFor } from "@model/billing";
 import { currentMembership, currentUser } from "@services/core/accounts";
 import { SESSION_COOKIE } from "@services/utils/auth";
 import { z } from "zod";
 import { isArtifactContent } from "@services/core/artifacts";
-import { creditRefusal, rateLimit, readJson } from "@services/utils/http";
+import { OUT_OF_CREDITS, rateLimit, readJson } from "@services/utils/http";
 import type { WorkspaceRow } from "@services/core/accounts";
 import type { WorkspaceRole } from "@model/workspace";
 import { aiImageOptions } from "@services/core/media";
@@ -125,7 +124,6 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
         if (isResponse(gate)) return gate;
     }
 
-    const feats = featuresFor(ws);
     const overrides = overridesFrom(c);
     const generations = makeGenerationStore(ws.id, c.get("user").id);
 
@@ -139,7 +137,7 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
     if (generationId && !gen) return c.json({ error: "that generation was not found" }, 404);
     const brief = briefOf(tool, input, gen?.generation ?? null);
     const imageSource = chat ? chat.context.imageSource : brief?.imageSource;
-    const images = aiImageOptions(ws, feats, imageSource);
+    const images = aiImageOptions(ws, imageSource);
 
     // attached context collections ground the turn; absent (or no embedding model) they cost nothing
     const contextIds = chat ? chat.context.contextIds : brief?.contextIds;
@@ -175,7 +173,6 @@ ai.post("/ai/turn", requireWorkspace, async (c) => {
                         generations,
                         signal: ctrl.signal,
                         models: overrides,
-                        maxSections: feats.maxSectionsPerGeneration,
                         pack: retriever ? retriever.pack : undefined,
                         recall:
                             chat && embeddingReady()
@@ -278,7 +275,7 @@ const runDirect = <R>(
         {
             models: overridesFrom(c),
             ...rest,
-            ctx: { image: aiImageOptions(ws, featuresFor(ws), undefined).image, ...rest.ctx },
+            ctx: { image: aiImageOptions(ws, undefined).image, ...rest.ctx },
         },
     );
 };
@@ -297,7 +294,7 @@ function refused(
     out: Extract<ToolOutcome<unknown>, { ok: false }>,
 ): Response {
     const ws = c.get("ws");
-    if (out.reason === "credits") return c.json(creditRefusal(ws, out), 402);
+    if (out.reason === "credits") return c.json(OUT_OF_CREDITS(ws, out.remaining), 402);
     if (out.reason === "entitlement")
         return c.json(
             {

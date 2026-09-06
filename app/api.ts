@@ -32,17 +32,7 @@ import type {
 } from "@model/workspace";
 import type { Template } from "@model/templates";
 import type { ThemeSummary as Theme, ThemeInput } from "@themes";
-import type {
-    AddOn,
-    AddOnId,
-    Interval,
-    Plan,
-    PlanId,
-    FeatureKey,
-    FeatureStatus,
-    Features,
-    ScheduledChange,
-} from "@model/billing";
+import type { FeatureKey, Features, Interval, Plan, PlanId } from "@model/billing";
 import type { ChatThread, ProposalMark, TurnEvent } from "@model/ai";
 import type {
     DesignedCandidate,
@@ -77,28 +67,21 @@ export interface MediaProvidersState {
 // GET /billing — plan + live usage + plan catalog
 export interface BillingState {
     plan: PlanId;
-    status: string;
     periodEnd: string | null;
     cancelAtPeriodEnd: boolean;
     interval: Interval | null; // which the subscription bills on; null = not subscribed
     intervals: Record<Interval, boolean>; // which intervals this deployment can sell
     credits: {
         balance: number; // spendable now; unspent credits carry across the roll
-        monthlyGrant: number; // what the subscription adds at each roll
+        monthlyGrant: number; // what the subscription adds at each window
         perGeneration: number;
         resetAt: string;
-        mySpend: number; // the caller's own spend this cycle
-        myCap: number | null; // the member cap as it applies to the caller; null = uncapped
         rolloverCap: number; // ceiling granted credits may bank to; purchases sit above it
         capped: boolean; // the next grant will land short of the full allowance
     };
     usage: { artifacts: number; maxArtifacts: number; storageMb: number; maxStorageMb: number };
-    scheduledChange: ScheduledChange | null; // a downgrade parked at period end
     seats: number;
-    includedSeats: number; // what the plan covers; anything above is the seat add-on
     catalog: Plan[];
-    addOns: AddOn[]; // recurring, purchasable here (an unconfigured price is already filtered out)
-    addOnQuantities: Record<AddOnId, number>;
     // one-off credit purchases: the flat rate and the quantities offered as buttons, or null when
     // the plan cannot buy them or no price is configured
     creditSale: { usdPerCredit: number; presets: number[] } | null;
@@ -130,7 +113,6 @@ export interface WorkspaceMember {
     name: string | null;
     avatarUrl: string | null;
     isOwner: boolean;
-    spend?: number; // net credits this member spent in the current cycle; only when asked (?spend=1)
 }
 
 export interface WorkspaceInvite {
@@ -148,7 +130,6 @@ export interface WorkspaceState {
         seats: number;
         defaultArtifactAccess: ArtifactAccess;
         publishPolicy: PublishPolicy;
-        memberCreditCap: number | null;
         prepareAudio: boolean;
     };
     role: WorkspaceRole;
@@ -175,13 +156,12 @@ export interface NewApiCredential {
 // GET /features — resolved capabilities + each feature's launch status
 export interface FeaturesState {
     features: Features;
-    status: Record<FeatureKey, FeatureStatus>;
     models: ModelCatalogue;
 }
 
 export interface ModelCatalogue {
     tasks: string[];
-    models: { id: string; label: string; provider: string; locked: boolean }[];
+    models: { id: string; label: string; provider: string }[];
     defaults: Record<string, string>; // already resolved for this workspace's tier
     // USD per unit: text units per model, media units once (they do not vary with the text model)
     unitPrices: Record<string, UnitPrices>;
@@ -472,6 +452,15 @@ export const api = {
     resyncContextItem: (id: string, itemId: string) =>
         req<{ ok: boolean }>(`/contexts/${id}/items/${itemId}/resync`, { method: "POST" }),
     getArtifact: (id: string) => req<{ artifact: Artifact }>(`/artifacts/${id}`),
+    getSubmissions: (id: string) =>
+        req<{
+            submissions: {
+                id: string;
+                elementId: string;
+                payload: Record<string, string>;
+                createdAt: string;
+            }[];
+        }>(`/artifacts/${id}/submissions`),
     // the shell + the full section index + only the sections asked for
     getArtifactWindow: (id: string, from: number, count: number) =>
         req<{ artifact: ArtifactWindow }>(`/artifacts/${id}?window=${from}:${count}`),
@@ -812,8 +801,7 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ credits }),
         }),
-    getWorkspace: (withSpend?: boolean) =>
-        req<WorkspaceState>(withSpend ? "/workspace?spend=1" : "/workspace"),
+    getWorkspace: () => req<WorkspaceState>("/workspace"),
 
     // machine credentials for the workspace's own integrations, all three admin-only server side.
     // The secret is in the create response and nowhere else, so the caller shows it or loses it.
@@ -839,7 +827,6 @@ export const api = {
     updateWorkspaceSettings: (patch: {
         defaultArtifactAccess?: ArtifactAccess;
         publishPolicy?: PublishPolicy;
-        memberCreditCap?: number | null;
         prepareAudio?: boolean;
     }) => req<{ ok: true }>("/workspace", { method: "PATCH", body: JSON.stringify(patch) }),
     // null clears the artifact back to inheriting the workspace default

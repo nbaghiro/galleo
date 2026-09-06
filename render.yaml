@@ -53,6 +53,8 @@ services:
             sync: false
           - key: STRIPE_PRICE_PREMIUM_YEAR
             sync: false
+          - key: STRIPE_PRICE_CREDIT # bought credits; leave unset to keep packs off
+            sync: false
           - key: STRIPE_PORTAL_CONFIG
             sync: false
           # --- product analytics (PostHog) ---

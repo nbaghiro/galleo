@@ -3,8 +3,6 @@ import { eq } from "drizzle-orm";
 import type { ArtifactAccess } from "@model/artifact";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { typicalCost } from "@model/tools";
-import { reserve } from "@services/core/spend";
 import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 
 // One workspace, an owner plus an admin and a member, and one artifact the owner created. Each test
@@ -356,7 +354,6 @@ describe("PATCH /workspace settings", () => {
             jsonInit("PATCH", {
                 defaultArtifactAccess: "view",
                 publishPolicy: "admins",
-                memberCreditCap: 250,
             }),
         );
         expect(res.status).toBe(200);
@@ -366,17 +363,6 @@ describe("PATCH /workspace settings", () => {
             .where(eq(schema.workspaces.id, cast.workspaceId));
         expect(ws!.defaultArtifactAccess).toBe("view");
         expect(ws!.publishPolicy).toBe("admins");
-        expect(ws!.memberCreditCap).toBe(250);
-    });
-
-    it("clears the cap on an explicit null", async () => {
-        await authed(cast.admin, "/workspace", jsonInit("PATCH", { memberCreditCap: 250 }));
-        await authed(cast.admin, "/workspace", jsonInit("PATCH", { memberCreditCap: null }));
-        const [ws] = await db
-            .select()
-            .from(schema.workspaces)
-            .where(eq(schema.workspaces.id, cast.workspaceId));
-        expect(ws!.memberCreditCap).toBeNull();
     });
 
     it("refuses a plain member", async () => {
@@ -388,12 +374,11 @@ describe("PATCH /workspace settings", () => {
         expect(res.status).toBe(403);
     });
 
-    it("rejects a level or policy it does not know, and a negative cap", async () => {
+    it("rejects a level or policy it does not know", async () => {
         for (const body of [
             { defaultArtifactAccess: "toString" },
             { defaultArtifactAccess: "admin" },
             { publishPolicy: "everyone" },
-            { memberCreditCap: -5 },
         ]) {
             expect((await authed(cast.admin, "/workspace", jsonInit("PATCH", body))).status).toBe(
                 400,
@@ -444,82 +429,5 @@ describe("PUT /artifacts/:id/access", () => {
             jsonInit("PUT", { access: "constructor" }),
         );
         expect(res.status).toBe(400);
-    });
-});
-
-describe("the per-member credit cap", () => {
-    const getWs = async (id: string) => {
-        const [ws] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, id));
-        return ws!;
-    };
-    const setWs = (id: string, fields: Partial<typeof schema.workspaces.$inferInsert>) =>
-        db.update(schema.workspaces).set(fields).where(eq(schema.workspaces.id, id));
-
-    // one theme unit on the default model, so the arithmetic below is exact
-    const COST = typicalCost("generate-theme");
-
-    beforeEach(async () => {
-        await setWs(cast.workspaceId, {
-            aiCreditsBalance: 10_000,
-            creditsResetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-        });
-    });
-
-    const spend = (userId: string, role: "owner" | "admin" | "member") =>
-        getWs(cast.workspaceId).then((ws) => reserve(ws, userId, "generate-theme", { role }));
-
-    it("lets a member spend right up to the cap and refuses the call that would cross it", async () => {
-        await setWs(cast.workspaceId, { memberCreditCap: COST * 2 });
-        expect((await spend(cast.member, "member")).ok).toBe(true);
-        expect((await spend(cast.member, "member")).ok).toBe(true);
-
-        const third = await spend(cast.member, "member");
-        expect(third.ok).toBe(false);
-        if (!third.ok) expect(third.capped).toBe(COST * 2);
-    });
-
-    it("charges nothing for the refused call", async () => {
-        await setWs(cast.workspaceId, { memberCreditCap: COST });
-        await spend(cast.member, "member");
-        const after = (await getWs(cast.workspaceId)).aiCreditsBalance;
-        expect((await spend(cast.member, "member")).ok).toBe(false);
-        expect((await getWs(cast.workspaceId)).aiCreditsBalance).toBe(after);
-    });
-
-    it("caps each member separately rather than pooling their spend", async () => {
-        await setWs(cast.workspaceId, { memberCreditCap: COST });
-        expect((await spend(cast.member, "member")).ok).toBe(true);
-        expect((await spend(cast.member, "member")).ok).toBe(false);
-        // a second member starts from their own zero
-        const other = await join(cast.workspaceId, "member");
-        expect((await spend(other, "member")).ok).toBe(true);
-    });
-
-    it("does not cap the owner or an admin", async () => {
-        await setWs(cast.workspaceId, { memberCreditCap: 0 });
-        expect((await spend(cast.owner.userId, "owner")).ok).toBe(true);
-        expect((await spend(cast.admin, "admin")).ok).toBe(true);
-        expect((await spend(cast.member, "member")).ok).toBe(false);
-    });
-
-    it("leaves everyone uncapped when no cap is set", async () => {
-        await setWs(cast.workspaceId, { memberCreditCap: null });
-        for (let i = 0; i < 5; i++) expect((await spend(cast.member, "member")).ok).toBe(true);
-    });
-
-    it("still refuses on an empty balance, cap or no cap", async () => {
-        await setWs(cast.workspaceId, { memberCreditCap: 10_000, aiCreditsBalance: 0 });
-        const held = await spend(cast.member, "member");
-        expect(held.ok).toBe(false);
-        if (!held.ok) expect(held.capped).toBeUndefined(); // the pool is dry, not the person
-    });
-
-    it("frees the member's budget when the credit window rolls", async () => {
-        await setWs(cast.workspaceId, { memberCreditCap: COST });
-        expect((await spend(cast.member, "member")).ok).toBe(true);
-        expect((await spend(cast.member, "member")).ok).toBe(false);
-        // the window reopening puts the earlier spend behind creditsStartedAt
-        await setWs(cast.workspaceId, { creditsStartedAt: new Date() });
-        expect((await spend(cast.member, "member")).ok).toBe(true);
     });
 });

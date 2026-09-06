@@ -262,7 +262,7 @@ export const EditorView: Component = () => {
          * music button for the rest of the session, whatever the artifact's plan or format.
          */
         createEffect(() => {
-            const allowed = can("backgroundMusic");
+            const allowed = can("audio");
             onSoundtrack(
                 artifactId && allowed
                     ? {
@@ -322,7 +322,7 @@ export const EditorView: Component = () => {
             .musicPresets()
             .then((p) => setPresets(p))
             .catch(() => undefined);
-        onMusicPresets(() => (can("backgroundMusic") ? presets() : []));
+        onMusicPresets(() => (can("audio") ? presets() : []));
         if (artifactId)
             onComposeBed(async (o) => {
                 const startedAt = Date.now();

@@ -5,7 +5,7 @@ import { asOrigin } from "@model/analytics";
 import { capture } from "@ui/analytics";
 import type { PublishPolicy, WorkspaceRole } from "@model/workspace";
 import type { ArtifactAccess } from "@model/artifact";
-import { sellsSeats, visiblePlans } from "@model/billing";
+import { PLAN_ORDER, PLANS, sellsSeats } from "@model/billing";
 import { Avatar } from "@ui/avatar";
 import { BillingPanel } from "@app/components/BillingPanel";
 import { PlanPanel } from "@app/components/PlanPanel";
@@ -298,7 +298,7 @@ export const WorkspaceSettingsView: Component = () => {
     // The shell mounts once per settings visit, so data loads and the Stripe-return consumption
     // live here; the tab panels only render what the stores hold.
     onMount(() => {
-        void loadWorkspace({ spend: true });
+        void loadWorkspace();
         void loadBilling();
         consumeCheckoutReturn(search);
     });
@@ -326,7 +326,7 @@ export const WorkspaceSettingsView: Component = () => {
     const isAdmin = (): boolean => myRole() !== "member";
     const seatsUsed = createMemo(() => (st()?.members.length ?? 0) + (st()?.invites.length ?? 0));
     const seats = (): number => st()?.workspace.seats ?? 1;
-    const teamPlan = () => visiblePlans().find((p) => p.billing.sellsSeats);
+    const teamPlan = () => PLAN_ORDER.map((id) => PLANS[id]).find((p) => sellsSeats(p.id));
 
     // policies (admin+); the dropdowns save on change
     const savePolicy = async (patch: Parameters<typeof updateWorkspaceSettings>[0]) => {
@@ -538,10 +538,10 @@ export const WorkspaceSettingsView: Component = () => {
                                     </Show>
 
                                     <Section title="Voice">
-                                        <VoiceShelf canDesign={can("voiceDesign")} />
+                                        <VoiceShelf canDesign={can("audio")} />
                                     </Section>
 
-                                    <Show when={can("backgroundMusic")}>
+                                    <Show when={can("audio")}>
                                         <Section title="Music">
                                             <MusicShelf />
                                         </Section>
@@ -698,27 +698,6 @@ export const WorkspaceSettingsView: Component = () => {
                                                                 </span>
                                                             </Show>
                                                         </span>
-                                                        <Show
-                                                            when={
-                                                                m.spend != null &&
-                                                                (m.spend > 0 ||
-                                                                    state().workspace
-                                                                        .memberCreditCap != null)
-                                                            }
-                                                        >
-                                                            <span
-                                                                class="flex-none text-[11px] tabular-nums text-muted"
-                                                                title="Credits spent this cycle"
-                                                            >
-                                                                {m.spend!.toLocaleString()}
-                                                                {state().workspace
-                                                                    .memberCreditCap != null &&
-                                                                m.role === "member"
-                                                                    ? ` / ${state().workspace.memberCreditCap!.toLocaleString()}`
-                                                                    : ""}{" "}
-                                                                cr
-                                                            </span>
-                                                        </Show>
                                                         <Show
                                                             when={isOwner() && !m.isOwner}
                                                             fallback={

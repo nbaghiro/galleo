@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { BAD_BODY, readJson } from "@services/utils/http";
-import { canTopUp, MAX_CREDIT_PURCHASE, MIN_CREDIT_PURCHASE } from "@model/billing";
+import { canTopUp, CREDIT_PRESETS } from "@model/billing";
 import {
     billingSummary,
     changePlan,
@@ -26,22 +26,23 @@ const notOwner = (c: Context, ws: { ownerId: string }, userId: string): Response
         : null;
 
 const NOT_CONFIGURED = { error: "billing not configured" } as const;
-const SEATS_NOT_CONFIGURED = "Extra seats are not available on this billing interval yet.";
 
+// seats are clamped to the plan's bounds in core, so the schema only has to keep them a count
 const zWanted = z.object({
     plan: z.enum(["free", "pro", "premium"]).optional(),
     interval: z.enum(["month", "year"]).optional(),
-    seats: z.number().int().positive().max(100).optional(),
+    seats: z.number().int().positive().optional(),
 });
 
-// the bounds live in the schema, so an absurd quantity is a 400 before it reaches Stripe
+// only a preset is buyable, so an off-catalog quantity is a 400 before it reaches Stripe
 const zTopup = z.object({
-    credits: z.number().int().min(MIN_CREDIT_PURCHASE).max(MAX_CREDIT_PURCHASE),
+    credits: z
+        .number()
+        .int()
+        .refine((n) => CREDIT_PRESETS.includes(n)),
 });
 
-plan.get("/billing", requireWorkspace, async (c) =>
-    c.json(await billingSummary(c.get("ws"), c.get("user").id, c.get("role"))),
-);
+plan.get("/billing", requireWorkspace, async (c) => c.json(await billingSummary(c.get("ws"))));
 
 plan.post("/billing/checkout", requireWorkspace, async (c) => {
     const [user, ws] = [c.get("user"), c.get("ws")];
@@ -55,9 +56,7 @@ plan.post("/billing/checkout", requireWorkspace, async (c) => {
     if (!want) return c.json(BAD_BODY, 400);
     const result = await checkoutUrl(ws, user.email, want);
     if (result && typeof result === "object" && "error" in result)
-        return result.error === "seats-not-configured"
-            ? c.json({ error: SEATS_NOT_CONFIGURED }, 400)
-            : c.json({ error: "invalid plan" }, 400);
+        return c.json({ error: "invalid plan" }, 400);
     return c.json({ url: result });
 });
 
@@ -107,8 +106,6 @@ plan.post("/billing/change-plan", requireWorkspace, async (c) => {
     if ("error" in result) {
         if (result.error === "no-item") return c.json({ error: "no subscription item" }, 400);
         if (result.error === "invalid-plan") return c.json({ error: "invalid plan" }, 400);
-        if (result.error === "seats-not-configured")
-            return c.json({ error: SEATS_NOT_CONFIGURED }, 400);
         return c.json(
             {
                 error: `Your workspace has ${result.members} members. Remove some before reducing seats.`,

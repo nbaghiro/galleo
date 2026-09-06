@@ -1,28 +1,19 @@
 import type { CostUnit, UnitPrices, Usage } from "@model/credits";
 import type { MeterParams, ToolId, ToolSurface } from "@model/tools";
-import type { PlanBearer } from "@model/billing";
-import type { WorkspaceRole } from "@model/workspace";
-import { creditsForUsd, DEFAULT_UNIT_PRICES, taskForUsage, usdOfUsage } from "@model/credits";
-import { gateCost, reserveCost, usageFor } from "@model/tools";
-import { canTopUp, canUpgradeFrom, featuresFor, planFor } from "@model/billing";
+import { creditsForUsd, usdOfUsage } from "@model/credits";
+import { estimateCost, gateCost, usageFor } from "@model/tools";
+import { canTopUp, canUpgradeFrom, planFor } from "@model/billing";
 import { capture } from "@services/utils/analytics";
-import { unitPricesFor, type ModelOverrides } from "./models";
 import type { WorkspaceCreditFields } from "./ledger";
-import { chargeCredits, creditBalance, settleCredits, spendThisCycle } from "./ledger";
+import { chargeCredits, creditBalance, settleCredits } from "./ledger";
 import type { Meter, TokenUse } from "./ai/meter";
 import { usdOf, withMeter } from "./ai/meter";
 import { noteCredits } from "./traces";
 
-// AI spend policy: what a turn or a tool costs, and the reserve-then-settle protocol around it.
-// The balance mechanics underneath are core/ledger.ts; the measurement it settles against is
-// core/ai/meter.ts.
-
-// The dollar price of every unit for this caller's picks, text and media alike. Every metered route
-// reserves and settles through it, so the model that served the work is what the credits reflect.
-export const pricesFor = (ws: PlanBearer, overrides: ModelOverrides): UnitPrices =>
-    unitPricesFor(featuresFor(ws).textModelTier, overrides);
-
-// One rule for every paid action: reserve the estimate up front, then owe what the work really did —
+// AI spend policy: what a tool costs, and the reserve-then-settle protocol around it. The balance
+// mechanics underneath are core/ledger.ts; the measurement it settles against is core/ai/meter.ts.
+//
+// One rule for every paid action: hold the estimate up front, then owe what the work really did —
 // the tokens it burned at provider list price, plus the assets it produced at their flat rate. A run
 // that burned nothing and produced nothing owes nothing, so a failure refunds itself rather than
 // needing a policy of its own.
@@ -31,7 +22,7 @@ export const pricesFor = (ws: PlanBearer, overrides: ModelOverrides): UnitPrices
 type Produced = (units: Usage) => void;
 
 type Reservation =
-    | { ok: false; remaining: number; capped?: number }
+    | { ok: false; remaining: number }
     | {
           ok: true;
           // the meter is handed back so a caller that asked to trace can read the spans it collected
@@ -51,16 +42,13 @@ interface Runner {
 
 const context = (r: Runner) => ({ userId: r.userId, workspaceId: r.ws.id });
 
-// One of the two places the product tells a user no. A member over their own ceiling is a different
-// wall from an empty pool: neither remedy applies, because the pool may be full and only an admin
-// can raise the cap, so `offer` says whether there is anything to sell.
-function exhausted(r: Runner, remaining: number, offer: boolean): void {
+function exhausted(r: Runner, remaining: number): void {
     const plan = planFor(r.ws.plan).id;
     capture(context(r), "credits_exhausted", {
         plan_id: plan,
         blocked_tool_id: r.tool,
-        upgrade_offered: offer && canUpgradeFrom(plan),
-        topup_offered: offer && canTopUp(plan),
+        upgrade_offered: canUpgradeFrom(plan),
+        topup_offered: canTopUp(plan),
         credits_remaining: remaining,
     });
 }
@@ -74,16 +62,13 @@ function exhausted(r: Runner, remaining: number, offer: boolean): void {
 function measured<T>(
     r: Runner,
     estimate: number,
-    usage: Usage,
     body: (meter: Meter) => Promise<T>,
     meter: Meter,
 ): Promise<T> {
-    const task = taskForUsage(usage);
     capture(context(r), "ai_action_started", {
         tool_id: r.tool,
         tool_surface: r.surface,
         estimated_credits: estimate,
-        ...(task ? { task } : {}),
     });
     return body(meter);
 }
@@ -95,18 +80,15 @@ const free = (r: Runner): Reservation => ({
     ok: true,
     settle: (run) => {
         const meter: Meter = { uses: [], extraUsd: 0, parts: new Map() };
-        return measured(r, 0, {}, () => run(() => {}, meter), meter);
+        return measured(r, 0, () => run(() => {}, meter), meter);
     },
 });
 
-/** Everything about the run other than who is making it, which is the part that keeps growing. */
 export interface ReserveOptions {
     /** scales the estimate for metered tools */
     size?: MeterParams;
-    /** prices the estimate against the models this caller pinned */
-    prices?: UnitPrices;
-    /** members are capped, admins and owners are not */
-    role?: WorkspaceRole;
+    /** the dollar price of every unit for this caller's model picks (unitPricesFor) */
+    prices: UnitPrices;
     /**
      * Where the call arrived, which is what the ai_action_* events report. The executor passes the
      * surface its caller used; everything else that reserves is an HTTP route, so it says so.
@@ -128,51 +110,26 @@ export async function reserve(
     ws: WorkspaceCreditFields,
     userId: string,
     tool: ToolId,
-    opts: ReserveOptions = {},
+    opts: ReserveOptions,
 ): Promise<Reservation> {
-    const {
-        size = {},
-        // a caller that forgets still bills the default model's real cost, not the bare floor
-        prices = DEFAULT_UNIT_PRICES,
-        role = "member",
-        surface = "direct",
-    } = opts;
+    const { size = {}, prices, surface = "direct" } = opts;
     const runner: Runner = { ws, userId, tool, surface };
-    const usage = usageFor(tool, size);
-    const cost = reserveCost(tool, size, prices);
-    // What must be payable for the run to start: its own hold, or for a free doorway
-    // (ToolMeta.gate) the priced step behind it, refused here before the doorway creates anything.
-    const need = cost || gateCost(tool, prices);
-    if (need === 0) return free(runner);
-    // The per-member ceiling, checked before the balance: the pool is shared and the owner is the
-    // only one who can refill it, so one member cannot spend the whole month. Admins run the
-    // workspace and are not capped. Checked against the estimate, so a run that would cross the cap
-    // never starts rather than being cut off mid-stream.
-    const cap = ws.memberCreditCap;
-    if (role === "member" && cap != null && cap >= 0 && ws.creditsStartedAt) {
-        const spent = await spendThisCycle(
-            { id: ws.id, creditsStartedAt: ws.creditsStartedAt },
-            userId,
-        );
-        if (spent + need > cap) {
-            const remaining = Math.max(0, cap - spent);
-            exhausted(runner, remaining, false);
-            return { ok: false, remaining, capped: cap };
-        }
-    }
+    const cost = estimateCost(tool, size, prices);
     if (cost === 0) {
-        // gate only: answer the way a charge would, but hold nothing — the priced step
-        // re-checks atomically when it runs, so a stale read here cannot overspend
+        // a free doorway (ToolMeta.gate) answers the way a charge would, but holds nothing: the
+        // priced step re-checks atomically when it runs, so a stale read here cannot overspend
+        const need = gateCost(tool, prices);
+        if (need === 0) return free(runner);
         const balance = await creditBalance(ws);
         if (need > balance) {
-            exhausted(runner, balance, true);
+            exhausted(runner, balance);
             return { ok: false, remaining: balance };
         }
         return free(runner);
     }
-    const held = await chargeCredits(ws, cost, tool, userId, usage);
+    const held = await chargeCredits(ws, cost, tool, userId, usageFor(tool, size));
     if (!held.ok || !held.entryId) {
-        exhausted(runner, held.remaining, true);
+        exhausted(runner, held.remaining);
         return { ok: false, remaining: held.remaining };
     }
     const entryId = held.entryId;
@@ -188,7 +145,6 @@ export async function reserve(
                 measured(
                     runner,
                     cost,
-                    usage,
                     async () => {
                         try {
                             return await run(produced, meter);
@@ -197,7 +153,7 @@ export async function reserve(
                             // and the ledger row cannot disagree
                             const delta = owed(meter.uses, made, meter.extraUsd, prices) - cost;
                             noteCredits(cost + delta);
-                            await settleCredits(ws, entryId, delta, settledUsage(usage, made));
+                            await settleCredits(ws, entryId, delta);
                         }
                     },
                     meter,
@@ -205,27 +161,6 @@ export async function reserve(
             );
         },
     };
-}
-
-/**
- * The charge row's usage is the estimate; the units a run reported replace theirs and unreported
- * units keep the estimate, so a token-billed section count survives while a cached synthesis stops
- * claiming characters it never spoke. undefined = unchanged, null = nothing real to describe.
- */
-export function settledUsage(estimate: Usage, made: Usage): Usage | null | undefined {
-    const reported = Object.keys(made) as CostUnit[];
-    if (!reported.length) return undefined;
-    const actual: Usage = { ...estimate };
-    for (const unit of reported) {
-        if (made[unit]) actual[unit] = made[unit];
-        else delete actual[unit];
-    }
-    const units = Object.keys(actual) as CostUnit[];
-    const unchanged =
-        units.length === Object.keys(estimate).length &&
-        units.every((u) => actual[u] === estimate[u]);
-    if (unchanged) return undefined;
-    return units.length ? actual : null;
 }
 
 /**
@@ -239,8 +174,8 @@ export function settledUsage(estimate: Usage, made: Usage): Usage | null | undef
 export function owed(
     uses: readonly TokenUse[],
     made: Usage,
-    extraUsd = 0,
-    prices: UnitPrices = DEFAULT_UNIT_PRICES,
+    extraUsd: number,
+    prices: UnitPrices,
 ): number {
     const usd = usdOf(uses) + usdOfUsage(made, prices) + extraUsd;
     return usd > 0 ? creditsForUsd(usd) : 0;

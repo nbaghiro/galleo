@@ -6,7 +6,7 @@ import { Button } from "@ui/button";
 import { Icon } from "@ui/icons";
 import { EmptyState } from "@ui/status";
 import { billing } from "@app/stores/billing";
-import { reportPaywall, statusOf } from "@app/stores/features";
+import { reportPaywall } from "@app/stores/features";
 import { go } from "@app/stores/navigate";
 
 // Every plan wall in the app renders through here, so one surface answers "why can't I do this" and
@@ -17,11 +17,9 @@ import { go } from "@app/stores/navigate";
 /** The one place a wall sends you; the plan grid and both flows live there. */
 export const UPGRADE_ROUTE = "/settings/plan";
 
-/** Null when nothing sells it: either the caller is already on the top plan, or it is not built. */
+/** Null when nothing sells it: the caller is already on the top plan. */
 const target = (feature?: FeatureKey): ReturnType<typeof upgradeFor> =>
     feature ? upgradeFor(feature, billing()?.plan) : null;
-
-const comingSoon = (feature?: FeatureKey): boolean => !!feature && statusOf(feature) === "planned";
 
 /**
  * The wall as data, for a surface that cannot render our components (a `@ui` component taking an
@@ -34,11 +32,7 @@ export function featureWall(
 ): { hint: string; onUpgrade: () => void } {
     const plan = target(feature);
     return {
-        hint: comingSoon(feature)
-            ? `${describe} is coming soon.`
-            : plan
-              ? `${describe} is available on ${plan.name} and above.`
-              : describe,
+        hint: plan ? `${describe} is available on ${plan.name} and above.` : describe,
         onUpgrade: () => {
             reportPaywall(feature, plan?.id);
             go(UPGRADE_ROUTE);
@@ -62,7 +56,7 @@ export const UpgradeButton: Component<{
         return plan ? `Upgrade to ${plan.name}` : "See plans";
     };
     return (
-        <Show when={!comingSoon(props.feature)}>
+        <Show when={props.feature ? target(props.feature) : true}>
             <Button
                 variant={props.variant ?? "primary"}
                 size={props.size ?? "sm"}
@@ -93,7 +87,6 @@ export const UpgradeNotice: Component<{
     layout?: "inline" | "block";
 }> = (props) => {
     const plan = (): ReturnType<typeof upgradeFor> => target(props.feature);
-    const soon = (): boolean => comingSoon(props.feature);
 
     // One of the two places the product tells a user no, and the only one an entitlement raises.
     // Shown, not clicked: what we need to know is how often people meet the wall at all. An effect
@@ -101,10 +94,9 @@ export const UpgradeNotice: Component<{
     // wall is not real until we know the plan.
     let reported = false;
     createEffect(() => {
-        if (!reported) reported = reportPaywall(props.feature ?? "textModelTier", plan()?.id);
+        if (!reported && props.feature) reported = reportPaywall(props.feature, plan()?.id);
     });
-    const where = (): string =>
-        soon() ? "Coming soon." : plan() ? `Available on ${plan()!.name} and above.` : "";
+    const where = (): string => (plan() ? `Available on ${plan()!.name} and above.` : "");
 
     return (
         <Show
@@ -112,7 +104,7 @@ export const UpgradeNotice: Component<{
             fallback={
                 <EmptyState
                     class="mx-auto max-w-85 py-4"
-                    title={soon() ? `${props.title} · coming soon` : props.title}
+                    title={props.title}
                     subtitle={
                         <span class="leading-relaxed">
                             {props.children} {where()}
@@ -155,12 +147,7 @@ export const UpgradeLock: Component<{
     createEffect(() => {
         if (!reported) reported = reportPaywall(props.feature, plan()?.id);
     });
-    const where = (): string =>
-        comingSoon(props.feature)
-            ? "Coming soon."
-            : plan()
-              ? `Available on ${plan()!.name} and above.`
-              : "";
+    const where = (): string => (plan() ? `Available on ${plan()!.name} and above.` : "");
     return (
         <span
             class={`inline-flex flex-wrap items-center gap-1.5 text-[11.5px] text-muted ${props.class ?? ""}`}
@@ -169,7 +156,7 @@ export const UpgradeLock: Component<{
             <span>
                 {props.children} {where()}
             </span>
-            <Show when={!comingSoon(props.feature)}>
+            <Show when={plan()}>
                 <button
                     class="font-semibold text-accent"
                     onClick={() => {

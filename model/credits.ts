@@ -120,25 +120,6 @@ const UNIT_TASK: Record<CostUnit, AiTask | null> = {
 };
 
 /**
- * The task whose model does the bulk of a usage's work, for attributing a run to a model tier.
- * Weighted by what the units cost when prices are known, by count otherwise. Null when the work is
- * all media, which runs on models no task names.
- */
-export function taskForUsage(usage: Usage, prices: UnitPrices = {}): AiTask | null {
-    let best: AiTask | null = null;
-    let heaviest = 0;
-    for (const unit of COST_UNITS_ALL) {
-        const task = UNIT_TASK[unit];
-        const weight = (usage[unit] ?? 0) * (prices[unit] ?? 1);
-        if (task && weight > heaviest) {
-            heaviest = weight;
-            best = task;
-        }
-    }
-    return best;
-}
-
-/**
  * USD per unit for the models a run will use: text units from the model their task resolves to,
  * media units from the model that serves them. Both resolvers are injected because pricing a model
  * is a services concern and this layer imports none.
@@ -157,21 +138,3 @@ export function unitPricesFrom(
     }
     return out;
 }
-
-/**
- * Unit prices on the model every task defaults to, so this layer can price its own copy (the plan
- * cards name how many generations an allowance buys) without reaching into services. A mirror, not
- * a second source of truth: services/core/models.ts computes the real table and a test there pins
- * these equal to it.
- */
-export const DEFAULT_UNIT_PRICES: UnitPrices = {
-    plan: 0.0190455,
-    section: 0.0181605,
-    text: 0.00735,
-    theme: 0.01875,
-    reply: 0.0192,
-    image: 0.071,
-    video: 1.42,
-    speech: 0.1,
-    music: 0.15,
-};

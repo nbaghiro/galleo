@@ -6,7 +6,6 @@ import {
     BAD_BODY,
     checkLimit,
     OUT_OF_CREDITS,
-    OVER_MEMBER_CAP,
     readJson,
     requireFeature,
 } from "@services/utils/http";
@@ -88,10 +87,6 @@ describe("the 402 bodies", () => {
             upgrade: false,
             topUp: true,
         });
-    });
-
-    it("marks a member's own ceiling as the cap, not an empty pool", () => {
-        expect(OVER_MEMBER_CAP(250, 10)).toMatchObject({ reason: "member-cap", remaining: 10 });
     });
 });
 

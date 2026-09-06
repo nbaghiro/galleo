@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { sectionsForLength } from "@model/tools";
 import {
     AI_TASKS,
     DEFAULT_MODELS,
     getModel,
     modelCatalogue,
     modelFor,
+    modelMap,
     MEDIA_MODELS,
     mediaModelFor,
     mediaUnitPrice,
@@ -16,7 +16,6 @@ import {
 } from "@services/core/models";
 import { MUSIC_MODEL } from "@services/core/ai/music";
 import { NARRATION_MODEL } from "@services/core/ai/speech";
-import { DEFAULT_UNIT_PRICES } from "@model/credits";
 
 describe("modelFor", () => {
     it("runs every task on Gemini 3.5 Flash", () => {
@@ -28,30 +27,33 @@ describe("modelFor", () => {
         for (const id of Object.values(DEFAULT_MODELS)) expect(getModel(id)).toBeDefined();
     });
 
-    it("resolves the same for every tier while no task runs a heavier model", () => {
-        for (const task of Object.keys(DEFAULT_MODELS) as (keyof typeof DEFAULT_MODELS)[])
-            for (const tier of ["basic", "advanced", "premium"] as const)
-                expect(modelFor(task, tier)).toBe(DEFAULT_MODELS[task]);
-    });
-
-    it("defaults to premium when no tier is given", () => {
+    it("resolves the default with nothing pinned", () => {
         expect(modelFor("edit")).toBe(DEFAULT_MODELS.edit);
+        expect(modelMap()).toEqual(DEFAULT_MODELS);
     });
 });
 
 describe("model overrides", () => {
     const OPUS = "anthropic:claude-opus-5";
 
-    it("prefers a caller's pick over the tier default", () => {
-        expect(modelFor("outline", "premium", { outline: OPUS })).toBe(OPUS);
+    it("prefers a caller's pick over the default", () => {
+        expect(modelFor("outline", { outline: OPUS })).toBe(OPUS);
     });
 
     it("leaves untouched tasks on their default", () => {
-        expect(modelFor("section", "premium", { outline: OPUS })).toBe(DEFAULT_MODELS.section);
+        expect(modelFor("section", { outline: OPUS })).toBe(DEFAULT_MODELS.section);
     });
 
     it("ignores a model the registry does not serve", () => {
-        expect(modelFor("chat", "premium", { chat: "openai:gpt-4" })).toBe(DEFAULT_MODELS.chat);
+        expect(modelFor("chat", { chat: "openai:gpt-4" })).toBe(DEFAULT_MODELS.chat);
+    });
+
+    // any plan may pin any model: the run is priced at that model's rate, so the pick moves the
+    // bill rather than the margin
+    it("honours a frontier pick on every plan", () => {
+        expect(modelFor("section", { section: "anthropic:claude-fable-5" })).toBe(
+            "anthropic:claude-fable-5",
+        );
     });
 
     it("lists every task the type declares", () => {
@@ -106,47 +108,9 @@ describe("modelNote", () => {
     });
 });
 
-describe("section cap metering", () => {
-    it("a clamped meter bills fewer sections than the raw length", () => {
-        const raw = sectionsForLength("In-depth");
-        expect(raw).toBe(18);
-        expect(Math.min(raw, 10)).toBe(10); // the free plan's cap applied by meterFor
-    });
-});
-
-describe("model tier gating", () => {
-    it("a basic-tier override to a frontier model falls back to the tier default", () => {
-        const picked = modelFor("section", "basic", { section: "anthropic:claude-fable-5" });
-        expect(picked).toBe(modelFor("section", "basic"));
-    });
-
-    it("a premium tier keeps its override, and open models pass on any tier", () => {
-        expect(modelFor("section", "premium", { section: "anthropic:claude-fable-5" })).toBe(
-            "anthropic:claude-fable-5",
-        );
-        expect(modelFor("section", "basic", { section: "google:gemini-2.5-flash" })).toBe(
-            "google:gemini-2.5-flash",
-        );
-    });
-
-    it("prices follow the effective model, not the requested one", () => {
-        const gated = unitPricesFor("basic", { section: "anthropic:claude-fable-5" });
-        const honest = unitPricesFor("basic");
-        expect(gated.section).toBe(honest.section); // no premium surcharge for a model never run
-    });
-
-    it("the catalogue marks what the tier can't reach", () => {
-        const basic = modelCatalogue("basic");
-        const premium = modelCatalogue("premium");
-        expect(basic.models.find((m) => m.id === "anthropic:claude-fable-5")?.locked).toBe(true);
-        expect(basic.models.find((m) => m.id === "google:gemini-2.5-flash")?.locked).toBe(false);
-        expect(premium.models.every((m) => !m.locked)).toBe(true);
-    });
-});
-
 describe("media unit pricing", () => {
     it("prices each unit from the model that will serve it", () => {
-        expect(mediaUnitPrice("image", "basic")).toBe(0.071);
+        expect(mediaUnitPrice("image")).toBe(0.071);
         expect(mediaUnitPrice("video")).toBe(1.42);
         expect(mediaUnitPrice("speech")).toBe(0.1);
         expect(mediaUnitPrice("music")).toBe(0.15);
@@ -165,7 +129,7 @@ describe("media unit pricing", () => {
     });
 
     it("resolves the unit's live model", () => {
-        expect(mediaModelFor("image", "basic")).toBe("gemini-3.1-flash-image");
+        expect(mediaModelFor("image")).toBe("gemini-3.1-flash-image");
         expect(mediaModelFor("speech")).toBe(NARRATION_MODEL);
         expect(mediaModelFor("music")).toBe(MUSIC_MODEL);
     });
@@ -179,21 +143,15 @@ describe("media unit pricing", () => {
         for (const m of MEDIA_MODELS) expect(m.usdPerUnit, m.id).toBeGreaterThan(0);
     });
 
-    /**
-     * The media routes once reserved without passing prices, so they billed the base model's rate
-     * while running whatever the env pointed at: a 65% under-bill on Veo standard. The gap between
-     * these two tables is exactly what a caller who forgets `prices` absorbs.
-     */
-    it("follows an env override to a dearer model, which the default table does not", () => {
+    // The media routes once reserved without passing prices, so they billed the base model's rate
+    // while running whatever the env pointed at: a 65% under-bill on Veo standard. Prices are
+    // required everywhere now, and they follow the env.
+    it("follows an env override to a dearer model", () => {
         vi.stubEnv("GEMINI_VIDEO_MODEL", "veo-3.1-generate-preview");
         vi.stubEnv("GEMINI_IMAGE_MODEL", "gemini-3-pro-image");
         try {
-            expect(unitPricesFor("premium").video).toBe(4.0);
-            expect(unitPricesFor("premium").image).toBe(0.134);
-            expect(DEFAULT_UNIT_PRICES.video).toBe(1.42);
-            expect(unitPricesFor("premium").video!).toBeGreaterThan(DEFAULT_UNIT_PRICES.video!);
-            // the basic tier is pinned to the base image model, so an override cannot reach it
-            expect(unitPricesFor("basic").image).toBe(0.071);
+            expect(unitPricesFor().video).toBe(4.0);
+            expect(unitPricesFor().image).toBe(0.134);
         } finally {
             vi.unstubAllEnvs();
         }
@@ -202,36 +160,27 @@ describe("media unit pricing", () => {
 
 describe("unitPricesFor", () => {
     it("prices a section from the measured token profile of the model that writes it", () => {
-        const p = unitPricesFor("premium");
+        const p = unitPricesFor();
         // 8,171 in / 656 out on gemini-3.5-flash at $1.50 / $9.00 per 1M
         expect(p.section).toBeCloseTo((8171 / 1e6) * 1.5 + (656 / 1e6) * 9, 9);
     });
 
     it("moves every text unit when the caller pins a dearer model", () => {
-        const flash = unitPricesFor("premium");
-        const fable = unitPricesFor("premium", { section: "anthropic:claude-fable-5" });
+        const flash = unitPricesFor();
+        const fable = unitPricesFor({ section: "anthropic:claude-fable-5" });
         expect(fable.section!).toBeGreaterThan(flash.section! * 5);
         expect(fable.plan).toBe(flash.plan); // only the pinned task moves
     });
 
     it("leaves media units alone when a text model is pinned", () => {
-        const fable = unitPricesFor("premium", { section: "anthropic:claude-fable-5" });
+        const fable = unitPricesFor({ section: "anthropic:claude-fable-5" });
         expect(fable.image).toBe(0.071);
     });
 
-    // the plan-card copy is built at import time in @model, which cannot reach this registry
-    it("matches the mirror @model/credits keeps for its own copy", () => {
-        const p = unitPricesFor("premium");
-        for (const [unit, usd] of Object.entries(p))
-            expect(DEFAULT_UNIT_PRICES[unit as keyof typeof DEFAULT_UNIT_PRICES], unit).toBeCloseTo(
-                usd,
-                9,
-            );
-    });
-
     it("hands the client a price for every model it may pin", () => {
-        const cat = modelCatalogue("premium");
+        const cat = modelCatalogue();
         for (const m of cat.models) expect(cat.unitPrices[m.id]?.section, m.id).toBeGreaterThan(0);
         expect(cat.mediaPrices.image).toBe(0.071);
+        expect(cat.defaults).toEqual(DEFAULT_MODELS);
     });
 });

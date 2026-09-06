@@ -2,8 +2,7 @@ import "dotenv/config";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { ArtifactContent, GenMeta } from "@model/artifact";
-import type { PlanId } from "@model/billing";
-import { isCreditQuantity, monthlyGrantFor, planFor, resolveFeatures } from "@model/billing";
+import { clampSeats, grantFor, isCreditPreset } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { assertDatabaseUrl, db } from "./client";
@@ -152,14 +151,8 @@ async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<Wo
             name: spec.name,
             ownerId,
             plan: spec.plan,
-            seats: Math.max(spec.seats, planFor(spec.plan).billing.includedSeats),
-            planStatus: spec.planStatus ?? "active",
+            seats: clampSeats(spec.plan, spec.seats),
             planPeriodEnd: periodEnd,
-            cancelAtPeriodEnd: spec.cancelAtPeriodEnd ?? false,
-            scheduledChange:
-                spec.scheduledChange && periodEnd
-                    ? { ...spec.scheduledChange, at: periodEnd.toISOString() }
-                    : null,
             featureOverrides: spec.featureOverrides ?? null,
             // on for the demo, off for a real workspace until someone asks: a seeded piece should
             // already be ready to speak, since a demo is exactly where the wait would be noticed
@@ -406,7 +399,7 @@ async function seedLedger(
     ids: Map<string, string>,
 ): Promise<{ balance: number }> {
     await db.delete(schema.credits).where(eq(schema.credits.workspaceId, ws.id));
-    const grant = monthlyGrantFor(ws);
+    const grant = grantFor(ws);
     let balance = spec.openingBalance ?? grant;
     const rows: (typeof schema.credits.$inferInsert)[] = [];
     for (const c of [...(spec.ledger ?? [])].sort((a, b) => b.at - a.at)) {
@@ -431,7 +424,7 @@ async function seedLedger(
                 createdAt,
             });
         } else if (c.kind === "topup") {
-            if (!isCreditQuantity(c.credits))
+            if (!isCreditPreset(c.credits))
                 throw new Error(`"${spec.slug}": ${c.credits} is not a buyable credit quantity`);
             balance += c.credits;
             rows.push({
@@ -666,11 +659,10 @@ async function seed(): Promise<void> {
             spec.ownerEmail === DEMO_EMAIL
                 ? "owner"
                 : (spec.members.find((m) => m.email === DEMO_EMAIL)?.role ?? "—");
-        const extra = ws.seats - planFor(spec.plan).billing.includedSeats;
         log(
             `• ${spec.name} (${spec.plan}, demo is ${role}) — ${live} artifacts, ` +
                 `${spec.members.length + 1} members, ${balance} credits banked ` +
-                `(+${monthlyGrantFor(ws)}/mo), ${ws.seats} seats${extra > 0 ? ` (+${extra})` : ""}`,
+                `(+${grantFor(ws)}/mo), ${ws.seats} seats`,
         );
     }
 
@@ -694,21 +686,9 @@ async function seed(): Promise<void> {
 
     // Adopted from the live library, not from a hardcoded list: the provider's Default voices expire
     // at the end of 2026. Without a key this is a no-op and narration simply stays unavailable.
-    const allWorkspaces = await db
-        .select({
-            id: schema.workspaces.id,
-            plan: schema.workspaces.plan,
-            featureOverrides: schema.workspaces.featureOverrides,
-        })
-        .from(schema.workspaces);
+    const allWorkspaces = await db.select({ id: schema.workspaces.id }).from(schema.workspaces);
     try {
-        const adopted = await seedShelf(
-            allWorkspaces.map((w) => ({
-                id: w.id,
-                cap: resolveFeatures(w.plan as PlanId, w.featureOverrides ?? undefined)
-                    .maxWorkspaceVoices,
-            })),
-        );
+        const adopted = await seedShelf(allWorkspaces.map((w) => w.id));
         if (adopted) log(`• ${adopted} narration voices adopted and shelved`);
     } catch (e) {
         warn(`voices not seeded: ${e instanceof Error ? e.message : String(e)}`);

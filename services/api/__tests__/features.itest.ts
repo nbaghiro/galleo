@@ -10,9 +10,8 @@ interface FeaturesBody {
         customThemes: boolean;
         removeBranding: boolean;
         maxArtifacts: number;
-        includedCredits: number;
+        audio: boolean;
     };
-    status: Record<string, string>;
 }
 
 describe("features — resolved feature set per plan", () => {
@@ -30,14 +29,12 @@ describe("features — resolved feature set per plan", () => {
     it("projects the pro plan's grants and unlimited artifacts", async () => {
         const { userId } = await seedUser({ plan: "pro" });
         const res = await authed(userId, "/features");
-        const { features, status } = (await res.json()) as FeaturesBody;
+        const { features } = (await res.json()) as FeaturesBody;
         expect(features.publicLinks).toBe(true);
         expect(features.customThemes).toBe(true);
         expect(features.removeBranding).toBe(true);
         expect(features.maxArtifacts).toBe(-1); // unlimited
-        expect(features.includedCredits).toBeGreaterThan(0);
-        // the status map carries each feature's rollout stage
-        expect(status.publicLinks).toBe("live");
+        expect(features.audio).toBe(true);
     });
 
     it("401s without a session", async () => {

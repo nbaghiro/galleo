@@ -15,13 +15,15 @@ export const Meter: Component<{
     value: number;
     max?: number; // default 100 (value is then a raw percentage)
     tone?: FillTone;
-    trackTone?: "line" | "canvas";
+    trackTone?: "line" | "canvas"; // line = faint ink over any surface; canvas = over a panel
     class?: string;
 }> = (props) => {
     const pct = (): number => Math.max(0, Math.min(100, (props.value / (props.max ?? 100)) * 100));
+    // the track is faint ink, not the hairline token: a theme whose lines are its accent (brut)
+    // would otherwise hide the fill inside its own track
     return (
         <div
-            class={`h-1.5 overflow-hidden rounded-full ${props.trackTone === "canvas" ? "bg-canvas" : "bg-line"} ${props.class ?? ""}`}
+            class={`h-1.5 overflow-hidden rounded-full ${props.trackTone === "canvas" ? "bg-canvas" : "bg-ink/10"} ${props.class ?? ""}`}
         >
             <div
                 class={`h-full rounded-full transition-all ${METER_FILL[props.tone ?? "accent"]}`}

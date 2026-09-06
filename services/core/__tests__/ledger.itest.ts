@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { desc, eq } from "drizzle-orm";
-import { monthlyGrantFor, rolloverCapFor } from "@model/billing";
+import { grantFor, rolloverCapFor } from "@model/billing";
 import { seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
-import { chargeCredits, rollCreditWindow, settleCredits } from "@services/core/ledger";
+import { chargeCredits, rollIfLapsed, settleCredits } from "@services/core/ledger";
 
 const wsRow = async (id: string) => {
     const [row] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.id, id));
@@ -48,7 +48,7 @@ describe("chargeCredits", () => {
     // banked credits are spendable regardless of where they came from
     it("does not care whether the balance came from a grant or a purchase", async () => {
         const { workspaceId } = await seedUser({ plan: "free" });
-        const overGrant = monthlyGrantFor(await wsRow(workspaceId)) * 4;
+        const overGrant = grantFor(await wsRow(workspaceId)) * 4;
         await setBalance(workspaceId, overGrant);
         const spend = await chargeCredits(await wsRow(workspaceId), overGrant, "test");
         expect(spend.ok).toBe(true);
@@ -101,33 +101,6 @@ describe("chargeCredits", () => {
         expect(row!.delta).toBe(-24);
     });
 
-    it("a settle handed actuals rewrites the row's usage, and null clears it", async () => {
-        const { workspaceId } = await seedUser({ plan: "pro" });
-        const real = await chargeCredits(
-            await wsRow(workspaceId),
-            15,
-            "generate-image",
-            undefined,
-            {
-                image: 3,
-            },
-        );
-        await settleCredits(await wsRow(workspaceId), real.entryId!, -5, { image: 2 });
-        const cached = await chargeCredits(
-            await wsRow(workspaceId),
-            7,
-            "narrate-artifact",
-            undefined,
-            { speech: 1 },
-        );
-        await settleCredits(await wsRow(workspaceId), cached.entryId!, -7, null);
-        const rows = await ledgerOf(workspaceId);
-        const byReason = new Map(rows.map((r) => [r.reason, r]));
-        expect(byReason.get("generate-image")!.usage).toEqual({ image: 2 });
-        expect(byReason.get("narrate-artifact")!.usage).toBeNull();
-        expect(byReason.get("narrate-artifact")!.delta).toBe(0); // the cached run cost nothing
-    });
-
     it("a settle that bills beyond the reserve deepens the same row", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setBalance(workspaceId, 100);
@@ -141,7 +114,7 @@ describe("chargeCredits", () => {
     });
 });
 
-describe("rollCreditWindow", () => {
+describe("rollIfLapsed", () => {
     it("rolls a lapsed window once under concurrency", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await db
@@ -150,18 +123,34 @@ describe("rollCreditWindow", () => {
             .where(eq(schema.workspaces.id, workspaceId));
         const ws = await wsRow(workspaceId);
 
-        const results = await Promise.all([
-            rollCreditWindow(ws),
-            rollCreditWindow(ws),
-            rollCreditWindow(ws),
-        ]);
+        const results = await Promise.all([rollIfLapsed(ws), rollIfLapsed(ws), rollIfLapsed(ws)]);
         expect(results.filter(Boolean)).toHaveLength(1);
 
         const rows = await ledgerOf(workspaceId);
         expect(rows.filter((r) => r.reason === "monthly-grant")).toHaveLength(1);
+        expect(rows[0]!.key).toMatch(/^roll:/); // the window it closed is the idempotency claim
         const after = await wsRow(workspaceId);
-        expect(after.aiCreditsBalance).toBe(200 + monthlyGrantFor(ws)); // granted once, not thrice
+        expect(after.aiCreditsBalance).toBe(200 + grantFor(ws)); // granted once, not thrice
         expect(after.creditsStartedAt.getTime()).toBeLessThan(after.creditsResetAt.getTime());
+    });
+
+    // one path for every plan: a live subscription rolls here too, whatever its interval
+    it("rolls a subscribed workspace the same way", async () => {
+        const { workspaceId } = await seedUser({ plan: "premium" });
+        await db
+            .update(schema.workspaces)
+            .set({
+                stripeSubscriptionId: "sub_live",
+                planInterval: "month",
+                seats: 4,
+                aiCreditsBalance: 0,
+                creditsResetAt: new Date(Date.now() - 1000),
+            })
+            .where(eq(schema.workspaces.id, workspaceId));
+        const ws = await wsRow(workspaceId);
+        expect(await rollIfLapsed(ws)).not.toBeNull();
+        expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(grantFor(ws)); // 4 seats' worth
+        expect(await rollIfLapsed(await wsRow(workspaceId))).toBeNull(); // and only once
     });
 
     it("does nothing while the window is still open", async () => {
@@ -170,7 +159,7 @@ describe("rollCreditWindow", () => {
             .update(schema.workspaces)
             .set({ creditsResetAt: new Date(Date.now() + 86_400_000) })
             .where(eq(schema.workspaces.id, workspaceId));
-        expect(await rollCreditWindow(await wsRow(workspaceId))).toBeNull();
+        expect(await rollIfLapsed(await wsRow(workspaceId))).toBeNull();
     });
 
     // the point of the whole design: a quiet month funds a busy one
@@ -181,8 +170,8 @@ describe("rollCreditWindow", () => {
             .set({ aiCreditsBalance: 250, creditsResetAt: new Date(Date.now() - 1000) })
             .where(eq(schema.workspaces.id, workspaceId));
         const ws = await wsRow(workspaceId);
-        const grant = monthlyGrantFor(ws);
-        await rollCreditWindow(ws);
+        const grant = grantFor(ws);
+        await rollIfLapsed(ws);
         const [row] = await ledgerOf(workspaceId);
         expect(row!.reason).toBe("monthly-grant");
         expect(row!.delta).toBe(grant); // money in, not a counter being wiped
@@ -201,9 +190,9 @@ describe("the rollover cap at the roll", () => {
     it("clips the grant to the remaining headroom", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         const ws0 = await wsRow(workspaceId);
-        const cap = rolloverCapFor(ws0); // 1400 on pro
+        const cap = rolloverCapFor(ws0); // 2400 on pro
         await lapse(workspaceId, { aiCreditsBalance: cap - 100 });
-        await rollCreditWindow(await wsRow(workspaceId));
+        await rollIfLapsed(await wsRow(workspaceId));
         const [row] = await ledgerOf(workspaceId);
         expect(row!.delta).toBe(100);
         expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(cap);
@@ -214,7 +203,7 @@ describe("the rollover cap at the roll", () => {
         const ws0 = await wsRow(workspaceId);
         await lapse(workspaceId, { aiCreditsBalance: rolloverCapFor(ws0) });
         const before = (await wsRow(workspaceId)).creditsResetAt;
-        await rollCreditWindow(await wsRow(workspaceId));
+        await rollIfLapsed(await wsRow(workspaceId));
         const after = await wsRow(workspaceId);
         expect(after.aiCreditsBalance).toBe(rolloverCapFor(ws0));
         expect(after.creditsResetAt.getTime()).toBeGreaterThan(before.getTime());
@@ -226,18 +215,18 @@ describe("the rollover cap at the roll", () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         const ws0 = await wsRow(workspaceId);
         const cap = rolloverCapFor(ws0);
-        const grant = monthlyGrantFor(ws0);
+        const grant = grantFor(ws0);
         // a banked pack that puts the balance over the cap: the grant still lands in full
         const banked = cap + 400;
         await lapse(workspaceId, { aiCreditsBalance: banked, purchasedCredits: 2000 });
-        await rollCreditWindow(await wsRow(workspaceId));
+        await rollIfLapsed(await wsRow(workspaceId));
         expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(banked + grant);
         expect(banked).toBeGreaterThan(cap);
 
         // heavy spend since the purchase: the shield follows the balance down at the next roll,
         // clamped against the PRE-grant balance so the fresh grant never counts as pack credits
         await lapse(workspaceId, { aiCreditsBalance: 500, purchasedCredits: 2000 });
-        await rollCreditWindow(await wsRow(workspaceId));
+        await rollIfLapsed(await wsRow(workspaceId));
         const after = await wsRow(workspaceId);
         expect(after.aiCreditsBalance).toBe(500 + grant);
         expect(after.purchasedCredits).toBe(500);
@@ -248,10 +237,10 @@ describe("the rollover cap at the roll", () => {
     it("gives a fresh free workspace its whole grant at the first roll", async () => {
         const { workspaceId } = await seedUser();
         const ws0 = await wsRow(workspaceId);
-        const grant = monthlyGrantFor(ws0);
+        const grant = grantFor(ws0);
         expect(ws0.aiCreditsBalance).toBe(grant); // opens on the allowance, nothing on top of it
         await lapse(workspaceId);
-        await rollCreditWindow(await wsRow(workspaceId));
+        await rollIfLapsed(await wsRow(workspaceId));
         const [row] = await ledgerOf(workspaceId);
         expect(row).toMatchObject({ reason: "monthly-grant", delta: grant });
         expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(rolloverCapFor(ws0));
@@ -261,16 +250,16 @@ describe("the rollover cap at the roll", () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         const ws0 = await wsRow(workspaceId);
         const cap = rolloverCapFor(ws0);
-        const grant = monthlyGrantFor(ws0);
+        const grant = grantFor(ws0);
         // the pack is gone; nothing of it is banked, so nothing of it should shield future grants
         await lapse(workspaceId, { aiCreditsBalance: 0, purchasedCredits: 2000 });
-        await rollCreditWindow(await wsRow(workspaceId));
+        await rollIfLapsed(await wsRow(workspaceId));
         expect((await wsRow(workspaceId)).purchasedCredits).toBe(0);
         expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(grant);
         // untouched months converge on the cap, not cap + a ghost of the spent pack
         for (let i = 0; i < 3; i++) {
             await lapse(workspaceId);
-            await rollCreditWindow(await wsRow(workspaceId));
+            await rollIfLapsed(await wsRow(workspaceId));
         }
         expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(cap);
     });

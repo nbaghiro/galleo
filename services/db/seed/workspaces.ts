@@ -1,4 +1,4 @@
-import type { FeatureOverrides, PlanId, ScheduledChange } from "@model/billing";
+import type { FeatureOverrides, PlanId } from "@model/billing";
 import type { Usage } from "@model/credits";
 import type { ToolId } from "@model/tools";
 
@@ -116,7 +116,7 @@ export interface WorkspaceSpec {
     name: string;
     plan: PlanId;
     ownerEmail: string;
-    seats: number; // total, including the plan's own included seats
+    seats: number; // clamped to the plan's bounds
     /**
      * What the workspace had banked before the ledger below starts. Defaults to one month's grant.
      * Set it lower to open mid-cycle: with rollover a workspace that opened on a full grant and then
@@ -125,10 +125,7 @@ export interface WorkspaceSpec {
     openingBalance?: number;
     members: MemberSpec[]; // never includes the owner
     invites?: InviteSpec[];
-    planStatus?: "active" | "past_due" | "canceled";
-    periodEndInDays?: number; // negative = already elapsed (dunning)
-    cancelAtPeriodEnd?: boolean; // a plain cancel; mutually exclusive with scheduledChange
-    scheduledChange?: Omit<ScheduledChange, "at">; // `at` is filled from periodEndInDays
+    periodEndInDays?: number; // when the subscription renews
     featureOverrides?: FeatureOverrides;
     /** Narration written and recorded ahead of anyone playing it. Defaults to on for the demo. */
     prepareAudio?: boolean;
@@ -152,19 +149,18 @@ export const WORKSPACES: WorkspaceSpec[] = [
         name: "Premium Workspace",
         plan: "premium",
         ownerEmail: DEMO_EMAIL, // the one they own: member management is the owner-only surface that works without Stripe
-        // 3 included plus 2 bought: the fixture itself holds four seats (three members and the
-        // pinned invite the roles suite accepts), so the plan's bare 3 leaves it over capacity and
-        // the join is refused for no-seats.
+        // the fixture itself holds four seats (three members and the pinned invite the roles suite
+        // accepts), so the plan's three-seat minimum would leave it over capacity and the join
+        // refused for no-seats
         seats: 5,
-        // Well into a 10,500 cycle (6,300 plus two bought seats). Kept to roughly a fifth of the
-        // grant so the banked figure reads in the same proportion as Pro's and Free's do.
+        // well into a 10,500 cycle; kept to roughly a fifth of the grant so the banked figure reads
+        // in the same proportion as Pro's and Free's do
         openingBalance: 1600,
         members: [
             { email: "demo+admin@galleo.app", role: "admin" },
             { email: "demo+member@galleo.app", role: "member" },
         ],
         invites: [{ email: "demo+invited@galleo.app", role: "member", sentDaysAgo: 2 }],
-        planStatus: "active",
         periodEndInDays: 21,
         windowStartedDaysAgo: 12,
         folders: [
@@ -394,7 +390,6 @@ export const WORKSPACES: WorkspaceSpec[] = [
         // and the artifact cap lifted, which is the difference a Pro subscriber is paying for.
         seats: 1,
         members: [],
-        planStatus: "active",
         periodEndInDays: 27,
         openingBalance: 700, // part-way through a 1,200 cycle, before the spend below
         windowStartedDaysAgo: 9,
@@ -472,7 +467,6 @@ export const WORKSPACES: WorkspaceSpec[] = [
         // wall is reachable from the owner's own settings rather than needing a second account.
         seats: 1,
         members: [],
-        planStatus: "active",
         // the Free cap is 500 MB and only stored bytes count, so narrow it to make the wall reachable
         featureOverrides: { storageMb: 1 },
         windowStartedDaysAgo: 6,

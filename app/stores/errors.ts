@@ -61,13 +61,9 @@ const STATUS: Record<number, { title: string; hint: string }> = {
 };
 
 // One status, several walls: the server names which one in `reason`, and the title and remedy
-// follow from it. A member over their own cap is not out of credits, so no sale is offered there.
+// follow from it.
 const PAYWALL: Record<PaywallReason, { title: string; hint?: string }> = {
     credits: { title: "Out of credits" }, // the hint depends on which remedies apply
-    "member-cap": {
-        title: "Your spending limit is reached",
-        hint: "This workspace caps what each member can spend per cycle. A workspace admin can raise it.",
-    },
     storage: { title: "Storage is full", hint: "Upgrade for more space, or remove some uploads." },
     seats: { title: "Out of seats", hint: "Add seats or remove a member first." },
     feature: { title: "Not on your plan", hint: "Upgrade to unlock it." },

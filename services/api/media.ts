@@ -3,7 +3,7 @@ import type { Context } from "hono";
 import type { MediaItem, MediaKind, MediaProvider, MediaSource } from "@model/media";
 import { z } from "zod";
 import { assetUrl } from "@model/media";
-import { BAD_BODY, creditRefusal, readJson } from "@services/utils/http";
+import { BAD_BODY, OUT_OF_CREDITS, readJson } from "@services/utils/http";
 import { runTool } from "@services/core/ai/execute";
 import type { ToolOutcome } from "@services/core/ai/execute";
 import {
@@ -105,7 +105,7 @@ function refused(
     out: Extract<ToolOutcome<unknown>, { ok: false }>,
 ): Response {
     const ws = c.get("ws");
-    if (out.reason === "credits") return c.json(creditRefusal(ws, out), 402);
+    if (out.reason === "credits") return c.json(OUT_OF_CREDITS(ws, out.remaining), 402);
     if (out.reason === "entitlement")
         return c.json({ error: "That needs a higher plan.", upgrade: true }, 402);
     if (out.reason === "bad-input") return c.json({ error: out.issues.join("; ") }, 400);

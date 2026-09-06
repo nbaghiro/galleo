@@ -221,7 +221,7 @@ The pricing helpers (`estimateCost(id, meter)`, `typicalCost(id)`, `isMetered(id
 the `/pricing` page read straight off this; retune a unit once and the paywall, the showcase, and
 every charge move together.
 
-**The catalog is 61 tool ids** (10 composites · 47 actions · 4 primitives), defined once in
+**The catalog is 56 tool ids** (9 composites · 43 actions · 4 primitives), defined once in
 `model/tools.ts`; `pnpm check:tools` fails if a route reaches around the executor or the catalog
 names a tool it cannot serve. By tier rather than by inventory:
 
@@ -245,31 +245,41 @@ names a tool it cannot serve. By tier rather than by inventory:
 
 **Pricing: metered, not flat.** Cost = Σ of the primitive **units of work** an action produces,
 priced at the provider's list price for the model that runs it and converted at `CREDIT_USD`
-(`@model/credits`, 0.0025 USD per credit). The per-unit credits below are what the default models
-cost today; they move when a model or its price does:
+(`@model/credits`, 0.0025 USD per credit). There is no default price table in the contract: every
+caller prices against `unitPricesFor(overrides)` (`services/core/models.ts`), the server for the hold
+and the settle, the client from the same table over `GET /features`, so a pinned model is what the
+preview and the charge both reflect. On the default models today a unit costs:
 
 ```
-plan 8   ·   section 7   ·   text 3   ·   theme 8   ·   image 28 (per AI-generated variation)   ·   reply 8
+plan 8 · section 7 · text 3 · theme 8 · reply 8 · image 28 · video 568 · speech (1k chars) 40 · music (minute) 60
 ```
 
-`creditsForUsd` floors at 1 so nothing metered is free. `estimateCost(id, meter)` is what the
-executor reserves and the UI previews. The live, priced tools and their typical cost:
+`creditsForUsd` floors at 1 so nothing metered is free. `estimateCost(id, meter, prices)` is what
+the executor holds and the UI previews; `gateCost` is what a free doorway checks before it opens
+(`start-generation` gates on the outline behind it, so an out-of-credits launch is refused before a
+draft exists). The priced tools and their typical cost on the default models:
 
-| tool                                                | usage (base)           | typical           | notes                                                            |
-| --------------------------------------------------- | ---------------------- | ----------------- | ---------------------------------------------------------------- |
-| `generate-artifact`                                 | `{plan:1,section:12}`  | 58 / 95 / 138     | Short / Standard / Long with stock images; AI images add 28 each |
-| `plan-outline`                                      | `{plan:1}`             | 8                 | the outline, priced whether the run goes on or not               |
-| `write-beat` / `write-beats`                        | `{section:1}` per beat | 7 per beat        | sized off the generation by the executor                         |
-| `add-section` / `rewrite-section` / `edit-artifact` | `{section:1}`          | 7                 | one section written                                              |
-| `revise-element`                                    | `{text:2}`             | 6                 | one element reworked                                             |
-| `rewrite-text` / `translate-text`                   | `{text:1}`             | 3                 | one run, latency-sensitive                                       |
-| `generate-theme`                                    | `{theme:1}`            | 8                 | one token system (+ deterministic finalize pass)                 |
-| `generate-image`                                    | `{image:1}`            | 28 (× variations) | AI image; metered per variation                                  |
-| `ask-assistant` (chat)                              | `{reply:1}`            | 8 + sub-tools     | base reply; the tools it runs bill on the same hold (§7)         |
+| tool                                                      | usage (base)              | typical           | notes                                                            |
+| --------------------------------------------------------- | ------------------------- | ----------------- | ---------------------------------------------------------------- |
+| `generate-artifact`                                       | `{plan:1,section:12}`     | 58 / 95 / 138     | Short / Standard / Long with stock images; AI images add 28 each |
+| `plan-outline`                                            | `{plan:1}`                | 8                 | the outline, priced whether the run goes on or not               |
+| `write-beat` / `write-beats`                              | `{section:1}` per beat    | 7 per beat        | sized off the generation by the executor                         |
+| `add-section` / `rewrite-section` / `edit-artifact`       | `{section:1}`             | 7                 | one section written                                              |
+| `suggest-section-layouts`                                 | `{section:3}`             | 22                | two to four arrangements of one section                          |
+| `revise-element`                                          | `{text:2}`                | 6                 | one element reworked                                             |
+| `rewrite-text` / `translate-text` / `refine-prompt`       | `{text:1}`                | 3                 | one run, latency-sensitive                                       |
+| `write-speaker-notes`                                     | `{text:12}`               | 35                | one call over the piece, scaled by its sections                  |
+| `generate-theme`                                          | `{theme:1}`               | 8                 | one token system (+ deterministic finalize pass)                 |
+| `generate-image`                                          | `{image:1}`               | 28 (× variations) | AI image; metered per variation                                  |
+| `generate-video`                                          | `{video:1}`               | 568               | one 8-second clip                                                |
+| `narrate-artifact`                                        | `{speech:9}`              | 360               | per thousand characters spoken; cached sections settle to zero   |
+| `compose-soundtrack`                                      | `{music:2}`               | 120               | per minute of bed; a cached preset settles to zero               |
+| `audition-voice` / `design-voice`                         | `{text:1}` / `{speech:1}` | 3 / 40            | the audio tools require the `audio` entitlement                  |
+| `ask-assistant` (chat) / `suggest-sections` / `read-file` | `{reply:1}`               | 8 + sub-tools     | the estimate is the hold; the tools a turn runs bill on it (§7)  |
 
-Metered but **not yet `live`** (priced in the catalog, no route surfaced): `revise-artifact`
-(12–40), `translate-artifact` (5–40), `suggest-title`, `write-summary` / `write-alt-text`. All
-workspace reads and management tools, and every generation action but the three above, are free.
+Every tool in the catalog has a body: a tool that is not built is not in the catalog. All workspace
+reads and management tools, and every generation action but `plan-outline`, `write-beat` and
+`write-beats`, are free.
 
 ## 6. The tools registry (`services/core/ai/tools.ts` + `tools/`)
 
@@ -292,8 +302,8 @@ blocks (absent = the generic presenter, §8), `note` is the one line the model r
 `ToolContext` is what a body may see and use: `artifact` (and `artifactId` when the server holds
 it), `generation` + `generations` (the loaded run and its store), `image` (the picture strategy),
 `workspace` + `account` (the DB-backed readers), `principal` (who the call is for, so the chat body
-can run its sub-tools through the executor), `signal`, `tier` + `models`, `maxSections`, `pack` +
-`recall` (retrieval), `pending` (the cards still waiting), and `use(tool, input)`, which runs
+can run its sub-tools through the executor), `signal`, `models`, `pack` + `recall` (retrieval),
+`pending` (the cards still waiting), and `use(tool, input)`, which runs
 another tool with the same context and forwards its events through `yield*`. `offeredTo(ctx)` is
 the agent's toolset: `availableTo` over the registered bodies on the `agent` surface.
 
@@ -536,8 +546,8 @@ still be moved to a heavier model in isolation.
 thinkless — except **chat**, which passes its own `thinkingConfig.includeThoughts: true` and streams
 Gemini's summarized thoughts, distilled to step headlines as `chat.thinking` (§8).
 
-Plan tiers (`modelFor(task, tier, overrides)`) resolve identically today: `BASIC_OVERRIDES` is empty because
-no task runs a pro-class model. The seam stays wired for the moment one earns it on paid plans.
+There are no plan tiers: `modelFor(task, overrides)` is the default unless the caller pinned a model, and
+any plan may pin any registered model because the run is priced at that model's rate (§5).
 
 Google leads because one `GOOGLE_API_KEY` also powers image (and, ahead, video) generation; Anthropic
 (Fable 5 / Opus 5 / Opus 4.8 / Sonnet 5 / Haiku 4.5), OpenAI (GPT-5.5 / 5.4 / 5.4 mini / nano), and xAI (Grok 4.3 / 4.20)
@@ -596,15 +606,14 @@ readout narration "Model override"     emitted by plan / generate / build turns 
 
 `parseOverrides` keeps only known task ids and only model ids the registry actually serves, so a stale or
 hand-edited header degrades to the default rather than routing a call to nothing. `GET /features` carries
-the catalogue as `models: { tasks, models, defaults }`, with each task's default already resolved for the
-workspace's tier, so `effectiveModel` is `override ?? default` by construction and cannot drift from
-`modelFor`. Choosing the model that is already the default clears the override instead of storing it, which
+the catalogue as `models: { tasks, models, defaults, unitPrices, mediaPrices }`, with each task's default
+already resolved, so `effectiveModel` is `override ?? default` by construction and cannot drift from
+`modelFor`, and the client prices a pinned model from the same table the server bills with. Choosing the model that is already the default clears the override instead of storing it, which
 keeps the "all default" readout honest and the header free of redundant tasks.
 
-**This costs us, not the user.** A heavier model changes what the provider bills us while the user is
-charged the same flat per-tool price from `@model/credits`. That asymmetry is the reason the picker was
-originally gated behind an env flag; the gate was removed deliberately, so the exposure is now a pricing
-question rather than a technical one.
+**The pick moves the bill, not the margin.** Every unit is priced at the model that serves it, so a run
+pinned to a frontier model reserves and settles more credits than the same run on the default. That is
+why the picker needs no plan gate: the user pays for what they chose.
 
 Each run's per-step choices are recorded in `app/stores/model-usage.ts` and, once the run saves, written to
 the artifact's `ai_meta` column alongside the brief, so provenance outlives the browser that made it.
