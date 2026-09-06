@@ -1,11 +1,11 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
-import type { RenderCommand } from "@engine/node";
+import type { Region, RenderCommand } from "@engine/node";
 import type { MotionTokens } from "@themes";
 import { DEFAULT_MOTION } from "@themes";
 import type { ElementInstance } from "@model/artifact";
 import { colGroup } from "@model/artifact";
-import { buildFrames, buildGroups, staggerMs, transitionFrames } from "@ui/motion";
+import { buildFrames, buildGroups, drawOnPlans, staggerMs, transitionFrames } from "@ui/motion";
 
 const box = { x: 0, y: 0, w: 10, h: 10 };
 const cmd = (id?: string): RenderCommand => ({ kind: "rect", box, fill: { color: "#000" }, id });
@@ -122,5 +122,80 @@ describe("frames", () => {
         const px = (m: MotionTokens): number =>
             Number(String(buildFrames(m)[0]!.transform).replace(/\D+/g, ""));
         expect(px(motion({ build: "rise" }))).toBeGreaterThan(px(motion({ build: "settle" })));
+    });
+});
+
+describe("drawOnPlans", () => {
+    const surface = (id?: string): RenderCommand => ({
+        kind: "surface",
+        box: { x: 20, y: 30, w: 200, h: 100 },
+        paint: () => undefined,
+        id,
+    });
+    const datum = (el: string, i: number, x: number): Region => ({
+        id: `datum:${el}:${i}`,
+        box: { x, y: 40, w: 20, h: 80 },
+    });
+
+    it("claims an element's datums onto its surface node, through id-less commands", () => {
+        const commands = [cmd("section:s1"), cmd("el:s1:0"), surface()];
+        const nodes = nodesFor(commands);
+        const regions: Region[] = [
+            { id: "el:s1:0", box: { x: 20, y: 30, w: 200, h: 100 } },
+            datum("el:s1:0", 0, 30),
+            datum("el:s1:0", 1, 60),
+        ];
+        const plans = drawOnPlans(commands, nodes, regions);
+        expect(plans).toHaveLength(1);
+        expect(plans[0]!.node).toBe(nodes[2]);
+        expect(plans[0]!.box).toEqual({ x: 20, y: 30, w: 200, h: 100 });
+        expect(plans[0]!.datums.map((d) => d.id)).toEqual(["datum:el:s1:0:0", "datum:el:s1:0:1"]);
+    });
+
+    it("keeps region order, which is the surface's paint order", () => {
+        const commands = [cmd("el:s1:0"), surface()];
+        const nodes = nodesFor(commands);
+        const regions: Region[] = [
+            datum("el:s1:0", 2, 90),
+            datum("el:s1:0", 0, 30),
+            datum("el:s1:0", 1, 60),
+        ];
+        const [plan] = drawOnPlans(commands, nodes, regions);
+        expect(plan!.datums.map((d) => d.id)).toEqual([
+            "datum:el:s1:0:2",
+            "datum:el:s1:0:0",
+            "datum:el:s1:0:1",
+        ]);
+    });
+
+    it("a lone datum, or none at all, is no choreography", () => {
+        const commands = [cmd("el:s1:0"), surface()];
+        const nodes = nodesFor(commands);
+        expect(drawOnPlans(commands, nodes, [datum("el:s1:0", 0, 30)])).toEqual([]);
+        expect(drawOnPlans(commands, nodes, [])).toEqual([]);
+    });
+
+    it("a crowd falls back to the block build", () => {
+        const commands = [cmd("el:s1:0"), surface()];
+        const nodes = nodesFor(commands);
+        const many = Array.from({ length: 41 }, (_, i) => datum("el:s1:0", i, i * 4));
+        expect(drawOnPlans(commands, nodes, many)).toEqual([]);
+    });
+
+    it("a rotated or ancestor-clipped surface is left to the block build", () => {
+        const spun: RenderCommand = { ...surface("el:s1:0"), rotate: { deg: 10, cx: 0, cy: 0 } };
+        const clipped: RenderCommand = { ...surface("el:s1:0"), clip: { x: 0, y: 0, w: 5, h: 5 } };
+        const regions = [datum("el:s1:0", 0, 30), datum("el:s1:0", 1, 60)];
+        expect(drawOnPlans([spun], nodesFor([spun]), regions)).toEqual([]);
+        expect(drawOnPlans([clipped], nodesFor([clipped]), regions)).toEqual([]);
+    });
+
+    it("only the element's first surface claims them, and foreign datums stay foreign", () => {
+        const commands = [cmd("el:s1:0"), surface(), surface(), cmd("el:s1:1"), surface()];
+        const nodes = nodesFor(commands);
+        const regions = [datum("el:s1:0", 0, 30), datum("el:s1:0", 1, 60)];
+        const plans = drawOnPlans(commands, nodes, regions);
+        expect(plans).toHaveLength(1);
+        expect(plans[0]!.node).toBe(nodes[1]);
     });
 });

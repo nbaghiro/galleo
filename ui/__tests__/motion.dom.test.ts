@@ -7,7 +7,7 @@ import { DEFAULT_MOTION } from "@themes";
 import type { ElementInstance } from "@model/artifact";
 import { colGroup } from "@model/artifact";
 import { buildGroups, runBuild, runTransition } from "@ui/motion";
-import type { BuildGroup } from "@ui/motion";
+import type { BuildGroup, DrawOnPlan } from "@ui/motion";
 
 // happy-dom implements no Web Animations API, so it is stubbed here the way installCanvas2D stubs
 // the 2D context: the platform seam, never the scheduling under test.
@@ -107,5 +107,74 @@ describe("runBuild", () => {
     it("an empty slide is a no-op", () => {
         runBuild([], motion());
         expect(recorded).toEqual([]);
+    });
+});
+
+describe("runBuild with draw-on plans", () => {
+    const root: ElementInstance = colGroup([{ type: "chart", data: { type: "bar", values: "" } }]);
+    const chartEl = (): { el: HTMLElement; groups: BuildGroup[]; plan: DrawOnPlan } => {
+        const el = div();
+        el.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "svg"));
+        const commands: RenderCommand[] = [
+            cmd("section:s1"),
+            {
+                kind: "surface",
+                box: { x: 20, y: 30, w: 200, h: 100 },
+                paint: () => undefined,
+                id: "el:s1:0",
+            },
+        ];
+        const nodes = [div(), el];
+        const plan: DrawOnPlan = {
+            node: el,
+            box: { x: 20, y: 30, w: 200, h: 100 },
+            datums: [
+                { id: "datum:el:s1:0:0", box: { x: 30, y: 40, w: 20, h: 80 }, radius: 3 },
+                { id: "datum:el:s1:0:1", box: { x: 60, y: 40, w: 20, h: 80 } },
+            ],
+        };
+        return { el, groups: buildGroups(root, commands, nodes), plan };
+    };
+
+    it("punches the surface, mounts one clipped clone per datum, staggers them after the chrome", () => {
+        const { el, groups, plan } = chartEl();
+        runBuild(groups, motion(), [plan]);
+        expect(el.style.clipPath).toMatch(/^url\(/);
+        const wrappers = [...el.children].filter((c) => c.tagName === "DIV");
+        expect(wrappers).toHaveLength(2);
+        for (const w of wrappers) expect(w.querySelector("svg")).not.toBeNull();
+        // the block build animates the node itself; the two overlays follow at half a duration
+        const overlays = recorded.filter((r) => wrappers.includes(r.target));
+        expect(overlays).toHaveLength(2);
+        const base = recorded.find((r) => r.target === el)!.options.delay as number;
+        expect(overlays[0]!.options.delay).toBe(base + motion().duration / 2);
+        expect(overlays[1]!.options.delay as number).toBeGreaterThan(
+            overlays[0]!.options.delay as number,
+        );
+    });
+
+    it("clears the punch and removes every transient once the choreography settles", async () => {
+        const { el, groups, plan } = chartEl();
+        runBuild(groups, motion(), [plan]);
+        await new Promise((r) => setTimeout(r));
+        expect(el.style.clipPath).toBe("");
+        expect([...el.children].filter((c) => c.tagName === "DIV")).toHaveLength(0);
+        expect(el.querySelectorAll("svg")).toHaveLength(1); // the painted art alone
+    });
+
+    it("build:none leaves the surface untouched, holes and all", () => {
+        const { el, groups, plan } = chartEl();
+        runBuild(groups, motion({ build: "none" }), [plan]);
+        expect(el.style.clipPath).toBe("");
+        expect(el.children).toHaveLength(1);
+        expect(recorded).toEqual([]);
+    });
+
+    it("a node without painted art keeps its plain block build", () => {
+        const { groups, plan } = chartEl();
+        const bare = div();
+        runBuild(groups, motion(), [{ ...plan, node: bare }]);
+        expect(bare.style.clipPath).toBe("");
+        expect(bare.children).toHaveLength(0);
     });
 });

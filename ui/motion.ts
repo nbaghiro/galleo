@@ -1,7 +1,7 @@
 import type { ElementInstance } from "@model/artifact";
-import type { RenderCommand } from "@engine/node";
+import type { Rect, Region, RenderCommand } from "@engine/node";
 import type { MotionTokens } from "@themes";
-import { parseTarget } from "@model/artifact";
+import { parseDatumRegion, parseTarget } from "@model/artifact";
 import { getElement } from "@elements/spec";
 import { prefersReducedMotion } from "./viewport";
 
@@ -79,6 +79,51 @@ export function buildGroups<N>(
     return [...groups.values()];
 }
 
+// past this a stagger reads as a stall, and a dense scatter is not a story told point by point
+const DRAWON_MAX = 40;
+
+/**
+ * One surface that draws on: its node, its command box, and its datum regions in paint order
+ * (all in the command's coordinate space). A surface with fewer than two datums, a rotated one
+ * (its regions were rotated into stage space, so the local subtraction no longer holds), or one
+ * whose ancestor clip already owns the clip slot, stays with the block build.
+ */
+export interface DrawOnPlan<N = HTMLElement> {
+    node: N;
+    box: Rect;
+    datums: Region[];
+}
+
+export function drawOnPlans<N>(
+    commands: RenderCommand[],
+    nodes: N[],
+    regions: Region[],
+): DrawOnPlan<N>[] {
+    const byElement = new Map<string, Region[]>();
+    for (const r of regions) {
+        const d = parseDatumRegion(r.id);
+        if (!d) continue;
+        const list = byElement.get(d.element) ?? [];
+        list.push(r);
+        byElement.set(d.element, list);
+    }
+    if (!byElement.size) return [];
+    const out: DrawOnPlan<N>[] = [];
+    const claimed = new Set<string>();
+    let current = "";
+    commands.forEach((c, i) => {
+        const t = c.id ? parseTarget(c.id) : null;
+        if (t) current = t.kind === "element" ? c.id! : "";
+        if (c.kind !== "surface" || !current || claimed.has(current)) return;
+        claimed.add(current);
+        const node = nodes[i];
+        const datums = byElement.get(current) ?? [];
+        if (!node || datums.length < 2 || datums.length > DRAWON_MAX || c.rotate || c.clip) return;
+        out.push({ node, box: c.box, datums });
+    });
+    return out;
+}
+
 export function staggerMs(m: MotionTokens, count: number): number {
     return Math.min(m.duration * 0.4, BUILD_TAIL_MS / Math.max(1, count - 1));
 }
@@ -116,6 +161,75 @@ export function transitionFrames(
 const run = (el: HTMLElement, frames: Keyframe[], options: KeyframeAnimationOptions): Animation =>
     el.animate(frames, { fill: "both", ...options });
 
+const SVG_NS = "http://www.w3.org/2000/svg";
+const DRAWON_TAIL_MS = 700;
+let drawOnSeq = 0;
+
+// a datum's outline as one path, in the surface's own coordinates (also a punch hole subpath)
+function regionPath(r: Region, dx: number, dy: number): string {
+    if (r.shape) return `M${r.shape.points.map(([px, py]) => `${px - dx} ${py - dy}`).join("L")}Z`;
+    const { w, h } = r.box;
+    const x = r.box.x - dx;
+    const y = r.box.y - dy;
+    const c = Math.max(0, Math.min(r.radius ?? 0, w / 2, h / 2));
+    if (!c) return `M${x} ${y}H${x + w}V${y + h}H${x}Z`;
+    const a = (ex: number, ey: number): string => `A${c} ${c} 0 0 1 ${ex} ${ey}`;
+    return (
+        `M${x + c} ${y}H${x + w - c}${a(x + w, y + c)}V${y + h - c}${a(x + w - c, y + h)}` +
+        `H${x + c}${a(x, y + h - c)}V${y + c}${a(x + c, y)}Z`
+    );
+}
+
+const clipDef = (id: string, d: string, evenodd = false): SVGElement => {
+    const clip = document.createElementNS(SVG_NS, "clipPath");
+    clip.setAttribute("id", id);
+    const path = document.createElementNS(SVG_NS, "path");
+    path.setAttribute("d", d);
+    if (evenodd) path.setAttribute("clip-rule", "evenodd");
+    clip.appendChild(path);
+    return clip;
+};
+
+// The chrome arrives with the node's own block build while a static evenodd clip veils the
+// datums; each datum then lands as a clone clipped to its own shape, animated with the same
+// frames the build uses. Opacity and transform are the only animated properties; the punch is
+// set once and always cleared, cancelled choreography included, so the pristine paint survives.
+function runDrawOn(plan: DrawOnPlan, m: MotionTokens, delay: number): void {
+    const el = plan.node;
+    const art = el.querySelector("svg");
+    if (!art) return;
+    const uid = ++drawOnSeq;
+    const { x, y, w, h } = plan.box;
+    const defs = document.createElementNS(SVG_NS, "svg");
+    defs.setAttribute("width", "0");
+    defs.setAttribute("height", "0");
+    defs.style.position = "absolute";
+    const holes = plan.datums.map((d) => regionPath(d, x, y)).join("");
+    defs.appendChild(clipDef(`don-p-${uid}`, `M0 0H${w}V${h}H0Z${holes}`, true));
+    const frames = buildFrames(m);
+    const step = Math.min(m.duration * 0.35, DRAWON_TAIL_MS / Math.max(1, plan.datums.length - 1));
+    const transient: Element[] = [defs];
+    const anims = plan.datums.map((d, j) => {
+        defs.appendChild(clipDef(`don-${uid}-${j}`, regionPath(d, x, y)));
+        const wrap = document.createElement("div");
+        wrap.style.cssText = `position:absolute;inset:0;clip-path:url(#don-${uid}-${j})`;
+        wrap.appendChild(art.cloneNode(true));
+        el.appendChild(wrap);
+        transient.push(wrap);
+        return run(wrap, frames, {
+            duration: m.duration,
+            easing: m.easing,
+            delay: delay + m.duration / 2 + j * step,
+        });
+    });
+    el.appendChild(defs);
+    el.style.clipPath = `url(#don-p-${uid})`;
+    void Promise.allSettled(anims.map((a) => a.finished)).then(() => {
+        el.style.clipPath = "";
+        for (const t of transient) t.remove();
+    });
+}
+
 /** Resolves once the incoming slide has arrived, so the caller can drop the outgoing one. */
 export function runTransition(
     outgoing: HTMLElement | null,
@@ -133,12 +247,13 @@ export function runTransition(
     );
 }
 
-export function runBuild(groups: BuildGroup[], m: MotionTokens): void {
+export function runBuild(groups: BuildGroup[], m: MotionTokens, plans: DrawOnPlan[] = []): void {
     const frames = buildFrames(m);
     if (prefersReducedMotion() || !frames.length || !groups.length) return;
     const step = staggerMs(m, groups.length);
     groups.forEach((group, i) => {
         for (const node of group.nodes)
             run(node, frames, { duration: m.duration, easing: m.easing, delay: i * step });
+        for (const plan of plans) if (group.nodes.includes(plan.node)) runDrawOn(plan, m, i * step);
     });
 }

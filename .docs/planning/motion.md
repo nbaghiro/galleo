@@ -304,8 +304,10 @@ silently, so phase D is a phase that needs its own tests before its own feature.
 
 - [ ] Authored per-element motion (option D). Revisit once phases A through C are shipped and we can
       see what people ask for that the derived default cannot express.
-- [ ] Chart and diagram draw-on. Blocked on item 16 of `engine-gaps.md`: a chart is one opaque
-      surface command with no per-datum identity, so this is not a scheduling problem.
+- [x] Chart and diagram draw-on. Built 2026-09-06 ([`draw-on.md`](draw-on.md)) once item 16
+      unblocked it: the motion layer punches a static evenodd veil over the datums and reveals
+      each as a clipped clone with the theme's own build frames, so no renderer changed and the
+      invariant holds.
 - [ ] Live reflow during a drag. Wants incremental layout (item 15) and is an editor concern rather
       than a playback one.
 
