@@ -278,10 +278,14 @@ group-then-flip-direction, two non-obvious steps, though `wrapWith` already take
 vertical edges, resolving to `op: "wrap"` at the member's own path (`place` already handled any
 path). Root children skip them (their edges are column boundaries); unit interiors never get them
 (the walk stops at seals). Pinned in `dnd.test.ts`, including the move payload path.
+Superseded same day by the classifier round ([`drop-classifier.md`](drop-classifier.md)):
+`edgeStrips` generalizes the rule to every movable member's cross-axis edges, grid cells included.
 
 **U6 ✔ Column boundary bands outrank every nested gap within 24px** (`dnd.ts:315,620`) — honest
 indicator, grabby feel. Direction: shrink `EDGE` when a deeper slot's hitbox overlaps. Size: S.
-**Fixed 2026-09-06**, differently than the direction suggested: `activeSlot` resolves by distance
+**Fixed 2026-09-06**, differently than the direction suggested (and folded same day into
+`classifyDrop`, the per-move geometric classifier of [`drop-classifier.md`](drop-classifier.md),
+which keeps this arbitration verbatim): `activeSlot` resolves by distance
 across classes (bands win only when their line is nearest, class breaks ties within 4px) while
 element gaps keep depth-first resolution among themselves — their hitboxes are tiled claims, so
 pure distance would hand a deep tile to a nearer root line (the hysteresis pin catches exactly
@@ -396,8 +400,10 @@ Load-bearing designs every fix above must survive, merged from all four sweeps:
    storing lines on nodes; the font-reload flush and editor/export fidelity both hang on it.
 2. **Section-identity caches over immutable ops** — one keystroke re-lays-out one section;
    anything that clones untouched sections on write breaks paint, autosave, and undo at once.
-3. **The frozen-document drag** — slots enumerated once from captured regions, no reflow
-   mid-gesture, one mutation at drop with path re-aiming.
+3. **The frozen-document drag** — slots enumerated once from captured regions, one mutation at
+   drop with path re-aiming. Since 2026-09-06 the PICTURE parts mid-gesture (live-reflow: a
+   preview solve per slot change, FLIP at the paint layer, aim compensated back to frozen
+   coordinates), but the aiming authority stays exactly this invariant.
 4. **The `movable`/`unitItem`/`movableAncestor` seal and the tier/closed contract triangle** — one
    predicate gates drag, delete, duplicate, cut, paste anchoring, and the grip's aim.
 5. **The region-id join** — every overlay positions purely from engine Regions keyed by path ids;

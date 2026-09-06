@@ -2,12 +2,12 @@ import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import type { Rect, Region } from "@engine/node";
 import { elementRegionId, sectionRegionId } from "@model/artifact";
-import { drag, dragSlots, sameTarget, type DropSlot } from "@editor/core/dnd";
+import { drag, part, type SlotIndicator } from "@editor/core/dnd";
 import { editorAccent, editorTokens, regions } from "@editor/core/store";
 
-// Overlay-only drop feedback: the canvas never repaints during a drag, so every mark here is an
-// absolutely positioned div over slot geometry. Section-gap markers show from drag start; a
-// section's own element and column slots fade in once one of them holds the active claim.
+// Overlay drop feedback: the single active claim's mark, classified with the target. The
+// candidate lattice is gone on every path (decided 2026-09-06 with the classifier round: the
+// active line tracks the pointer continuously, which is the aiming channel all paths share).
 
 const boxStyle = (b: Rect): Record<string, string> => ({
     left: `${b.x}px`,
@@ -17,8 +17,7 @@ const boxStyle = (b: Rect): Record<string, string> => ({
 });
 
 // a line indicator thickened to w px, centred on its geometric position
-const lineStyle = (s: DropSlot, w: number): Record<string, string> => {
-    const ind = s.indicator;
+const lineStyle = (ind: SlotIndicator, w: number): Record<string, string> => {
     if (ind.kind !== "line") return {};
     return ind.axis === "v"
         ? boxStyle({ x: ind.x - w / 2, y: ind.y, w, h: ind.length })
@@ -26,55 +25,19 @@ const lineStyle = (s: DropSlot, w: number): Record<string, string> => {
 };
 
 export const DropIndicators: Component = () => {
-    const active = createMemo((): DropSlot | null => {
-        const t = drag()?.target;
-        return t ? (dragSlots().find((s) => sameTarget(s.target, t)) ?? null) : null;
-    });
-    const candidates = createMemo((): DropSlot[] => {
-        if (!drag()) return [];
-        const a = active();
-        const sid = a?.target.section || null;
-        return dragSlots().filter(
-            (s) =>
-                !(a && sameTarget(s.target, a.target)) &&
-                (s.target.op === "newSection" || (sid !== null && s.target.section === sid)),
-        );
-    });
     const activeLine = createMemo(() => {
-        const a = active();
-        return a?.indicator.kind === "line" ? a : null;
+        const ind = drag()?.indicator;
+        return ind?.kind === "line" ? ind : null;
     });
     const activeRegion = createMemo(() => {
-        const a = active();
-        return a?.indicator.kind === "region" ? a : null;
+        const ind = drag()?.indicator;
+        return ind?.kind === "region" ? ind : null;
     });
     const cap = (style: Record<string, string>) => (
         <div class="absolute rounded-full" style={{ ...style, background: "inherit" }} />
     );
     return (
         <Show when={drag()}>
-            <For each={candidates()}>
-                {(s) => (
-                    <Show
-                        when={s.indicator.kind === "line"}
-                        fallback={
-                            <div
-                                class="pointer-events-none absolute rounded-lg border-[1.5px] border-dashed opacity-40"
-                                style={{
-                                    ...boxStyle((s.indicator as { box: Rect }).box),
-                                    "border-color": editorTokens().line,
-                                }}
-                            />
-                        }
-                    >
-                        <div
-                            data-testid="drop-candidate"
-                            class="pointer-events-none absolute rounded-full opacity-40"
-                            style={{ ...lineStyle(s, 1.5), background: editorTokens().line }}
-                        />
-                    </Show>
-                )}
-            </For>
             {/* one persistent div, so moving between slots slides instead of blinking */}
             <Show when={activeLine()}>
                 {(s) => (
@@ -84,7 +47,7 @@ export const DropIndicators: Component = () => {
                         style={{ ...lineStyle(s(), 3), background: editorAccent() }}
                     >
                         <Show
-                            when={(s().indicator as { axis: "v" | "h" }).axis === "v"}
+                            when={s().axis === "v"}
                             fallback={
                                 <>
                                     {cap({
@@ -114,7 +77,7 @@ export const DropIndicators: Component = () => {
                         data-testid="drop-active-region"
                         class="pointer-events-none absolute z-raised rounded-lg border-2 transition-all duration-100 motion-reduce:transition-none"
                         style={{
-                            ...boxStyle((s().indicator as { box: Rect }).box),
+                            ...boxStyle((s() as { box: Rect }).box),
                             "border-color": editorAccent(),
                             background: `color-mix(in srgb, ${editorAccent()} 8%, transparent)`,
                         }}
@@ -125,11 +88,31 @@ export const DropIndicators: Component = () => {
     );
 };
 
+// The parting preview paints the dropped content for real; this veil over it is what reads as
+// "ghost": the true post-drop picture, dimmed until release makes it opaque.
+export const GhostVeil: Component = () => (
+    <Show when={part()?.ghost} keyed>
+        {(r) => (
+            <div
+                data-testid="ghost-veil"
+                class="pointer-events-none absolute opacity-45"
+                style={{
+                    ...boxStyle(r.box),
+                    "border-radius": `${r.radius ?? 0}px`,
+                    background: editorTokens().surface,
+                }}
+            />
+        )}
+    </Show>
+);
+
 // A move drag — element or section — leaves the source painted in place; this dims it until the
 // drop relocates it.
 export const LiftVeil: Component = () => {
     // a block drag lifts every member, so the veil is a list rather than one box
     const src = createMemo((): Region[] => {
+        // while a parting preview shows, the source hole is already closed in the paint itself
+        if (part()) return [];
         const p = drag()?.payload;
         if (!p || p.kind === "new") return [];
         const ids =

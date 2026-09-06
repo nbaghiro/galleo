@@ -40,14 +40,14 @@ import {
     zoom,
 } from "@editor/core/store";
 import {
-    computeDropSlots,
+    classifyDrop,
     drag,
     indicatorDistance,
     movableAncestor,
     moveManyPayload,
     startDrag,
     unitItem,
-    type DropSlot,
+    type DropHit,
 } from "@editor/core/dnd";
 import {
     anchorPoint,
@@ -98,7 +98,7 @@ interface PinDrag {
     parent: Rect;
     nearest: { x: Pin["x"]; y: Pin["y"] };
     snapped: boolean; // an axis sits flush on the nearest anchor, worth a feedback dot
-    slot: DropSlot | null; // a flow gap close enough to take the element back
+    slot: DropHit | null; // a flow gap close enough to take the element back
 }
 const [pinDrag, setPinDrag] = createSignal<PinDrag | null>(null);
 
@@ -119,13 +119,7 @@ function beginPinMove(address: ElementAddress, sx: number, sy: number): void {
     const k = pinGestureScale(address.section) * z;
     const start = { dx: pin.dx ?? 0, dy: pin.dy ?? 0 };
     const last = { x: sx, y: sy };
-    // the flow gaps this element could return to, enumerated once: the preview never reflows the
-    // stack, so they hold for the whole gesture. Lines only: a region target would cover ground
-    // the free move has to cross.
-    const gaps = computeDropSlots(editor.artifact, regions(), {
-        kind: "move",
-        from: address,
-    }).filter((g) => g.indicator.kind === "line");
+
     const at = (ev: PointerEvent): Rect => ({
         ...el0,
         x: el0.x + (ev.clientX - sx) / z,
@@ -147,16 +141,24 @@ function beginPinMove(address: ElementAddress, sx: number, sy: number): void {
         });
         const placed = nearestPinPlacement(parent, at(ev));
         const sp = stagePoint(ev.clientX, ev.clientY);
-        let slot: DropSlot | null = null;
+        // a line claim close enough offers the way back into the flow; a region target would
+        // cover ground the free move has to cross
+        let slot: DropHit | null = null;
         if (sp) {
-            let least = REFLOW_REACH;
-            for (const g of gaps) {
-                const d = indicatorDistance(g.indicator, sp[0], sp[1]);
-                if (d < least) {
-                    least = d;
-                    slot = g;
-                }
-            }
+            const hit = classifyDrop(
+                editor.artifact,
+                regions(),
+                { kind: "move", from: address },
+                sp[0],
+                sp[1],
+                pinDrag()?.slot?.target ?? null,
+            );
+            if (
+                hit &&
+                hit.indicator.kind === "line" &&
+                indicatorDistance(hit.indicator, sp[0], sp[1]) < REFLOW_REACH
+            )
+                slot = hit;
         }
         setPinDrag({
             parent,

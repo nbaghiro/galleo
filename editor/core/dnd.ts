@@ -1,6 +1,8 @@
 import type { Rect, Region } from "@engine/node";
 import type { ElementAddress, ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import type { FlipShift } from "@canvas/render/backends";
 import { createSignal } from "solid-js";
+import { isCoarsePointer, prefersReducedMotion } from "@ui/viewport";
 import {
     addColumn,
     collapseSection,
@@ -51,11 +53,12 @@ export type SlotIndicator =
     | { kind: "line"; axis: "v" | "h"; x: number; y: number; length: number }
     | { kind: "region"; box: Rect };
 
-export interface DropSlot {
+interface DropSlot {
     target: DropTarget;
     priority: 0 | 1 | 2; // element-level < column < newSection — the old resolution order
     indicator: SlotIndicator;
     hitbox: Rect;
+    depth?: number; // arbitration depth where the target's path understates the claim (escalation)
 }
 
 export interface DragState {
@@ -66,20 +69,19 @@ export interface DragState {
     sy: number;
     label: string;
     target: DropTarget | null;
+    indicator: SlotIndicator | null; // the active claim's mark, classified with the target
 }
 
 export const [drag, setDrag] = createSignal<DragState | null>(null);
-export const [dragSlots, setDragSlots] = createSignal<DropSlot[]>([]);
 
 export function startDrag(payload: DragPayload, x: number, y: number, label: string): void {
     // the flyout sits over the right of the canvas, which is where a drop target often is
     setRightTab(null);
-    setDrag({ payload, x, y, sx: x, sy: y, label, target: null });
+    setDrag({ payload, x, y, sx: x, sy: y, label, target: null, indicator: null });
 }
 
 export function endDrag(): void {
     setDrag(null);
-    setDragSlots([]);
 }
 
 const inside = (b: Rect, px: number, py: number): boolean =>
@@ -87,6 +89,12 @@ const inside = (b: Rect, px: number, py: number): boolean =>
 
 const EDGE = 24; // column-boundary band, each side
 const SECTION_EDGE = 44; // reach of the above-first / below-last new-section bands
+// a member's cross-axis wrap strips scale with its extent, so four claims on a chip cannot
+// swallow its parent's gaps; QA-tunable starting values (drop-classifier round)
+const WRAP_FRAC = 0.15;
+const wrapBand = (extent: number): number => Math.min(24, Math.max(8, extent * WRAP_FRAC));
+const ESC_FRAC = 0.08;
+const escBand = (extent: number): number => Math.min(12, Math.max(6, extent * ESC_FRAC));
 const LINE_INSET = 4; // indicator lines tuck inside their container's box
 const HYST = 6; // the active slot wins ties within this margin, so boundaries don't flap
 
@@ -217,8 +225,10 @@ const flowOnly = (
 // the root row's flow children, else the whole root as one column; a grid root's cells are
 // tracks, not section columns, so it counts as one
 function sectionColumns(regions: Region[], sid: string, root?: ElementInstance): Rect[] {
+    // only a real row root has columns; a col root's stacked children sorted by x would mint a
+    // phantom boundary at the section's centre (addColumn agrees: a non-row root is one column)
     const cols =
-        gridColumns(root) === null
+        groupAxis(root) === "row" && gridColumns(root) === null
             ? flowOnly(childBoxes(regions, sid, [], "row"), instKids(root))
             : [];
     if (cols.length) return cols.map((c) => c.box);
@@ -453,22 +463,53 @@ function wrapSlots(sid: string, box: Rect, reach: Rect = box): DropSlot[] {
     ];
 }
 
-// the narrow vertical strips on a col member's edges: resolving one wraps it into a row
-function besideSlots(sid: string, path: number[], b: Rect): DropSlot[] {
-    const h = Math.max(0, b.h - LINE_INSET * 2);
+// A member's cross-axis edges claim a wrap (col member → row beside it, row member or grid cell
+// → col stacked on it); its along-axis edges are where the parent's gap tiles already meet, so
+// they stay insert territory. This one rule is what makes every layout the tree can express
+// reachable by drag.
+function edgeStrips(sid: string, path: number[], parentAxis: "row" | "col", b: Rect): DropSlot[] {
+    if (parentAxis === "col") {
+        const band = wrapBand(b.w);
+        const h = Math.max(0, b.h - LINE_INSET * 2);
+        return [true, false].map((before) => ({
+            target: { section: sid, op: "wrap", path, index: 0, before, direction: "row" },
+            priority: 0 as const,
+            indicator: vLine(before ? b.x + 2 : b.x + b.w - 2, b.y + LINE_INSET, h),
+            hitbox: { x: before ? b.x : b.x + b.w - band, y: b.y, w: band, h: b.h },
+        }));
+    }
+    const band = wrapBand(b.h);
+    const w = Math.max(0, b.w - LINE_INSET * 2);
     return [true, false].map((before) => ({
-        target: { section: sid, op: "wrap", path, index: 0, before, direction: "row" },
-        priority: 0,
-        indicator: vLine(before ? b.x + 2 : b.x + b.w - 2, b.y + LINE_INSET, h),
-        hitbox: { x: (before ? b.x : b.x + b.w) - EDGE, y: b.y, w: EDGE * 2, h: b.h },
+        target: { section: sid, op: "wrap", path, index: 0, before, direction: "col" },
+        priority: 0 as const,
+        indicator: hLine(b.x + LINE_INSET, before ? b.y + 2 : b.y + b.h - 2, w),
+        hitbox: { x: b.x, y: before ? b.y : b.y + b.h - band, w: b.w, h: band },
     }));
 }
 
-// walk the tree of every section, emitting element-level slots from the frozen regions
-function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayload): DropSlot[] {
+// a claim's geometry never reaches farther than a strip's overhang plus the hysteresis margin
+const REACH_GATE = EDGE + HYST;
+
+const sectionCard = (regions: Region[], sid: string): Rect | null =>
+    (regions.find((r) => r.id === `section:${sid}`) ?? regions.find((r) => r.id === `el:${sid}`))
+        ?.box ?? null;
+
+// Walk the tree of every section, emitting element-level slots from the frozen regions. With `at`,
+// only branches whose boxes can reach the point are visited and only claims that could contain it
+// are emitted, so classification stays O(branch); the geometry emitted is identical either way.
+function elementSlots(
+    art: ArtifactContent,
+    regions: Region[],
+    payload: DragPayload,
+    at: { px: number; py: number },
+): DropSlot[] {
     const out: DropSlot[] = [];
+    const reaches = (b: Rect): boolean => inside(expand(b, REACH_GATE), at.px, at.py);
     for (const s of art.sections) {
         const sid = s.id;
+        const card = sectionCard(regions, sid);
+        if (!card || !reaches(card)) continue;
         const srcPath =
             payload.kind === "move" && payload.from.section === sid ? payload.from.path : null;
         const inSrcSubtree = (p: number[]): boolean =>
@@ -485,36 +526,31 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
             const box = regionBox(regions, sid, path);
             if (!box) return;
             // the padding ring between the painted card and the content box is droppable too
-            const reach =
-                path.length === 0
-                    ? (regions.find((r) => r.id === `section:${sid}`)?.box ?? box)
-                    : box;
+            const reach = path.length === 0 ? (card ?? box) : box;
+            const near = reaches(box) || reaches(reach);
 
             if (!open) {
-                if (path.length === 0) out.push(...wrapSlots(sid, box, reach));
+                if (near && path.length === 0) out.push(...wrapSlots(sid, box, reach));
                 return; // leaves are covered by their parent's gap slots; closed stay sealed
             }
 
             const kids = spec!.container!.children(inst.data);
             if (kids.length === 0) {
                 // an empty region fills in place; the root's reach extends to the bare padding
-                const hitbox =
-                    path.length === 0
-                        ? (regions.find((r) => r.id === `section:${sid}`)?.box ?? box)
-                        : box;
-                out.push({
-                    target: {
-                        section: sid,
-                        op: "replace",
-                        path,
-                        index: 0,
-                        before: false,
-                        direction: "col",
-                    },
-                    priority: 0,
-                    indicator: { kind: "region", box },
-                    hitbox,
-                });
+                if (near)
+                    out.push({
+                        target: {
+                            section: sid,
+                            op: "replace",
+                            path,
+                            index: 0,
+                            before: false,
+                            direction: "col",
+                        },
+                        priority: 0,
+                        indicator: { kind: "region", box },
+                        hitbox: path.length === 0 ? reach : box,
+                    });
                 return;
             }
 
@@ -524,20 +560,21 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
             const flow = flowOnly(boxes, kids);
             if (!flow.length) {
                 // every child pinned: the reserved band is one droppable region, appending in flow
-                out.push({
-                    target: {
-                        section: sid,
-                        op: "insert",
-                        path,
-                        index: kids.length,
-                        before: false,
-                        direction: "col",
-                    },
-                    priority: 0,
-                    indicator: { kind: "region", box },
-                    hitbox: box,
-                });
-            } else {
+                if (near)
+                    out.push({
+                        target: {
+                            section: sid,
+                            op: "insert",
+                            path,
+                            index: kids.length,
+                            before: false,
+                            direction: "col",
+                        },
+                        priority: 0,
+                        indicator: { kind: "region", box },
+                        hitbox: box,
+                    });
+            } else if (near) {
                 const srcIndex =
                     srcPath !== null && srcPath.length === path.length + 1
                         ? srcPath[path.length]!
@@ -553,17 +590,46 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
                         if (noop(k)) continue;
                         out.push(gapSlot(sid, path, axis, k, flow, box, kids.length, reach));
                     }
-                    // a nested col member also takes a drop beside it, wrapping member and payload
-                    // into a row; at the root its children's edges are column boundaries already
-                    if (axis === "col" && path.length > 0)
-                        for (const kb of flow) {
-                            const childPath = [...path, kb.index];
-                            if (inSrcSubtree(childPath)) continue;
-                            out.push(...besideSlots(sid, childPath, kb.box));
-                        }
+                }
+                const stripAxis = cols !== null ? "row" : axis;
+                for (const kb of flow) {
+                    const childPath = [...path, kb.index];
+                    if (inSrcSubtree(childPath)) continue;
+                    out.push(...edgeStrips(sid, childPath, stripAxis, kb.box));
+                    // An open child's interior sliver at its leading/trailing edge escapes to
+                    // this container's own gap, or a flush group's beside would be unreachable.
+                    // Only across perpendicular axes: a child whose own gap lines run in the
+                    // sliver's direction keeps them (the pinned distance rule), and half a step
+                    // of depth keeps a grandchild's wrap strip ahead of the escape.
+                    const kid = kids[kb.index];
+                    if (
+                        cols === null &&
+                        isContainer(kid) &&
+                        gridColumns(kid) === null &&
+                        groupAxis(kid) !== axis
+                    ) {
+                        const e = escBand(axis === "row" ? kb.box.w : kb.box.h);
+                        const [lo, hi] =
+                            axis === "row"
+                                ? [kb.box.x, kb.box.x + kb.box.w]
+                                : [kb.box.y, kb.box.y + kb.box.h];
+                        const v = axis === "row" ? at.px : at.py;
+                        const pos = flow.indexOf(kb);
+                        const k = v < lo + e ? pos : v > hi - e ? pos + 1 : -1;
+                        if (k >= 0 && !noop(k))
+                            out.push({
+                                ...gapSlot(sid, path, axis, k, flow, box, kids.length, reach),
+                                depth: childPath.length + 0.5,
+                            });
+                    }
                 }
             }
-            for (const kb of boxes) visit([...path, kb.index]);
+            for (const kb of boxes) {
+                const childPath = [...path, kb.index];
+                // gate on the child's own painted box (content-aware: a popup's panel floats
+                // outside its trigger), not the iteration box
+                if (reaches(regionBox(regions, sid, childPath) ?? kb.box)) visit(childPath);
+            }
         };
         visit([]);
     }
@@ -623,21 +689,44 @@ function parentGapSlots(
     return out;
 }
 
-// enumerate every droppable place once, at drag start
-export function computeDropSlots(
+export interface DropHit {
+    target: DropTarget;
+    indicator: SlotIndicator;
+}
+
+// One geometric classification per pointer move: what a drop at this point means. No slot list
+// survives a frame, so there is nothing to cache and nothing to go stale under a scroll or a
+// collaborative write; regions republish and the next move classifies against them.
+export function classifyDrop(
     art: ArtifactContent,
     regions: Region[],
     payload: DragPayload,
-): DropSlot[] {
+    px: number,
+    py: number,
+    current: DropTarget | null,
+    opts?: { ascend?: number },
+): DropHit | null {
+    void opts; // reserved: freeform-move's ancestor modifier
+    const at = { px, py };
+    let claims: DropSlot[];
     if (payload.kind === "moveMany")
-        return parentGapSlots(art, regions, payload.parent, payload.indices);
-    if (payload.kind === "move" && unitItem(art, payload.from)) {
-        const parent = { section: payload.from.section, path: payload.from.path.slice(0, -1) };
-        return parentGapSlots(art, regions, parent, [payload.from.path.at(-1)!]);
-    }
-    const gaps = sectionGapSlots(art, regions, payload);
-    if (payload.kind === "section") return gaps; // a section only lands in the stack gaps
-    return [...gaps, ...columnSlots(art, regions, payload), ...elementSlots(art, regions, payload)];
+        claims = parentGapSlots(art, regions, payload.parent, payload.indices);
+    else if (payload.kind === "move" && unitItem(art, payload.from))
+        claims = parentGapSlots(
+            art,
+            regions,
+            { section: payload.from.section, path: payload.from.path.slice(0, -1) },
+            [payload.from.path.at(-1)!],
+        );
+    else if (payload.kind === "section") claims = sectionGapSlots(art, regions, payload);
+    else
+        claims = [
+            ...sectionGapSlots(art, regions, payload),
+            ...columnSlots(art, regions, payload),
+            ...elementSlots(art, regions, payload, at),
+        ];
+    const hit = arbitrate(claims, px, py, current);
+    return hit ? { target: hit.target, indicator: hit.indicator } : null;
 }
 
 export const sameTarget = (a: DropTarget, b: DropTarget): boolean =>
@@ -674,7 +763,7 @@ const expand = (b: Rect, m: number): Rect => ({
 // current target holds while the pointer stays within HYST of its hitbox, so neither tile
 // boundaries nor the outer edge flap under a wobbling pointer.
 const TIE = 4;
-export function activeSlot(
+function arbitrate(
     slots: DropSlot[],
     px: number,
     py: number,
@@ -703,7 +792,7 @@ export function activeSlot(
     for (const s of cands) {
         const d = score(s);
         if (s.priority === 0) {
-            const depth = s.target.path.length;
+            const depth = s.depth ?? s.target.path.length;
             if (depth > elDepth || (depth === elDepth && d < elD)) {
                 el = s;
                 elD = d;
@@ -867,4 +956,43 @@ export function applyDrop(
     payload: DragPayload,
 ): { content: ArtifactContent; address: ElementAddress | null } {
     return resolveDrop(art, target, payload);
+}
+
+// The parting preview: the drop's own pure path run early, so the parted picture IS the post-drop
+// tree. Never stored, never undone; no active slot = base tree, so cancel is free. Section drags
+// and new-section targets keep the frozen model (their bands are already legible, and a whole
+// stack shifting per slot change is the noise this feature exists to avoid).
+export function previewFor(
+    art: ArtifactContent,
+    target: DropTarget,
+    payload: DragPayload,
+): { sections: Section[]; at: ElementAddress | null } | null {
+    if (payload.kind === "section" || target.op === "newSection") return null;
+    const res = resolveDrop(art, target, payload);
+    return res.content === art ? null : { sections: res.content.sections, at: res.address };
+}
+
+// the parting feel; tuned in manual QA rather than argued in review
+export const PART_FEEL = { ms: 140, easing: "ease-out" };
+
+// parting runs only where it earns its cost: fine pointers, full motion
+export const partingHere = (): boolean => !prefersReducedMotion() && !isCoarsePointer();
+
+// what the current parting is showing, published by the canvas each preview paint: the ghost's
+// painted region (the veil draws there) and the stage-space shifts (aiming reads them)
+export const [part, setPart] = createSignal<{ ghost: Region | null; shifts: FlipShift[] } | null>(
+    null,
+);
+
+// Aim through the parting: the pointer reads the parted picture, the slots live in frozen
+// coordinates, and the shift under the pointer is exactly the offset between the two — per axis,
+// since a col parting displaces y where a nested row parting displaces x. Topmost painted wins.
+export function compensatePoint(px: number, py: number, shifts: FlipShift[]): [number, number] {
+    for (let i = shifts.length - 1; i >= 0; i--) {
+        const s = shifts[i]!;
+        const b = s.box;
+        if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h)
+            return [px + s.dx, py + s.dy];
+    }
+    return [px, py];
 }

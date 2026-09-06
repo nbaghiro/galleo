@@ -1,16 +1,17 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
-import type { Region } from "@engine/node";
+import type { Rect, Region } from "@engine/node";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
 import { colGroup, rowGroup } from "@model/artifact";
 import { getElementAt } from "@elements/ops";
 import { artifactOf, inst, sectionOf } from "@canvas/testkit";
 import {
-    activeSlot,
     applyDrop,
-    computeDropSlots,
+    classifyDrop,
+    compensatePoint,
     marqueeTargets,
     movable,
+    previewFor,
     movableAncestor,
     moveManyPayload,
     type DragPayload,
@@ -34,15 +35,14 @@ const collectTexts = (el: ElementInstance | undefined, out: string[] = []): stri
 
 const NEW: DragPayload = { kind: "new", type: "text" };
 
-// the old computeDropTarget contract, expressed over the slot engine: enumerate once, resolve a point
+// the behavioral contract, point → target; the classifier is the whole engine now
 const targetAt = (
     art: ArtifactContent,
     regions: Region[],
     px: number,
     py: number,
     payload: DragPayload = NEW,
-): DropTarget | null =>
-    activeSlot(computeDropSlots(art, regions, payload), px, py, null)?.target ?? null;
+): DropTarget | null => classifyDrop(art, regions, payload, px, py, null)?.target ?? null;
 
 const twoSections = (): ArtifactContent =>
     artifactOf([sectionOf(txt("a"), { id: "s1" }), sectionOf(txt("b"), { id: "s2" })]);
@@ -112,17 +112,17 @@ describe("slot resolution — new section in the inter-section gap", () => {
         expect(targetAt(twoSections(), sectionRegions(), 500, 150)).toBeNull();
     });
 
-    it("a windowed-out section drops only its own gaps, not the whole set", () => {
+    it("a windowed-out section offers only the gaps its neighbours materialize", () => {
         const art = artifactOf([
             sectionOf(txt("a"), { id: "s1" }),
             sectionOf(txt("b"), { id: "s2" }),
             sectionOf(txt("c"), { id: "s3" }), // scrolled out of the window: no region
         ]);
         const regions = [reg("el:s1", 0, 0, 400, 100), reg("el:s2", 0, 200, 400, 100)];
-        const gaps = computeDropSlots(art, regions, NEW).filter(
-            (s) => s.target.op === "newSection",
-        );
-        expect(gaps.map((s) => s.target.index)).toEqual([0, 1]);
+        expect(targetAt(art, regions, 200, -20)?.index).toBe(0);
+        expect(targetAt(art, regions, 200, 150)?.index).toBe(1);
+        // the gap below s2 needs s3's box, which is not materialized
+        expect(targetAt(art, regions, 200, 320)).toBeNull();
     });
 });
 
@@ -166,10 +166,50 @@ describe("slot resolution — leaf inside a container", () => {
     });
 
     it("no point inside a container is a dead zone", () => {
-        const slots = computeDropSlots(nestedArt(), nestedRegions(), NEW);
         for (let px = 25; px < 375; px += 25)
             for (let py = 25; py < 115; py += 25)
-                expect(activeSlot(slots, px, py, null), `${px},${py}`).not.toBeNull();
+                expect(
+                    targetAt(nestedArt(), nestedRegions(), px, py),
+                    `${px},${py}`,
+                ).not.toBeNull();
+    });
+});
+
+describe("slot resolution — a col root grows no phantom column bands", () => {
+    // a stacked section: heading, then a nested row of two stats — the shape every stat band has.
+    // Stacked children sorted "as columns" used to mint a full-height boundary at the section's
+    // horizontal centre, stealing the nested row's own middle gap.
+    const art = (): ArtifactContent =>
+        artifactOf([sectionOf(colGroup([txt("heading"), rowGroup([txt("a"), txt("b")])]))]);
+    const regions = (): Region[] => [
+        reg("section:s1", 0, 0, 400, 300),
+        reg("el:s1", 20, 20, 360, 260),
+        reg("el:s1:0", 20, 20, 360, 60),
+        reg("el:s1:1", 20, 100, 360, 180),
+        reg("el:s1:1.0", 20, 100, 170, 180),
+        reg("el:s1:1.1", 210, 100, 170, 180),
+    ];
+
+    it("the nested row's middle gap wins at the centre, not a section column", () => {
+        expect(targetAt(art(), regions(), 200, 190)).toEqual({
+            section: "s1",
+            op: "insert",
+            path: [1],
+            index: 1,
+            before: false,
+            direction: "row",
+        });
+    });
+
+    it("no interior point resolves to a column op; only the real edge bands do", () => {
+        // clear of the two genuine edge bands (x = 20 and 380, each ±EDGE)
+        for (let px = 60; px <= 340; px += 40)
+            expect(targetAt(art(), regions(), px, 50)?.op, `x=${px}`).not.toBe("column");
+    });
+
+    it("the section's outer edges still offer the two-column wrap", () => {
+        expect(targetAt(art(), regions(), 12, 150)?.op).toBe("column");
+        expect(targetAt(art(), regions(), 388, 150)?.op).toBe("column");
     });
 });
 
@@ -207,9 +247,137 @@ describe("slot resolution — the padding ring", () => {
     });
 
     it("a point outside the section card still resolves to nothing", () => {
-        const slots = computeDropSlots(rowArt(), rowRegions(), NEW);
-        expect(activeSlot(slots, 200, -60, null)).toBeNull();
-        expect(activeSlot(slots, 460, 100, null)).toBeNull();
+        expect(targetAt(rowArt(), rowRegions(), 200, -60)).toBeNull();
+        expect(targetAt(rowArt(), rowRegions(), 460, 100)).toBeNull();
+    });
+});
+
+describe("the perpendicular rule — wrap reaches every movable member", () => {
+    it("a row member's top and bottom edges stack the payload onto it", () => {
+        // rowArt member [0] box (20,20,170,160): 24px bands at both horizontal edges
+        expect(targetAt(rowArt(), rowRegions(), 100, 25)).toMatchObject({
+            op: "wrap",
+            path: [0],
+            direction: "col",
+            before: true,
+        });
+        expect(targetAt(rowArt(), rowRegions(), 100, 175)).toMatchObject({
+            op: "wrap",
+            path: [0],
+            direction: "col",
+            before: false,
+        });
+    });
+
+    it("a grid cell wraps at its horizontal edges, caption-under-an-image style", () => {
+        const gridArt = artifactOf([
+            sectionOf(
+                inst("container", {
+                    direction: "grid",
+                    columns: 2,
+                    children: [txt("a"), txt("b"), txt("c"), txt("d")],
+                }),
+                { id: "s1" },
+            ),
+        ]);
+        const gridRegions = [
+            reg("section:s1", 0, 0, 400, 220),
+            reg("el:s1", 0, 0, 400, 220),
+            reg("el:s1:0", 20, 20, 170, 80),
+            reg("el:s1:1", 210, 20, 170, 80),
+            reg("el:s1:2", 20, 120, 170, 80),
+            reg("el:s1:3", 210, 120, 170, 80),
+        ];
+        // band = clamp(80 * 0.15, 8, 24) = 12
+        expect(targetAt(gridArt, gridRegions, 100, 26)).toMatchObject({
+            op: "wrap",
+            path: [0],
+            direction: "col",
+            before: true,
+        });
+        expect(targetAt(gridArt, gridRegions, 100, 94)).toMatchObject({
+            op: "wrap",
+            path: [0],
+            direction: "col",
+            before: false,
+        });
+        // a cell's vertical edges stay insert territory
+        expect(targetAt(gridArt, gridRegions, 200, 60)?.op).toBe("insert");
+    });
+
+    it("the strip is proportional: a narrow member's band shrinks instead of eating its gaps", () => {
+        // second root column, so its members' edges sit clear of the first boundary band
+        const art = artifactOf([sectionOf(rowGroup([txt("c"), colGroup([txt("a"), txt("b")])]))]);
+        const regions = [
+            reg("section:s1", 0, 0, 400, 200),
+            reg("el:s1", 20, 20, 360, 160),
+            reg("el:s1:0", 20, 20, 170, 160),
+            reg("el:s1:1", 210, 20, 60, 160),
+            reg("el:s1:1.0", 210, 20, 60, 70),
+            reg("el:s1:1.1", 210, 110, 60, 70),
+        ];
+        // band = clamp(60 * 0.15, 8, 24) = 9: 6px in wraps, 22px in is the col's own gap
+        expect(targetAt(art, regions, 216, 50)).toMatchObject({ op: "wrap", path: [1, 0] });
+        expect(targetAt(art, regions, 232, 50)).toMatchObject({ op: "insert", path: [1] });
+    });
+
+    it("an open child's flush edge escapes to the parent's gap", () => {
+        // nestedArt: the row [0] sits flush in the col root; 8px inside its top/bottom edges
+        // means beside it in the root, not its own end gap
+        expect(targetAt(nestedArt(), nestedRegions(), 200, 26)).toMatchObject({
+            op: "insert",
+            path: [],
+            index: 0,
+        });
+        expect(targetAt(nestedArt(), nestedRegions(), 200, 114)).toMatchObject({
+            op: "insert",
+            path: [],
+            index: 1,
+        });
+        // past the sliver, the row's own gap takes over again
+        expect(targetAt(nestedArt(), nestedRegions(), 200, 60)).toMatchObject({
+            op: "insert",
+            path: [0],
+        });
+    });
+});
+
+describe("totality — every point inside a card means something", () => {
+    const gridFix = (): [ArtifactContent, Region[]] => [
+        artifactOf([
+            sectionOf(
+                inst("container", {
+                    direction: "grid",
+                    columns: 2,
+                    children: [txt("a"), txt("b"), txt("c"), txt("d")],
+                }),
+                { id: "s1" },
+            ),
+        ]),
+        [
+            reg("section:s1", 0, 0, 400, 220),
+            reg("el:s1", 0, 0, 400, 220),
+            reg("el:s1:0", 20, 20, 170, 80),
+            reg("el:s1:1", 210, 20, 170, 80),
+            reg("el:s1:2", 20, 120, 170, 80),
+            reg("el:s1:3", 210, 120, 170, 80),
+        ],
+    ];
+
+    it("classifies non-null on a fine lattice inside every fixture's card, null outside", () => {
+        const fixtures: [string, ArtifactContent, Region[], Rect][] = [
+            ["row", rowArt(), rowRegions(), { x: 0, y: 0, w: 400, h: 200 }],
+            ["nested", nestedArt(), nestedRegions(), { x: 0, y: 0, w: 400, h: 200 }],
+            ["leaf", leafArt(), leafRegions(), { x: 0, y: 0, w: 400, h: 200 }],
+            ["grid", ...gridFix(), { x: 0, y: 0, w: 400, h: 220 }],
+        ];
+        for (const [name, art, regions, card] of fixtures) {
+            for (let px = 5; px < card.w; px += 10)
+                for (let py = 5; py < card.h; py += 10)
+                    expect(targetAt(art, regions, px, py), `${name} ${px},${py}`).not.toBeNull();
+            expect(targetAt(art, regions, card.w + 80, card.h / 2), name).toBeNull();
+            expect(targetAt(art, regions, card.w / 2, card.h + 80), name).toBeNull();
+        }
     });
 });
 
@@ -281,10 +449,9 @@ describe("slot resolution — grid container", () => {
     });
 
     it("no point inside the grid is a dead zone, the row gaps included", () => {
-        const slots = computeDropSlots(gridArt(), gridRegions(), NEW);
         for (let px = 25; px < 375; px += 25)
             for (let py = 25; py < 195; py += 25)
-                expect(activeSlot(slots, px, py, null), `${px},${py}`).not.toBeNull();
+                expect(targetAt(gridArt(), gridRegions(), px, py), `${px},${py}`).not.toBeNull();
     });
 });
 
@@ -323,15 +490,19 @@ describe("move exclusions — the source never targets itself", () => {
     const movingA: DragPayload = { kind: "move", from: { section: "s1", path: [0] } };
 
     it("the gaps flanking the source in its own parent are gone (no-op moves)", () => {
-        const slots = computeDropSlots(rowArt(), rowRegions(), movingA);
-        const gaps = slots.filter((s) => s.target.op === "insert" && s.target.path.length === 0);
-        expect(gaps.map((s) => s.target.index)).toEqual([2]); // 0 and 1 flank the source
+        // over the source's own tile nothing claims; past the far midpoint the real move remains
+        const t = targetAt(rowArt(), rowRegions(), 100, 100, movingA);
+        expect(t === null || (t.op === "insert" && t.index > 1)).toBe(true);
+        expect(t?.op === "insert" && t.index <= 1).toBe(false);
+        expect(targetAt(rowArt(), rowRegions(), 350, 100, movingA)?.index).toBe(2);
     });
 
     it("column boundaries beside the source column are gone", () => {
-        const slots = computeDropSlots(rowArt(), rowRegions(), movingA);
-        const cols = slots.filter((s) => s.target.op === "column");
-        expect(cols.map((s) => s.target.index)).toEqual([2]);
+        expect(targetAt(rowArt(), rowRegions(), 20, 100, movingA)?.op).not.toBe("column");
+        expect(targetAt(rowArt(), rowRegions(), 380, 100, movingA)).toMatchObject({
+            op: "column",
+            index: 2,
+        });
     });
 
     it("no slots inside the dragged subtree", () => {
@@ -344,18 +515,24 @@ describe("move exclusions — the source never targets itself", () => {
             reg("el:s1:2", 400, 20, 180, 160),
             reg("el:s1:2.0", 400, 20, 180, 160),
         ];
-        const intoCol = (s: { target: DropTarget }): boolean =>
-            s.target.path.length >= 1 && s.target.path[0] === 2;
-        // sanity: a fresh drag does offer the column's interior gaps
-        expect(computeDropSlots(moveNested(), regions, NEW).some(intoCol)).toBe(true);
+        const intoCol = (t: DropTarget | null): boolean =>
+            !!t && t.path.length >= 1 && t.path[0] === 2;
+        // sanity: a fresh drag does land inside the column
+        expect(intoCol(targetAt(moveNested(), regions, 480, 100))).toBe(true);
         const movingCol: DragPayload = { kind: "move", from: { section: "s1", path: [2] } };
-        expect(computeDropSlots(moveNested(), regions, movingCol).some(intoCol)).toBe(false);
+        expect(intoCol(targetAt(moveNested(), regions, 480, 100, movingCol))).toBe(false);
     });
 
-    it("dragging the section root offers no column or wrap slots in its own section", () => {
+    it("dragging the section root offers no column or wrap targets in its own section", () => {
         const movingRoot: DragPayload = { kind: "move", from: { section: "s1", path: [] } };
-        const slots = computeDropSlots(leafArt(), leafRegions(), movingRoot);
-        expect(slots.every((s) => s.target.op === "newSection")).toBe(true);
+        for (const [px, py] of [
+            [200, 100],
+            [50, 100],
+            [200, 50],
+        ] as const) {
+            const t = targetAt(leafArt(), leafRegions(), px, py, movingRoot);
+            expect(t === null || t.op === "newSection", `${px},${py}`).toBe(true);
+        }
     });
 });
 
@@ -373,12 +550,14 @@ describe("section drags — reorder through the same gap slots", () => {
     ];
 
     it("offers only the stack gaps, minus the two flanking the dragged section", () => {
-        const slots = computeDropSlots(threeSections(), threeRegions(), {
-            kind: "section",
-            id: "s2",
-        });
-        expect(slots.every((s) => s.target.op === "newSection")).toBe(true);
-        expect(slots.map((s) => s.target.index)).toEqual([0, 3]); // gaps 1 and 2 flank s2
+        const p: DragPayload = { kind: "section", id: "s2" };
+        expect(targetAt(threeSections(), threeRegions(), 200, -20, p)?.index).toBe(0);
+        expect(targetAt(threeSections(), threeRegions(), 200, 520, p)?.index).toBe(3);
+        // the two gaps flanking s2 are no-op reinserts and claim nothing
+        expect(targetAt(threeSections(), threeRegions(), 200, 150, p)).toBeNull();
+        expect(targetAt(threeSections(), threeRegions(), 200, 350, p)).toBeNull();
+        // a point inside a section is never a section-drop
+        expect(targetAt(threeSections(), threeRegions(), 200, 250, p)).toBeNull();
     });
 
     it("applyDrop reorders across the section's own removal and keeps its id", () => {
@@ -498,43 +677,48 @@ describe("slot resolution — wrap beside a nested col member", () => {
             reg("el:s1:0.0.0", 24, 24, 160, 30),
             reg("el:s1:0.0.1", 24, 58, 160, 30),
         ];
-        const slots = computeDropSlots(withList, listRegions, NEW);
-        const wraps = slots.filter((s) => s.target.op === "wrap");
-        expect(wraps.some((s) => s.target.path.length > 2)).toBe(false);
-        expect(wraps.some((s) => s.target.path.length === 2)).toBe(true);
+        // the bullets unit's own left edge wraps (path depth 2); an item's edge never does
+        const onUnit = targetAt(withList, listRegions, 22, 40);
+        expect(onUnit?.op === "wrap" ? onUnit.path.length : null).not.toBe(3);
+        const t = targetAt(withList, listRegions, 188, 40);
+        expect(t).toMatchObject({ op: "wrap", path: [0, 0] });
     });
 });
 
-describe("activeSlot — priority and hysteresis", () => {
+describe("classification — priority and hysteresis", () => {
     it("the column band outranks element gaps under the same point", () => {
         // x=200 sits in the column band AND the root row's gap-1 hitbox
         expect(targetAt(rowArt(), rowRegions(), 200, 100)?.op).toBe("column");
     });
 
     it("the current target holds within the hysteresis margin across a boundary", () => {
-        const slots = computeDropSlots(nestedArt(), nestedRegions(), NEW);
-        const at1 = activeSlot(slots, 110, 60, null)!; // just past the first midpoint (105)
-        expect(at1.target.index).toBe(1);
+        const at1 = classifyDrop(nestedArt(), nestedRegions(), NEW, 110, 60, null)!;
+        expect(at1.target.index).toBe(1); // just past the first midpoint (105)
         // nudge back 3px across the midpoint: without hysteresis this would flip to 0
-        const held = activeSlot(slots, 102, 60, at1.target)!;
+        const held = classifyDrop(nestedArt(), nestedRegions(), NEW, 102, 60, at1.target)!;
         expect(held.target.index).toBe(1);
-        const fresh = activeSlot(slots, 102, 60, null)!;
+        const fresh = classifyDrop(nestedArt(), nestedRegions(), NEW, 102, 60, null)!;
         expect(fresh.target.index).toBe(0);
     });
 });
 
-describe("slot indicators — geometry the overlay draws", () => {
+describe("classified indicators — geometry the overlay draws", () => {
+    const hitAt = (
+        art: ArtifactContent,
+        regions: Region[],
+        px: number,
+        py: number,
+    ): ReturnType<typeof classifyDrop> => classifyDrop(art, regions, NEW, px, py, null);
+
     it("row gaps get vertical lines, section gaps horizontal ones", () => {
-        const slots = computeDropSlots(nestedArt(), nestedRegions(), NEW);
-        const rowGap = slots.find(
-            (s) => s.target.op === "insert" && s.target.path.length === 1 && s.target.index === 1,
-        )!;
+        const rowGap = hitAt(nestedArt(), nestedRegions(), 250, 60)!;
+        expect(rowGap.target).toMatchObject({ op: "insert", index: 1 });
         expect(rowGap.indicator).toMatchObject({ kind: "line", axis: "v" });
-        const gapSlots = computeDropSlots(twoSections(), sectionRegions(), NEW).filter(
-            (s) => s.target.op === "newSection",
-        );
-        expect(gapSlots.length).toBe(3);
-        for (const s of gapSlots) expect(s.indicator).toMatchObject({ kind: "line", axis: "h" });
+        for (const py of [-20, 150, 320]) {
+            const gap = hitAt(twoSections(), sectionRegions(), 200, py)!;
+            expect(gap.target.op, `y=${py}`).toBe("newSection");
+            expect(gap.indicator).toMatchObject({ kind: "line", axis: "h" });
+        }
     });
 
     it("an empty region advertises itself as a region highlight", () => {
@@ -545,8 +729,8 @@ describe("slot indicators — geometry the overlay draws", () => {
             ),
         ]);
         const regions = [reg("section:s1", 0, 0, 400, 200), reg("el:s1", 20, 20, 360, 160)];
-        const slots = computeDropSlots(art, regions, NEW);
-        const replace = slots.find((s) => s.target.op === "replace")!;
+        const replace = hitAt(art, regions, 100, 100)!;
+        expect(replace.target.op).toBe("replace");
         expect(replace.indicator.kind).toBe("region");
         // its reach extends to the bare section padding
         expect(targetAt(art, regions, 10, 100)?.op).toBe("replace");
@@ -668,13 +852,14 @@ describe("closed containers are leaves for drag-and-drop", () => {
         { id: "el:s1:1", box: { x: 300, y: 0, w: 300, h: 300 } },
     ];
 
-    it("no slot ever targets the diagram's interior", () => {
-        const slots = computeDropSlots(diagramArt(), regionsOf(), NEW);
-        for (const s of slots)
-            expect(s.target.op === "replace" && s.target.path.length > 0, "inside closed").toBe(
-                false,
-            );
-        for (const s of slots) expect(s.target.path.length <= 1).toBe(true);
+    it("no point over the diagram classifies into its interior", () => {
+        for (let px = 10; px < 300; px += 40)
+            for (let py = 10; py < 300; py += 40) {
+                const t = targetAt(diagramArt(), regionsOf(), px, py);
+                if (!t) continue;
+                expect(t.path.length <= 1, `${px},${py}`).toBe(true);
+                expect(t.op === "replace" && t.path.length > 0, `${px},${py}`).toBe(false);
+            }
     });
 
     it("a drop over the diagram targets the parent row, never the diagram itself", () => {
@@ -722,6 +907,99 @@ describe("closed containers are leaves for drag-and-drop", () => {
 
 // A block drag reorders inside its own parent and nowhere else, so the slot set is that parent's
 // gaps minus the ones that would put the block back where it already is.
+describe("previewFor — the parting preview is the drop's own path", () => {
+    const target = (index: number): DropTarget => ({
+        section: "s1",
+        op: "insert",
+        path: [],
+        index,
+        before: false,
+        direction: "row",
+    });
+
+    it("builds the post-drop tree without touching the base, sharing identity off the path", () => {
+        const art = twoSections();
+        const p = previewFor(art, { ...target(1), section: "s1" }, NEW)!;
+        expect(p).not.toBeNull();
+        expect(art.sections[0]!.root.type).toBe("text"); // base untouched
+        expect(p.sections[1]).toBe(art.sections[1]); // untouched section is the same object
+        expect(p.sections[0]).not.toBe(art.sections[0]);
+    });
+
+    it("a move preview closes the source hole and lands the real content at the slot", () => {
+        const art = rowArt();
+        const p = previewFor(
+            art,
+            { section: "s1", op: "insert", path: [], index: 2, before: false, direction: "row" },
+            { kind: "move", from: { section: "s1", path: [0] } },
+        )!;
+        const texts = collectTexts(p.sections[0]!.root);
+        expect(texts).toEqual(["b", "a"]);
+        expect(p.at).toEqual({ section: "s1", path: [1] });
+    });
+
+    it("section payloads and new-section targets stay frozen: no preview", () => {
+        const art = twoSections();
+        expect(previewFor(art, target(1), { kind: "section", id: "s1" })).toBeNull();
+        expect(
+            previewFor(
+                art,
+                {
+                    section: "s1",
+                    op: "newSection",
+                    path: [],
+                    index: 1,
+                    before: false,
+                    direction: "col",
+                },
+                NEW,
+            ),
+        ).toBeNull();
+    });
+});
+
+describe("compensatePoint — aiming through the parting, per axis", () => {
+    const shifts = [
+        // content below an opened 40px gap: visually at y 140.., frozen 40 higher
+        { box: { x: 0, y: 140, w: 400, h: 200 }, dx: 0, dy: -40 },
+        // a row sibling pushed 60px right by a horizontal parting
+        { box: { x: 260, y: 20, w: 120, h: 100 }, dx: -60, dy: 0 },
+    ];
+
+    it("above and outside every shifted box, the point passes through unchanged", () => {
+        expect(compensatePoint(200, 100, shifts)).toEqual([200, 100]);
+        expect(compensatePoint(200, 100, [])).toEqual([200, 100]);
+    });
+
+    it("below the gap the point maps back up by the ghost extent", () => {
+        expect(compensatePoint(200, 200, shifts)).toEqual([200, 160]);
+    });
+
+    it("x compensates the same way: a pointer over the pushed row sibling maps back left", () => {
+        expect(compensatePoint(300, 60, shifts)).toEqual([240, 60]);
+    });
+
+    it("the topmost painted shift wins where boxes overlap", () => {
+        const stacked = [
+            { box: { x: 0, y: 0, w: 100, h: 100 }, dx: 0, dy: -10 },
+            { box: { x: 0, y: 0, w: 100, h: 100 }, dx: 0, dy: -30 },
+        ];
+        expect(compensatePoint(50, 50, stacked)).toEqual([50, 20]);
+    });
+
+    it("no-flap: the slot whose parting is showing is the slot the parted pointer resolves to", () => {
+        // nested fixture: active gap at index 1 (midpoints 105/295); the parting pushed content
+        // right of the gap 40px further right, so the pointer rides at visual x 130
+        const active = classifyDrop(nestedArt(), nestedRegions(), NEW, 110, 60, null)!;
+        expect(active.target.index).toBe(1);
+        const parted = [{ box: { x: 145, y: 20, w: 235, h: 100 }, dx: -40, dy: 0 }];
+        const [cx, cy] = compensatePoint(150, 60, parted);
+        expect(
+            classifyDrop(nestedArt(), nestedRegions(), NEW, cx, cy, active.target)!.target.index,
+        ).toBe(1);
+    });
+});
+
 describe("moveMany", () => {
     const blockArt = (): ArtifactContent =>
         artifactOf([sectionOf(colGroup([txt("a"), txt("b"), txt("c"), txt("d")]))]);
@@ -740,21 +1018,18 @@ describe("moveMany", () => {
         indices,
     });
 
-    it("enumerates only the shared parent's gaps", () => {
-        const slots = computeDropSlots(blockArt(), blockRegions(), payload([0, 1]));
-        expect(slots.every((s) => s.target.op === "insert" && s.target.path.length === 0)).toBe(
-            true,
-        );
-    });
-
-    it("drops the gaps that would leave a contiguous block where it already is", () => {
-        const slots = computeDropSlots(blockArt(), blockRegions(), payload([0, 1]));
-        expect(slots.map((s) => s.target.index)).toEqual([3, 4]);
+    it("classifies only against the shared parent's gaps", () => {
+        // a contiguous block's own zone claims nothing; past it the parent's real gaps remain
+        const t = targetAt(blockArt(), blockRegions(), 60, 250, payload([0, 1]));
+        expect(t).toMatchObject({ op: "insert", path: [], index: 3 });
+        expect(targetAt(blockArt(), blockRegions(), 60, 380, payload([0, 1]))?.index).toBe(4);
+        expect(targetAt(blockArt(), blockRegions(), 60, 80, payload([0, 1]))).toBeNull();
     });
 
     it("keeps every gap for a block that is not contiguous, since each one is a real move", () => {
-        const slots = computeDropSlots(blockArt(), blockRegions(), payload([0, 2]));
-        expect(slots.map((s) => s.target.index)).toEqual([0, 1, 2, 3, 4]);
+        expect(targetAt(blockArt(), blockRegions(), 60, 30, payload([0, 2]))?.index).toBe(0);
+        expect(targetAt(blockArt(), blockRegions(), 60, 130, payload([0, 2]))?.index).toBe(1);
+        expect(targetAt(blockArt(), blockRegions(), 60, 380, payload([0, 2]))?.index).toBe(4);
     });
 
     it("lands the block together, shifting the gap past the sources removed before it", () => {
@@ -938,11 +1213,10 @@ describe("unit item reorder", () => {
     });
 
     it("an item's drag sees only its own list's gaps", () => {
-        const slots = computeDropSlots(bulletsArt(), regions(), movePayload(0));
-        expect(slots.length).toBeGreaterThan(0);
-        expect(
-            slots.every((s) => s.target.op === "insert" && s.target.path.join(".") === "0"),
-        ).toBe(true);
+        const t = targetAt(bulletsArt(), regions(), 200, 75, movePayload(0));
+        expect(t).toMatchObject({ op: "insert", path: [0] });
+        // outside the unit, the item's drag classifies to nothing at all
+        expect(targetAt(bulletsArt(), regions(), 200, 250, movePayload(0))).toBeNull();
     });
 
     it("dropping between the later items reorders the list", () => {
@@ -953,11 +1227,16 @@ describe("unit item reorder", () => {
         expect(collectTexts(list)).toEqual(["two", "one", "three"]);
     });
 
-    it("a foreign drag still finds no slot inside the unit", () => {
-        const slots = computeDropSlots(bulletsArt(), regions(), NEW);
-        expect(slots.some((s) => s.target.path.length > 1)).toBe(false);
-        expect(slots.some((s) => s.target.op === "insert" && s.target.path.join(".") === "0")).toBe(
-            false,
-        );
+    it("a foreign drag still finds no target inside the unit", () => {
+        for (const [px, py] of [
+            [200, 25],
+            [200, 45],
+            [200, 75],
+            [200, 105],
+        ] as const) {
+            const t = targetAt(bulletsArt(), regions(), px, py);
+            expect(t, `${px},${py}`).not.toBeNull();
+            expect(t!.path.length <= 1, `${px},${py}`).toBe(true);
+        }
     });
 });
