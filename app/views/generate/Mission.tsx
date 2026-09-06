@@ -16,7 +16,9 @@ import {
     generateOpen,
     pauseBuild,
     planCost,
+    pendingCount,
     queuedCount,
+    runStalled,
     remainingBuildCost,
     resumeBuild,
     retry,
@@ -302,8 +304,10 @@ export const Studio: Component = () => {
                             </Show>
                         </Show>
                         <Show when={building()}>
-                            {/* pause parks the queue at the next boundary; it never ends the run */}
-                            <Show when={queuedCount() > 0}>
+                            {/* pause parks the queue at the next boundary; it never ends the run.
+                                Gated on what is queued rather than unwritten: a failed beat waits
+                                on its own card, so there is nothing here to pause or skip. */}
+                            <Show when={pendingCount() > 0}>
                                 <Show
                                     when={gen.paused}
                                     fallback={
@@ -335,7 +339,9 @@ export const Studio: Component = () => {
                         </Show>
                         <Show when={gen.content.sections.length > 0}>
                             <Button
-                                variant={gen.stage === "done" ? "primary" : "outline"}
+                                variant={
+                                    gen.stage === "done" || runStalled() ? "primary" : "outline"
+                                }
                                 size="sm"
                                 disabled={saving()}
                                 onClick={() => void openInEditor()}
@@ -353,7 +359,7 @@ export const Studio: Component = () => {
                         </Show>
                     </div>
 
-                    <Show when={building() && gen.paused && queuedCount() > 0}>
+                    <Show when={building() && gen.paused && pendingCount() > 0}>
                         {/* pause lands at the next section boundary, so say which side of it we're on */}
                         <span class="flex-none rounded-full bg-accent/10 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent">
                             <Show

@@ -159,6 +159,19 @@ export const builtCount = (): number => gen.slots.filter((s) => s.versions.lengt
 export const queuedCount = (): number =>
     gen.slots.filter((s) => s.status === "queued" || s.status === "failed").length;
 
+// Beats the run will reach on its own. A failed one is unwritten but inert: it moves only when its
+// own card is pressed, so counting it as pending leaves Pause and Skip on screen with nothing to
+// pause or skip.
+export const pendingCount = (): number => gen.slots.filter((s) => s.status === "queued").length;
+
+/**
+ * The run has stopped without finishing. The server leaves a generation at `writing` when a beat
+ * failed, deliberately, so the card keeps its Write button; but nothing is in flight and nothing is
+ * queued, so for the chrome around it the run is over and opening the piece is the next move.
+ */
+export const runStalled = (): boolean =>
+    gen.stage === "writing" && !gen.writing && pendingCount() === 0;
+
 // a run in flight owns the canvas: editing underneath it can change a beat mid-write
 export const runLocked = (): boolean => gen.stage === "writing" && gen.writing && !gen.paused;
 

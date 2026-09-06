@@ -30,8 +30,17 @@ vi.mock("@app/stores/library", () => ({ loadLibrary: vi.fn(async () => undefined
 vi.mock("@ui/analytics", () => ({ capture: vi.fn(), setRequestId: vi.fn() }));
 vi.mock("@app/stores/theme", () => ({ appTheme: () => "aurora" }));
 
-const { buildSectionNow, gen, nextReveal, startSession, startBuild, pauseBuild } =
-    await import("@app/stores/generate");
+const {
+    buildSectionNow,
+    gen,
+    nextReveal,
+    pendingCount,
+    queuedCount,
+    runStalled,
+    startSession,
+    startBuild,
+    pauseBuild,
+} = await import("@app/stores/generate");
 
 type Call = { tool: ToolId; input: Record<string, unknown> };
 type Emit = (e: TurnEvent) => void;
@@ -340,5 +349,51 @@ describe("what the board sees while a beat is being written", () => {
         release();
         await vi.waitFor(() => expect(gen.writing).toBe(false));
         expect(gen.slots.find((s) => s.id === "s1")?.status).toBe("done");
+    });
+});
+
+// The server leaves a generation at `writing` when a beat failed, so its card keeps a Write button.
+// Nothing is in flight and nothing is queued, though, so the run is over as far as the chrome goes:
+// Pause and Skip have nothing to act on and the piece is ready to open.
+describe("a run that stops with a beat that never came back", () => {
+    beforeEach(() => {
+        streamTool.mockReset();
+    });
+
+    it("counts the failed beat as unwritten but not as pending, and reads as stalled", async () => {
+        streamTool.mockImplementation(
+            async (tool: ToolId, _input: Record<string, unknown>, onEvent: Emit) => {
+                if (tool === "start-generation") START.forEach(onEvent);
+                else if (tool === "plan-outline") PLAN.forEach(onEvent);
+                else if (tool === "write-beats") {
+                    onEvent({ type: "turn.start", tool });
+                    onEvent({
+                        type: "patch",
+                        patch: { generation: [{ op: "setStage", stage: "writing" }] },
+                        seq: 3,
+                    });
+                    landed("s1", null, 4).forEach(onEvent);
+                    landed("s2", null, 5).forEach(onEvent);
+                    // the last one does not come back; the server marks it failed and stops short
+                    // of finish-generation, leaving the stage at writing
+                    onEvent({
+                        type: "patch",
+                        patch: { generation: [{ op: "setBeat", id: "s3", status: "failed" }] },
+                        seq: 6,
+                    });
+                    onEvent({ type: "turn.done", result: undefined });
+                }
+                return undefined;
+            },
+        );
+        await startSession({ prompt: "a scripted piece", surface: "deck", theme: "aurora" });
+        startBuild(); // fires the write and returns; wait for the run to let go
+        await vi.waitFor(() => expect(gen.writing).toBe(false));
+
+        expect(gen.stage).toBe("writing"); // the server's position, deliberately
+        expect(gen.slots.find((s) => s.id === "s3")?.status).toBe("failed");
+        expect(queuedCount()).toBe(1); // still unwritten
+        expect(pendingCount()).toBe(0); // but nothing the run will reach on its own
+        expect(runStalled()).toBe(true); // so the footer treats it as over
     });
 });
