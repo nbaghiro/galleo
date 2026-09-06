@@ -134,11 +134,10 @@ export const DataGrid: Component<{ address: ElementAddress; compact?: boolean }>
     const overLimit = (): boolean =>
         limit !== undefined && model.shape === "list" && model.items.length >= limit;
 
-    // The canvas reports one region per painted mark under the same id, so hover crosses both ways:
-    // pointing at a row outlines its marks, pointing at a mark lights the row. Charts only — no
-    // diagram type reports datum geometry yet.
-    const rowId = (i: number): string | null =>
-        kind === "chart" ? datumRegionId(elementRegionId(addr), i) : null;
+    // The canvas reports one region per painted mark under the same id, so hover crosses both
+    // ways: pointing at a row outlines its marks, pointing at a mark lights the row. A diagram
+    // type that reports no item geometry simply never matches, so the sync is a quiet no-op there.
+    const rowId = (i: number): string => datumRegionId(elementRegionId(addr), i);
     const rowSync = (i: number): JSX.HTMLAttributes<HTMLTableRowElement> => ({
         onPointerEnter: () => setDatum(rowId(i)),
         onPointerLeave: () => setDatum(null),

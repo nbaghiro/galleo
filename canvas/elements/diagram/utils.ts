@@ -1,4 +1,4 @@
-import type { DrawContext, DrawStyle, EngineNode, PathSink, Rect } from "@engine/node";
+import type { DrawContext, DrawStyle, EngineNode, PathSink, Rect, Region } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
 import type { BoxInsets } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
@@ -8,6 +8,7 @@ import { accentRamp, fontStack, inkOn, luminance, mix, pageMix, reachContrast } 
 import { bool, num, oneOf, str } from "@elements/coerce";
 import { DIAGRAM_NUMBERS, DIAGRAM_SHAPES, DIAGRAM_STYLES, THEME_ROLES } from "@model/elements";
 import { ICON_LIBRARY, drawIcon } from "@elements/media/vector";
+import { datumRegionId } from "@model/artifact";
 import { hierarchy, tree, type HierarchyPointNode } from "d3-hierarchy";
 
 // Per-item presentation, positional beside the text encoding of `items` (index i styles item i).
@@ -755,8 +756,57 @@ export function cellHeights(
 
 // chrome behind the composed cells: a full-size float whose surface paints connectors/bands/badges
 // from the same geometry the cells were arranged with
-export function decorate(paint: (g: DrawContext, box: Rect) => void, z = -1): EngineNode {
-    return { w: grow(), h: grow(), float: { x: "start", y: "start", z }, surface: { paint } };
+export function decorate(
+    paint: (g: DrawContext, box: Rect) => void,
+    z = -1,
+    regions?: (box: Rect) => Region[],
+): EngineNode {
+    return {
+        w: grow(),
+        h: grow(),
+        float: { x: "start", y: "start", z },
+        surface: { paint, regions },
+    };
+}
+
+/** A circle as hit geometry; 24 points is indistinguishable at pointer resolution. */
+export function circlePoints(cx: number, cy: number, r: number, n = 24): [number, number][] {
+    return Array.from({ length: n }, (_, i): [number, number] => {
+        const a = (i * Math.PI * 2) / n;
+        return [cx + Math.cos(a) * r, cy + Math.sin(a) * r];
+    });
+}
+
+/**
+ * Item hit geometry under the element's own id: index i is the data editor's row i, the same
+ * contract charts keep, so hover crosses between a drawn shape and its row. A rect answers on its
+ * box; points answer on the polygon with the box derived. Emit order is paint order, and the
+ * viewer scans last-wins, so a shape drawn over another (an inner target ring) takes the point.
+ */
+export function itemRegions(
+    ctx: LayoutCtx,
+    n: number,
+    of: (i: number) => Rect | [number, number][] | null,
+): Region[] {
+    const el = ctx.region;
+    if (!el) return [];
+    const out: Region[] = [];
+    for (let i = 0; i < n; i++) {
+        const m = of(i);
+        if (!m) continue;
+        if (Array.isArray(m)) {
+            const xs = m.map((p) => p[0]);
+            const ys = m.map((p) => p[1]);
+            const x = Math.min(...xs);
+            const y = Math.min(...ys);
+            out.push({
+                id: datumRegionId(el, i),
+                box: { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y },
+                shape: { kind: "poly", points: m },
+            });
+        } else out.push({ id: datumRegionId(el, i), box: m });
+    }
+    return out;
 }
 
 // pyramid/funnel band geometry, shared by the label rows and the trapezoid decoration.
@@ -845,31 +895,46 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
                         children: [cell],
                     } satisfies EngineNode;
                 }),
-                decorate((g, box) => {
-                    const inner = bandGeometry(items, box.w, box.h, narrowTop, minHalf);
-                    items.forEach((_, i) => {
-                        const b = inner.bands[i]!;
-                        const paint = nodePaint(cols[i]!, ctx.theme, {
-                            style: diagram.options.style,
-                            emphasis: items[i]?.emphasis,
+                decorate(
+                    (g, box) => {
+                        const inner = bandGeometry(items, box.w, box.h, narrowTop, minHalf);
+                        items.forEach((_, i) => {
+                            const b = inner.bands[i]!;
+                            const paint = nodePaint(cols[i]!, ctx.theme, {
+                                style: diagram.options.style,
+                                emphasis: items[i]?.emphasis,
+                            });
+                            g.path(
+                                (p) => {
+                                    p.moveTo(inner.cx - b.half0, b.y0);
+                                    p.lineTo(inner.cx + b.half0, b.y0);
+                                    p.lineTo(inner.cx + b.half1, b.y1);
+                                    p.lineTo(inner.cx - b.half1, b.y1);
+                                    p.closePath();
+                                },
+                                {
+                                    fill: paint.fill,
+                                    stroke: paint.stroke,
+                                    width: paint.width,
+                                    gradient: paint.gradient,
+                                },
+                            );
                         });
-                        g.path(
-                            (p) => {
-                                p.moveTo(inner.cx - b.half0, b.y0);
-                                p.lineTo(inner.cx + b.half0, b.y0);
-                                p.lineTo(inner.cx + b.half1, b.y1);
-                                p.lineTo(inner.cx - b.half1, b.y1);
-                                p.closePath();
-                            },
-                            {
-                                fill: paint.fill,
-                                stroke: paint.stroke,
-                                width: paint.width,
-                                gradient: paint.gradient,
-                            },
-                        );
-                    });
-                }),
+                    },
+                    -1,
+                    (box) => {
+                        const inner = bandGeometry(items, box.w, box.h, narrowTop, minHalf);
+                        return itemRegions(ctx, items.length, (i) => {
+                            const b = inner.bands[i]!;
+                            return [
+                                [inner.cx - b.half0, b.y0],
+                                [inner.cx + b.half0, b.y0],
+                                [inner.cx + b.half1, b.y1],
+                                [inner.cx - b.half1, b.y1],
+                            ];
+                        });
+                    },
+                ),
             ],
         };
     };

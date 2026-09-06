@@ -3,7 +3,14 @@ import type { Soundtrack, WorkspaceBed } from "@model/speech";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Region } from "@engine/node";
 import { MUSIC_VOLUME, parseTarget, scriptStale, sectionLinkId } from "@model/artifact";
-import { seedViewerPatches, viewerToggleAt, withViewerPatches } from "@elements/ops";
+import {
+    datumLabel,
+    getElementAt,
+    seedViewerPatches,
+    viewerDatumAt,
+    viewerToggleAt,
+    withViewerPatches,
+} from "@elements/ops";
 import type { Component, JSX } from "solid-js";
 import {
     createEffect,
@@ -49,6 +56,7 @@ import { classifySwipe, pressOnContent, TAP_SLOP, tapZone } from "./gesture";
 import { isCoarsePointer, isPhone, prefersReducedMotion } from "./viewport";
 import { buildGroups, runBuild, runTransition } from "./motion";
 import { asFormat as asSurface } from "@model/analytics";
+import { capture } from "./analytics";
 import { Icon, ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "./icons";
 import {
     createNarrationPlayer,
@@ -124,6 +132,8 @@ export const PresentSurface: Component<{
     onFullscreenExit?: () => void;
     // furthest slide (paged) or section (continuous) reached, 0-based, + total
     onProgress?: (reached: number, total: number) => void;
+    // wired by publish: a form's inputs go live and its submit posts through here
+    submitForm?: (elementId: string, values: Record<string, string>) => Promise<boolean>;
     /** Handed the surface's imperative handle, for a host that has to re-read the narration. */
     ref?: (handle: PresentHandle) => void;
     /** Opened by "Play with voice": start narrating as soon as there is something to narrate. */
@@ -586,6 +596,41 @@ export const PresentSurface: Component<{
         else void overlay?.requestFullscreen?.()?.catch(() => {});
     };
 
+    // Hover on a chart mark or diagram part names it; fine pointers only, since a coarse tap
+    // already belongs to the advance gesture. One event per element per mount, never the values.
+    const [tip, setTip] = createSignal<{ x: number; y: number; text: string } | null>(null);
+    const hoveredMarks = new Set<string>();
+    const onDatumMove = (e: PointerEvent): void => {
+        if (isCoarsePointer() || (paged() && showOverview())) return;
+        const mount = liveHost();
+        if (!mount) return;
+        const r = mount.getBoundingClientRect();
+        const k = r.width / (mount.offsetWidth || 1);
+        const shown = shownContent();
+        const hit = viewerDatumAt(
+            liveRegions(),
+            { x: (e.clientX - r.left) / k, y: (e.clientY - r.top) / k },
+            paged()
+                ? undefined
+                : (sectionId) => pinnedShift(shown.sections, sectionTops, scrolled(), sectionId),
+        );
+        const text = hit && datumLabel(shown, hit.address, hit.index);
+        if (!hit || !text) {
+            setTip(null);
+            return;
+        }
+        setTip({ x: e.clientX, y: e.clientY, text });
+        const key = `${hit.address.section}:${hit.address.path.join(".")}`;
+        if (!hoveredMarks.has(key)) {
+            hoveredMarks.add(key);
+            capture("datum_hovered", {
+                where: props.where === "publish" ? "publish" : "present",
+                artifact_format: asSurface(props.artifact.format) ?? "deck",
+                element_type: getElementAt(shown, hit.address)?.type ?? "",
+            });
+        }
+    };
+
     // Fine pointer: click anywhere advances. Coarse: swipe, plus a back zone on the leading edge.
     let down: { x: number; y: number; t: number } | null = null;
     const onPointerDown = (e: PointerEvent): void => {
@@ -722,8 +767,13 @@ export const PresentSurface: Component<{
                 ref={host}
                 class={hostClass()}
                 style={hostStyle()}
-                onPointerDown={onPointerDown}
+                onPointerDown={(e) => {
+                    setTip(null);
+                    onPointerDown(e);
+                }}
                 onPointerUp={onPointerUp}
+                onPointerMove={onDatumMove}
+                onPointerLeave={() => setTip(null)}
                 onClick={onContentClick}
                 onScroll={() => {
                     if (paged()) return;
@@ -732,6 +782,24 @@ export const PresentSurface: Component<{
                     onScrollWindow();
                 }}
             />
+            <Show when={tip()}>
+                {(t) => (
+                    <div
+                        aria-hidden="true"
+                        class="pointer-events-none fixed max-w-60 px-2 py-1 text-xs font-medium"
+                        style={{
+                            left: `${t().x + 12}px`,
+                            top: `${t().y + 12}px`,
+                            "z-index": (props.z ?? Z.present) + 1,
+                            background: tokens().ink,
+                            color: tokens().bg,
+                            "border-radius": `${tokens().radius}px`,
+                        }}
+                    >
+                        {t().text}
+                    </div>
+                )}
+            </Show>
             {/* keyed: a paged render builds a new content host, and a Portal reads `mount` once */}
             <Show keyed when={liveHost()}>
                 {(mount) => (
@@ -744,6 +812,7 @@ export const PresentSurface: Component<{
                             format={liveFormat()}
                             offsetY={liveOffsetY}
                             onSectionLink={goToSection}
+                            onFormSubmit={props.submitForm}
                         />
                     </Portal>
                 )}

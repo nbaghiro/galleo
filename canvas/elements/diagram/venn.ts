@@ -4,9 +4,11 @@ import { fixed, grow } from "@model/geometry";
 import { hexA, inkOn, pageMix } from "@themes";
 import {
     PAD,
+    circlePoints,
     clamp,
     decorate,
     diagramCell,
+    itemRegions,
     itemColors,
     nodePaint,
     registerDiagram,
@@ -97,16 +99,26 @@ function arrange(
         h: fixed(height),
         children: [
             ...cells,
-            decorate((g, box) => {
-                const b = geometry(sets, box.w, box.h);
-                b.centres.slice(0, sets).forEach(([bx, by], i) =>
-                    g.circle(bx, by, b.r, {
-                        fill: hexA(cols[i]!, ALPHA),
-                        stroke: cols[i]!,
-                        width: 1.5,
-                    }),
-                );
-            }),
+            decorate(
+                (g, box) => {
+                    const b = geometry(sets, box.w, box.h);
+                    b.centres.slice(0, sets).forEach(([bx, by], i) =>
+                        g.circle(bx, by, b.r, {
+                            fill: hexA(cols[i]!, ALPHA),
+                            stroke: cols[i]!,
+                            width: 1.5,
+                        }),
+                    );
+                },
+                -1,
+                (box) => {
+                    const b = geometry(sets, box.w, box.h);
+                    return itemRegions(ctx, sets, (i) => {
+                        const [bx, by] = b.centres[i]!;
+                        return circlePoints(bx, by, b.r);
+                    });
+                },
+            ),
         ],
     };
 }

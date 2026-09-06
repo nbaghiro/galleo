@@ -11,6 +11,7 @@ import {
     drawShape,
     getNodeShape,
     itemColors,
+    itemRegions,
     nodeFont,
     nodePaint,
     registerDiagram,
@@ -105,18 +106,31 @@ function arrange(
         padding: { top: PAD, bottom: PAD, left: PAD, right: PAD },
         children: [
             ...rows,
-            decorate((g, box) => {
-                if (diagram.options.numbers === "none") return;
-                const cellW = (box.w - GAP * (ncol - 1)) / ncol;
-                const top = hasHeaders ? HEADER_H + GAP : 0;
-                diagram.items.forEach((item, i) => {
-                    const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
-                    if (!badge) return;
-                    const x = badgeX((i % ncol) * (cellW + GAP), inset);
-                    const y = top + Math.floor(i / ncol) * (cellH + GAP) + cellH / 2;
-                    drawNodeBadge(g, x, y, badge, cols[i]!, ctx.theme);
-                });
-            }, 1),
+            decorate(
+                (g, box) => {
+                    if (diagram.options.numbers === "none") return;
+                    const cellW = (box.w - GAP * (ncol - 1)) / ncol;
+                    const top = hasHeaders ? HEADER_H + GAP : 0;
+                    diagram.items.forEach((item, i) => {
+                        const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
+                        if (!badge) return;
+                        const x = badgeX((i % ncol) * (cellW + GAP), inset);
+                        const y = top + Math.floor(i / ncol) * (cellH + GAP) + cellH / 2;
+                        drawNodeBadge(g, x, y, badge, cols[i]!, ctx.theme);
+                    });
+                },
+                1,
+                (box) => {
+                    const cellW = (box.w - GAP * (ncol - 1)) / ncol;
+                    const top = hasHeaders ? HEADER_H + GAP : 0;
+                    return itemRegions(ctx, diagram.items.length, (i) => ({
+                        x: (i % ncol) * (cellW + GAP),
+                        y: top + Math.floor(i / ncol) * (cellH + GAP),
+                        w: cellW,
+                        h: cellH,
+                    }));
+                },
+            ),
             ...(painted
                 ? [
                       decorate((g, box) => {

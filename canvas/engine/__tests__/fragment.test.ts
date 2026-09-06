@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Rect, RenderCommand } from "@engine/node";
-import { fragment } from "@engine/layout";
+import type { Rect, Region, RenderCommand } from "@engine/node";
+import { fragment, regionWindow } from "@engine/layout";
+
+const pagesOf = (c: RenderCommand[], t: number, h: number): RenderCommand[][] =>
+    fragment(c, t, h).map((p) => p.commands);
 import { near } from "@canvas/testkit";
 
 const rect = (id: string, y: number, h: number, clip?: Rect): RenderCommand => ({
@@ -15,17 +18,17 @@ const ids = (page: RenderCommand[]): string[] => page.map((c) => c.id ?? "");
 describe("fragment — pagination", () => {
     it("returns a single page when the content fits (incl. the EPS boundary)", () => {
         const cmds = [rect("a", 0, 100), rect("b", 100, 50)]; // total 150
-        expect(fragment(cmds, 150, 150)).toHaveLength(1);
-        expect(fragment(cmds, 150, 149.6)).toHaveLength(1); // within the 0.5px EPS
+        expect(pagesOf(cmds, 150, 150)).toHaveLength(1);
+        expect(pagesOf(cmds, 150, 149.6)).toHaveLength(1); // within the 0.5px EPS
     });
 
     it("returns a single page when pageHeight <= 0", () => {
-        expect(fragment([rect("a", 0, 100)], 100, 0)).toHaveLength(1);
+        expect(pagesOf([rect("a", 0, 100)], 100, 0)).toHaveLength(1);
     });
 
     it("breaks cleanly between blocks and shifts each page to y = 0", () => {
         const cmds = [rect("a", 0, 100), rect("b", 100, 100), rect("c", 200, 100)]; // total 300
-        const pages = fragment(cmds, 300, 150);
+        const pages = pagesOf(cmds, 300, 150);
         expect(pages).toHaveLength(3);
         expect(ids(pages[0]!)).toEqual(["a"]);
         expect(ids(pages[1]!)).toEqual(["b"]);
@@ -36,18 +39,18 @@ describe("fragment — pagination", () => {
 
     it("pushes the break up so a block is never split when it can be avoided", () => {
         const cmds = [rect("header", 0, 20), rect("tall", 20, 200)]; // total 220
-        const pages = fragment(cmds, 220, 100);
+        const pages = pagesOf(cmds, 220, 100);
         expect(ids(pages[0]!)).toEqual(["header"]); // break at 20, not mid-'tall'
     });
 
     it("hard-breaks a block taller than a full page", () => {
-        const pages = fragment([rect("giant", 0, 250)], 250, 100); // 2.5 pages tall
+        const pages = pagesOf([rect("giant", 0, 250)], 250, 100); // 2.5 pages tall
         expect(pages.length).toBeGreaterThan(1); // unavoidable split
     });
 
     it("shifts a clipped command's clip.y alongside its box.y", () => {
         const cmds = [rect("a", 0, 90), rect("b", 100, 50, { x: 10, y: 100, w: 80, h: 50 })];
-        const pages = fragment(cmds, 150, 95);
+        const pages = pagesOf(cmds, 150, 95);
         const b = pages[1]!.find((c) => c.id === "b")!;
         near(b.box.y, 5); // 100 − 95
         near(b.clip!.y, 5); // clip tracks the box
@@ -60,7 +63,7 @@ describe("fragment — pagination", () => {
             { ...rect("b", 100, 50), rotate: { deg: 15, cx: 40, cy: 125 } },
         ];
         // b's turned corner rises above the 95 limit, so the clean break lands at a's bottom (90)
-        const pages = fragment(cmds, 150, 95);
+        const pages = pagesOf(cmds, 150, 95);
         const b = pages[1]!.find((c) => c.id === "b")!;
         near(b.box.y, 10); // 100 − 90
         near(b.rotate!.cy, 35); // 125 − 90: the pivot rides the page shift
@@ -69,7 +72,7 @@ describe("fragment — pagination", () => {
 
     it("terminates and covers a tall stack", () => {
         const cmds = Array.from({ length: 10 }, (_, i) => rect(`b${i}`, i * 50, 50));
-        expect(fragment(cmds, 500, 50)).toHaveLength(10);
+        expect(pagesOf(cmds, 500, 50)).toHaveLength(10);
     });
 });
 
@@ -77,7 +80,7 @@ describe("fragment — paint order and rotation", () => {
     it("keeps emit order (z-order) within a page, whatever the y sort said", () => {
         // emit order: decoration UNDER the text it overlaps; the text starts higher on the page
         const cmds = [rect("under", 150, 100), rect("text", 100, 180), rect("below", 350, 150)];
-        const pages = fragment(cmds, 500, 300);
+        const pages = pagesOf(cmds, 500, 300);
         const first = ids(pages[0]!);
         expect(first.indexOf("under")).toBeLessThan(first.indexOf("text"));
     });
@@ -91,7 +94,7 @@ describe("fragment — paint order and rotation", () => {
             rotate: { deg: 45, cx: 50, cy: 200 }, // turned extent ≈ 146..254
         };
         const cmds = [rect("a", 0, 240), spun, rect("filler", 300, 200)];
-        const pages = fragment(cmds, 500, 240);
+        const pages = pagesOf(cmds, 500, 240);
         expect(ids(pages[1]!)).toContain("spun");
     });
 
@@ -104,7 +107,45 @@ describe("fragment — paint order and rotation", () => {
             rotate: { deg: 90, cx: 10, cy: 220 }, // turned extent 210..230, clear of 240
         };
         const cmds = [rect("a", 0, 240), thin, rect("filler", 300, 200)];
-        const pages = fragment(cmds, 500, 240);
+        const pages = pagesOf(cmds, 500, 240);
         expect(ids(pages[1]!)).not.toContain("thin");
+    });
+});
+
+// Pages report the source window they show, so anything positioned in flow coordinates (a
+// region) can be carried onto a page by the same overlap-and-shift the commands got.
+describe("page windows / regionWindow", () => {
+    it("windows tile the flow, and a region lands shifted on its own page only", () => {
+        const cmds = [rect("a", 0, 100), rect("b", 100, 100), rect("c", 200, 100)];
+        const pages = fragment(cmds, 300, 150);
+        expect(pages.map((p) => [p.top, p.bottom])).toEqual([
+            [0, 100],
+            [100, 200],
+            [200, 300],
+        ]);
+        const r: Region = {
+            id: "datum:el:s:0:1",
+            box: { x: 0, y: 120, w: 50, h: 40 },
+            shape: {
+                kind: "poly",
+                points: [
+                    [0, 120],
+                    [50, 120],
+                    [25, 160],
+                ],
+            },
+        };
+        const second = regionWindow([r], pages[1]!.top, pages[1]!.bottom);
+        expect(second).toHaveLength(1);
+        near(second[0]!.box.y, 20);
+        near(second[0]!.shape!.points[2]![1], 60);
+        expect(regionWindow([r], pages[0]!.top, pages[0]!.bottom)).toHaveLength(0);
+        expect(regionWindow([r], pages[2]!.top, pages[2]!.bottom)).toHaveLength(0);
+    });
+
+    it("an unfragmented run is one page spanning the whole flow", () => {
+        const pages = fragment([rect("a", 0, 100)], 100, 150);
+        expect(pages).toHaveLength(1);
+        expect([pages[0]!.top, pages[0]!.bottom]).toEqual([0, 100]);
     });
 });

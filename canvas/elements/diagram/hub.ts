@@ -10,6 +10,7 @@ import {
     diagramCell,
     drawNodeBadge,
     itemColors,
+    itemRegions,
     labelWidth,
     maxLabelWidth,
     nodePaint,
@@ -86,59 +87,80 @@ function arrange(
         children: [
             hub,
             ...cells,
-            decorate((g) => {
-                const cx = W / 2;
-                const cy = height / 2;
-                // spokes run edge to edge: from the hub pill's boundary to the spoke cell's,
-                // so they never poke through an outline or angled cell behind the label
-                const hubRect = {
-                    x: cx - hubW / 2,
-                    y: cy - HUB_H / 2,
-                    w: hubW,
-                    h: HUB_H,
-                };
-                spokes.forEach((item, s) => {
-                    const [x, y] = at(angle(s));
-                    const cell = { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
-                    const dx = x - cx;
-                    const dy = y - cy;
-                    // slab entry t for a rect the segment ends inside; exit t for one it starts inside
-                    const entry = (r: typeof cell): number => {
-                        const txe = dx !== 0 ? ((dx > 0 ? r.x : r.x + r.w) - cx) / dx : -Infinity;
-                        const tye = dy !== 0 ? ((dy > 0 ? r.y : r.y + r.h) - cy) / dy : -Infinity;
-                        return Math.max(txe, tye);
+            decorate(
+                (g) => {
+                    const cx = W / 2;
+                    const cy = height / 2;
+                    // spokes run edge to edge: from the hub pill's boundary to the spoke cell's,
+                    // so they never poke through an outline or angled cell behind the label
+                    const hubRect = {
+                        x: cx - hubW / 2,
+                        y: cy - HUB_H / 2,
+                        w: hubW,
+                        h: HUB_H,
                     };
-                    const exit = (r: typeof cell): number => {
-                        const txx = dx !== 0 ? ((dx > 0 ? r.x + r.w : r.x) - cx) / dx : Infinity;
-                        const tyx = dy !== 0 ? ((dy > 0 ? r.y + r.h : r.y) - cy) / dy : Infinity;
-                        return Math.min(txx, tyx);
-                    };
-                    const t0 = Math.max(0, Math.min(1, exit(hubRect)));
-                    const t1 = Math.max(t0, Math.min(1, entry(cell)));
-                    if (t1 - t0 < 0.05) return;
-                    g.line(cx + dx * t0, cy + dy * t0, cx + dx * t1, cy + dy * t1, {
-                        stroke: ctx.theme.line,
-                        width: 2,
+                    spokes.forEach((item, s) => {
+                        const [x, y] = at(angle(s));
+                        const cell = { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
+                        const dx = x - cx;
+                        const dy = y - cy;
+                        // slab entry t for a rect the segment ends inside; exit t for one it starts inside
+                        const entry = (r: typeof cell): number => {
+                            const txe =
+                                dx !== 0 ? ((dx > 0 ? r.x : r.x + r.w) - cx) / dx : -Infinity;
+                            const tye =
+                                dy !== 0 ? ((dy > 0 ? r.y : r.y + r.h) - cy) / dy : -Infinity;
+                            return Math.max(txe, tye);
+                        };
+                        const exit = (r: typeof cell): number => {
+                            const txx =
+                                dx !== 0 ? ((dx > 0 ? r.x + r.w : r.x) - cx) / dx : Infinity;
+                            const tyx =
+                                dy !== 0 ? ((dy > 0 ? r.y + r.h : r.y) - cy) / dy : Infinity;
+                            return Math.min(txx, tyx);
+                        };
+                        const t0 = Math.max(0, Math.min(1, exit(hubRect)));
+                        const t1 = Math.max(t0, Math.min(1, entry(cell)));
+                        if (t1 - t0 < 0.05) return;
+                        g.line(cx + dx * t0, cy + dy * t0, cx + dx * t1, cy + dy * t1, {
+                            stroke: ctx.theme.line,
+                            width: 2,
+                        });
                     });
-                });
-                spokes.forEach((item, s) => {
-                    const i = s + 1;
-                    const [x, y] = at(angle(s));
-                    const b = { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
-                    if (painted)
-                        drawShape(
-                            g,
-                            shape,
-                            b,
-                            nodePaint(cols[i]!, ctx.theme, {
-                                style: diagram.options.style,
-                                emphasis: item.emphasis,
-                            }),
-                        );
-                    const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
-                    if (badge) drawNodeBadge(g, badgeX(b.x, inset), y, badge, cols[i]!, ctx.theme);
-                });
-            }),
+                    spokes.forEach((item, s) => {
+                        const i = s + 1;
+                        const [x, y] = at(angle(s));
+                        const b = { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
+                        if (painted)
+                            drawShape(
+                                g,
+                                shape,
+                                b,
+                                nodePaint(cols[i]!, ctx.theme, {
+                                    style: diagram.options.style,
+                                    emphasis: item.emphasis,
+                                }),
+                            );
+                        const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
+                        if (badge)
+                            drawNodeBadge(g, badgeX(b.x, inset), y, badge, cols[i]!, ctx.theme);
+                    });
+                },
+                -1,
+                // item 0 is the hub itself, centred; each spoke sits at its computed angle
+                () =>
+                    itemRegions(ctx, n + 1, (i) => {
+                        if (i === 0)
+                            return {
+                                x: W / 2 - hubW / 2,
+                                y: height / 2 - HUB_H / 2,
+                                w: hubW,
+                                h: HUB_H,
+                            };
+                        const [x, y] = at(angle(i - 1));
+                        return { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
+                    }),
+            ),
         ],
     };
 }

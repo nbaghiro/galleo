@@ -15,6 +15,7 @@ import {
     stepIndexOf,
 } from "@canvas/render/present";
 import { resolveProfile } from "@engine/profile";
+import { sectionSlides } from "@canvas/render/commands";
 import { inst, installCanvas2D, sectionOf, tokens } from "@canvas/testkit";
 
 beforeAll(() => installCanvas2D());
@@ -280,5 +281,41 @@ describe("a slide's live overlay anchor", () => {
         expect(hit).toBeDefined();
         expect(hit!.box.w).toBeGreaterThan(0);
         expect(hit!.box.h).toBeGreaterThan(0);
+    });
+});
+
+// Datum regions never become commands, so a slide page carries the layout's own regions for its
+// window and slideElement merges them behind the command-recovered set (engine-gaps item 16).
+describe("datum regions on slide pages", () => {
+    it("a chart slide exposes its marks to the viewer", () => {
+        const { regions } = slideElement(
+            sectionOf(inst("chart", { type: "bar", values: "3, 7", categories: "A, B" })),
+            tokens,
+            deck,
+        );
+        const marks = regions.filter((r) => r.id.startsWith("datum:"));
+        expect(marks.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it("a paginated section's later page carries only its own marks, page-local", () => {
+        const paras = Array.from({ length: 60 }, (_, i) => inst("text", { text: `Line ${i}` }));
+        const section = sectionOf({
+            type: "container",
+            data: {
+                direction: "col",
+                children: [...paras, inst("chart", { type: "bar", values: "3, 7" })],
+            },
+        });
+        const pages = sectionSlides(section, tokens, deck);
+        expect(pages.length).toBeGreaterThan(1);
+        const marked = pages
+            .map((p, i) => ({ i, marks: p.regions.filter((r) => r.id.startsWith("datum:")) }))
+            .filter((p) => p.marks.length > 0);
+        expect(marked).toHaveLength(1);
+        expect(marked[0]!.i).toBeGreaterThan(0); // the chart sits at the bottom of the flow
+        for (const m of marked[0]!.marks) {
+            expect(m.box.y).toBeGreaterThanOrEqual(-1);
+            expect(m.box.y).toBeLessThanOrEqual(pages[marked[0]!.i]!.h + 1);
+        }
     });
 });

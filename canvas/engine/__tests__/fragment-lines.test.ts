@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { RenderCommand } from "@engine/node";
 import { fragment } from "@engine/layout";
+
+const pagesOf = (c: RenderCommand[], t: number, h: number): RenderCommand[][] =>
+    fragment(c, t, h).map((p) => p.commands);
 import { measure } from "@canvas/testkit";
 
 // a paragraph command whose lines come from the real testkit wrap (16px lines)
@@ -25,7 +28,7 @@ const para = (
 describe("fragment at line boundaries", () => {
     it("splits a tall paragraph between lines instead of at the hard limit", () => {
         const p = para(20, 0); // 10 lines × 16 = 160
-        const pages = fragment([p], 160, 100); // limit inside line 7
+        const pages = pagesOf([p], 160, 100); // limit inside line 7
         expect(pages.length).toBe(2);
         const first = pages[0]![0]!;
         const second = pages[1]![0]!;
@@ -39,7 +42,7 @@ describe("fragment at line boundaries", () => {
 
     it("keeps at least two lines on each side of a cut", () => {
         const p = para(8, 0); // 4 lines × 16 = 64
-        const pages = fragment([p], 64, 40); // limit at 2.5 lines; only cut allowed is at 2
+        const pages = pagesOf([p], 64, 40); // limit at 2.5 lines; only cut allowed is at 2
         expect(pages.length).toBe(2);
         const first = pages[0]![0]!;
         if (first.kind !== "text") throw new Error("text expected");
@@ -48,7 +51,7 @@ describe("fragment at line boundaries", () => {
 
     it("never line-splits a paragraph shorter than four lines", () => {
         const p = para(6, 0); // 3 lines = 48
-        const pages = fragment([p], 48, 40);
+        const pages = pagesOf([p], 48, 40);
         // no legal line break: falls to the hard limit, command clipped across pages as before
         expect(pages.length).toBe(2);
         expect(pages[0]![0]!.kind).toBe("text");
@@ -58,7 +61,7 @@ describe("fragment at line boundaries", () => {
     it("prefers a command boundary over a line boundary when one fits", () => {
         const a = para(4, 0); // 2 lines: 0..32
         const b = para(20, 40); // 10 lines: 40..200
-        const pages = fragment([a, b], 200, 36); // a's bottom (32) is a clean break inside the page
+        const pages = pagesOf([a, b], 200, 36); // a's bottom (32) is a clean break inside the page
         const firstPage = pages[0]!;
         expect(firstPage.length).toBe(1);
         if (firstPage[0]!.kind === "text") expect(firstPage[0]!.lineRange).toBeUndefined();
@@ -66,7 +69,7 @@ describe("fragment at line boundaries", () => {
 
     it("splits the same paragraph across three pages with consistent windows", () => {
         const p = para(30, 0); // 15 lines × 16 = 240
-        const pages = fragment([p], 240, 100); // 6 lines per page
+        const pages = pagesOf([p], 240, 100); // 6 lines per page
         expect(pages.length).toBe(3);
         const ranges = pages.map((pg) => {
             const c = pg[0]!;
@@ -85,7 +88,7 @@ describe("a line cut against two offset paragraphs", () => {
     it("takes no line break when the candidate is off a crossing paragraph's grid", () => {
         const a = para(20, 0, { box: { x: 0, y: 0, w: 38, h: 160 }, id: "a" }); // 10 lines
         const b = para(20, 12, { box: { x: 42, y: 12, w: 38, h: 160 }, id: "b" }); // 10 lines
-        const pages = fragment([a, b], 200, 100);
+        const pages = pagesOf([a, b], 200, 100);
         for (const page of pages)
             for (const c of page) {
                 if (c.kind !== "text" || !c.lineRange) continue; // whole crossers window via clip

@@ -1,6 +1,8 @@
 import type { Region, RenderCommand } from "@engine/node";
 import { rotateRegion } from "@engine/layout";
+import { maxRadius } from "@engine/node";
 import type { Section } from "@model/artifact";
+import { parseDatumRegion } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { fitSlideContent } from "./backends";
@@ -153,7 +155,13 @@ export function commandRegions(commands: RenderCommand[]): Region[] {
     for (const c of commands) {
         if (!c.id) continue;
         const radius =
-            c.kind === "rect" ? c.fill?.radius : c.kind === "image" ? c.image.radius : undefined;
+            c.kind === "rect"
+                ? c.fill?.radius === undefined
+                    ? undefined
+                    : maxRadius(c.fill.radius)
+                : c.kind === "image"
+                  ? c.image.radius
+                  : undefined;
         const seen = byId.get(c.id);
         const flat: Region = { id: c.id, box: c.box, radius };
         if (!seen) byId.set(c.id, c.rotate ? rotateRegion(flat, c.rotate) : flat);
@@ -188,6 +196,10 @@ export function slideElement(
         content: content.el,
         commands: p.commands,
         nodes: content.nodes,
-        regions: commandRegions(p.commands),
+        // datum regions never become commands, so the page's carried layout regions supply them
+        regions: [
+            ...commandRegions(p.commands),
+            ...p.regions.filter((r) => parseDatumRegion(r.id)),
+        ],
     };
 }

@@ -3,8 +3,10 @@ import type { LayoutCtx } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 import {
     PAD,
+    circlePoints,
     decorate,
     diagramCell,
+    itemRegions,
     itemColors,
     nodePaint,
     registerDiagram,
@@ -61,17 +63,26 @@ function arrange(
         h: fixed(height),
         children: [
             ...cells,
-            decorate((g, box) => {
-                const br = radii(n, outerR(box.w, box.h));
-                // outermost first, so each inner ring paints over the one containing it
-                items.forEach((_, i) =>
-                    g.circle(box.w / 2, box.h / 2, br[i]!, {
-                        fill: cols[i]!,
-                        stroke: ctx.theme.surface,
-                        width: 1.5,
-                    }),
-                );
-            }),
+            decorate(
+                (g, box) => {
+                    const br = radii(n, outerR(box.w, box.h));
+                    // outermost first, so each inner ring paints over the one containing it
+                    items.forEach((_, i) =>
+                        g.circle(box.w / 2, box.h / 2, br[i]!, {
+                            fill: cols[i]!,
+                            stroke: ctx.theme.surface,
+                            width: 1.5,
+                        }),
+                    );
+                },
+                -1,
+                // full circles in the same order: the last-wins scan lands a point on the
+                // innermost ring containing it, so no annulus geometry is needed
+                (box) => {
+                    const br = radii(n, outerR(box.w, box.h));
+                    return itemRegions(ctx, n, (i) => circlePoints(box.w / 2, box.h / 2, br[i]!));
+                },
+            ),
         ],
     };
 }

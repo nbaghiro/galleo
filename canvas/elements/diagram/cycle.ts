@@ -11,6 +11,7 @@ import {
     drawLink,
     drawNodeBadge,
     itemColors,
+    itemRegions,
     maxLabelWidth,
     nodePaint,
     getNodeShape,
@@ -68,52 +69,63 @@ function arrange(
         h: fixed(height),
         children: [
             ...cells,
-            decorate((g) => {
-                const cellRect = (i: number): { x: number; y: number; w: number; h: number } => {
-                    const [x, y] = at(angle(i));
-                    return { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
-                };
-                const insideRect = (
-                    p: [number, number],
-                    r: { x: number; y: number; w: number; h: number },
-                ): boolean =>
-                    p[0] > r.x - 3 &&
-                    p[0] < r.x + r.w + 3 &&
-                    p[1] > r.y - 3 &&
-                    p[1] < r.y + r.h + 3;
-                for (let i = 0; i < n && n > 1; i++) {
-                    const gapA = (Math.PI * 2) / n;
-                    const start = angle(i) + gapA * 0.2;
-                    const end = angle(i) + gapA * 0.8;
-                    const a = cellRect(i);
-                    const b = cellRect((i + 1) % n);
-                    // sample the ellipse arc and keep only the stretch clear of both cells, so a
-                    // crowded ring never draws its connector through a neighbour
-                    const pts: [number, number][] = [];
-                    for (let t = 0; t <= 16; t++) {
-                        const p = at(start + ((end - start) * t) / 16);
-                        if (!insideRect(p, a) && !insideRect(p, b)) pts.push(p);
+            decorate(
+                (g) => {
+                    const cellRect = (
+                        i: number,
+                    ): { x: number; y: number; w: number; h: number } => {
+                        const [x, y] = at(angle(i));
+                        return { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
+                    };
+                    const insideRect = (
+                        p: [number, number],
+                        r: { x: number; y: number; w: number; h: number },
+                    ): boolean =>
+                        p[0] > r.x - 3 &&
+                        p[0] < r.x + r.w + 3 &&
+                        p[1] > r.y - 3 &&
+                        p[1] < r.y + r.h + 3;
+                    for (let i = 0; i < n && n > 1; i++) {
+                        const gapA = (Math.PI * 2) / n;
+                        const start = angle(i) + gapA * 0.2;
+                        const end = angle(i) + gapA * 0.8;
+                        const a = cellRect(i);
+                        const b = cellRect((i + 1) % n);
+                        // sample the ellipse arc and keep only the stretch clear of both cells, so a
+                        // crowded ring never draws its connector through a neighbour
+                        const pts: [number, number][] = [];
+                        for (let t = 0; t <= 16; t++) {
+                            const p = at(start + ((end - start) * t) / 16);
+                            if (!insideRect(p, a) && !insideRect(p, b)) pts.push(p);
+                        }
+                        if (pts.length >= 3)
+                            drawLink(g, pts, ctx.theme, { color: ctx.theme.muted, width: 2 });
                     }
-                    if (pts.length >= 3)
-                        drawLink(g, pts, ctx.theme, { color: ctx.theme.muted, width: 2 });
-                }
-                diagram.items.forEach((item, i) => {
-                    const [x, y] = at(angle(i));
-                    const b = { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
-                    if (painted)
-                        drawShape(
-                            g,
-                            shape,
-                            b,
-                            nodePaint(cols[i]!, ctx.theme, {
-                                style: diagram.options.style,
-                                emphasis: item.emphasis,
-                            }),
-                        );
-                    const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
-                    if (badge) drawNodeBadge(g, badgeX(b.x, inset), y, badge, cols[i]!, ctx.theme);
-                });
-            }),
+                    diagram.items.forEach((item, i) => {
+                        const [x, y] = at(angle(i));
+                        const b = { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
+                        if (painted)
+                            drawShape(
+                                g,
+                                shape,
+                                b,
+                                nodePaint(cols[i]!, ctx.theme, {
+                                    style: diagram.options.style,
+                                    emphasis: item.emphasis,
+                                }),
+                            );
+                        const badge = item.icon ? undefined : badgeText(diagram.options.numbers, i);
+                        if (badge)
+                            drawNodeBadge(g, badgeX(b.x, inset), y, badge, cols[i]!, ctx.theme);
+                    });
+                },
+                -1,
+                () =>
+                    itemRegions(ctx, n, (i) => {
+                        const [x, y] = at(angle(i));
+                        return { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
+                    }),
+            ),
         ],
     };
 }

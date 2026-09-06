@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import type { EngineNode, RenderCommand } from "@engine/node";
+import type { EngineNode, Region, RenderCommand } from "@engine/node";
 import { layout } from "@engine/layout";
+import { inRegion } from "@engine/node";
 import { fit, grow } from "@model/geometry";
 import { diagramTypeOptions } from "@elements/diagram/render";
 import { DIAGRAM_SHAPES } from "@model/elements";
@@ -29,7 +30,7 @@ import { DIAGRAM_TYPES } from "@model/elements";
 import { contrastRatio, luminance, resolveTheme } from "@themes";
 import { getElement } from "@elements/spec";
 import { composeSection } from "@elements/compose";
-import { colGroup } from "@model/artifact";
+import { colGroup, parseDatumRegion } from "@model/artifact";
 import "@elements/register";
 import {
     inst,
@@ -777,4 +778,50 @@ describe("a diagram stays inside its box when availWidth over-estimates", () => 
             }
         });
     }
+});
+
+// Item hit geometry: the shapes a diagram draws answer for their rows (engine-gaps item 16).
+describe("item hit regions", () => {
+    const regionsOf = (data: Record<string, unknown>, w = 640, h = 260): Region[] => {
+        const diagram = normalizeDiagram(toDiagramData(data));
+        const type = getDiagram(diagram.type)!;
+        const node = type.arrange(
+            diagram,
+            { ...layoutCtx(w), region: "el:s1:0" } as never,
+            kidsFor(diagram),
+            h,
+        );
+        return layout(node, { x: 0, y: 0, w, h }, measure as never).regions;
+    };
+    const datums = (rs: Region[]): Region[] => rs.filter((r) => parseDatumRegion(r.id));
+
+    it("radial: venn and target report one shaped region per drawn item", () => {
+        const venn = datums(regionsOf({ type: "venn", items: "A, B, C" }));
+        expect(venn).toHaveLength(3);
+        for (const r of venn) expect(r.shape?.points.length).toBeGreaterThan(8);
+        const target = datums(regionsOf({ type: "target", items: "Market, Segment, Core" }));
+        expect(target).toHaveLength(3);
+        // the polygon answers, not the box: the outer ring's box corner misses the circle
+        const outer = target[0]!;
+        expect(inRegion(outer, outer.box.x + 1, outer.box.y + 1)).toBe(false);
+        // last-wins order: the centre sits inside every ring, and the innermost is emitted last
+        const hit = [...target].reverse().find((r) => inRegion(r, 320, 130));
+        expect(parseDatumRegion(hit!.id)?.index).toBe(2);
+    });
+
+    it("bands and formula grids report their item shapes", () => {
+        const funnel = datums(regionsOf({ type: "funnel", items: "Wide, Mid, Tight" }));
+        expect(funnel).toHaveLength(3);
+        expect(funnel[0]!.shape?.points).toHaveLength(4);
+        expect(datums(regionsOf({ type: "pyramid", items: "A, B" }))).toHaveLength(2);
+        expect(datums(regionsOf({ type: "matrix", items: "A, B, C, D" }))).toHaveLength(4);
+        expect(datums(regionsOf({ type: "cycle", items: "A, B, C" }))).toHaveLength(3);
+        expect(datums(regionsOf({ type: "hub", items: "Centre, S1, S2" }))).toHaveLength(3);
+    });
+
+    it("a connector-drawn type reports none, and every id names the owning element", () => {
+        expect(datums(regionsOf({ type: "process", items: "A, B" }))).toHaveLength(0);
+        for (const r of datums(regionsOf({ type: "venn", items: "A, B" })))
+            expect(parseDatumRegion(r.id)?.element).toBe("el:s1:0");
+    });
 });

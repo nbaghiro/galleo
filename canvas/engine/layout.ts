@@ -1,3 +1,4 @@
+import { maxRadius } from "@engine/node";
 import type {
     Align,
     EngineNode,
@@ -128,7 +129,20 @@ function distribute(spans: Span[], avail: number): number[] {
 
 // Exported for callers that size a floating container to its content before laying it out: the
 // solver assigns the container width to the root unconditionally, so hugging happens above it.
+// Fit chains re-ask the same subtree many times in one pass; the answer only depends on the node
+// and the measurer, and nothing mutates width inputs mid-pass, so it is cached per pair.
+const intrinsicWidths = new WeakMap<MeasureText, WeakMap<EngineNode, number>>();
 export function intrinsicWidth(n: EngineNode, measure: MeasureText): number {
+    let cache = intrinsicWidths.get(measure);
+    if (!cache) intrinsicWidths.set(measure, (cache = new WeakMap()));
+    const hit = cache.get(n);
+    if (hit !== undefined) return hit;
+    const w = intrinsicWidthOf(n, measure);
+    cache.set(n, w);
+    return w;
+}
+
+function intrinsicWidthOf(n: EngineNode, measure: MeasureText): number {
     if (n.text) return measure(n.text, Number.POSITIVE_INFINITY).width;
     if (n.image?.natural) return n.image.natural.w;
     const kids = n.children ?? [];
@@ -462,9 +476,14 @@ function layoutPositions(ln: LayoutNode, x: number, y: number, measure: MeasureT
         const colW = trackMembers(placed, cols).map((m) =>
             m.reduce((mx, c) => Math.max(mx, c.w), 0),
         );
+        // main-axis slack answers the same fields a row's does, applied to the tracks
+        const totalW = colW.reduce((s, w) => s + w, 0) + gap * Math.max(0, cols - 1);
+        const extra = contentW - totalW;
+        const sp = spread(node.distribute, extra, cols);
+        const blockLead = node.distribute ? sp.lead : mainOffset(extra, node.alignX);
         const lead = (col: number): number => {
-            let o = 0;
-            for (let i = 0; i < col; i++) o += colW[i]! + gap;
+            let o = blockLead;
+            for (let i = 0; i < col; i++) o += colW[i]! + gap + sp.gap;
             return o;
         };
         const rg = node.rowGap ?? gap;
@@ -548,6 +567,7 @@ function emit(
     link?: string,
     decor = false,
     rot?: Rotation,
+    clipShape?: "ellipse",
 ): void {
     const { node } = ln;
     const acc = node.opacity !== undefined ? opacity * node.opacity : opacity;
@@ -562,7 +582,11 @@ function emit(
     const dec = { ...(decor ? { decor: true as const } : {}), ...(spin ? { rotate: spin } : {}) };
     const box: Rect = { x: ln.x, y: ln.y, w: ln.w, h: ln.h };
     if (node.id) {
-        const r: Region = { id: node.id, box, radius: node.fill?.radius ?? node.image?.radius };
+        const r: Region = {
+            id: node.id,
+            box,
+            radius: maxRadius(node.fill?.radius) || node.image?.radius,
+        };
         regions.push(spin ? rotateRegion(r, spin) : r);
     }
     // A surface reports its own sub-element geometry box-relative; only emit knows where the box sits.
@@ -580,6 +604,7 @@ function emit(
             id: node.id,
             opacity: o,
             clip,
+            clipShape,
             link: href,
             ...dec,
         });
@@ -591,6 +616,7 @@ function emit(
             id: node.id,
             opacity: o,
             clip,
+            clipShape,
             link: href,
             ...dec,
         });
@@ -604,6 +630,7 @@ function emit(
             id: node.id,
             opacity: o,
             clip,
+            clipShape,
             link: href,
             ...dec,
         });
@@ -615,19 +642,23 @@ function emit(
             id: node.id,
             opacity: o,
             clip,
+            clipShape,
             link: href,
             ...dec,
         });
     const childClip = ln.clip ? clipRect(clip, box, ln.clip) : clip;
+    // a clipping node's own declared shape crops its subtree; any narrower rect degrades to plain
+    const childShape = ln.clip ? node.clip?.shape : clipShape;
     // Negative-z floats are decoration and paint under the flow; the rest are overlays on top.
     const floats = ln.children
         .filter((c) => c.node.float)
         .sort((a, b) => (a.node.float?.z ?? 0) - (b.node.float?.z ?? 0));
     for (const c of floats)
         if ((c.node.float?.z ?? 0) < 0)
-            emit(c, commands, regions, measure, acc, childClip, href, true, spin);
+            emit(c, commands, regions, measure, acc, childClip, href, true, spin, childShape);
     for (const c of ln.children)
-        if (!c.node.float) emit(c, commands, regions, measure, acc, childClip, href, decor, spin);
+        if (!c.node.float)
+            emit(c, commands, regions, measure, acc, childClip, href, decor, spin, childShape);
     for (const c of floats)
         if ((c.node.float?.z ?? 0) >= 0)
             emit(c, commands, regions, measure, acc, childClip, href, decor, spin);
@@ -764,15 +795,45 @@ interface Win {
 }
 const win = (c: RenderCommand): Win => ({ c, ...rotatedExtent(c) });
 
+export interface FragmentPage {
+    commands: RenderCommand[];
+    // the source window this page shows, in flow coordinates: anything else positioned in that
+    // space (a region) is carried onto the page by the same overlap-and-shift the commands got
+    top: number;
+    bottom: number;
+}
+
+/** Regions overlapping a page's window, shifted onto it; polygon points travel with the box. */
+export function regionWindow(regions: Region[], top: number, bottom: number): Region[] {
+    const out: Region[] = [];
+    for (const r of regions) {
+        if (r.box.y >= bottom - EPS || r.box.y + r.box.h <= top + EPS) continue;
+        out.push({
+            ...r,
+            box: { ...r.box, y: r.box.y - top },
+            ...(r.shape
+                ? {
+                      shape: {
+                          ...r.shape,
+                          points: r.shape.points.map((p): [number, number] => [p[0], p[1] - top]),
+                      },
+                  }
+                : {}),
+        });
+    }
+    return out;
+}
+
 export function fragment(
     commands: RenderCommand[],
     totalHeight: number,
     pageHeight: number,
-): RenderCommand[][] {
-    if (totalHeight <= pageHeight + EPS || pageHeight <= 0) return [commands.map((c) => c)];
+): FragmentPage[] {
+    if (totalHeight <= pageHeight + EPS || pageHeight <= 0)
+        return [{ commands: commands.map((c) => c), top: 0, bottom: totalHeight }];
 
     let wins = commands.map(win);
-    const pages: RenderCommand[][] = [];
+    const pages: FragmentPage[] = [];
     let top = 0;
     let guard = 0;
 
@@ -837,7 +898,7 @@ export function fragment(
             }
             pageCmds.push(shiftY(w.c, -top));
         }
-        pages.push(pageCmds);
+        pages.push({ commands: pageCmds, top, bottom: breakY });
 
         if (atLine) {
             // the next page carries each cut command's remaining window

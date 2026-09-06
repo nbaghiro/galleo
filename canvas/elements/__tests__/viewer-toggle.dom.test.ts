@@ -6,7 +6,7 @@ import { elementRegionId } from "@model/artifact";
 import { resolveProfile } from "@engine/profile";
 import { createSectionStackCache, paintSectionStack } from "@canvas/render/backends";
 import { artifactOf, inst, installCanvas2D, sectionOf, tokens } from "@canvas/testkit";
-import { viewerToggleAt } from "@elements/ops";
+import { datumLabel, viewerDatumAt, viewerToggleAt } from "@elements/ops";
 
 beforeAll(() => installCanvas2D());
 const web = resolveProfile("web");
@@ -86,5 +86,62 @@ describe("viewerToggleAt", () => {
         const toggle = viewerToggleAt(art, regions, centre(strip[1]!))!;
         expect(toggle.key).toBe(elementRegionId({ section: "s1", path: [] }));
         expect(toggle.patch).toEqual({ active: 1 });
+    });
+});
+
+describe("shape-aware presses", () => {
+    it("presses on the polygon when a hit region carries one, not the box", () => {
+        const { regions, art } = paint();
+        const hit = regions.find((r) => r.id.startsWith("hit:"))!;
+        const b = hit.box;
+        // a sliver in the box's top-left corner: the box centre falls outside it
+        const shaped: Region = {
+            ...hit,
+            shape: {
+                kind: "poly",
+                points: [
+                    [b.x, b.y],
+                    [b.x + 4, b.y],
+                    [b.x, b.y + 4],
+                ],
+            },
+        };
+        const rest = regions.filter((r) => r !== hit);
+        expect(viewerToggleAt(art, [...rest, shaped], centre(hit))).toBeNull();
+        expect(viewerToggleAt(art, [...rest, shaped], { x: b.x + 1, y: b.y + 1 })).not.toBeNull();
+    });
+});
+
+describe("viewerDatumAt / datumLabel", () => {
+    it("finds the mark under a viewer's pointer and names its row", () => {
+        const chart = inst("chart", {
+            type: "bar",
+            values: "4, 9",
+            categories: "Alpha, Beta",
+            height: 200,
+        });
+        const { regions, art } = paint(chart);
+        const mark = regions.find((r) => r.id.startsWith("datum:"))!;
+        const hit = viewerDatumAt(regions, {
+            x: mark.box.x + mark.box.w / 2,
+            y: mark.box.y + mark.box.h / 2,
+        })!;
+        expect(hit.index).toBe(0);
+        expect(datumLabel(art, hit.address, hit.index)).toBe("Alpha · 4");
+        expect(viewerDatumAt(regions, { x: -10, y: -10 })).toBeNull();
+    });
+
+    it("names a diagram item from its drawn shape, label and detail joined", () => {
+        const d = inst("targetDiagram", { type: "target", items: "Market | everyone\nCore | few" });
+        const { regions, art } = paint(d);
+        const marks = regions.filter((r) => r.id.startsWith("datum:"));
+        expect(marks).toHaveLength(2);
+        const inner = marks[marks.length - 1]!;
+        const hit = viewerDatumAt(regions, {
+            x: inner.box.x + inner.box.w / 2,
+            y: inner.box.y + inner.box.h / 2,
+        })!;
+        expect(hit.index).toBe(1); // last drawn wins: the innermost ring owns its centre
+        expect(datumLabel(art, hit.address, hit.index)).toBe("Core · few");
     });
 });
