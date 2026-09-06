@@ -323,6 +323,8 @@ const Frame: Component<{
         // the frame just gained its words: the moment the plan becomes readable
         // the section arriving on the board, or a card that just gained the plan's words
         const arriving = !!outline && (painted === null || painted.copy === false);
+        // arriving over a placeholder we already painted (not a fresh mount): dissolve, don't pop
+        const fromGhost = arriving && painted !== null;
         painted = { el, sec, ghost, w, theme, fmt, previewed: !!slot()?.preview, copy: !!outline };
 
         const tk = resolveTheme(theme).tokens;
@@ -356,8 +358,17 @@ const Frame: Component<{
         // every frame keeps one height from the first paint through the last edit of the plan, so a
         // beat filling in never moves the beats under it
         setDim({ w, h: out.height });
+        // a still-empty slot breathes so it reads as a beat being planned, not a dead grey box
+        el.classList.toggle("animate-pulse", !sec && !outline && !reduced());
         // the words settle into the frame that was already holding their place
         if (arriving && !reduced()) {
+            // dissolve the whole card in over the placeholder it replaces, then let the words settle
+            if (fromGhost)
+                el.animate([{ opacity: 0 }, { opacity: 1 }], {
+                    duration: 300,
+                    easing: FILL_EASING,
+                    fill: "both",
+                });
             let n = 0;
             out.commands.forEach((c, i) => {
                 if (c.kind !== "text") return;
