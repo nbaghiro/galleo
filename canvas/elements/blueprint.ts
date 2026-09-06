@@ -136,12 +136,22 @@ function assemble(plan: SectionBlueprint, columns: ElementInstance[]): Section {
     return { id: plan.id, root };
 }
 
-export function placeholderSection(plan: SectionBlueprint): Section {
+export function placeholderSection(plan: SectionBlueprint): {
+    section: Section;
+    ghosts: Record<string, string>; // region id of a data column, to the kind's silhouette it draws
+} {
     const { kinds } = columnPlan(plan);
-    return assemble(
+    const section = assemble(
         plan,
         kinds.map((k) => placeholderBlock(k)),
     );
+    // no copy column here, so every silhouette-worthy column is a ghost; a lone column sits at path []
+    const ghosts: Record<string, string> = {};
+    kinds.forEach((k, i) => {
+        if (SILHOUETTE_KINDS.has(k))
+            ghosts[elementRegionId({ section: plan.id, path: kinds.length === 1 ? [] : [i] })] = k;
+    });
+    return { section, ghosts };
 }
 
 // The outline's words as a real Section, so the engine owns its type scale, splits and theme

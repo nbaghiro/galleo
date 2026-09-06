@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import "@elements/register";
 import { outlineSection, placeholderBlock, placeholderSection } from "@elements/blueprint";
-import { layoutOutline } from "@canvas/render/commands";
+import { layoutOutline, layoutSectionSkeleton } from "@canvas/render/commands";
 import { resolveProfile } from "@engine/profile";
 import { measure, tokens } from "@canvas/testkit";
 import { childrenRaw } from "@model/artifact";
@@ -24,20 +24,21 @@ describe("placeholderBlock", () => {
 describe("placeholderSection", () => {
     it("builds one column per block using the layout preset", () => {
         const cols = childrenRaw(
-            placeholderSection({ id: "s", layout: "split-6040", blocks: ["stat", "chart"] }).root,
+            placeholderSection({ id: "s", layout: "split-6040", blocks: ["stat", "chart"] }).section
+                .root,
         )!;
         expect(cols).toHaveLength(2);
         expect(cols[0]!.type).toBe("stat");
         expect(cols[1]!.type).toBe("chart");
     });
     it("a single-column plan has no wrapping row", () => {
-        expect(placeholderSection({ id: "s", layout: "full", blocks: ["quote"] }).root.type).toBe(
-            "quote",
-        );
+        expect(
+            placeholderSection({ id: "s", layout: "full", blocks: ["quote"] }).section.root.type,
+        ).toBe("quote");
     });
     it("guesses a trailing image column when plan.image is set", () => {
         const cols = childrenRaw(
-            placeholderSection({ id: "s", layout: "two-col", image: true }).root,
+            placeholderSection({ id: "s", layout: "two-col", image: true }).section.root,
         )!;
         expect(cols).toHaveLength(2);
         expect(cols[cols.length - 1]!.type).toBe("media");
@@ -115,5 +116,44 @@ describe("outlineSection ghost silhouettes", () => {
 
     it("has no ghost column in a single-column outline", () => {
         expect(outlineSection({ id: "solo", layout: "full", heading: "Solo" }).ghosts).toEqual({});
+    });
+});
+
+describe("placeholderSection ghost silhouettes", () => {
+    it("ghosts each silhouette-worthy column, and no plain-text one", () => {
+        const { ghosts } = placeholderSection({
+            id: "p",
+            layout: "split-6040",
+            blocks: ["text", "chart"],
+        });
+        expect(Object.values(ghosts)).toEqual(["chart"]);
+    });
+
+    it("ghosts a lone data column at the root path", () => {
+        const { ghosts } = placeholderSection({ id: "p", layout: "full", blocks: ["chart"] });
+        expect(Object.values(ghosts)).toEqual(["chart"]);
+    });
+
+    it("has no ghosts for a text-only plan", () => {
+        expect(placeholderSection({ id: "p", layout: "full", blocks: ["text"] }).ghosts).toEqual(
+            {},
+        );
+    });
+
+    it("draws the skeleton chart column as a silhouette of bars", () => {
+        const { section, ghosts } = placeholderSection({
+            id: "p",
+            layout: "split-6040",
+            blocks: ["text", "chart"],
+        });
+        const out = layoutSectionSkeleton(
+            section,
+            900,
+            measure,
+            tokens,
+            resolveProfile("deck"),
+            ghosts,
+        );
+        expect(out.commands.filter((c) => c.kind === "rect").length).toBeGreaterThan(3);
     });
 });

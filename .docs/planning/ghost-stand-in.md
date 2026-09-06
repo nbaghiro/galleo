@@ -7,9 +7,9 @@
 > the one that is worth copying, and a staged consolidation onto a single vocabulary.
 > **Status: Stages 1 and 2 built 2026-09-06. Stage 1: `canvas/elements/ghost.ts` extracted,
 > `canvas/render/placeholder.ts` migrated onto it, no visible change. Stage 2: colors unified
-> (2a) and the AI outline ghost now draws per-kind silhouettes (2c); 2b (deleting spec.ts's ghost
-> builders) was dropped, they are not dead after all. Stage 3 remains recorded as likely not-taken.
-> Nothing committed.**
+> (2a) and both the AI outline ghost and the whole-section skeleton now draw per-kind silhouettes
+> (2c, through one shared `layoutGhosts` helper); 2b (deleting spec.ts's ghost builders) was dropped,
+> they are not dead after all. Stage 3 remains recorded as likely not-taken. Nothing committed.**
 
 ## The four stand-in systems (verified against the tree, 2026-09-06)
 
@@ -106,41 +106,45 @@ them, and removing them would mean editing a contested test. Dropped; they stay.
 
 ### 2c. The AI outline ghost draws silhouettes, not greyed guesses (built)
 
-`outlineSection` now also returns `ghosts`, a map from each data column's region id to its kind, for
-the kinds a silhouette reads better than a greyed guess (`chart`, `stat`, `table`, `diagram`; `image`
-is left out because it already ghosts well as a panel through `skeletonize`). `layoutOutline` takes
-that map: a column whose id is in it is replaced by a `ghostBody(kind, colors, height)` silhouette
-(bars for a chart, tiles for a stat) rather than the skeletonized `placeholderBlock` content, so the
-ghost stops claiming specific fabricated content the model will contradict. The copy column stays
-real, and every other column still skeletonizes, so the editable region ids are unchanged.
+Both blueprint builders now also return `ghosts`, a map from each data column's region id to its
+kind, for the kinds a silhouette reads better than a greyed guess (`chart`, `stat`, `table`,
+`diagram`; `image` is left out because it already ghosts well as a panel through `skeletonize`).
+`outlineSection` maps every such column except the copy column; `placeholderSection`, which has no
+copy column, maps them all (a lone data column sits at the root path `[]`, which composes to
+`el:<section>`). One shared `layoutGhosts` helper in `commands.ts` applies a map: a column whose id
+is in it becomes a `ghostBody(kind, colors, height)` silhouette (bars for a chart, tiles for a stat)
+rather than skeletonized `placeholderBlock` content, so the ghost stops claiming specific fabricated
+content the model will contradict. `layoutOutline` passes it a `copyId` to keep real; the
+whole-section skeleton (`layoutSectionSkeleton`, used by `GenOverlays.tsx` and the `Board.tsx`
+fallback) passes none, so every silhouette-worthy column ghosts. Both keep the section frame and the
+non-data columns skeletonized exactly as before, so editable region ids and the empty-ghosts case
+are unchanged.
 
-The silhouette needs a height, and a column's height is not known until layout, so `layoutOutline`
+The silhouette needs a height, and a column's height is not known until layout, so `layoutGhosts`
 runs one measuring pass when (and only when) the `ghosts` map is non-empty, reads each column's box
 height from the returned regions, and sizes the silhouettes from that before the real second pass.
 `placeholderBlock`'s canned data still composes in the measuring pass to establish column geometry,
-so it was not removed.
+so it was not removed. One behavior note for QA: a skeleton that has a silhouette column now keeps
+its real section background and wrappers (only the columns are ghosted), the same way the outline
+card already did, rather than greying the whole card flat; a text-only skeleton (empty `ghosts`) is
+byte-for-byte the old fully-greyed skeleton.
 
 Coordination: `commands.ts` carries another session's uncommitted changes. Its ghost region
-(`ghostColorsFor` and `layoutOutline`, plus the third `skeletonize` call site) was untouched by that
-diff, and the `@themes` import line likewise; the edits are confined to those, plus one added import.
-`spec.ts` and `spec.test.ts` were not touched. `blueprint.ts`, `Board.tsx`, and the tests are clean
-files. The owner was notified.
-
-Not built, recorded as follow-up: `placeholderSection` feeds the same silhouette-worthy kinds into
-`layoutSectionSkeleton` (the whole-section skeleton in `GenOverlays.tsx`), which still skeletonizes
-rather than drawing silhouettes. Giving it the same treatment means `placeholderSection` returning a
-`ghosts` map and `layoutSectionSkeleton` taking one, which widens two more signatures and their
-callers (`editor/core/ai.ts`, `GenOverlays.tsx`, `Board.tsx`). Left for a follow-up, since the user's
-report was the outline card, which `layoutOutline` owns.
+(`ghostColorsFor`, `layoutOutline`, `layoutSectionSkeleton`, plus the third `skeletonize` call site)
+was untouched by that diff, and the `@themes` import line likewise; the edits are confined to those,
+plus one added import. `spec.ts` and `spec.test.ts` were not touched. `blueprint.ts`, `Board.tsx`,
+`editor/core/ai.ts`, `GenOverlays.tsx`, and the tests are clean files. The owner was notified.
 
 ### 2d. Tests (built)
 
-`blueprint.test.ts` gains a silhouette group: `outlineSection` returns a `ghosts` map keyed to the
-data column (never the copy column), a chart column lays out as several filled rects rather than
-greyed text bars, and a single-column outline has no ghosts. The existing "paints no stand-in copy"
-test already exercises the stat silhouette (it asserts the canned `92%`/`key metric` text never
-paints). `eval:shots` is unaffected: the outline board and the skeletons are not in the shot corpus,
-which renders real sections through `layoutSection`.
+`blueprint.test.ts` gains two silhouette groups. For `outlineSection`: it returns a `ghosts` map keyed
+to the data column (never the copy column), a chart column lays out as several filled rects rather than
+greyed text bars, and a single-column outline has no ghosts. For `placeholderSection`: it ghosts each
+silhouette-worthy column (a lone one at the root path) and none for a text-only plan, and the skeleton
+chart column lays out as bars. The existing "paints no stand-in copy" test already exercises the stat
+silhouette (it asserts the canned `92%`/`key metric` text never paints). `eval:shots` is unaffected:
+the outline board and the skeletons are not in the shot corpus, which renders real sections through
+`layoutSection`.
 
 ## Stage 3 — palette preview art (planned, likely not taken)
 

@@ -11,13 +11,14 @@ import type {
     TextLine,
 } from "@engine/node";
 import { LINE_HEIGHT_FACTOR } from "@model/text";
-import type { Section } from "@model/artifact";
+import type { ArtifactContent, Connection, Section } from "@model/artifact";
 import { isElementRegionId, sectionRegionId } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { composeSection } from "@elements/compose";
 import { skeletonize } from "@elements/spec";
-import { ghostBody, ghostColors } from "@elements/ghost";
+import { ghostBody, ghostColors, type GhostColors } from "@elements/ghost";
+import { connectionCommands } from "./connect";
 import { fragment, layout, regionWindow, rotatedExtent } from "@engine/layout";
 import { DEFAULT_PROFILE, FIT_FLOOR, MIN_TEXT_PX, sectionFrame } from "@engine/profile";
 import { fixed, grow } from "@model/geometry";
@@ -63,9 +64,12 @@ export function layoutSection(
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
     plain = false,
+    connections?: Connection[],
 ): { commands: RenderCommand[]; regions: Region[]; height: number } {
     const node = composeSection(section, ctxFor(width, theme, format, plain, measure));
     const { commands, regions } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
+    if (connections?.length)
+        commands.push(...sectionConnections(section, connections, regions, theme));
     const height = bottom(commands);
     // A pinned descendant can outrun the flow, and the flow is all a fit height counts. The stack
     // already advances by the measured extent; the section's own ground (and its region) stretch to
@@ -79,24 +83,18 @@ export function layoutSection(
     return { commands, regions, height };
 }
 
-// An outline card: the plan's own words where they will sit, a ghost for every other block, so a
-// stat column reads as "a number lands here" rather than inventing one. A column whose kind the
-// outline names (`ghosts`) draws that kind's silhouette instead of a greyed guess; the rest are
-// skeletonized shape only.
-export function layoutOutline(
-    section: Section,
-    copyId: string,
+// Ghost a composed section: a data column whose kind `ghosts` names (chart, stat, table, diagram)
+// becomes that kind's silhouette (bars, tiles, rows) sized to the box it lays out into; `copyId`,
+// when given, is the one column kept real and editable; every other node is skeletonized shape only.
+// A silhouette needs a laid-out height, so a first measuring pass runs, but only when one is wanted.
+function layoutGhosts(
+    node: EngineNode,
     width: number,
     measure: MeasureText,
-    theme: Tokens = DEFAULT_THEME.tokens,
-    format: FormatDescriptor = DEFAULT_PROFILE,
-    ghosts: Record<string, string> = {},
-): { commands: RenderCommand[]; regions: Region[]; height: number } {
-    const node = composeSection(section, ctxFor(width, theme, format, false, measure));
-    const colors = ghostColors(theme);
-    const holds = (n: EngineNode): boolean => n.id === copyId || (n.children?.some(holds) ?? false);
-    // size a silhouette to the box its column lays out into, measured in a first pass; only pay for
-    // that pass when a silhouette is actually wanted
+    colors: GhostColors,
+    ghosts: Record<string, string>,
+    copyId?: string,
+): { commands: RenderCommand[]; regions: Region[] } {
     const heights = Object.keys(ghosts).length
         ? new Map(
               layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure).regions.map(
@@ -115,36 +113,49 @@ export function layoutOutline(
             children: ghostBody(kind, colors, h),
         };
     };
-    // everything off the path to the copy column is shape only
-    const ghostAround = (n: EngineNode): EngineNode =>
-        n.id === copyId
+    const isCopy = (n: EngineNode): boolean => copyId !== undefined && n.id === copyId;
+    // a container on the path to a kept or ghosted column recurses; anything else greys wholesale
+    const marks = (n: EngineNode): boolean =>
+        isCopy(n) || (!!n.id && !!ghosts[n.id]) || (n.children?.some(marks) ?? false);
+    const walk = (n: EngineNode): EngineNode =>
+        isCopy(n)
             ? n
-            : holds(n)
-              ? { ...n, children: n.children?.map(ghostAround) }
-              : n.id && ghosts[n.id]
-                ? silhouette(n, ghosts[n.id]!)
+            : n.id && ghosts[n.id]
+              ? silhouette(n, ghosts[n.id]!)
+              : n.children?.some(marks)
+                ? { ...n, children: n.children.map(walk) }
                 : skeletonize(n, colors);
-    const { commands, regions } = layout(
-        ghostAround(node),
-        { x: 0, y: 0, w: width, h: 100000 },
-        measure,
-    );
-    return { commands, regions, height: bottom(commands) };
+    return layout(walk(node), { x: 0, y: 0, w: width, h: 100000 }, measure);
 }
 
-// skeletonize the real composed node so the ghost occupies the exact final geometry (can't drift)
+// An outline card: the plan's own words where they will sit, a ghost for every other block, so a
+// stat column reads as "a number lands here" rather than inventing one.
+export function layoutOutline(
+    section: Section,
+    copyId: string,
+    width: number,
+    measure: MeasureText,
+    theme: Tokens = DEFAULT_THEME.tokens,
+    format: FormatDescriptor = DEFAULT_PROFILE,
+    ghosts: Record<string, string> = {},
+): { commands: RenderCommand[]; regions: Region[]; height: number } {
+    const node = composeSection(section, ctxFor(width, theme, format, false, measure));
+    const out = layoutGhosts(node, width, measure, ghostColors(theme), ghosts, copyId);
+    return { ...out, height: bottom(out.commands) };
+}
+
+// The whole-section skeleton (a beat being planned or written): the same silhouettes as the outline
+// card, but with no column kept real, since there is no copy yet.
 export function layoutSectionSkeleton(
     section: Section,
     width: number,
     measure: MeasureText,
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
+    ghosts: Record<string, string> = {},
 ): { commands: RenderCommand[]; height: number } {
-    const node = skeletonize(
-        composeSection(section, ctxFor(width, theme, format, false, measure)),
-        ghostColors(theme),
-    );
-    const { commands } = layout(node, { x: 0, y: 0, w: width, h: 100000 }, measure);
+    const node = composeSection(section, ctxFor(width, theme, format, false, measure));
+    const { commands } = layoutGhosts(node, width, measure, ghostColors(theme), ghosts);
     return { commands, height: bottom(commands) };
 }
 
@@ -431,6 +442,23 @@ export interface SlidePage {
     fitScale: number; // < 1 ⇒ autofit re-composed the section to reach the frame
 }
 
+// a paged surface is per-section, so only this section's arrows can resolve; both-ends-per-page
+// falls out of resolving against the page's own windowed regions
+function sectionConnections(
+    section: Section,
+    connections: Connection[],
+    regions: Region[],
+    theme: Tokens,
+): RenderCommand[] {
+    const content: ArtifactContent = {
+        format: "deck",
+        theme: "",
+        sections: [section],
+        connections,
+    };
+    return connectionCommands(content, regions, theme).commands;
+}
+
 // one scaled slide, or several paginated when too tall; Present, export, and 16:9 thumbnails render
 // from this, so all three agree on where a tall section breaks
 export function sectionSlides(
@@ -438,6 +466,7 @@ export function sectionSlides(
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
     plain = false,
+    connections?: Connection[],
 ): SlidePage[] {
     const { w, h } = sectionFrame(section, format);
     const { node, targetH, fitScale } = prepareSlideNode(
@@ -450,16 +479,30 @@ export function sectionSlides(
         plain,
     );
     const { commands, regions } = layout(node, { x: 0, y: 0, w, h: targetH }, measureText);
+    const arrows = (rs: Region[]): RenderCommand[] =>
+        connections?.length ? sectionConnections(section, connections, rs, theme) : [];
     if (format.overflow === "fit" || targetH <= h * PAGINATE_ABOVE)
-        return [{ commands, regions, w, h, contentH: targetH, fitScale }];
-    return fragment(commands, targetH, h).map((p) => ({
-        commands: p.commands,
-        regions: regionWindow(regions, p.top, p.bottom),
-        w,
-        h,
-        contentH: h,
-        fitScale,
-    }));
+        return [
+            {
+                commands: [...commands, ...arrows(regions)],
+                regions,
+                w,
+                h,
+                contentH: targetH,
+                fitScale,
+            },
+        ];
+    return fragment(commands, targetH, h).map((p) => {
+        const rs = regionWindow(regions, p.top, p.bottom);
+        return {
+            commands: [...p.commands, ...arrows(rs)],
+            regions: rs,
+            w,
+            h,
+            contentH: h,
+            fitScale,
+        };
+    });
 }
 
 export function layoutSlideSkeleton(

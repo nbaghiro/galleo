@@ -50,18 +50,19 @@ const SkeletonBase: Component<{ width: number }> = (props) => {
             host.replaceChildren();
             return;
         }
-        const sec = placeholderSection({
+        const { section, ghosts } = placeholderSection({
             id: PLACEHOLDER_SECTION_ID,
             layout: beat.layout,
             blocks: beat.blocks,
             image: beat.image,
         });
         const { commands } = layoutSectionSkeleton(
-            sec,
+            section,
             props.width,
             measureText,
             editorTokens(),
             profileFor(editor.artifact),
+            ghosts,
         );
         paint(commands, host);
     });

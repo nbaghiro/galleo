@@ -343,20 +343,15 @@ const Frame: Component<{
                     outline.ghosts,
                 )
               : null;
+        const skel = placeholderSection({
+            id: props.id,
+            layout: layout(),
+            blocks: blocks(),
+            image: image(),
+        });
         const out =
             rendered ??
-            layoutSectionSkeleton(
-                placeholderSection({
-                    id: props.id,
-                    layout: layout(),
-                    blocks: blocks(),
-                    image: image(),
-                }),
-                w,
-                measureText,
-                tk,
-                profile,
-            );
+            layoutSectionSkeleton(skel.section, w, measureText, tk, profile, skel.ghosts);
         const nodes = paint(out.commands, el);
         // every frame keeps one height from the first paint through the last edit of the plan, so a
         // beat filling in never moves the beats under it
