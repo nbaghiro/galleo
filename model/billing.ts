@@ -5,28 +5,26 @@ export type Interval = "month" | "year";
 
 // Every 402 body names its wall, because one status covers several walls whose remedies differ and
 // telling them apart by parsing the prose picked the wrong one.
-export type PaywallReason = "credits" | "storage" | "seats" | "feature";
+export type PaywallReason = "credits" | "storage" | "feature";
 
 // What a plan change did, as the route reports it back.
 export type ChangeEffect = "cancel_at_period_end" | "upgraded" | "changed";
 export type ExportFormat = "png" | "pdf" | "print" | "pptx" | "slides";
 
-// Every price is per seat and the subscription is one Stripe line at quantity = seats, so a plan is
-// one price per interval and a seat carries the same credits whether it is the first or the tenth.
+// One flat price for the whole workspace, so a plan is one Stripe price per interval.
 export interface PlanBilling {
-    priceMonthly: number; // USD per seat; 0 = free
-    priceAnnualMonthly: number; // USD per seat; effective $/mo billed yearly
-    minSeats: number;
-    maxSeats: number; // 1 = solo
+    priceMonthly: number; // USD; 0 = free
+    priceAnnualMonthly: number; // USD; effective $/mo billed yearly
 }
 
 export interface PlanAi {
-    creditsPerSeat: number; // a month
+    monthlyCredits: number; // one pool, shared by every member
 }
 
 export interface PlanAccount {
     maxArtifacts: number; // -1 = unlimited
     storageMb: number; // -1 = unlimited
+    maxMembers: number; // -1 = unlimited; 1 = solo
 }
 
 export interface PlanFeatures {
@@ -52,11 +50,11 @@ export interface Plan {
 }
 
 /**
- * The monthly allowance per seat. A credit is real provider spend (CREDIT_USD in model/credits.ts),
+ * The monthly allowance per plan. A credit is real provider spend (CREDIT_USD in model/credits.ts),
  * so an allowance is a dollar liability; sized against the YEARLY price, the thinnest way to pay,
  * so every route clears an 80% margin floor. model/__tests__/billing.test.ts holds the invariants.
  */
-const CREDITS: Record<PlanId, number> = { free: 300, pro: 1_200, premium: 2_100 };
+const CREDITS: Record<PlanId, number> = { free: 300, pro: 1_200, premium: 5_000 };
 
 const credits = (n: number): string => n.toLocaleString("en-US");
 
@@ -84,9 +82,9 @@ export const PLANS: Record<PlanId, Plan> = {
             "PNG · PDF export (with a Galleo mark)",
             "Just you",
         ],
-        billing: { priceMonthly: 0, priceAnnualMonthly: 0, minSeats: 1, maxSeats: 1 },
-        ai: { creditsPerSeat: CREDITS.free },
-        account: { maxArtifacts: 10, storageMb: 500 },
+        billing: { priceMonthly: 0, priceAnnualMonthly: 0 },
+        ai: { monthlyCredits: CREDITS.free },
+        account: { maxArtifacts: 10, storageMb: 500, maxMembers: 1 },
         features: {
             removeBranding: false,
             customThemes: false,
@@ -110,9 +108,9 @@ export const PLANS: Record<PlanId, Plan> = {
             "Voice narration and background music",
             "Buy extra credits any time",
         ],
-        billing: { priceMonthly: 20, priceAnnualMonthly: 16, minSeats: 1, maxSeats: 1 },
-        ai: { creditsPerSeat: CREDITS.pro },
-        account: { maxArtifacts: -1, storageMb: 20000 },
+        billing: { priceMonthly: 20, priceAnnualMonthly: 16 },
+        ai: { monthlyCredits: CREDITS.pro },
+        account: { maxArtifacts: -1, storageMb: 20000, maxMembers: 1 },
         features: {
             removeBranding: true,
             customThemes: true,
@@ -128,16 +126,16 @@ export const PLANS: Record<PlanId, Plan> = {
         name: "Premium",
         tagline: "For teams that need control.",
         highlights: [
-            `${credits(CREDITS.premium)} credits per seat each month`,
+            `${credits(CREDITS.premium)} credits a month, one pool for the whole team`,
             "Everything in Pro",
-            "3 seats to start, add more any time",
+            "Unlimited members",
             "Roles and admin controls",
             "Link analytics: views, referrers, engagement",
             "API and MCP access",
         ],
-        billing: { priceMonthly: 33, priceAnnualMonthly: 27, minSeats: 3, maxSeats: 100 },
-        ai: { creditsPerSeat: CREDITS.premium },
-        account: { maxArtifacts: -1, storageMb: -1 },
+        billing: { priceMonthly: 99, priceAnnualMonthly: 82 },
+        ai: { monthlyCredits: CREDITS.premium },
+        account: { maxArtifacts: -1, storageMb: -1, maxMembers: -1 },
         features: {
             removeBranding: true,
             customThemes: true,
@@ -159,15 +157,6 @@ export function planFor(id: string | null | undefined): Plan {
 export const planRank = (id: string | null | undefined): number =>
     PLAN_ORDER.indexOf(planFor(id).id);
 
-/** Whether the plan holds a team; Free and Pro are solo by design. */
-export const sellsSeats = (id: string | null | undefined): boolean =>
-    planFor(id).billing.maxSeats > 1;
-
-export const clampSeats = (id: string | null | undefined, seats: number): number => {
-    const b = planFor(id).billing;
-    return Math.min(b.maxSeats, Math.max(b.minSeats, Math.floor(seats)));
-};
-
 /** Whether a higher plan is on sale, so "upgrade" is a remedy we can offer. */
 export const canUpgradeFrom = (id: string | null | undefined): boolean =>
     planRank(id) < PLAN_ORDER.length - 1;
@@ -187,7 +176,7 @@ export type BoolFeature =
     | "audio";
 
 // -1 = unlimited
-export type NumFeature = "maxArtifacts" | "storageMb";
+export type NumFeature = "maxArtifacts" | "storageMb" | "maxMembers";
 
 export type EnumFeature = "exportFormats";
 
@@ -206,6 +195,7 @@ export const FEATURES: Record<FeatureKey, { label: string; description: string }
         description: "How many live artifacts a workspace can hold.",
     },
     storageMb: { label: "Storage", description: "Uploaded-media storage per workspace." },
+    maxMembers: { label: "Members", description: "How many people a workspace can hold." },
     publicLinks: {
         label: "Public share links",
         description: "Publish an artifact to a public URL.",
@@ -235,11 +225,12 @@ export interface Features {
     audio: boolean;
     maxArtifacts: number;
     storageMb: number;
+    maxMembers: number;
     exportFormats: ExportFormat[];
 }
 
-// per-workspace patch over the plan. `includedCredits` replaces the whole monthly grant rather than
-// the per-seat rate, since it is a support lever ("this workspace gets 5,000 a month").
+// per-workspace patch over the plan. `includedCredits` replaces the monthly grant: a support lever
+// ("this workspace gets 5,000 a month").
 export type FeatureOverrides = Partial<Omit<Features, "planId">> & { includedCredits?: number };
 
 export function resolveFeatures(planId: PlanId, overrides?: FeatureOverrides): Features {
@@ -255,6 +246,7 @@ export function resolveFeatures(planId: PlanId, overrides?: FeatureOverrides): F
         audio: overrides?.audio ?? f.audio,
         maxArtifacts: overrides?.maxArtifacts ?? p.account.maxArtifacts,
         storageMb: overrides?.storageMb ?? p.account.storageMb,
+        maxMembers: overrides?.maxMembers ?? p.account.maxMembers,
         exportFormats: overrides?.exportFormats ?? f.exportFormats,
     };
 }
@@ -303,11 +295,8 @@ export function featuresFor(ws: PlanBearer): Features {
  * What the subscription grants each month. Added to `ai_credits_balance` at each window rather
  * than replacing it, so leftovers carry. Bought credits are a purchase, not a grant.
  */
-export function grantFor(ws: PlanBearer & { seats: number }): number {
-    return (
-        ws.featureOverrides?.includedCredits ??
-        planFor(ws.plan).ai.creditsPerSeat * clampSeats(ws.plan, ws.seats)
-    );
+export function grantFor(ws: PlanBearer): number {
+    return ws.featureOverrides?.includedCredits ?? planFor(ws.plan).ai.monthlyCredits;
 }
 
 /**
@@ -317,8 +306,7 @@ export function grantFor(ws: PlanBearer & { seats: number }): number {
  */
 export const ROLLOVER_CAP_MONTHS = 2;
 
-export const rolloverCapFor = (ws: PlanBearer & { seats: number }): number =>
-    ROLLOVER_CAP_MONTHS * grantFor(ws);
+export const rolloverCapFor = (ws: PlanBearer): number => ROLLOVER_CAP_MONTHS * grantFor(ws);
 
 /**
  * What a grant may add given what is already banked. Clips the grant, never the balance, so a

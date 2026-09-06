@@ -94,11 +94,11 @@ degrades gracefully (billing/media/mail report "not configured").
 | `GEMINI_IMAGE_MODEL`, `GEMINI_VIDEO_MODEL`                       | ⬜   | no     | override either generation model if Google moves it                                          |
 | `UNSPLASH_ACCESS_KEY`, `PEXELS_API_KEY`, `PIXABAY_API_KEY`       | ⬜   | ✅     | stock-photo providers in the media picker                                                    |
 | `RESEND_API_KEY`                                                 | ⬜   | ✅     | transactional email; the sender and reply-to are constants in `services/core/mail.ts`        |
-| `STRIPE_SECRET_KEY`                                              | ⬜²  | ✅     | live/test secret key                                                                         |
-| `STRIPE_WEBHOOK_SECRET`                                          | ⬜²  | ✅     | from the webhook endpoint → `https://<origin>/api/billing/webhook`                           |
-| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring per-seat price ids; the subscription's quantity is the seat count         |
+| `STRIPE_SECRET_KEY`                                              | ⬜²  | ✅     | a restricted key: Checkout Sessions, Customers, Subscriptions, Customer portal at write      |
+| `STRIPE_WEBHOOK_SECRET`                                          | ⬜²  | ✅     | printed once by `stripe:setup --origin`; locally, from `stripe listen`                       |
+| `STRIPE_PRICE_PRO_MONTH/YEAR`, `STRIPE_PRICE_PREMIUM_MONTH/YEAR` | ⬜²  | no     | the four recurring plan price ids, one flat price per plan and interval                      |
 | `STRIPE_PRICE_CREDIT`                                            | ⬜   | no     | the one-off price of one credit, bought by quantity; packs stay off until it is set          |
-| `STRIPE_PORTAL_CONFIG`                                           | ⬜   | no     | Customer Portal config id (optional)                                                         |
+| `STRIPE_PORTAL_CONFIG`                                           | ⬜²  | no     | the portal configuration id, printed by `stripe:setup`                                       |
 | `POSTHOG_KEY`                                                    | ⬜³  | no     | PostHog project key (`phc_…`) — write-only, also shipped to the browser                      |
 | `POSTHOG_HOST`                                                   | ⬜   | no     | ingest host; defaults to `https://us.i.posthog.com` (US Cloud, project 567553)               |
 | `VITE_POSTHOG_KEY`                                               | ⬜³  | no     | the same project key, read at build time by the browser bundle                               |
@@ -242,8 +242,7 @@ Ordered, because the Blueprint must exist in the repo before Render can read it:
 5. **Seed (optional)** — to get the demo login in prod, run `pnpm seed` once from a Render **Shell** (or a
    one-off job) with prod `DATABASE_URL`. Skip if you want an empty prod DB.
 6. **Custom domain** — see below. After it resolves, update `APP_URL` → `https://galleo.app` and redeploy
-   (env change restarts the service). Set the Stripe webhook (when enabling billing) to
-   `https://galleo.app/api/billing/webhook`.
+   (env change restarts the service). Billing comes last: see **Stripe go-live** below.
 
 ### Custom domain (galleo.app)
 
@@ -346,12 +345,52 @@ first real bottleneck is media storage, not compute (below).
 **Domain (galleo.app)** — DNS at the registrar per **Custom domain** above (apex ALIAS + `www` CNAME to the
 Render targets); Render issues TLS.
 
-**Stripe (only when enabling paid plans)** — `pnpm stripe:setup` against the live key for the five
-price ids, the secret key, and a webhook endpoint at `https://galleo.app/api/billing/webhook`
-subscribed to `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-`customer.subscription.updated` and `customer.subscription.deleted` → its signing secret. The Customer
-Portal needs a saved configuration in the dashboard (or `STRIPE_PORTAL_CONFIG`) before `/billing/portal`
-can open one.
+### Stripe go-live
+
+Nothing in a sandbox carries to the live account: products, prices, the webhook endpoint, the portal
+configuration, branding and email settings are all per mode. The account side is a Dashboard task for
+the account owner; the integration side is one script run.
+
+**Activate the account** (Dashboard → Settings → Business, once). Stripe asks for the business type
+and EIN, the registered and the physical address (no PO box), the industry and a description of the
+service, the website URL, the representative's name, date of birth, home address, phone and the last
+four digits of their SSN, any owner holding 25% or more, the bank account for payouts, and the public
+details customers see: the statement descriptor (5 to 22 characters, at least 5 letters), a support
+email, phone and URL. Stripe reviews the website against its checklist: the business name, what is
+sold, prices with the currency stated, a contact email rather than only a form, terms, a privacy
+policy, and the cancellation and refund terms. `charges_enabled` on `GET /v1/account` is the signal
+that activation is complete; `requirements.currently_due` lists what is still missing.
+
+**Settings the code depends on** (Dashboard, live mode):
+
+- Billing → Subscriptions and emails → failed payments: Smart Retries on, and **cancel the
+  subscription** after the last retry. The server keeps no dunning state: a workspace holds its plan
+  until `customer.subscription.deleted` arrives, so a subscription left `past_due` or `unpaid` would
+  keep granting credits.
+- Same page, customer emails: receipts, failed payment, upcoming renewal, expiring card. The terms
+  promise notice before a renewal charge; Stripe's renewal email is what keeps that promise.
+- Branding (logo, colors) and public business information: Checkout, the portal and those emails
+  all use them.
+- API keys: a restricted key for the server with Checkout Sessions, Customers, Subscriptions and
+  Customer portal at write, nothing else. The setup script needs Products, Prices, Webhook Endpoints
+  and Customer portal at write, which the CLI's own live key normally covers; if a call is refused,
+  run it with `STRIPE_SECRET_KEY` set to a restricted key with those four.
+- Tax is not collected: Checkout runs without `automatic_tax`. Turning it on later is a registration
+  in the Dashboard plus one parameter on the two Checkout calls; the prices are tax-exclusive.
+
+**Integration**, from a machine with the Stripe CLI:
+
+1. `stripe login --project-name galleo-live`, approving the pairing in the browser on the live
+   account, so the live key stays in the CLI's config and never crosses a shell.
+2. `pnpm stripe:setup --live --project galleo-live --origin https://galleo.app --dry-run`, then the
+   same without `--dry-run`. It builds the two products with four prices, the credit price, the
+   portal configuration and the webhook endpoint at `/api/billing/webhook` on the four events, and
+   prints the env block. The webhook secret is shown once.
+3. Set the printed block plus `STRIPE_SECRET_KEY` in Render; the env change restarts the service.
+   Until then leave `STRIPE_SECRET_KEY` unset in production, so upgrades stay disabled rather than
+   running against the sandbox.
+4. Verify with a real card on the cheapest path: Pro monthly, then cancel from the app. Both deliveries
+   show 200 under Developers → Webhooks, and the workspace row follows.
 
 ## Planned / deferred
 

@@ -13,9 +13,14 @@ export { workspaceState };
 // would drag this store's whole graph under every consumer of billing state.
 export const canManageBilling = (): boolean => (workspaceState()?.role ?? "owner") === "owner";
 
-export async function loadWorkspace(): Promise<void> {
+// Sticky: once a surface asks for per-member spend, later refetches keep it, so the settings
+// roster survives the mutations that reload this store. Boot fetches never pay for it.
+let wantSpend = false;
+
+export async function loadWorkspace(opts?: { spend?: boolean }): Promise<void> {
+    if (opts?.spend) wantSpend = true;
     try {
-        const state = await api.getWorkspace();
+        const state = await api.getWorkspace(wantSpend);
         setWorkspaceState(state);
         report(state);
     } catch {
@@ -24,14 +29,12 @@ export async function loadWorkspace(): Promise<void> {
 }
 
 // The workspace is the billing entity and the credit pool, so it is the unit almost every business
-// question is really about. Re-reported on every load, since a role or a seat count can move.
+// question is really about. Re-reported on every load, since a role or the roster can move.
 function report(state: WorkspaceState): void {
     const { workspace, role, members, memberships } = state;
     register({ workspace_id: workspace.id, plan_id: workspace.plan, workspace_role: role });
     setWorkspace(workspace.id, {
         plan_id: workspace.plan,
-        seats_total: workspace.seats,
-        seats_used: members.length,
         member_count: members.length,
     });
     const me = user();

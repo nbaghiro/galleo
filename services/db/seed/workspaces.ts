@@ -116,7 +116,6 @@ export interface WorkspaceSpec {
     name: string;
     plan: PlanId;
     ownerEmail: string;
-    seats: number; // clamped to the plan's bounds
     /**
      * What the workspace had banked before the ledger below starts. Defaults to one month's grant.
      * Set it lower to open mid-cycle: with rollover a workspace that opened on a full grant and then
@@ -149,11 +148,7 @@ export const WORKSPACES: WorkspaceSpec[] = [
         name: "Premium Workspace",
         plan: "premium",
         ownerEmail: DEMO_EMAIL, // the one they own: member management is the owner-only surface that works without Stripe
-        // the fixture itself holds four seats (three members and the pinned invite the roles suite
-        // accepts), so the plan's three-seat minimum would leave it over capacity and the join
-        // refused for no-seats
-        seats: 5,
-        // well into a 10,500 cycle; kept to roughly a fifth of the grant so the banked figure reads
+        // well into a 5,000 cycle; kept to roughly a third of the grant so the banked figure reads
         // in the same proportion as Pro's and Free's do
         openingBalance: 1600,
         members: [
@@ -386,9 +381,8 @@ export const WORKSPACES: WorkspaceSpec[] = [
         name: "Pro Workspace",
         plan: "pro",
         ownerEmail: DEMO_EMAIL,
-        // Pro sells one seat, so a solo library is the whole shape of it: no members, no invites,
+        // Pro is for one person, so a solo library is the whole shape of it: no members, no invites,
         // and the artifact cap lifted, which is the difference a Pro subscriber is paying for.
-        seats: 1,
         members: [],
         periodEndInDays: 27,
         openingBalance: 700, // part-way through a 1,200 cycle, before the spend below
@@ -463,9 +457,8 @@ export const WORKSPACES: WorkspaceSpec[] = [
         name: "Free Workspace",
         plan: "free",
         ownerEmail: DEMO_EMAIL,
-        // Free is one seat and the demo login holds it, so an invite has nowhere to go: the seat
-        // wall is reachable from the owner's own settings rather than needing a second account.
-        seats: 1,
+        // Free is for one person and the demo login is that person, so an invite has nowhere to go:
+        // the member wall is reachable from the owner's own settings without a second account.
         members: [],
         // the Free cap is 500 MB and only stored bytes count, so narrow it to make the wall reachable
         featureOverrides: { storageMb: 1 },

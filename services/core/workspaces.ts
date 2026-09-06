@@ -10,14 +10,14 @@ import {
 } from "@model/workspace";
 import { appUrl } from "@services/utils/env";
 import { capture } from "@services/utils/analytics";
-import { planFor } from "@model/billing";
+import { featuresFor, planFor, withinLimit } from "@model/billing";
 import { sendWorkspaceInvite } from "./mail";
 import type { WorkspaceRow } from "./accounts";
 
 /** Whole hours between then and now, the unit every "how long did this take" property uses. */
 const hoursSince = (at: Date): number => Math.round((Date.now() - at.getTime()) / 3_600_000);
 
-// Members, seats, and invites. Invite acceptance is possession-based: the raw token lives only in
+// Members and invites. Invite acceptance is possession-based: the raw token lives only in
 // the emailed link, so only its hash is stored.
 
 const INVITE_TTL_DAYS = 14;
@@ -164,14 +164,13 @@ export async function leaveWorkspace(userId: string, workspaceId: string): Promi
 
 export type InviteResult =
     | { error: "already-member" }
-    | { error: "no-seats"; seats: number }
+    | { error: "over-members" }
     | {
           invite: Awaited<ReturnType<typeof pendingInvites>>[number];
           url: string;
           sent: boolean;
-          seatsUsed: number;
-          seatsTotal: number;
-          atSeatLimit: boolean;
+          members: number;
+          pending: number;
       };
 
 // Returns the accept URL as well as mailing it, so an unconfigured-mail dev setup stays usable.
@@ -185,9 +184,9 @@ export async function inviteMember(
     if (members.some((m) => m.email.toLowerCase() === email)) return { error: "already-member" };
     const pending = await pendingInvites(ws.id);
     const existing = pending.find((i) => i.email.toLowerCase() === email);
-    // seat cap = members + outstanding invites (an unexpired invite holds its seat)
-    if (!existing && members.length + pending.length >= ws.seats)
-        return { error: "no-seats", seats: ws.seats };
+    // the plan's member cap counts outstanding invites: an unexpired invite holds its place
+    if (!existing && !withinLimit(featuresFor(ws), "maxMembers", members.length + pending.length))
+        return { error: "over-members" };
 
     const token = newToken();
     const expiresAt = new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000);
@@ -230,9 +229,8 @@ export async function inviteMember(
         invite: invite!,
         url,
         sent,
-        seatsUsed: members.length,
-        seatsTotal: ws.seats,
-        atSeatLimit: members.length + pending.length + 1 >= ws.seats,
+        members: members.length,
+        pending: pending.length + 1,
     };
 }
 
@@ -255,15 +253,16 @@ export async function inviteByToken(token: string) {
     return row;
 }
 
-export type AcceptResult = { error: "no-seats" } | { workspaceId: string; name: string };
+export type AcceptResult = { error: "over-members" } | { workspaceId: string; name: string };
 
-// Seats may have shrunk since the invite went out, so the cap is rechecked at the door.
+// The plan may have shrunk since the invite went out, so the cap is rechecked at the door.
 export async function acceptInvite(token: string, userId: string): Promise<AcceptResult | null> {
     const row = await inviteByToken(token);
     if (!row) return null;
     const members = await liveMembers(row.ws.id);
     const already = members.some((m) => m.userId === userId);
-    if (!already && members.length >= row.ws.seats) return { error: "no-seats" };
+    if (!already && !withinLimit(featuresFor(row.ws), "maxMembers", members.length))
+        return { error: "over-members" };
 
     if (!already) {
         await db

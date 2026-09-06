@@ -12,7 +12,7 @@ with high-fidelity export. Net-new, TypeScript.
 - `.docs/ai.md` — the AI pipeline: the streamed turn protocol, tools, runtime, chat/workspace agent,
   prompts, routes + credit gate.
 - `.docs/workspaces.md` — the tenant: the workspace row, plans + the entitlement resolver, Stripe +
-  the webhook, the credit window/ledger, membership + seats, and what `pnpm seed` builds.
+  the webhook, the credit window/ledger, membership, and what `pnpm seed` builds.
 - `.docs/frontend.md` — the shared `@ui` component library + the keyboard/command system.
 - `.docs/search.md` — library search + the ⌘K palette: the Postgres FTS index, the query, the palette
   source registry.
@@ -43,8 +43,8 @@ with high-fidelity export. Net-new, TypeScript.
   addresses the artifact, the generation and the workspace at once, the `Generation` resource, the chat
   blocks and the stored thread; the LLM-facing element catalog lives with its prompt in
   `services/core/ai/prompts/catalog.ts`), `credits` (metered credits +
-  the AiTask steps), `tools` (the one tool catalog: identity, surfaces, pricing), `billing` (plans, seats,
-  bought credits + the entitlement resolver), `eval` (the traced-run contract the eval playground reads),
+  the AiTask steps), `tools` (the one tool catalog: identity, surfaces, pricing), `billing` (plans, the
+  member cap, bought credits + the entitlement resolver), `eval` (the traced-run contract the eval playground reads),
   `workspace` (the person, not the tenant: user + prefs + memberships + folder + the auth/account DTOs),
   `text` (rich-text core + the render-facing `Run`),
   `comments` (the anchors, thread DTOs + wire bodies, and the pure anchor-resolution helpers),
@@ -248,7 +248,9 @@ pnpm build          # production build → dist/
 pnpm typecheck      pnpm lint      pnpm format
 pnpm test           pnpm test:int  # unit; integration (needs Postgres: docker compose up -d)
 pnpm db:generate    pnpm db:migrate
-pnpm stripe:setup   # create/refresh the Stripe products + prices from model/billing.ts (--dry-run)
+pnpm seed           # merge the demo universe in (artifacts untouched); --full rebuilds it; seed:credits only resets the credit window + ledger
+pnpm stripe:setup   # build the Stripe account from model/billing.ts: products, prices, portal config,
+                    # and with --origin the webhook endpoint (--dry-run; --live --project for the live account)
 pnpm eval:shots     # headless visual eval: render the corpus in real Chromium and measure it
                     # (--write DIR keeps the PNGs, --judge also runs the vision rubric)
 

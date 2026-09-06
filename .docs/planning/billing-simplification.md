@@ -9,7 +9,9 @@
 > two tools, and Stripe branches for cases the product no longer has. Status: built on 2026-09-05;
 > production had no users, so phase 0 and the Stripe migration script were not needed. One cut was
 > reversed during the build: the free doorway gate on `start-generation` stays, because a refusal
-> after the draft exists strands an orphan in the library (see What this does not change).
+> after the draft exists strands an orphan in the library (see What this does not change). A second
+> round on 2026-09-06 removed seats altogether; the per-seat shape described in the phases below is
+> the intermediate state, and the addendum at the end is what shipped.
 
 Companion docs: `workspaces.md` (rewritten in phase 5), `ai.md` §5 and §11, `architecture.md`
 §Billing, `hosting.md` (env contract), `analytics.md` (event catalog), `testing.md` (coverage map).
@@ -285,8 +287,8 @@ unchanged and still passes).
 ## Phase 5 — scripts and docs
 
 - `scripts/stripe-setup.ts`: products `plan_pro`, `plan_premium` (per seat), `credit`; the seat
-  add-on leaves `wanted()`, and the script archives any active `galleo_*` price it no longer
-  wants so the account converges on the catalog. Env block: `STRIPE_PRICE_PRO_MONTH/YEAR`,
+  add-on leaves `wanted()`, and the script archives any active `galleo_*` price, and any product
+  it made earlier, that it no longer wants, so the account converges on the catalog. Env block: `STRIPE_PRICE_PRO_MONTH/YEAR`,
   `STRIPE_PRICE_PREMIUM_MONTH/YEAR`, `STRIPE_PRICE_CREDIT`.
 - `scripts/stripe-migrate-seats.ts`, only if phase 0 found live Premium subscriptions: for each
   workspace on Premium with a subscription, replace the items with the per-seat price at the
@@ -325,3 +327,39 @@ breakdown, `feature_overrides`, the interval switch, cancel at period end and re
 floor on a decrease, the 402 bodies and the walls that read them, the analytics seams, and the free
 doorway gate (`gate` on `start-generation`, `gateCost`, the balance check in `reserve`), kept so an
 out-of-credits launch is refused before a draft artifact and a generation row exist.
+
+## Addendum, 2026-09-06: seats removed
+
+After the per-seat build ran end to end on the sandbox, the user chose to drop seats entirely, so
+the phases above describe an intermediate state. What shipped instead:
+
+- **One flat price per plan.** Premium is $99 monthly and $82 annual for the whole workspace, with
+  one grant of 5,000 credits a month (6,300, what three seats carried, until the user set it to
+  5,000 the same day, which prices a Premium credit at parity with Pro). `PlanBilling` is the two
+  prices, `PlanAi` is `monthlyCredits`, and `grantFor(ws)` reads it or the `includedCredits`
+  override. The margin, rate-band and bought-credit invariants hold unchanged.
+- **The member cap is a plan feature.** `PlanAccount.maxMembers` is 1 on Free and Pro and unlimited
+  on Premium, resolved like every other limit. `inviteMember` and `acceptInvite` check it through
+  `withinLimit`, and the refusal is an ordinary feature 402 naming `maxMembers`, so the wall sells
+  Premium. The `seats` column, `clampSeats`, `sellsSeats`, the seat floor, the seat control, the
+  plan grid's seat field, the `seats_changed` event and the seat traits are gone; migration
+  `0051_modern_darkstar.sql` drops the column.
+- **The Stripe line is quantity one again.** `readSub` reads plan and interval; `changePlan` takes a
+  plan and an interval; `applySubscription` grants on a tier rise only.
+- **Sharing the pool is visibility, not a cap.** `GET /workspace?spend=1` returns each member's net
+  spend this cycle (`spendByMember`, back in `core/ledger.ts`), and the members list in settings
+  shows it beside each person. The remedy for a heavy team is buying credits.
+- **Sandbox verified.** `pnpm stripe:setup` repriced Premium to $99 and $984 and archived the $33
+  prices; the end-to-end flow (Checkout, purchase, in-app upgrade with the fresh grant,
+  interval switch, downgrade, cancel and resume, portal, deletion) passed against the sandbox with
+  every webhook answering 200.
+
+- Go-live, 2026-09-06: `stripe:setup` grew the two account objects that are not catalog data,
+  the customer portal configuration (money and invoices only) and the webhook endpoint on the
+  four consumed events, plus `--live --project` for the CLI's live profile and a guard that
+  refuses a live key without `--live`. The Dashboard side (activation, failed-payment
+  cancellation, customer emails, a restricted key) is the runbook in `hosting.md`.
+
+Still open from the sandbox run: a tier upgrade grants the whole new allowance in a fresh window
+rather than the difference, which is generous by up to one month's grant and bounded by the
+rollover cap. Left as is pending a decision.

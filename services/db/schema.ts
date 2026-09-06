@@ -103,7 +103,6 @@ export const workspaces = pgTable("workspaces", {
     stripeSubscriptionId: text("stripe_subscription_id"),
     planPeriodEnd: timestamp("plan_period_end"),
     cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false), // lapses to Free at planPeriodEnd
-    seats: integer("seats").notNull().default(1), // the subscription's quantity; the member cap
     aiCreditsBalance: integer("ai_credits_balance").notNull().default(0),
     // The only credit counter, and a balance rather than a usage tally: the monthly grant is added
     // at the roll and unspent credits carry, so a one-off purchase is just another addition and

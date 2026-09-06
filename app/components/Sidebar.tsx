@@ -491,7 +491,7 @@ export const Sidebar: Component = () => {
 
 // A fact and its counterpart on one line, each kept whole. The sidebar is 230px wide and a theme may
 // set a monospace UI font, so a pair that fits in Inter can be 30% wider in Space Mono, and the
-// numbers here have no upper bound (a workspace with enough seats banks six figures). Wrapping is
+// numbers here have no upper bound (a banked purchase reaches five figures). Wrapping is
 // therefore inevitable at some width; what this stops is wrapping INSIDE a phrase, which is what
 // turned "2,131 credits left" into "2,131 credits" over "left".
 const PAIR_ROW = "flex flex-wrap items-baseline justify-between gap-x-2";
@@ -511,9 +511,6 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
         <div class="mt-3 flex-none rounded-xl border border-line bg-canvas p-3">
             <div class={`${PAIR_ROW} text-[11.5px] font-semibold text-soft`}>
                 <span class="whitespace-nowrap capitalize">{props.b.plan} plan</span>
-                <Show when={props.b.seats > 1}>
-                    <span class="whitespace-nowrap text-muted">{props.b.seats} seats</span>
-                </Show>
             </div>
             <Meter
                 value={remaining()}

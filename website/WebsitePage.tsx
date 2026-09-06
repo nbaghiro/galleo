@@ -154,13 +154,7 @@ const stats: { value: string; label: string; accent?: boolean }[] = [
 const plans = PLAN_ORDER.map((id) => PLANS[id]).map((p) => ({
     name: p.name,
     price: `$${p.billing.priceMonthly}`,
-    // every price is per seat; a solo plan is one seat, so it reads as a plain monthly price
-    per:
-        p.billing.priceMonthly === 0
-            ? "/forever"
-            : p.billing.maxSeats > 1
-              ? "/seat/month"
-              : "/month",
+    per: p.billing.priceMonthly === 0 ? "/forever" : "/month",
     blurb: p.tagline,
     features: p.highlights,
     cta: p.billing.priceMonthly === 0 ? "Get started" : `Start ${p.name}`,
@@ -679,14 +673,21 @@ export const WebsitePage: Component<{ theme: string }> = (props) => (
                         <span class="block rise" style={{ "animation-delay": "0.12s" }}>
                             One source.
                         </span>
-                        <span class="block rise" style={{ "animation-delay": "0.24s" }}>
+                        {/* The boxed word is taller than a 0.9 line box: its ascenders reach the
+                            top edge and the p descends past the bottom, so at the headline's
+                            leading the box crowded the line above while looking loose below. The
+                            room is bought here, in em so it holds at the clamped mobile size. */}
+                        <span
+                            class="block rise"
+                            style={{ "animation-delay": "0.24s", "margin-top": "0.16em" }}
+                        >
                             Three{" "}
                             <span
                                 class="relative inline-block"
                                 style={{
                                     background: "var(--color-accent)",
                                     color: "var(--color-onaccent)",
-                                    padding: "0 0.14em",
+                                    padding: "0.04em 0.14em 0.12em",
                                     border: "calc(var(--border-width) * 2) solid var(--color-ink)",
                                     transform: "rotate(-1.5deg)",
                                 }}

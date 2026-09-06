@@ -397,16 +397,16 @@ const TERMS: LegalDoc = {
                 {
                     kind: "list",
                     items: [
-                        "Your plan's credits are granted for each billing period and [DO NOT ROLL OVER / ROLL OVER UP TO X].",
-                        "Credits bought as a pack [EXPIRE AFTER X / DO NOT EXPIRE].",
+                        "Your plan's credits are granted each billing period. Unspent credits roll over, up to two months of your plan's allowance in total; above that, a new grant only fills the gap.",
+                        "Credits you buy do not expire and do not count toward that rollover limit.",
                         "Credits are not refundable, including on cancellation or downgrade.",
-                        "If you downgrade, [WHAT HAPPENS TO A BALANCE ABOVE THE NEW PLAN'S ALLOWANCE].",
+                        "If you downgrade, you keep your balance, but you receive no further monthly grants until it falls below two months of the new plan's allowance.",
                         "If a workspace runs out mid-action, the action stops and we charge only for the work already done.",
                     ],
                 },
                 {
                     kind: "p",
-                    text: "An admin can cap how much of a workspace's credits any one member may spend.",
+                    text: "Every member of a workspace draws on the workspace's shared credits, and the workspace shows what each member has spent.",
                 },
             ],
         },

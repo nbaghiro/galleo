@@ -142,14 +142,13 @@ describe("rollIfLapsed", () => {
             .set({
                 stripeSubscriptionId: "sub_live",
                 planInterval: "month",
-                seats: 4,
                 aiCreditsBalance: 0,
                 creditsResetAt: new Date(Date.now() - 1000),
             })
             .where(eq(schema.workspaces.id, workspaceId));
         const ws = await wsRow(workspaceId);
         expect(await rollIfLapsed(ws)).not.toBeNull();
-        expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(grantFor(ws)); // 4 seats' worth
+        expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(grantFor(ws));
         expect(await rollIfLapsed(await wsRow(workspaceId))).toBeNull(); // and only once
     });
 

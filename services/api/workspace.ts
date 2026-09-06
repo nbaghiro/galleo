@@ -3,7 +3,8 @@ import { asRole, isPublishPolicy } from "@model/workspace";
 import { isAccess } from "@model/artifact";
 import { z } from "zod";
 import { BAD_BODY, readJson } from "@services/utils/http";
-import { featuresFor, sellsSeats } from "@model/billing";
+import { spendByMember } from "@services/core/ledger";
+import { featuresFor } from "@model/billing";
 import {
     createMachineClient,
     machineClientsFor,
@@ -38,17 +39,20 @@ const grantable = (raw: unknown): raw is "admin" | "member" => raw === "admin" |
 
 workspace.get("/workspace", requireWorkspace, async (c) => {
     const [user, ws, role] = [c.get("user"), c.get("ws"), c.get("role")];
-    const [members, invites, memberships] = await Promise.all([
+    // the ledger aggregation is priced work; only the settings roster asks for it
+    const withSpend = c.req.query("spend") === "1";
+    const [members, invites, memberships, spend] = await Promise.all([
         liveMembers(ws.id),
         role === "member" ? Promise.resolve([]) : pendingInvites(ws.id),
         membershipsOf(user.id),
+        withSpend ? spendByMember(ws) : Promise.resolve(null),
     ]);
     return c.json({
         workspace: {
             id: ws.id,
             name: ws.name,
             plan: ws.plan,
-            seats: ws.seats,
+            maxMembers: featuresFor(ws).maxMembers,
             defaultArtifactAccess: ws.defaultArtifactAccess,
             publishPolicy: ws.publishPolicy,
             prepareAudio: ws.prepareAudio,
@@ -58,6 +62,7 @@ workspace.get("/workspace", requireWorkspace, async (c) => {
             ...m,
             role: m.userId === ws.ownerId ? "owner" : asRole(m.role),
             isOwner: m.userId === ws.ownerId,
+            ...(spend ? { spend: spend.get(m.userId) ?? 0 } : {}),
         })),
         invites,
         memberships: memberships.map((m) => ({ ...m, active: m.id === ws.id })),
@@ -127,13 +132,11 @@ workspace.post("/workspace/invites", requireWorkspace, requireRole("admin"), asy
     const result = await inviteMember(ws, user, target, grantable(role) ? role : "member");
     if ("error" in result) {
         if (result.error === "already-member") return c.json({ error: "already a member" }, 409);
-        // only the team plan sells seats; elsewhere the honest remedy is the higher tier
         return c.json(
             {
-                error: sellsSeats(ws.plan)
-                    ? `All ${result.seats} seats are taken. Add seats to invite more people.`
-                    : `All ${result.seats} seats are taken. Upgrade to invite more people.`,
-                reason: "seats" as const,
+                error: "This plan is for one person. Upgrade to invite others.",
+                reason: "feature" as const,
+                feature: "maxMembers",
                 upgrade: true,
             },
             402,
@@ -141,9 +144,8 @@ workspace.post("/workspace/invites", requireWorkspace, requireRole("admin"), asy
     }
     capture({ userId: user.id, workspaceId: ws.id }, "member_invited", {
         role: asRole(role),
-        seats_used: result.seatsUsed,
-        seats_total: result.seatsTotal,
-        at_seat_limit: result.atSeatLimit,
+        member_count: result.members,
+        pending_invites: result.pending,
     });
     return c.json(result);
 });
@@ -172,7 +174,15 @@ workspace.post("/invites/accept", requireUser, async (c) => {
     const result = await acceptInvite(token, c.get("user").id);
     if (!result) return c.json({ error: "invite not found or expired" }, 404);
     if ("error" in result)
-        return c.json({ error: "this workspace is out of seats", reason: "seats" as const }, 402);
+        return c.json(
+            {
+                error: "This workspace is on a plan for one person.",
+                reason: "feature" as const,
+                feature: "maxMembers",
+                upgrade: true,
+            },
+            402,
+        );
     return c.json({ ok: true, workspaceId: result.workspaceId, name: result.name });
 });
 

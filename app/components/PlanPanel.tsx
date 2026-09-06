@@ -1,11 +1,9 @@
 import type { Component } from "solid-js";
-import { createMemo, createSignal, For, Show } from "solid-js";
+import { createMemo, For, Show } from "solid-js";
 import type { PlanId } from "@model/billing";
-import { clampSeats, planFor, ROLLOVER_CAP_MONTHS, sellsSeats } from "@model/billing";
+import { ROLLOVER_CAP_MONTHS } from "@model/billing";
 import { PRICED_TOOLS, isMetered, typicalCost } from "@model/tools";
-import { Badge, Button, Eyebrow, Spinner } from "@ui/button";
-import { TextField } from "@ui/inputs";
-import { ConfirmModal } from "@ui/overlay";
+import { Badge, Eyebrow, Spinner } from "@ui/button";
 import { Meter } from "@ui/status";
 import { PaymentReturnNotice, SettingsSection as Section } from "./settings";
 import { UpgradePageContent } from "./UpgradePlans";
@@ -13,7 +11,6 @@ import {
     anyBillingBusy,
     billing,
     billingBusy,
-    changePlan,
     dismissBillingError,
     dismissLastChange,
     lastChange,
@@ -36,9 +33,6 @@ export const PlanPanel: Component = () => {
     const pendingCancel = (): boolean => !!b()?.cancelAtPeriodEnd && current() !== "free";
 
     const creditsLeft = createMemo(() => b()?.credits.balance ?? 0);
-    const seatsUsed = createMemo(
-        () => (workspaceState()?.members.length ?? 0) + (workspaceState()?.invites.length ?? 0),
-    );
 
     // how many of an action the monthly credit allowance buys
     const perMonth = (cost: number): number | null => {
@@ -64,30 +58,6 @@ export const PlanPanel: Component = () => {
         if (r?.useCheckout)
             return "There is no active subscription yet. Pick a plan below to subscribe.";
         return null;
-    };
-
-    // Seats are the subscription's quantity. Adding invoices real money now, so it asks first;
-    // removing waits for nobody and is a proration credit.
-    const [seatDraft, setSeatDraft] = createSignal<string | null>(null);
-    const [seatConfirm, setSeatConfirm] = createSignal<number | null>(null);
-    const seatsNow = (): number => b()?.seats ?? 1;
-    const seatValue = (): string => seatDraft() ?? String(seatsNow());
-    const seatTarget = (): number => clampSeats(current(), Number(seatValue()) || seatsNow());
-    const seatDirty = (): boolean => seatTarget() !== seatsNow();
-    const applySeats = (next: number): void => {
-        setSeatConfirm(null);
-        setSeatDraft(null);
-        void run("seats", () => changePlan({ seats: next }));
-    };
-    const submitSeats = (e: Event): void => {
-        e.preventDefault();
-        if (!seatDirty()) return;
-        if (seatTarget() > seatsNow()) setSeatConfirm(seatTarget());
-        else applySeats(seatTarget());
-    };
-    const seatPrice = (): number => {
-        const p = planFor(current()).billing;
-        return b()?.interval === "year" ? p.priceAnnualMonthly : p.priceMonthly;
     };
 
     const CHANGE_COPY: Record<string, string> = {
@@ -187,45 +157,7 @@ export const PlanPanel: Component = () => {
                                 <div class="mt-1 text-[11.5px] text-muted">
                                     +{state().credits.monthlyGrant.toLocaleString()} credits each
                                     cycle
-                                    <Show when={state().seats > 1}>
-                                        {" · "}
-                                        {seatsUsed()} of {state().seats} seats used
-                                    </Show>
                                 </div>
-                                {/* seats are the subscription's quantity, so they change through
-                                    change-plan the same way a plan change does */}
-                                <Show when={sellsSeats(state().plan) && ready()}>
-                                    <form
-                                        class="mt-2.5 flex flex-wrap items-center gap-2 text-[11.5px]"
-                                        onSubmit={submitSeats}
-                                    >
-                                        <span class="text-soft">
-                                            Seats · ${seatPrice()} each a month, +
-                                            {planFor(
-                                                state().plan,
-                                            ).ai.creditsPerSeat.toLocaleString()}{" "}
-                                            credits each
-                                        </span>
-                                        <TextField
-                                            type="number"
-                                            min={planFor(state().plan).billing.minSeats}
-                                            max={planFor(state().plan).billing.maxSeats}
-                                            class="w-16"
-                                            aria-label="Seats"
-                                            value={seatValue()}
-                                            onChange={setSeatDraft}
-                                        />
-                                        <Button
-                                            type="submit"
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={!seatDirty() || anyBusy() || !canManage()}
-                                            loading={busy("seats")}
-                                        >
-                                            Update seats
-                                        </Button>
-                                    </form>
-                                </Show>
                             </div>
 
                             <Show when={pendingCancel()}>
@@ -367,18 +299,6 @@ export const PlanPanel: Component = () => {
                         </For>
                     </div>
                 </section>
-            </Show>
-
-            <Show when={seatConfirm()}>
-                {(next) => (
-                    <ConfirmModal
-                        title="Add seats?"
-                        body={`${next() - seatsNow()} more ${next() - seatsNow() === 1 ? "seat costs" : "seats cost"} $${seatPrice() * (next() - seatsNow())} a month and ${next() - seatsNow() === 1 ? "adds" : "add"} ${(planFor(current()).ai.creditsPerSeat * (next() - seatsNow())).toLocaleString()} credits to each monthly grant. The difference is invoiced now, and the credits land now.`}
-                        confirmLabel="Add the seats"
-                        onConfirm={() => applySeats(next())}
-                        onCancel={() => setSeatConfirm(null)}
-                    />
-                )}
             </Show>
         </>
     );

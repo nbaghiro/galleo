@@ -1,11 +1,11 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js";
-import { useNavigate, useSearchParams } from "@solidjs/router";
+import { useSearchParams } from "@solidjs/router";
 import { asOrigin } from "@model/analytics";
 import { capture } from "@ui/analytics";
 import type { PublishPolicy, WorkspaceRole } from "@model/workspace";
 import type { ArtifactAccess } from "@model/artifact";
-import { PLAN_ORDER, PLANS, sellsSeats } from "@model/billing";
+import { isUnlimited } from "@model/billing";
 import { Avatar } from "@ui/avatar";
 import { BillingPanel } from "@app/components/BillingPanel";
 import { PlanPanel } from "@app/components/PlanPanel";
@@ -292,13 +292,12 @@ const ApiCredentials: Component = () => {
 };
 
 export const WorkspaceSettingsView: Component = () => {
-    const navigate = useNavigate();
     const [tab, setTab] = useSettingsTab("/settings", TABS);
     const [search] = useSearchParams();
     // The shell mounts once per settings visit, so data loads and the Stripe-return consumption
     // live here; the tab panels only render what the stores hold.
     onMount(() => {
-        void loadWorkspace();
+        void loadWorkspace({ spend: true });
         void loadBilling();
         consumeCheckoutReturn(search);
     });
@@ -324,9 +323,8 @@ export const WorkspaceSettingsView: Component = () => {
     const myRole = (): WorkspaceRole => st()?.role ?? "member";
     const isOwner = (): boolean => myRole() === "owner";
     const isAdmin = (): boolean => myRole() !== "member";
-    const seatsUsed = createMemo(() => (st()?.members.length ?? 0) + (st()?.invites.length ?? 0));
-    const seats = (): number => st()?.workspace.seats ?? 1;
-    const teamPlan = () => PLAN_ORDER.map((id) => PLANS[id]).find((p) => sellsSeats(p.id));
+    const headcount = createMemo(() => (st()?.members.length ?? 0) + (st()?.invites.length ?? 0));
+    const maxMembers = (): number => st()?.workspace.maxMembers ?? 1;
 
     // policies (admin+); the dropdowns save on change
     const savePolicy = async (patch: Parameters<typeof updateWorkspaceSettings>[0]) => {
@@ -557,44 +555,27 @@ export const WorkspaceSettingsView: Component = () => {
                                 </Show>
 
                                 <Show when={tab() === "members"}>
-                                    <Section title="Seats">
+                                    <Section title="Members">
                                         <div class="grid gap-3 sm:grid-cols-2">
                                             <StatCard
-                                                label="Seats"
-                                                value={`${seatsUsed()} / ${seats()}`}
-                                                meter={{ value: seatsUsed(), max: seats() }}
+                                                label="People"
+                                                value={
+                                                    isUnlimited(maxMembers())
+                                                        ? `${headcount()}`
+                                                        : `${headcount()} / ${maxMembers()}`
+                                                }
+                                                caption={
+                                                    isUnlimited(maxMembers())
+                                                        ? "Members and pending invites. One shared pool of credits."
+                                                        : "This plan is for one person."
+                                                }
                                                 action={
-                                                    <Show when={isOwner()}>
-                                                        <Show
-                                                            when={sellsSeats(
-                                                                state().workspace.plan,
-                                                            )}
-                                                            fallback={
-                                                                <button
-                                                                    class="text-[12px] font-semibold text-soft underline hover:text-ink"
-                                                                    onClick={() =>
-                                                                        navigate("/settings/plan")
-                                                                    }
-                                                                >
-                                                                    {/* seats are a plan shape,
-                                                                        not a feature key, so the
-                                                                        seller is read off the
-                                                                        catalog */}
-                                                                    {teamPlan()
-                                                                        ? `Get seats on ${teamPlan()!.name} →`
-                                                                        : "See plans →"}
-                                                                </button>
-                                                            }
-                                                        >
-                                                            <button
-                                                                class="text-[12px] font-semibold text-soft underline hover:text-ink"
-                                                                onClick={() =>
-                                                                    navigate("/settings/plan")
-                                                                }
-                                                            >
-                                                                Add seats →
-                                                            </button>
-                                                        </Show>
+                                                    <Show when={!isUnlimited(maxMembers())}>
+                                                        <UpgradeButton
+                                                            feature="maxMembers"
+                                                            variant="link"
+                                                            label="Invite a team →"
+                                                        />
                                                     </Show>
                                                 }
                                             />
@@ -698,6 +679,14 @@ export const WorkspaceSettingsView: Component = () => {
                                                                 </span>
                                                             </Show>
                                                         </span>
+                                                        <Show when={m.spend != null && m.spend > 0}>
+                                                            <span
+                                                                class="flex-none text-[11px] tabular-nums text-muted"
+                                                                title="Credits spent this cycle"
+                                                            >
+                                                                {m.spend!.toLocaleString()} cr
+                                                            </span>
+                                                        </Show>
                                                         <Show
                                                             when={isOwner() && !m.isOwner}
                                                             fallback={

@@ -167,8 +167,6 @@ export interface PersonTraits {
 export interface WorkspaceTraits {
     plan_id: PlanId;
     plan_interval: Interval;
-    seats_total: number;
-    seats_used: number;
     member_count: number;
     artifact_count: number;
     created_at: string;
@@ -380,6 +378,14 @@ export interface Events {
     template_previewed: { template_id: string; category: string; format: Surface };
     // a text or table gained a line clamp; counts only, never the text it clamps
     text_clamped: { element_type: string; max_lines: number };
+    // an arrow drawn between two elements; types and shape only, never what they say
+    connection_created: {
+        from_type: string;
+        to_type: string;
+        to_datum: boolean;
+        cross_section: boolean;
+    };
+    connection_deleted: { cross_section: boolean };
     // an element pinned out of the flow, and its way back; via names the entry point
     element_pinned: { element_type: string; via: "panel" | "bar" | "palette" | "drag" };
     element_unpinned: { element_type: string; via: "panel" | "bar" | "palette" | "drag" };
@@ -538,12 +544,8 @@ export interface Events {
     };
     credit_balance_low: { credits_remaining: number; threshold: number };
     pricing_viewed: { from: PricingOrigin; plan_id: PlanId; tab: "plan" | "billing" };
-    checkout_started: {
-        target_plan: PlanId;
-        interval: Interval;
-        seats: number;
-    };
-    checkout_completed: { plan_id: PlanId; interval: Interval; seats: number; mrr_usd: number };
+    checkout_started: { target_plan: PlanId; interval: Interval };
+    checkout_completed: { plan_id: PlanId; interval: Interval; mrr_usd: number };
     // fired on the return from a Checkout the user backed out of (?status=cancel)
     checkout_abandoned: { target_plan?: PlanId };
     plan_changed: {
@@ -556,17 +558,11 @@ export interface Events {
     downgrade_cancelled: { plan_id: PlanId };
     plan_cancelled: { plan_id: PlanId; days_active: number; artifacts_created: number };
     topup_purchased: { credits: number; usd: number };
-    seats_changed: { from: number; to: number; direction: "up" | "down" };
     billing_portal_opened: { from: string };
     credit_activity_viewed: { plan_id: PlanId };
 
     // Collaboration and teams.
-    member_invited: {
-        role: WorkspaceRole;
-        seats_used: number;
-        seats_total: number;
-        at_seat_limit: boolean;
-    };
+    member_invited: { role: WorkspaceRole; member_count: number; pending_invites: number };
     invite_accepted: { role: WorkspaceRole; hours_to_accept: number };
     invite_revoked: { hours_pending: number };
     member_removed: { role: WorkspaceRole; member_count_after: number };

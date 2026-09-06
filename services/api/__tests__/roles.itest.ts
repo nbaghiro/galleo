@@ -4,8 +4,9 @@ import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 
-const setSeats = (wsId: string, seats: number) =>
-    db.update(schema.workspaces).set({ seats }).where(eq(schema.workspaces.id, wsId));
+// a plan for one person cannot invite, so the fixtures that need a roster run on the team plan
+const makeTeam = (wsId: string) =>
+    db.update(schema.workspaces).set({ plan: "premium" }).where(eq(schema.workspaces.id, wsId));
 
 // a second user placed straight into the workspace with the given stored role
 async function addMember(wsId: string, role: string): Promise<{ userId: string }> {
@@ -29,7 +30,7 @@ const memberRow = async (wsId: string, userId: string) => {
 describe("role reporting", () => {
     it("returns real roles, mapping legacy editor rows to member", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 4);
+        await makeTeam(owner.workspaceId);
         const admin = await addMember(owner.workspaceId, "admin");
         const legacy = await addMember(owner.workspaceId, "editor");
 
@@ -47,7 +48,7 @@ describe("role reporting", () => {
 
     it("hides pending invites from plain members but not admins", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 4);
+        await makeTeam(owner.workspaceId);
         const admin = await addMember(owner.workspaceId, "admin");
         const member = await addMember(owner.workspaceId, "member");
         await authed(
@@ -64,7 +65,7 @@ describe("role reporting", () => {
 describe("the role matrix", () => {
     it("members can't invite, revoke, rename, or remove; admins can", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 5);
+        await makeTeam(owner.workspaceId);
         const admin = await addMember(owner.workspaceId, "admin");
         const member = await addMember(owner.workspaceId, "member");
         const target = await addMember(owner.workspaceId, "member");
@@ -106,7 +107,7 @@ describe("the role matrix", () => {
 
     it("an admin can't remove a fellow admin, and nobody removes the owner", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 4);
+        await makeTeam(owner.workspaceId);
         const adminA = await addMember(owner.workspaceId, "admin");
         const adminB = await addMember(owner.workspaceId, "admin");
 
@@ -135,7 +136,7 @@ describe("the role matrix", () => {
 
     it("only the owner changes roles, and never their own", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 4);
+        await makeTeam(owner.workspaceId);
         const admin = await addMember(owner.workspaceId, "admin");
         const member = await addMember(owner.workspaceId, "member");
 
@@ -178,7 +179,7 @@ describe("the role matrix", () => {
 
     it("an invite can carry a role, which the acceptor lands with", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 3);
+        await makeTeam(owner.workspaceId);
         const res = await authed(
             owner.userId,
             "/workspace/invites",
@@ -211,7 +212,7 @@ describe("rename / leave / transfer", () => {
 
     it("a member leaves and falls back to their own workspace; the owner can't", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 3);
+        await makeTeam(owner.workspaceId);
         const member = await addMember(owner.workspaceId, "member");
 
         expect((await authed(owner.userId, "/workspace/leave", { method: "POST" })).status).toBe(
@@ -230,7 +231,7 @@ describe("rename / leave / transfer", () => {
 
     it("transfer hands ownership to a member and demotes the old owner to admin", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 3);
+        await makeTeam(owner.workspaceId);
         const member = await addMember(owner.workspaceId, "member");
         const outsider = await seedUser();
 

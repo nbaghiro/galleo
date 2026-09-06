@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 import { db } from "@services/db/client";
+import { chargeCredits } from "@services/core/ledger";
 import { schema } from "@services/db/schema";
 
-const setSeats = (wsId: string, seats: number) =>
-    db.update(schema.workspaces).set({ seats }).where(eq(schema.workspaces.id, wsId));
+const setPlan = (wsId: string, plan: string) =>
+    db.update(schema.workspaces).set({ plan }).where(eq(schema.workspaces.id, wsId));
+// a plan for one person cannot invite, so the fixtures that need a roster run on the team plan
+const makeTeam = (wsId: string) => setPlan(wsId, "premium");
 
 async function invite(ownerId: string, email: string): Promise<{ url: string; token: string }> {
     const res = await authed(ownerId, "/workspace/invites", jsonInit("POST", { email }));
@@ -29,9 +32,9 @@ describe("GET /workspace", () => {
 });
 
 describe("invites", () => {
-    it("owner invites into a free seat; the pending invite appears with an accept URL", async () => {
+    it("owner invites; the pending invite appears with an accept URL", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 2);
+        await makeTeam(owner.workspaceId);
         const { url } = await invite(owner.userId, "new@test.local");
         expect(url).toContain("/invite/");
         const body = await (await authed(owner.userId, "/workspace")).json();
@@ -39,20 +42,24 @@ describe("invites", () => {
         expect(body.invites[0].email).toBe("new@test.local");
     });
 
-    it("402s with an upgrade hint when every seat is taken", async () => {
-        const owner = await seedUser(); // free: 1 seat, owner occupies it
+    it("402s with an upgrade hint on a plan for one person", async () => {
+        const owner = await seedUser(); // free is for one person, and the owner is that person
         const res = await authed(
             owner.userId,
             "/workspace/invites",
             jsonInit("POST", { email: "x@test.local" }),
         );
         expect(res.status).toBe(402);
-        expect((await res.json()).upgrade).toBe(true);
+        expect(await res.json()).toMatchObject({
+            upgrade: true,
+            reason: "feature",
+            feature: "maxMembers",
+        });
     });
 
     it("409s when the email already belongs to a member", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 3);
+        await makeTeam(owner.workspaceId);
         const res = await authed(
             owner.userId,
             "/workspace/invites",
@@ -63,7 +70,7 @@ describe("invites", () => {
 
     it("only the owner can invite or revoke", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 3);
+        await makeTeam(owner.workspaceId);
         const joiner = await seedUser();
         const { token } = await invite(owner.userId, joiner.email);
         await authed(joiner.userId, "/invites/accept", jsonInit("POST", { token }));
@@ -77,7 +84,7 @@ describe("invites", () => {
 
     it("revoking a pending invite kills its token", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 2);
+        await makeTeam(owner.workspaceId);
         const joiner = await seedUser();
         const { token } = await invite(owner.userId, joiner.email);
         const body = await (await authed(owner.userId, "/workspace")).json();
@@ -92,7 +99,7 @@ describe("invites", () => {
 describe("accepting an invite", () => {
     it("joins the workspace and switches the member into it", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 2);
+        await makeTeam(owner.workspaceId);
         const joiner = await seedUser();
         const { token } = await invite(owner.userId, joiner.email);
 
@@ -111,7 +118,7 @@ describe("accepting an invite", () => {
 
     it("404s an expired invite", async () => {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 2);
+        await makeTeam(owner.workspaceId);
         const joiner = await seedUser();
         const { token } = await invite(owner.userId, joiner.email);
         await db
@@ -122,21 +129,45 @@ describe("accepting an invite", () => {
         expect(res.status).toBe(404);
     });
 
-    it("402s at the door when seats shrank after the invite went out", async () => {
-        const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 2);
+    it("402s at the door when the plan dropped to one person after the invite went out", async () => {
+        const owner = await seedUser({ plan: "premium" });
         const joiner = await seedUser();
         const { token } = await invite(owner.userId, joiner.email);
-        await setSeats(owner.workspaceId, 1);
+        await setPlan(owner.workspaceId, "pro");
         const res = await authed(joiner.userId, "/invites/accept", jsonInit("POST", { token }));
         expect(res.status).toBe(402);
+        expect(await res.json()).toMatchObject({ reason: "feature", feature: "maxMembers" });
+    });
+});
+
+describe("the roster's spend column", () => {
+    it("carries each member's spend this cycle only when asked", async () => {
+        const owner = await seedUser({ plan: "premium" });
+        const joiner = await seedUser();
+        const { token } = await invite(owner.userId, joiner.email);
+        await authed(joiner.userId, "/invites/accept", jsonInit("POST", { token }));
+        const [ws] = await db
+            .select()
+            .from(schema.workspaces)
+            .where(eq(schema.workspaces.id, owner.workspaceId));
+        await chargeCredits(ws!, 7, "rewrite-section", joiner.userId);
+
+        const plain = await (await authed(owner.userId, "/workspace")).json();
+        expect(plain.members.every((m: { spend?: number }) => m.spend === undefined)).toBe(true);
+
+        const withSpend = await (await authed(owner.userId, "/workspace?spend=1")).json();
+        const by = new Map(
+            withSpend.members.map((m: { email: string; spend: number }) => [m.email, m.spend]),
+        );
+        expect(by.get(joiner.email)).toBe(7);
+        expect(by.get(owner.email)).toBe(0);
     });
 });
 
 describe("members & switching", () => {
     async function joined() {
         const owner = await seedUser({ plan: "pro" });
-        await setSeats(owner.workspaceId, 3);
+        await makeTeam(owner.workspaceId);
         const joiner = await seedUser();
         const { token } = await invite(owner.userId, joiner.email);
         await authed(joiner.userId, "/invites/accept", jsonInit("POST", { token }));
@@ -237,7 +268,7 @@ describe("API credentials", () => {
 
     it("is admin work: a plain member neither lists nor creates", async () => {
         const owner = await seedUser({ plan: "premium" });
-        await setSeats(owner.workspaceId, 2);
+        await makeTeam(owner.workspaceId);
         const joiner = await seedUser();
         const { token } = await invite(owner.userId, joiner.email);
         await authed(joiner.userId, "/invites/accept", jsonInit("POST", { token }));

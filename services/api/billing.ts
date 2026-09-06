@@ -27,11 +27,9 @@ const notOwner = (c: Context, ws: { ownerId: string }, userId: string): Response
 
 const NOT_CONFIGURED = { error: "billing not configured" } as const;
 
-// seats are clamped to the plan's bounds in core, so the schema only has to keep them a count
 const zWanted = z.object({
     plan: z.enum(["free", "pro", "premium"]).optional(),
     interval: z.enum(["month", "year"]).optional(),
-    seats: z.number().int().positive().optional(),
 });
 
 // only a preset is buyable, so an off-catalog quantity is a 400 before it reaches Stripe
@@ -105,13 +103,7 @@ plan.post("/billing/change-plan", requireWorkspace, async (c) => {
     const result = await changePlan(ws, ws.stripeSubscriptionId, want);
     if ("error" in result) {
         if (result.error === "no-item") return c.json({ error: "no subscription item" }, 400);
-        if (result.error === "invalid-plan") return c.json({ error: "invalid plan" }, 400);
-        return c.json(
-            {
-                error: `Your workspace has ${result.members} members. Remove some before reducing seats.`,
-            },
-            400,
-        );
+        return c.json({ error: "invalid plan" }, 400);
     }
     return c.json({ ok: true, effect: result.effect });
 });

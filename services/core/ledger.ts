@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { db } from "@services/db/client";
 import type { Tx } from "@services/db/client";
 import { schema } from "@services/db/schema";
@@ -25,6 +25,28 @@ export type { Tx };
 // than a list of accounting steps we took.
 
 export type WorkspaceCreditFields = PlanBearer & { id: string };
+
+// every member's net spend since the window opened, one grouped query for the roster view
+export async function spendByMember(ws: {
+    id: string;
+    creditsStartedAt: Date;
+}): Promise<Map<string, number>> {
+    const rows = await db
+        .select({
+            userId: schema.credits.userId,
+            total: sql<string>`COALESCE(SUM(-${schema.credits.delta}), 0)`,
+        })
+        .from(schema.credits)
+        .where(
+            and(
+                eq(schema.credits.workspaceId, ws.id),
+                isNotNull(schema.credits.userId),
+                gt(schema.credits.createdAt, ws.creditsStartedAt),
+            ),
+        )
+        .groupBy(schema.credits.userId);
+    return new Map(rows.map((r) => [r.userId!, Math.max(0, Number(r.total))]));
+}
 
 /**
  * Add credits at most once, ever, keyed on `credits.key`. The column is unique, so the insert either
@@ -149,7 +171,7 @@ export function freshCreditWindow(plan?: string | null): {
 } {
     const startedAt = new Date();
     return {
-        aiCreditsBalance: grantFor({ plan: plan ?? null, seats: 1 }),
+        aiCreditsBalance: grantFor({ plan: plan ?? null }),
         creditsStartedAt: startedAt,
         creditsResetAt: new Date(startedAt.getTime() + WINDOW_MS),
     };
@@ -171,12 +193,7 @@ export interface OpenedWindow {
  */
 export async function openWindow(
     tx: Tx,
-    ws: PlanBearer & {
-        id: string;
-        seats: number;
-        aiCreditsBalance: number;
-        purchasedCredits: number;
-    },
+    ws: PlanBearer & { id: string; aiCreditsBalance: number; purchasedCredits: number },
     key: string,
     reason: string,
     also?: Partial<typeof schema.workspaces.$inferInsert>,
@@ -210,7 +227,7 @@ export async function openWindow(
  * exactly once; returns the fresh values, or null when nothing lapsed.
  */
 export async function rollIfLapsed(
-    ws: PlanBearer & { id: string; seats: number; creditsResetAt: Date },
+    ws: PlanBearer & { id: string; creditsResetAt: Date },
 ): Promise<OpenedWindow | null> {
     if (ws.creditsResetAt.getTime() > Date.now()) return null;
     return db.transaction(async (tx) => {

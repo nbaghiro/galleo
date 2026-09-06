@@ -80,7 +80,6 @@ export interface BillingState {
         capped: boolean; // the next grant will land short of the full allowance
     };
     usage: { artifacts: number; maxArtifacts: number; storageMb: number; maxStorageMb: number };
-    seats: number;
     catalog: Plan[];
     // one-off credit purchases: the flat rate and the quantities offered as buttons, or null when
     // the plan cannot buy them or no price is configured
@@ -113,6 +112,7 @@ export interface WorkspaceMember {
     name: string | null;
     avatarUrl: string | null;
     isOwner: boolean;
+    spend?: number; // net credits this member spent in the current cycle; only when asked (?spend=1)
 }
 
 export interface WorkspaceInvite {
@@ -127,7 +127,7 @@ export interface WorkspaceState {
         id: string;
         name: string;
         plan: PlanId;
-        seats: number;
+        maxMembers: number; // -1 = unlimited
         defaultArtifactAccess: ArtifactAccess;
         publishPolicy: PublishPolicy;
         prepareAudio: boolean;
@@ -783,12 +783,12 @@ export const api = {
         }),
     getBilling: () => req<BillingState>("/billing"),
     getFeatures: () => req<FeaturesState>("/features"),
-    checkout: (opts: { plan: PlanId; interval?: Interval; seats?: number }) =>
+    checkout: (opts: { plan: PlanId; interval?: Interval }) =>
         req<{ url: string }>("/billing/checkout", {
             method: "POST",
             body: JSON.stringify(opts),
         }),
-    changePlan: (opts: { plan?: PlanId; interval?: Interval; seats?: number }) =>
+    changePlan: (opts: { plan?: PlanId; interval?: Interval }) =>
         req<{ ok?: boolean; effect?: ChangeEffect }>("/billing/change-plan", {
             method: "POST",
             body: JSON.stringify(opts),
@@ -801,7 +801,8 @@ export const api = {
             method: "POST",
             body: JSON.stringify({ credits }),
         }),
-    getWorkspace: () => req<WorkspaceState>("/workspace"),
+    getWorkspace: (withSpend?: boolean) =>
+        req<WorkspaceState>(withSpend ? "/workspace?spend=1" : "/workspace"),
 
     // machine credentials for the workspace's own integrations, all three admin-only server side.
     // The secret is in the create response and nowhere else, so the caller shows it or loses it.

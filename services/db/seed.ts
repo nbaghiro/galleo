@@ -2,7 +2,7 @@ import "dotenv/config";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { ArtifactContent, GenMeta } from "@model/artifact";
-import { clampSeats, grantFor, isCreditPreset } from "@model/billing";
+import { grantFor, isCreditPreset } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { assertDatabaseUrl, db } from "./client";
@@ -124,11 +124,17 @@ async function upsertUser(p: Person): Promise<string> {
 
 // Found by slug, then every column the spec owns is rewritten: a workspace that the app has been
 // clicked around in must converge back onto the spec, not keep its drifted plan and counters.
-async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<WorkspaceRow> {
+// the credit window the spec describes, checked so a fixture cannot roll itself on first read
+function windowFor(spec: WorkspaceSpec): { creditsStartedAt: Date; creditsResetAt: Date } {
     if (spec.windowStartedDaysAgo * DAY >= WINDOW_MS)
         throw new Error(
             `"${spec.slug}": credit window already lapsed; the first read would roll it`,
         );
+    const creditsStartedAt = ago(spec.windowStartedDaysAgo);
+    return { creditsStartedAt, creditsResetAt: new Date(creditsStartedAt.getTime() + WINDOW_MS) };
+}
+
+async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<WorkspaceRow> {
     const [found] = await db
         .select({ id: schema.workspaces.id })
         .from(schema.workspaces)
@@ -144,22 +150,18 @@ async function upsertWorkspace(spec: WorkspaceSpec, ownerId: string): Promise<Wo
         ).id;
 
     const periodEnd = spec.periodEndInDays === undefined ? null : ago(-spec.periodEndInDays);
-    const startedAt = ago(spec.windowStartedDaysAgo);
     const [row] = await db
         .update(schema.workspaces)
         .set({
             name: spec.name,
             ownerId,
             plan: spec.plan,
-            seats: clampSeats(spec.plan, spec.seats),
             planPeriodEnd: periodEnd,
             featureOverrides: spec.featureOverrides ?? null,
             // on for the demo, off for a real workspace until someone asks: a seeded piece should
             // already be ready to speak, since a demo is exactly where the wait would be noticed
             prepareAudio: spec.prepareAudio ?? true,
-            aiCreditsBalance: 0, // seedLedger replays the real opening balance
-            creditsStartedAt: startedAt,
-            creditsResetAt: new Date(startedAt.getTime() + WINDOW_MS),
+            ...windowFor(spec), // seedLedger replays the balance on top
         })
         .where(eq(schema.workspaces.id, id))
         .returning();
@@ -401,6 +403,7 @@ async function seedLedger(
     await db.delete(schema.credits).where(eq(schema.credits.workspaceId, ws.id));
     const grant = grantFor(ws);
     let balance = spec.openingBalance ?? grant;
+    let bought = 0;
     const rows: (typeof schema.credits.$inferInsert)[] = [];
     for (const c of [...(spec.ledger ?? [])].sort((a, b) => b.at - a.at)) {
         const createdAt = ago(c.at);
@@ -427,6 +430,7 @@ async function seedLedger(
             if (!isCreditPreset(c.credits))
                 throw new Error(`"${spec.slug}": ${c.credits} is not a buyable credit quantity`);
             balance += c.credits;
+            bought += c.credits;
             rows.push({
                 workspaceId: ws.id,
                 delta: c.credits,
@@ -435,6 +439,8 @@ async function seedLedger(
                 createdAt,
             });
         } else {
+            // a grant re-clamps the bought share against the balance it lands on, as openWindow does
+            bought = Math.min(bought, balance);
             balance += grant;
             rows.push({
                 workspaceId: ws.id,
@@ -448,7 +454,7 @@ async function seedLedger(
     if (rows.length) await db.insert(schema.credits).values(rows);
     await db
         .update(schema.workspaces)
-        .set({ aiCreditsBalance: balance })
+        .set({ aiCreditsBalance: balance, purchasedCredits: Math.min(bought, balance) })
         .where(eq(schema.workspaces.id, ws.id));
     return { balance };
 }
@@ -614,15 +620,42 @@ async function reapRetired(): Promise<void> {
     if (gone.length) log(`• reaped ${gone.length} retired accounts`);
 }
 
-// Two modes. The default merges into whatever the database already holds: workspaces, members,
+// Three modes. The default merges into whatever the database already holds: workspaces, members,
 // invites, themes and the credit ledger are (re)written, and artifacts are never created, touched,
 // or wiped, so demo content made by hand or by the generation tooling survives a rerun. --full (or
 // SEED_FULL=1) is the destructive fixture build the e2e suite runs against: wipe each demo
-// workspace and rebuild everything, artifacts and published links included.
+// workspace and rebuild everything, artifacts and published links included. --credits touches
+// only the credit window and ledger of each demo workspace, for a demo that has spent its month.
 const FULL = process.argv.includes("--full") || process.env.SEED_FULL === "1";
+const CREDITS = process.argv.includes("--credits");
+
+async function resetCredits(): Promise<void> {
+    const userIds = new Map<string, string>();
+    for (const p of PEOPLE) {
+        const [u] = await db
+            .select({ id: schema.users.id })
+            .from(schema.users)
+            .where(eq(schema.users.email, p.email));
+        if (u) userIds.set(p.email, u.id);
+    }
+    for (const spec of WORKSPACES) {
+        const [ws] = await db
+            .update(schema.workspaces)
+            .set(windowFor(spec))
+            .where(eq(schema.workspaces.slug, spec.slug))
+            .returning();
+        if (!ws) {
+            warn(`• ${spec.name}: not seeded yet, run pnpm seed first`);
+            continue;
+        }
+        const { balance } = await seedLedger(ws, spec, userIds);
+        log(`• ${spec.name} — ${balance} credits banked (+${grantFor(ws)}/mo), window reopened`);
+    }
+}
 
 async function seed(): Promise<void> {
     assertDatabaseUrl();
+    if (CREDITS) return resetCredits();
     await reapRetired();
 
     const userIds = new Map<string, string>();
@@ -662,7 +695,7 @@ async function seed(): Promise<void> {
         log(
             `• ${spec.name} (${spec.plan}, demo is ${role}) — ${live} artifacts, ` +
                 `${spec.members.length + 1} members, ${balance} credits banked ` +
-                `(+${grantFor(ws)}/mo), ${ws.seats} seats`,
+                `(+${grantFor(ws)}/mo)`,
         );
     }
 

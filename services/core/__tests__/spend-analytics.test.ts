@@ -18,7 +18,7 @@ interface WireEvent {
     properties: Record<string, unknown>;
 }
 
-const ws = { id: "ws_1", plan: "free", seats: 1 };
+const ws = { id: "ws_1", plan: "free" };
 const principal = { userId: "user_1", ws, role: "owner" as const };
 
 implement(FREE_TOOL, async function* (): AsyncGenerator<TurnEvent, number> {

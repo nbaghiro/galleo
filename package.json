@@ -40,6 +40,7 @@
         "api": "tsx watch services/server.ts",
         "api:watch": "tsx watch services/server.ts",
         "seed": "tsx services/db/seed.ts",
+        "seed:credits": "tsx services/db/seed.ts --credits",
         "ai:eval": "tsx services/core/ai/eval/harness.ts",
         "ai:probe": "tsx services/core/ai/eval/probe.ts",
         "db:push": "drizzle-kit push",

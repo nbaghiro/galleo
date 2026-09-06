@@ -3,7 +3,7 @@
 > The single current-state reference for internal product instrumentation: the event catalog, the two
 > wrappers, the first-party ingest proxy, the env contract, and what we deliberately do not collect.
 > Companion docs: `hosting.md` (the env table and the build-time constraint), `workspaces.md` (plans,
-> seats, the credit window), `onboarding.md` (the first-session funnel), `ai.md` (the tool catalog).
+> the member cap, the credit window), `onboarding.md` (the first-session funnel), `ai.md` (the tool catalog).
 
 ## Not to be confused with view analytics
 

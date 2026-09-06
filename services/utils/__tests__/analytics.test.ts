@@ -77,7 +77,7 @@ describe("server analytics", () => {
         expect(analyticsEnabled()).toBe(false);
         capture(ctx, "logged_out", {});
         identify("user_1", { email_verified: true });
-        identifyWorkspace("ws_1", { seats_total: 3 });
+        identifyWorkspace("ws_1", { member_count: 3 });
         await shutdownAnalytics();
         expect(networkCalls).toBe(0);
     });
@@ -123,7 +123,7 @@ describe("server analytics", () => {
     it("identifies the person and the workspace separately", async () => {
         initAnalytics({ key: "phc_test", fetch: recorder(sent) });
         identify("user_1", { signup_method: "google", email_verified: true });
-        identifyWorkspace("ws_1", { plan_id: "premium", seats_total: 5 });
+        identifyWorkspace("ws_1", { plan_id: "premium", member_count: 5 });
         await shutdownAnalytics();
 
         const person = named(sent, "$identify");

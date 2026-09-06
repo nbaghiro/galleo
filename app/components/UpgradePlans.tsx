@@ -1,10 +1,10 @@
 import type { Component } from "solid-js";
 import { createSignal, For, Show } from "solid-js";
 import type { Interval, Plan, PlanId } from "@model/billing";
-import { clampSeats, planRank, sellsSeats } from "@model/billing";
+import { planRank } from "@model/billing";
 import { CheckIcon } from "@ui/icons";
 import { Badge, Button } from "@ui/button";
-import { Segmented, TextField } from "@ui/inputs";
+import { Segmented } from "@ui/inputs";
 import {
     anyBillingBusy,
     billing,
@@ -24,14 +24,9 @@ export const UpgradePageContent: Component = () => {
     const ready = (): boolean => b()?.stripeReady ?? false;
 
     const [interval, setInterval] = createSignal<Interval>("month");
-    const [seats, setSeats] = createSignal(1);
 
     const unitPrice = (plan: Plan): number =>
         chosenInterval() === "year" ? plan.billing.priceAnnualMonthly : plan.billing.priceMonthly;
-    // every price is per seat; the seat field only moves a plan that sells seats, and a solo plan
-    // is one seat whatever it says
-    const seatsFor = (plan: Plan): number => clampSeats(plan.id, seats());
-    const monthlyTotal = (plan: Plan): number => unitPrice(plan) * seatsFor(plan);
 
     const busy = billingBusy;
     const anyBusy = anyBillingBusy;
@@ -50,7 +45,7 @@ export const UpgradePageContent: Component = () => {
             void run(plan.id, () => changePlan({ plan: "free" })); // cancel at period end
             return;
         }
-        const opts = { plan: plan.id, interval: chosenInterval(), seats: seatsFor(plan) };
+        const opts = { plan: plan.id, interval: chosenInterval() };
         // free → paid needs Checkout (collect a payment method); paid → paid is an in-app change.
         void run(plan.id, () => (current() === "free" ? startCheckout(opts) : changePlan(opts)));
     };
@@ -74,8 +69,8 @@ export const UpgradePageContent: Component = () => {
 
     return (
         <>
-            <div class="mb-4 flex flex-wrap items-center gap-3">
-                <Show when={monthReady() && annualReady()}>
+            <Show when={monthReady() && annualReady()}>
+                <div class="mb-4 flex flex-wrap items-center gap-3">
                     <Segmented
                         value={interval()}
                         options={[
@@ -87,28 +82,13 @@ export const UpgradePageContent: Component = () => {
                     <span class="text-[11px] font-semibold text-accent">
                         annual saves about 2 months
                     </span>
-                </Show>
-                <label class="inline-flex items-center gap-2 text-[12px] text-muted">
-                    Seats
-                    <TextField
-                        type="number"
-                        min={1}
-                        max={100}
-                        value={String(seats())}
-                        onChange={(v) =>
-                            setSeats(Math.min(100, Math.max(1, Math.floor(Number(v) || 1))))
-                        }
-                        class="w-16"
-                    />
-                    <span class="text-[11px]">on plans that sell seats</span>
-                </label>
-            </div>
+                </div>
+            </Show>
 
             <div class="grid gap-4 md:grid-cols-3">
                 <For each={b()?.catalog ?? []}>
                     {(plan) => {
                         const isCurrent = (): boolean => plan.id === current();
-                        const team = (): boolean => sellsSeats(plan.id);
                         // paying users see THEIR tier featured; Pro is the upsell card only for free
                         const featured = (): boolean =>
                             plan.id === (current() === "free" ? "pro" : current());
@@ -136,18 +116,11 @@ export const UpgradePageContent: Component = () => {
                                     <span class="text-[30px] font-bold tracking-[-0.02em]">
                                         ${unitPrice(plan)}
                                     </span>
-                                    <span class="text-[13px] text-muted">
-                                        {team() ? "/ seat / mo" : "/ mo"}
-                                    </span>
+                                    <span class="text-[13px] text-muted">/ mo</span>
                                 </div>
                                 <div class="mt-0.5 min-h-4 text-[11.5px] text-muted">
                                     <Show when={chosenInterval() === "year" && unitPrice(plan) > 0}>
                                         billed annually
-                                    </Show>
-                                    <Show when={team()}>
-                                        {chosenInterval() === "year" ? " · " : ""}
-                                        {plan.billing.minSeats} seats minimum · $
-                                        {monthlyTotal(plan)}/mo for {seatsFor(plan)} seats
                                     </Show>
                                 </div>
                                 <ul class="mt-4 flex flex-1 flex-col gap-2">

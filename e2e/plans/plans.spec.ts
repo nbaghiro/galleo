@@ -19,8 +19,8 @@ async function enterWorkspace(request: APIRequestContext, name: string): Promise
     await request.post("/api/workspace/switch", { data: { workspaceId: target.id } });
 }
 
-test("the free plan blocks invites past its seat cap", async ({ browser }) => {
-    // the demo login owns the Free workspace: one seat, already taken by them
+test("the free plan blocks invites past its member cap", async ({ browser }) => {
+    // the demo login owns the Free workspace, a plan for one person, and they are that person
     const ctx = await browser.newContext({ storageState: statePath("demo") });
     const page = await ctx.newPage();
     try {
@@ -31,9 +31,9 @@ test("the free plan blocks invites past its seat cap", async ({ browser }) => {
         if (await invite.isVisible()) {
             await page.getByPlaceholder(/teammate/i).fill("overflow@example.com");
             await invite.click();
-            await expect(page.getByText(/seat|upgrade|plan/i).first()).toBeVisible();
+            await expect(page.getByText(/upgrade|plan/i).first()).toBeVisible();
         } else {
-            await expect(page.getByText(/seat|upgrade|add seats/i).first()).toBeVisible();
+            await expect(page.getByText(/upgrade|plan/i).first()).toBeVisible();
         }
     } finally {
         await enterWorkspace(page.request, FLAGSHIP);

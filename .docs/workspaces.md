@@ -16,8 +16,8 @@ A workspace is three things at once, and keeping them in one row is deliberate:
 
 Users are people, workspaces own content, and `members` joins them with a role. A person can own
 several workspaces and be a member of others; `users.active_workspace_id` picks the one the app opens.
-An individual on Free is a workspace with one seat, and a team is a workspace with N seats, so there is
-one code path rather than a personal one and a team one.
+An individual on Free is a workspace for one person, and a team is a workspace on Premium with as many
+members as it likes, so there is one code path rather than a personal one and a team one.
 
 ## The pieces
 
@@ -31,7 +31,7 @@ one code path rather than a personal one and a team one.
 | Roles, publish policy, the auth DTOs, `UserPrefs`                   | `model/workspace.ts`                                                                                                                                   |
 | Create a workspace, resolve the current one                         | `services/core/accounts.ts`                                                                                                                            |
 | The account itself (profile, password, links, prefs)                | `services/core/accounts.ts`, `services/api/account.ts`                                                                                                 |
-| Members, invites, seats, ownership                                  | `services/core/workspaces.ts`                                                                                                                          |
+| Members, invites, ownership                                         | `services/core/workspaces.ts`                                                                                                                          |
 | Balances, ledger rows, the window                                   | `services/core/ledger.ts`                                                                                                                              |
 | AI spend policy (reserve, meter, settle)                            | `services/core/spend.ts`                                                                                                                               |
 | Plans, Stripe, the webhook, ledger paging                           | `services/core/billing.ts`                                                                                                                             |
@@ -56,7 +56,6 @@ one code path rather than a personal one and a team one.
 | `plan_interval`                                 | `month` \| `year` while subscribed, for display and the interval switch; null when there is no subscription     |
 | `plan_period_end`                               | the current Stripe period end, for display                                                                      |
 | `cancel_at_period_end`                          | a cancel is parked here; the plan itself does not change until Stripe deletes the subscription                  |
-| `seats`                                         | the subscription's quantity, synced from Stripe; the real member cap                                            |
 | `stripe_customer_id` / `stripe_subscription_id` | created lazily on first checkout; the customer id survives cancellation so a re-subscribe reuses it             |
 | `ai_credits_balance`                            | the one credit counter: a balance, added to at each window and by a purchase, never cleared                     |
 | `purchased_credits`                             | the bought share still banked, which the rollover clip never touches                                            |
@@ -98,22 +97,21 @@ the cheap way to invalidate all of them. `leaveWorkspace` reloads for the same r
 ### The catalog
 
 `PLANS` is one record keyed by `PlanId` (`free` | `pro` | `premium`), and every lever is a field:
-`billing` (the per-seat prices and the seat bounds), `ai` (`creditsPerSeat`), `account`
-(`maxArtifacts`, `storageMb`), and `features` (the boolean and enum gates).
+`billing` (the two flat prices), `ai` (`monthlyCredits`), `account` (`maxArtifacts`, `storageMb`,
+`maxMembers`), and `features` (the boolean and enum gates).
 
-Every price is per seat and a subscription is one Stripe line whose quantity is the seat count, so
-one plan is one price per interval. Free and Pro are solo (`minSeats` and `maxSeats` both 1);
-Premium is the team plan, three seats minimum and up to a hundred, and the only one where
-`sellsSeats` is true. A seat carries the same credits whether it is the first or the tenth.
-`clampSeats(plan, n)` is what every path that takes a seat count runs it through. Stripe price ids
-are never in this file: plans resolve from `STRIPE_PRICE_{PLAN}_{INTERVAL}`, the credit from
-`STRIPE_PRICE_CREDIT`.
+One flat price buys the whole workspace, so a plan is one Stripe price per interval and a
+subscription is one line at quantity one. Free and Pro are for one person (`maxMembers` 1); Premium
+holds any number of members on one shared pool of credits. There are no seats: how many people a
+plan may hold is a plan feature like any other, and how much credit they share is the plan's grant.
+Stripe price ids are never in this file: plans resolve from `STRIPE_PRICE_{PLAN}_{INTERVAL}`, the
+credit from `STRIPE_PRICE_CREDIT`.
 
 |                                           | Free             | Pro                | Premium               |
 | ----------------------------------------- | ---------------- | ------------------ | --------------------- |
-| Price, per seat                           | $0               | $20/mo, $16 annual | $33/mo, $27 annual    |
-| Seats                                     | 1                | 1                  | 3 minimum, up to 100  |
-| Credits per seat, month                   | 300              | 1,200              | 2,100                 |
+| Price                                     | $0               | $20/mo, $16 annual | $99/mo, $82 annual    |
+| Members                                   | 1                | 1                  | unlimited             |
+| Credits a month                           | 300              | 1,200              | 5,000                 |
 | Artifacts / storage                       | 10 / 500MB       | unlimited / 20GB   | unlimited / unlimited |
 | Export, branding                          | PNG, PDF, marked | all five, no mark  | all five, no mark     |
 | Custom themes, public links               | no               | yes                | yes                   |
@@ -138,8 +136,8 @@ Readers are `can(f, key)`, `limit(f, key)` (`-1` = unlimited), and `withinLimit(
 description, which is what a wall names.
 
 Two wrappers take a stored row rather than a plan id. `featuresFor(ws)` reads `ws.plan` plus
-`ws.featureOverrides`; `grantFor(ws)` is `creditsPerSeat × clampSeats(seats)`, or the
-`includedCredits` override when one is set, which replaces the whole grant and is the support lever
+`ws.featureOverrides`; `grantFor(ws)` is the plan's `monthlyCredits`, or the `includedCredits`
+override when one is set, which replaces the grant and is the support lever
 ("this workspace gets 5,000 a month"). Both take a `PlanBearer`, declared structurally so the backend
 can hand a drizzle row straight in without the contract knowing that a database exists.
 
@@ -166,10 +164,9 @@ hono `Context`, which `@model` must not know about.
 | `exportFormats`  | client-side only (`editor/panels/ExportModal.tsx`), because rendering happens in the browser and there is no server export route                                   | destinations greyed out                                               |
 | `apiAccess`      | `services/api/workspace.ts` on the credential routes, so it gates minting a machine key rather than the delegated surface itself                                   | 402, and the settings section shows the upgrade wall                  |
 | `audio`          | the executor, through `requires: "audio"` on the four audio tools, and the narration, music and voice routes                                                       | 402                                                                   |
+| `maxMembers`     | `inviteMember` (members plus unexpired invites) and `acceptInvite` (members), so an invite that outlived a downgrade is refused at the door                        | 402 naming the plan that holds a team                                 |
 
-Two things the table cannot show. Nothing in the resolved set caps membership: the member cap is
-`workspaces.seats`, the cached Stripe quantity, enforced at the invite and accept paths. And nothing
-caps how large a generation is per plan: `MAX_SECTIONS` in `model/tools.ts` is one constant for
+One thing the table cannot show: nothing caps how large a generation is per plan. `MAX_SECTIONS` in `model/tools.ts` is one constant for
 everyone, and the credit gate is what bounds a small plan. On the client, every feature read goes
 through the resolved set (`app/stores/features.ts`, `EditorView`'s export config included), so a
 `feature_overrides` patch reaches every surface.
@@ -194,8 +191,11 @@ and answers `plan: null` for a price it does not know, which the webhook treats 
 misconfiguration and keeps the row's plan through, with a `warn`.
 
 `pnpm stripe:setup` builds the account from the catalog: two products with a monthly and a yearly
-per-seat price each, the one-off credit product, and it archives any `galleo_` price the catalog no
-longer sells so the account converges on the code.
+price each, the one-off credit product, the customer portal configuration (payment method, invoices
+and billing details; plan changes stay in the app), and, given `--origin`, the webhook endpoint on
+the four events `consumeWebhook` acts on. It archives any `galleo_` price, and any product it made
+earlier, that the catalog no longer sells, so the account converges on the code. The live account is
+reached through a CLI profile (`--live --project <name>`); the go-live runbook is in `hosting.md`.
 
 ### The routes (`services/api/billing.ts`)
 
@@ -206,13 +206,13 @@ are readable by any member.
 ```
 GET  /billing            plan · periodEnd · cancelAtPeriodEnd · interval · intervals ·
                          credits{balance,monthlyGrant,perGeneration,resetAt,rolloverCap,capped} ·
-                         usage{artifacts,storage} · seats · catalog · creditSale · stripeReady ·
+                         usage{artifacts,storage} · catalog · creditSale · stripeReady ·
                          hasCustomer
-POST /billing/checkout   subscription-mode Checkout, one line at quantity = seats. 409 when
+POST /billing/checkout   subscription-mode Checkout, one line. 409 when
                          stripeSubscriptionId is already set, since a second checkout would double-bill.
 POST /billing/topup      payment-mode Checkout for one of the credit presets.
 POST /billing/portal     the Stripe customer portal.
-POST /billing/change-plan up / down / seats / interval, in one route.
+POST /billing/change-plan up / down / interval, in one route.
 POST /billing/resume     clears a pending cancel.
 GET  /billing/ledger     keyset-paginated credit history, 30 per page.
 POST /billing/webhook    unauthenticated, signature-verified, raw body.
@@ -225,13 +225,11 @@ POST /billing/webhook    unauthenticated, signature-verified, raw body.
 - **To Free.** `cancel_at_period_end: true` on the subscription, and `cancelAtPeriodEnd` mirrored onto
   the row immediately so the UI does not wait for the webhook. The plan does not change now; it changes
   when Stripe deletes the subscription at the period boundary.
-- **Anything else.** Applied now through one `subscriptions.update` on the plan line: the target price
-  and the target seat count, clamped to the plan's bounds. A higher tier or more seats uses
-  `always_invoice`, so the difference is charged today; a lower tier, fewer seats, or an interval switch
-  uses `create_prorations`, so what was paid for and not used comes back as a credit on the next
-  invoice. A solo target lands at one seat, so a bare tier downgrade from a team is a seat decrease
-  too. Before applying a seat decrease, the count is floored at the number of people holding a seat,
-  counting members **plus unexpired unaccepted invites**, and returns `seats-below-members` otherwise.
+- **Anything else.** Applied now through one `subscriptions.update` on the plan line with the target
+  price. A higher tier uses `always_invoice`, so the difference is charged today; a lower tier or an
+  interval switch uses `create_prorations`, so what was paid for and not used comes back as a credit
+  on the next invoice. A downgrade to a plan for one person leaves the roster in place, soft-locked:
+  nobody new can join until the plan holds a team again.
 
 `resumeSubscription` clears `cancel_at_period_end` on Stripe and on the row.
 
@@ -239,7 +237,7 @@ POST /billing/webhook    unauthenticated, signature-verified, raw body.
 
 `consumeWebhook(rawBody, signature)` verifies the signature, then applies the event's effects
 **inside one transaction**. Idempotency needs no event log, because every effect is safe to re-apply:
-sync effects (plan, interval, seats, period end, the cancel flag) **set** workspace state from a
+sync effects (plan, interval, period end, the cancel flag) **set** workspace state from a
 freshly retrieved subscription, so a duplicate, stale, or out-of-order delivery converges on what
 Stripe currently says; grants write their `credits` ledger row first, keyed by the unique `key`
 column, so a redelivery finds the row and grants nothing. A mid-handle failure rolls the transaction
@@ -252,22 +250,22 @@ connection is held across a round trip to Stripe.
 | `checkout.session.completed` (subscription) | Locks the row and runs `applySubscription` with the session id as the grant key: writes the customer id, and syncs and grants as below.                                                                                                                                                               |
 | `checkout.session.completed` (payment)      | A credit purchase: reads the quantity off the credit line item Stripe charged for, refuses anything that is not a preset, adds it to the balance and to `purchased_credits`, and writes a `topup` row keyed on the session. An unpaid session (a delayed method) waits for `async_payment_succeeded`. |
 | `customer.subscription.updated`             | `applySubscription` keyed on the event id. When the sub has no workspace, it may adopt one via `metadata.workspaceId`, but only if that workspace has **no** current subscription, so a stale event cannot hijack a newer one.                                                                        |
-| `customer.subscription.deleted`             | Back to Free: `plan: "free"`, `planInterval: null`, `stripeSubscriptionId: null`, `seats: 1`, `planPeriodEnd: null`, the cancel flag cleared. Banked credits are untouched.                                                                                                                           |
+| `customer.subscription.deleted`             | Back to Free: `plan: "free"`, `planInterval: null`, `stripeSubscriptionId: null`, `planPeriodEnd: null`, the cancel flag cleared. Banked credits are untouched.                                                                                                                                       |
 
-`applySubscription` is the one sync. It reads the live subscription's plan, interval and seats, and
-when the subscription now grants more than the row did (a checkout, a tier rise, a seat rise) it
+`applySubscription` is the one sync. It reads the live subscription's plan and interval, and when
+the subscription now grants more than the row did (a checkout, a tier rise) it
 opens a fresh credit window with the new grant under the given key; otherwise it sets the synced
 fields. A redelivery finds its key claimed, grants nothing, and still lands the sync. So paying now
 means credits now: an upgrade mid-cycle is invoiced today and granted today rather than at the next
 renewal.
 
-**`customer.subscription.deleted` keeps the `members` rows on purpose.** It resets seats to 1 and
-leaves N members in place. Deleting them would destroy data on a billing event, including the ability
+**`customer.subscription.deleted` keeps the `members` rows on purpose.** It drops the plan to Free,
+which holds one person, and leaves N members in place. Deleting them would destroy data on a billing event, including the ability
 of those people to see work they authored, and a lapse is frequently temporary (a card failed, someone
 forgot to update it). Downgrade reconciliation is by soft-lock instead: the resolver's gates block new
-actions over the cap and leave the existing state readable. Nothing re-checks seats for an existing
+actions over the cap and leave the existing state readable. Nothing re-checks the cap for an existing
 member, so a churned team keeps working; what breaks is growth, since `inviteMember` and `acceptInvite`
-both refuse against `workspaces.seats`.
+both refuse against `maxMembers`.
 
 There is no dunning state. A failed card is Stripe's to retry and email about; the row keeps its plan
 until Stripe gives up and deletes the subscription, which is the deletion event above. Refunds of
@@ -285,7 +283,7 @@ There is one counter, `ai_credits_balance`, and it is a **balance** rather than 
 `grantFor(ws)` is what the subscription adds at each window:
 
 ```
-grant = creditsPerSeat × seats        (or the includedCredits override)
+grant = plan.monthlyCredits          (or the includedCredits override)
 ```
 
 The window adds that grant to whatever is already there instead of clearing it, so **unspent credits
@@ -339,9 +337,9 @@ on the session id, so a redelivery cannot grant twice. Bought credits never expi
 rollover clip shields them, and are not refundable.
 
 The rate sits above every plan's own per-credit rate, so buying capacity outright never beats
-subscribing for it. Only a paid plan may buy (`canTopUp`); Free's remedy is an upgrade. On Premium a
-seat is the cheaper marginal credit, which is the intended shape: a team that needs more capacity
-buys a seat.
+subscribing for it. Only a paid plan may buy (`canTopUp`); Free's remedy is an upgrade. A team that
+needs more capacity buys credits: the pool is one, shared, and the ledger and the members list
+name who spent what, so an owner sees a drain coming.
 
 ### Spend order, reserve, and settle
 
@@ -429,23 +427,24 @@ which publishes the caller's role on the context: `currentMembership` reads it f
 it was already doing, so no route pays a second query for it. Billing does not use `requireRole`:
 those routes compare `ws.ownerId` inline.
 
-### The seat cap
+### The member cap
 
-The cap is `workspaces.seats`, the cached Stripe quantity; the plan catalog carries the bounds a plan
-allows, and the row is the count that was bought.
+The cap is the plan's `maxMembers`, resolved like any other feature: one on Free and Pro, unlimited on
+Premium. Two places count it, and they count slightly different things, deliberately:
 
-Three places count it, and they count slightly different things, deliberately:
-
-- `inviteMember` refuses at `members.length + pending.length >= ws.seats`, because an unexpired,
-  unaccepted invite holds its seat. Returns `{ error: "no-seats", seats }`, which the route turns into
-  402 with an `upgrade` hint.
-- `acceptInvite` refuses at `members.length >= ws.seats`, counting only real members (the invite being
-  accepted must not count itself). Seats may have shrunk since the invite went out, so the cap is
-  rechecked at the door and the route answers 402.
-- `changePlan` floors a seat decrease at members plus unexpired invites.
+- `inviteMember` refuses when `members + pending invites` is at the cap, because an unexpired,
+  unaccepted invite holds its place. Returns `{ error: "over-members" }`, which the route turns into
+  a feature 402 naming `maxMembers`, so the wall sells the plan that holds a team.
+- `acceptInvite` refuses when `members` is at the cap, counting only real members (the invite being
+  accepted must not count itself). The plan may have shrunk since the invite went out, so the cap is
+  rechecked at the door and the route answers the same 402.
 
 Nothing re-checks the cap for an existing member, which is what makes the post-cancellation state
-(N members, 1 seat) survivable.
+(N members on a plan for one) survivable.
+
+`GET /workspace?spend=1` adds each member's net spend this cycle to the roster (`spendByMember` in
+`core/ledger.ts`), which the settings page asks for and nothing else pays for. It is visibility, not
+a cap: the pool is shared, and the owner's remedy is to buy credits.
 
 ### Invites
 
@@ -639,7 +638,7 @@ in workspace settings; the two pages cross-link.
 
 Immediately after `createWorkspaceForUser`:
 
-- `plan: "free"` unless a plan was passed, `seats: 1`;
+- `plan: "free"` unless a plan was passed;
 - no Stripe customer and no subscription, `feature_overrides` null, `cancel_at_period_end` false,
   `plan_period_end` and `plan_interval` null;
 - `ai_credits_balance` at the plan's grant, and a 30-day window from now;
@@ -666,18 +665,20 @@ so demo content made by hand or by generation tooling survives a rerun, and a sp
 workspace, a different plan) lands without collateral. `pnpm seed --full` (or `SEED_FULL=1`) is the
 destructive fixture build: wipe each demo workspace and rebuild everything, artifacts, published
 links, visits and contexts included. The e2e suite runs `--full`, because its specs assert against
-exactly that fixture set.
+exactly that fixture set. `pnpm seed:credits` is the narrowest run: it reopens each demo
+workspace's credit window and replays its ledger from the spec, and touches nothing else, which is
+what a demo that has spent its month needs.
 
 The three are named for the plan they demonstrate and the demo login owns all three, so the switcher
 is the plan ladder and every limit is reachable from one account. `RETIRED_SLUGS` and
 `RETIRED_EMAILS` beside the specs name what the demo universe used to hold, and `reapRetired` in
 `seed.ts` deletes exactly those before writing the current ones.
 
-| Slug   | Plan    | Seats vs people                       | What it exercises                                                                                                                                                                                          |
-| ------ | ------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `demo` | premium | 5 seats, 3 members + a pending invite | the healthy team: member management (the owner-only surface that works without Stripe), a 10,500 grant from five seats, pinned share links, contexts, assets                                               |
-| `pro`  | pro     | 1 seat, the owner                     | the solo library with the artifact cap lifted, part-way through a 1,200 cycle                                                                                                                              |
-| `free` | free    | 1 seat, the owner                     | exactly 10 live artifacts (at the Free cap, so `POST /artifacts` 402s), a `storageMb: 1` override to make the storage wall reachable, and a balance under a deck's cost so generation takes the 402 branch |
+| Slug   | Plan    | People                       | What it exercises                                                                                                                                                                                          |
+| ------ | ------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `demo` | premium | 3 members + a pending invite | the healthy team: member management (the owner-only surface that works without Stripe), one shared 5,000 pool, pinned share links, contexts, assets                                                        |
+| `pro`  | pro     | the owner                    | the solo library with the artifact cap lifted, part-way through a 1,200 cycle                                                                                                                              |
+| `free` | free    | the owner                    | exactly 10 live artifacts (at the Free cap, so `POST /artifacts` 402s), a `storageMb: 1` override to make the storage wall reachable, and a balance under a deck's cost so generation takes the 402 branch |
 
 A workspace is found by slug and then **every column the spec owns is rewritten**, so a workspace
 that has been clicked around in converges back onto the spec rather than keeping its drifted plan and
@@ -701,7 +702,7 @@ nothing writes "available on Pro" by hand.
 Every wall routes to `/settings/plan`, where `UpgradePageContent` (`app/components/UpgradePlans.tsx`)
 renders the plan grid and owns the flow: free → paid opens Checkout, paid → paid is an in-app
 `change-plan`, and → free cancels at period end. `PlanPanel` is that component plus the current-plan
-card (with the seat control on a team plan), the usage cards, and the tool-price table, priced from
+card, the usage cards, and the tool-price table, priced from
 the same catalogue the studio previews with; `BillingPanel` is the portal, the credit presets, and
 the ledger.
 
@@ -731,25 +732,25 @@ may not import `app/`; it receives an `onUpgrade` callback from `EditorView` ins
 
 ## Tests
 
-| Area                            | File                                        | Covers                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Plan catalog + resolver         | `model/__tests__/billing.test.ts`           | plan fallback, seat bounds and clamping, overrides widening and narrowing, `withinLimit` against `-1`, `grantFor` per seat and its override, the margin floor, the rate band, the bought-credit invariants, the rollover clip, `upgradeFor` per feature kind, and the card copy                                                                                                                                            |
-| Cost units + the gate           | `model/__tests__/credits.test.ts`           | `usdOfUsage`, the one-credit floor, `creditsForUsd`, `unitPricesFrom`, `estimateCost` scaling by length and section count, the doorway gate on `start-generation`, free tools reserving 0, and the priced-tool list                                                                                                                                                                                                        |
-| 402 guards                      | `services/utils/__tests__/http.test.ts`     | `requireFeature`, `checkLimit` at and below a cap, unlimited, the message builder                                                                                                                                                                                                                                                                                                                                          |
-| Ledger mechanics                | `services/core/__tests__/ledger.itest.ts`   | refusing a charge the balance cannot cover, spending straight off the balance, a settle rewriting one row in place, a settle beyond the reserve flooring at zero, `rollIfLapsed` rolling once under concurrency with a keyed row, a subscribed workspace rolling the same way, and the rollover clip with the purchased shield                                                                                             |
-| Spend policy                    | `services/core/__tests__/spend.test.ts`     | what a run owes: nothing for nothing, provider list price, the credit floor, assets on top, cached input, call-site spend folded into one sum                                                                                                                                                                                                                                                                              |
-| Stripe wiring                   | `services/core/__tests__/stripe.test.ts`    | `stripeReady`, `priceIdFor`, price-to-plan and price-to-interval round trips                                                                                                                                                                                                                                                                                                                                               |
-| Billing routes + webhook        | `services/api/__tests__/billing.itest.ts`   | checkout (seats clamped per plan, interval, 503, free rejected), presets, portal, change-plan (immediate upgrade and downgrade, cancel-to-free, seat floor, interval switch carrying seats), resume, the doorway gate, webhook idempotency and rollback, subscription adoption and hijack refusal, the grant on any subscription increase, the roll on read for every plan, purchases, owner-only mutations, ledger paging |
-| Resolved features over the wire | `services/api/__tests__/features.itest.ts`  | `GET /features` for a free and an upgraded workspace                                                                                                                                                                                                                                                                                                                                                                       |
-| Members, invites, switching     | `services/api/__tests__/workspace.itest.ts` | invite into a free seat, 402 when full, 409 for an existing member, revoke killing a token, accept joining and switching, expired invite, seats shrinking after an invite went out, switching and the 403 without a membership, removal dropping a user back                                                                                                                                                               |
-| The role matrix                 | `services/api/__tests__/roles.itest.ts`     | legacy `editor` rows reading as member, invites hidden from members, who may invite/rename/remove, admin-cannot-remove-admin, owner-only role changes, an invite carrying a role, leave, transfer demoting the old owner                                                                                                                                                                                                   |
-| The roll on read                | `services/core/__tests__/accounts.itest.ts` | `currentWorkspace` granting and pushing `creditsResetAt` about 30 days out once the window has passed, and leaving an unexpired window alone                                                                                                                                                                                                                                                                               |
-| Provisioning                    | `services/api/__tests__/session.itest.ts`   | signup and login, and the workspace created alongside a user                                                                                                                                                                                                                                                                                                                                                               |
-| Artifact access + policies      | `services/api/__tests__/access.itest.ts`    | the level matrix per route (read/patch/content/trash/restore/delete), the 404-not-403 rule for `none`, admin and creator floors, inherit-then-override in both directions, the library and search filters, comments at each level, admin-only trash emptying, the publish policy, `PATCH /workspace` validation, `PUT /artifacts/:id/access`                                                                               |
-| Access resolution               | `model/__tests__/artifact-access.test.ts`   | level ordering, `isAccess` refusing prototype keys, every branch of `accessFor`, and the publish policy helpers                                                                                                                                                                                                                                                                                                            |
-| The account surface             | `services/api/__tests__/account.itest.ts`   | `/me` carrying `hasPassword` + `prefs`, rename (trim, cap, clear), password change and first-set, wrong/missing/over-cap current, the `password_changed_at` stamp and the reissued cookie, connections list, unlink with a password or a second provider, the last-credential 409, prefs merge/clear/normalize, memberships with roles, and leaving a named workspace                                                      |
-| The OAuth link path             | `services/api/__tests__/oauth.itest.ts`     | the intent cookie only on `?link=1`, linking to the session's account when the provider's email belongs to someone else, refusing an identity linked elsewhere, idempotent relink, the expired-session fallback to sign-in, and failures reporting to `/account` when linking and `/login` when signing in                                                                                                                 |
-| Prefs + name normalization      | `model/__tests__/workspace.test.ts`         | `asRole` legacy mapping, `readUserPrefs` dropping unknown keys, wrong types and oversized ids, `mergeUserPrefs` patching, clearing, and refusing to mutate its input, `cleanDisplayName` trimming before capping                                                                                                                                                                                                           |
+| Area                            | File                                        | Covers                                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plan catalog + resolver         | `model/__tests__/billing.test.ts`           | plan fallback, the member cap per plan, overrides widening and narrowing, `withinLimit` against `-1`, `grantFor` and its override, the margin floor, the rate band, the bought-credit invariants, the rollover clip, `upgradeFor` per feature kind, and the card copy                                                                                                   |
+| Cost units + the gate           | `model/__tests__/credits.test.ts`           | `usdOfUsage`, the one-credit floor, `creditsForUsd`, `unitPricesFrom`, `estimateCost` scaling by length and section count, the doorway gate on `start-generation`, free tools reserving 0, and the priced-tool list                                                                                                                                                     |
+| 402 guards                      | `services/utils/__tests__/http.test.ts`     | `requireFeature`, `checkLimit` at and below a cap, unlimited, the message builder                                                                                                                                                                                                                                                                                       |
+| Ledger mechanics                | `services/core/__tests__/ledger.itest.ts`   | refusing a charge the balance cannot cover, spending straight off the balance, a settle rewriting one row in place, a settle beyond the reserve flooring at zero, `rollIfLapsed` rolling once under concurrency with a keyed row, a subscribed workspace rolling the same way, and the rollover clip with the purchased shield                                          |
+| Spend policy                    | `services/core/__tests__/spend.test.ts`     | what a run owes: nothing for nothing, provider list price, the credit floor, assets on top, cached input, call-site spend folded into one sum                                                                                                                                                                                                                           |
+| Stripe wiring                   | `services/core/__tests__/stripe.test.ts`    | `stripeReady`, `priceIdFor`, price-to-plan and price-to-interval round trips                                                                                                                                                                                                                                                                                            |
+| Billing routes + webhook        | `services/api/__tests__/billing.itest.ts`   | checkout (interval, 503, free rejected), presets, portal, change-plan (immediate upgrade and downgrade, cancel-to-free, interval switch), resume, the doorway gate, webhook idempotency and rollback, subscription adoption and hijack refusal, the grant on any subscription increase, the roll on read for every plan, purchases, owner-only mutations, ledger paging |
+| Resolved features over the wire | `services/api/__tests__/features.itest.ts`  | `GET /features` for a free and an upgraded workspace                                                                                                                                                                                                                                                                                                                    |
+| Members, invites, switching     | `services/api/__tests__/workspace.itest.ts` | invite on a team plan, 402 with the member feature on a plan for one, 409 for an existing member, revoke killing a token, accept joining and switching, expired invite, a plan shrinking after an invite went out, the roster's spend column, switching and the 403 without a membership, removal dropping a user back                                                  |
+| The role matrix                 | `services/api/__tests__/roles.itest.ts`     | legacy `editor` rows reading as member, invites hidden from members, who may invite/rename/remove, admin-cannot-remove-admin, owner-only role changes, an invite carrying a role, leave, transfer demoting the old owner                                                                                                                                                |
+| The roll on read                | `services/core/__tests__/accounts.itest.ts` | `currentWorkspace` granting and pushing `creditsResetAt` about 30 days out once the window has passed, and leaving an unexpired window alone                                                                                                                                                                                                                            |
+| Provisioning                    | `services/api/__tests__/session.itest.ts`   | signup and login, and the workspace created alongside a user                                                                                                                                                                                                                                                                                                            |
+| Artifact access + policies      | `services/api/__tests__/access.itest.ts`    | the level matrix per route (read/patch/content/trash/restore/delete), the 404-not-403 rule for `none`, admin and creator floors, inherit-then-override in both directions, the library and search filters, comments at each level, admin-only trash emptying, the publish policy, `PATCH /workspace` validation, `PUT /artifacts/:id/access`                            |
+| Access resolution               | `model/__tests__/artifact-access.test.ts`   | level ordering, `isAccess` refusing prototype keys, every branch of `accessFor`, and the publish policy helpers                                                                                                                                                                                                                                                         |
+| The account surface             | `services/api/__tests__/account.itest.ts`   | `/me` carrying `hasPassword` + `prefs`, rename (trim, cap, clear), password change and first-set, wrong/missing/over-cap current, the `password_changed_at` stamp and the reissued cookie, connections list, unlink with a password or a second provider, the last-credential 409, prefs merge/clear/normalize, memberships with roles, and leaving a named workspace   |
+| The OAuth link path             | `services/api/__tests__/oauth.itest.ts`     | the intent cookie only on `?link=1`, linking to the session's account when the provider's email belongs to someone else, refusing an identity linked elsewhere, idempotent relink, the expired-session fallback to sign-in, and failures reporting to `/account` when linking and `/login` when signing in                                                              |
+| Prefs + name normalization      | `model/__tests__/workspace.test.ts`         | `asRole` legacy mapping, `readUserPrefs` dropping unknown keys, wrong types and oversized ids, `mergeUserPrefs` patching, clearing, and refusing to mutate its input, `cleanDisplayName` trimming before capping                                                                                                                                                        |
 
 ## Narration voices
 

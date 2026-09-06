@@ -10,7 +10,6 @@ import {
     can,
     canTopUp,
     canUpgradeFrom,
-    clampSeats,
     clipGrant,
     featuresFor,
     grantFor,
@@ -20,7 +19,6 @@ import {
     planRank,
     resolveFeatures,
     rolloverCapFor,
-    sellsSeats,
     upgradeFor,
     withinLimit,
 } from "@model/billing";
@@ -39,25 +37,17 @@ describe("planFor", () => {
     });
 });
 
-describe("seats", () => {
-    it("sells seats only on the plan that holds a team", () => {
-        expect(PLAN_ORDER.filter(sellsSeats)).toEqual(["premium"]);
-        expect(sellsSeats(null)).toBe(false);
-    });
-    it("clamps a seat count to the plan's bounds", () => {
-        expect(clampSeats("pro", 4)).toBe(1);
-        expect(clampSeats("premium", 1)).toBe(PLANS.premium.billing.minSeats);
-        expect(clampSeats("premium", 7.9)).toBe(7);
-        expect(clampSeats("premium", 10_000)).toBe(PLANS.premium.billing.maxSeats);
-    });
-});
-
 describe("resolveFeatures", () => {
     it("resolves the free baseline", () => {
         const free = resolveFeatures("free");
         expect(free.maxArtifacts).toBe(10);
+        expect(free.maxMembers).toBe(1);
         expect(free.exportFormats).toEqual(["png", "pdf"]);
         expect(free.audio).toBe(false);
+    });
+    it("holds a team only on the team plan", () => {
+        expect(resolveFeatures("pro").maxMembers).toBe(1);
+        expect(resolveFeatures("premium").maxMembers).toBe(-1);
     });
     it("grants analytics by plan and by override", () => {
         expect(resolveFeatures("premium").analytics).toBe(true);
@@ -67,6 +57,7 @@ describe("resolveFeatures", () => {
     it("lets an override widen or narrow a feature", () => {
         expect(resolveFeatures("free", { removeBranding: true }).removeBranding).toBe(true);
         expect(resolveFeatures("premium", { maxArtifacts: 40 }).maxArtifacts).toBe(40);
+        expect(resolveFeatures("pro", { maxMembers: 5 }).maxMembers).toBe(5);
     });
 });
 
@@ -75,10 +66,12 @@ describe("enforcement accessors", () => {
     const pro = resolveFeatures("pro");
     it("withinLimit treats -1 as unlimited", () => {
         expect(withinLimit(pro, "maxArtifacts", 999_999)).toBe(true);
+        expect(withinLimit(resolveFeatures("premium"), "maxMembers", 999)).toBe(true);
     });
     it("withinLimit is strict against a finite cap", () => {
         expect(withinLimit(free, "maxArtifacts", 9)).toBe(true);
         expect(withinLimit(free, "maxArtifacts", 10)).toBe(false);
+        expect(withinLimit(free, "maxMembers", 1)).toBe(false); // the owner already holds it
     });
     it("can / limit read the resolved set", () => {
         expect(can(free, "removeBranding")).toBe(false);
@@ -88,26 +81,15 @@ describe("enforcement accessors", () => {
 });
 
 describe("grantFor", () => {
-    const ws = (plan: string | null, seats: number) => ({ plan, seats });
-
-    it("is the per-seat allowance times the seats", () => {
-        expect(grantFor(ws("free", 1))).toBe(PLANS.free.ai.creditsPerSeat);
-        expect(grantFor(ws("pro", 1))).toBe(PLANS.pro.ai.creditsPerSeat);
-        expect(grantFor(ws("premium", 3))).toBe(3 * PLANS.premium.ai.creditsPerSeat);
-        expect(grantFor(ws("premium", 5))).toBe(5 * PLANS.premium.ai.creditsPerSeat);
-    });
-
-    // a lapsed team keeps its seat count until the webhook resets it, and a solo plan is one seat
-    it("clamps the seats to what the plan can hold", () => {
-        expect(grantFor(ws("pro", 4))).toBe(PLANS.pro.ai.creditsPerSeat);
-        expect(grantFor(ws("premium", 1))).toBe(3 * PLANS.premium.ai.creditsPerSeat);
-        expect(grantFor(ws(null, 4))).toBe(PLANS.free.ai.creditsPerSeat);
+    it("is the plan's monthly allowance", () => {
+        expect(grantFor({ plan: "free" })).toBe(PLANS.free.ai.monthlyCredits);
+        expect(grantFor({ plan: "pro" })).toBe(PLANS.pro.ai.monthlyCredits);
+        expect(grantFor({ plan: "premium" })).toBe(PLANS.premium.ai.monthlyCredits);
+        expect(grantFor({ plan: null })).toBe(PLANS.free.ai.monthlyCredits);
     });
 
     it("lets an override replace the whole grant", () => {
-        expect(
-            grantFor({ plan: "premium", seats: 4, featureOverrides: { includedCredits: 100 } }),
-        ).toBe(100);
+        expect(grantFor({ plan: "premium", featureOverrides: { includedCredits: 100 } })).toBe(100);
     });
 });
 
@@ -148,7 +130,7 @@ describe("bought credits", () => {
         for (const id of PLAN_ORDER) {
             const p = PLANS[id];
             if (!p.billing.priceMonthly) continue;
-            expect(CREDIT_PRICE_USD).toBeGreaterThan(p.billing.priceMonthly / p.ai.creditsPerSeat);
+            expect(CREDIT_PRICE_USD).toBeGreaterThan(p.billing.priceMonthly / p.ai.monthlyCredits);
         }
     });
 
@@ -165,10 +147,10 @@ describe("plan credit allowances", () => {
     const FLOOR = 0.8;
     const paid = (): PlanId[] => PLAN_ORDER.filter((id) => PLANS[id].billing.priceMonthly > 0);
 
-    it("leaves a fifth of the yearly price to serve a fully-used seat", () => {
+    it("leaves a fifth of the yearly price to serve a fully-used plan", () => {
         for (const id of paid()) {
             const p = PLANS[id];
-            expect(p.ai.creditsPerSeat * CREDIT_USD).toBeLessThanOrEqual(
+            expect(p.ai.monthlyCredits * CREDIT_USD).toBeLessThanOrEqual(
                 p.billing.priceAnnualMonthly * (1 - FLOOR),
             );
         }
@@ -178,7 +160,7 @@ describe("plan credit allowances", () => {
     // dearer plan may sit within a couple of points of a cheaper one but not materially below it
     it("keeps no plan's margin more than two points below a cheaper plan's", () => {
         const margin = (id: PlanId): number =>
-            1 - (PLANS[id].ai.creditsPerSeat * CREDIT_USD) / PLANS[id].billing.priceMonthly;
+            1 - (PLANS[id].ai.monthlyCredits * CREDIT_USD) / PLANS[id].billing.priceMonthly;
         for (const dearer of paid())
             for (const cheaper of paid())
                 if (PLANS[dearer].billing.priceMonthly > PLANS[cheaper].billing.priceMonthly)
@@ -187,7 +169,7 @@ describe("plan credit allowances", () => {
 
     it("prices a credit within a tight band across the plans", () => {
         const rates = paid().map(
-            (id) => PLANS[id].billing.priceMonthly / PLANS[id].ai.creditsPerSeat,
+            (id) => PLANS[id].billing.priceMonthly / PLANS[id].ai.monthlyCredits,
         );
         expect(Math.max(...rates) / Math.min(...rates)).toBeLessThanOrEqual(1.2);
     });
@@ -201,18 +183,13 @@ describe("plan credit allowances", () => {
 });
 
 describe("the rollover cap", () => {
-    const pro = { plan: "pro", seats: 1 };
+    const pro = { plan: "pro" };
     const cap = rolloverCapFor(pro);
     const grant = grantFor(pro);
 
     it("is a whole number of monthly grants", () => {
         expect(ROLLOVER_CAP_MONTHS).toBeGreaterThanOrEqual(1);
         expect(cap).toBe(ROLLOVER_CAP_MONTHS * grant);
-    });
-
-    it("scales with the seats", () => {
-        const team = { plan: "premium", seats: 5 };
-        expect(rolloverCapFor(team)).toBe(ROLLOVER_CAP_MONTHS * grantFor(team));
     });
 
     it("grants in full under the cap", () => {
@@ -258,6 +235,7 @@ describe("upgradeFor across feature kinds", () => {
         expect(upgradeFor("maxArtifacts", "free")?.id).toBe("pro"); // 10 -> unlimited
         expect(upgradeFor("maxArtifacts", "pro")).toBeNull(); // already unlimited
         expect(upgradeFor("storageMb", "pro")?.id).toBe("premium"); // 20 GB -> unlimited
+        expect(upgradeFor("maxMembers", "pro")?.id).toBe("premium"); // solo -> a team
     });
 
     it("ranks export formats by count", () => {
@@ -270,6 +248,8 @@ describe("the catalog copy", () => {
     it("quotes each plan's own credits on its card", () => {
         expect(PLANS.free.highlights[0]).toBe("300 credits a month");
         expect(PLANS.pro.highlights[0]).toBe("1,200 credits a month");
-        expect(PLANS.premium.highlights[0]).toBe("2,100 credits per seat each month");
+        expect(PLANS.premium.highlights[0]).toBe(
+            "5,000 credits a month, one pool for the whole team",
+        );
     });
 });

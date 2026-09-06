@@ -8,8 +8,8 @@ import { capture, register } from "@ui/analytics";
 const [billing, setBilling] = createSignal<BillingState | null>(null);
 export { billing };
 
-// One busy scope for every billing mutation, shared by the pricing page and the plan grid, so a
-// seat change and a plan change cannot run against Stripe concurrently. Checkout and the portal
+// One busy scope for every billing mutation, shared by the pricing page and the plan grid, so an
+// interval switch and a plan change cannot run against Stripe concurrently. Checkout and the portal
 // redirect away, so their pending state simply persists until navigation.
 const [pendingAction, setPendingAction] = createSignal<string | null>(null);
 const [mutationError, setMutationError] = createSignal<ApiError | null>(null);
@@ -161,20 +161,12 @@ export function consumeCheckoutReturn(params: {
             }, wait);
 }
 
-export async function startCheckout(opts: {
-    plan: PlanId;
-    interval?: Interval;
-    seats?: number;
-}): Promise<void> {
+export async function startCheckout(opts: { plan: PlanId; interval?: Interval }): Promise<void> {
     const { url } = await api.checkout(opts);
     if (url) window.location.href = url;
 }
 
-export async function changePlan(opts: {
-    plan?: PlanId;
-    interval?: Interval;
-    seats?: number;
-}): Promise<void> {
+export async function changePlan(opts: { plan?: PlanId; interval?: Interval }): Promise<void> {
     const res = await api.changePlan(opts);
     setLastChange(res.effect ?? null);
     await loadBilling();

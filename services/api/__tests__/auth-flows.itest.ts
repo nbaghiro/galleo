@@ -103,7 +103,7 @@ describe("POST /auth/signup", () => {
         expect(ws!.ownerId).toBe(user!.id);
         expect(ws!.slug.startsWith("ada-")).toBe(true);
         // born funded and unlapsed, not waiting for a first roll
-        expect(ws!.aiCreditsBalance).toBe(grantFor({ plan: "free", seats: 1 }));
+        expect(ws!.aiCreditsBalance).toBe(grantFor({ plan: "free" }));
         expect(ws!.creditsResetAt.getTime()).toBeGreaterThan(Date.now());
     });
 
@@ -339,7 +339,7 @@ describe("POST /auth/confirm", () => {
         await confirm(userId, await createVerifyCode(userId));
         const after = await wsRow(workspaceId);
         expect(after.aiCreditsBalance).toBe(before.aiCreditsBalance);
-        expect(after.aiCreditsBalance).toBe(grantFor({ plan: "free", seats: 1 }));
+        expect(after.aiCreditsBalance).toBe(grantFor({ plan: "free" }));
         const ledger = await db
             .select({ id: schema.credits.id })
             .from(schema.credits)

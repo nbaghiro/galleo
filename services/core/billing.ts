@@ -1,9 +1,8 @@
 import Stripe from "stripe";
-import { and, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { ChangeEffect, Interval, PlanId } from "@model/billing";
 import {
     canTopUp,
-    clampSeats,
     clipGrant,
     CREDIT_PRESETS,
     CREDIT_PRICE_USD,
@@ -29,6 +28,18 @@ import { unitPricesFor } from "./models";
 // Plans, subscriptions, credit purchases, and the Stripe webhook that keeps the workspace row in
 // step with what Stripe believes. api/billing.ts is the HTTP surface; every decision lives here.
 
+// pinned to the SDK's own version so account-level default changes can't shift wire shapes;
+// stripe:setup registers the webhook endpoint on the same version for the same reason
+export const STRIPE_API_VERSION = "2026-06-24.dahlia";
+
+/** What consumeWebhook acts on; stripe:setup subscribes the endpoint to exactly these. */
+export const WEBHOOK_EVENTS = [
+    "checkout.session.completed",
+    "checkout.session.async_payment_succeeded",
+    "customer.subscription.updated",
+    "customer.subscription.deleted",
+] as const satisfies readonly Stripe.WebhookEndpointCreateParams.EnabledEvent[];
+
 // lazy: built on first use so a missing key doesn't crash boot
 let client: Stripe | undefined;
 
@@ -36,8 +47,7 @@ export function stripe(): Stripe {
     if (!client) {
         const key = process.env.STRIPE_SECRET_KEY;
         if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
-        // pinned to the SDK's own version so account-level default changes can't shift wire shapes
-        client = new Stripe(key, { apiVersion: "2026-06-24.dahlia" });
+        client = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
     }
     return client;
 }
@@ -94,30 +104,23 @@ export function intervalForPrice(priceId: string | undefined | null): Interval |
 }
 
 /**
- * A subscription is one plan line whose quantity is the seat count. Anything unrecognised is
- * ignored, which keeps a manually-added Stripe line from being mistaken for the plan; `plan` is
- * null when no line carries a price we sell, an env misconfiguration the caller keeps the row's
- * plan through.
+ * A subscription is one plan line. Anything unrecognised is ignored, which keeps a manually-added
+ * Stripe line from being mistaken for the plan; `plan` is null when no line carries a price we
+ * sell, an env misconfiguration the caller keeps the row's plan through.
  */
 export interface SubShape {
     plan: PlanId | null;
     interval: Interval;
-    seats: number;
     itemId: string | null;
 }
 
 export function readSub(sub: Stripe.Subscription): SubShape {
     for (const item of sub.items.data) {
         const plan = planForPrice(item.price.id);
-        if (!plan) continue;
-        return {
-            plan,
-            interval: intervalForPrice(item.price.id) ?? "month",
-            seats: clampSeats(plan, item.quantity ?? 1),
-            itemId: item.id,
-        };
+        if (plan)
+            return { plan, interval: intervalForPrice(item.price.id) ?? "month", itemId: item.id };
     }
-    return { plan: null, interval: "month", seats: 1, itemId: null };
+    return { plan: null, interval: "month", itemId: null };
 }
 
 // Stripe moved current_period_end onto the subscription item in recent API versions.
@@ -168,7 +171,6 @@ export async function billingSummary(ws: WorkspaceRow) {
             storageMb: Math.round(Number(storage?.total ?? 0) / (1024 * 1024)),
             maxStorageMb: feats.storageMb,
         },
-        seats: ws.seats,
         catalog: PLAN_ORDER.map((id) => PLANS[id]),
         // what a credit costs to buy and the quantities offered as buttons; null when the plan
         // cannot buy them or the price is not configured
@@ -199,11 +201,9 @@ async function ensureCustomer(
     return customer.id;
 }
 
-/** What a caller asked for; `seats` is the total and is clamped to the plan's bounds. */
 export interface Wanted {
     plan?: PlanId;
     interval?: Interval;
-    seats?: number;
 }
 
 export async function checkoutUrl(
@@ -215,13 +215,12 @@ export async function checkoutUrl(
     const interval = want.interval ?? "month";
     const price = priceIdFor(want.plan, interval);
     if (!price) return { error: "invalid-plan" };
-    const seats = clampSeats(want.plan, want.seats ?? 1);
-    capture(payer(ws), "checkout_started", { target_plan: want.plan, interval, seats });
+    capture(payer(ws), "checkout_started", { target_plan: want.plan, interval });
     const customerId = await ensureCustomer(ws, email);
     const session = await stripe().checkout.sessions.create({
         mode: "subscription",
         customer: customerId,
-        line_items: [{ price, quantity: seats }],
+        line_items: [{ price, quantity: 1 }],
         client_reference_id: ws.id,
         subscription_data: { metadata: { workspaceId: ws.id } },
         allow_promotion_codes: true,
@@ -282,7 +281,6 @@ export async function portalUrl(customerId: string): Promise<string | null> {
 export type ChangePlanResult =
     | { error: "no-item" }
     | { error: "invalid-plan" }
-    | { error: "seats-below-members"; members: number }
     | { effect: ChangeEffect };
 
 // A move to Free cancels at period end; anything else applies now, invoiced when it buys more and
@@ -307,36 +305,12 @@ export async function changePlan(
     if (!cur.plan || !cur.itemId) return { error: "no-item" };
     const targetPlan = want.plan ?? cur.plan;
     const targetInterval = want.interval ?? cur.interval;
-    // a solo plan lands at one seat, so a bare tier downgrade from a team hits the member floor
-    const targetSeats = clampSeats(targetPlan, want.seats ?? cur.seats);
     const price = priceIdFor(targetPlan, targetInterval);
     if (!price) return { error: "invalid-plan" };
 
-    // seats can't drop below the people using or holding them — an unexpired invite reserves its seat
-    if (targetSeats < cur.seats) {
-        const [memberRows, invites] = await Promise.all([
-            db
-                .select({ userId: schema.members.userId })
-                .from(schema.members)
-                .where(eq(schema.members.workspaceId, ws.id)),
-            db
-                .select({ id: schema.invites.id })
-                .from(schema.invites)
-                .where(
-                    and(
-                        eq(schema.invites.workspaceId, ws.id),
-                        isNull(schema.invites.acceptedAt),
-                        gt(schema.invites.expiresAt, new Date()),
-                    ),
-                ),
-        ]);
-        const held = memberRows.length + invites.length;
-        if (targetSeats < held) return { error: "seats-below-members", members: held };
-    }
-
-    const upgrading = planRank(targetPlan) > planRank(cur.plan) || targetSeats > cur.seats;
+    const upgrading = planRank(targetPlan) > planRank(cur.plan);
     await stripe().subscriptions.update(subscriptionId, {
-        items: [{ id: cur.itemId, price, quantity: targetSeats }],
+        items: [{ id: cur.itemId, price, quantity: 1 }],
         cancel_at_period_end: false,
         proration_behavior: upgrading ? "always_invoice" : "create_prorations",
     });
@@ -490,9 +464,9 @@ const payer = (ws: { id: string; ownerId: string }) => ({
 
 /**
  * Sync the row from the live subscription, and open a fresh credit window when the subscription
- * now grants more than the row did: a checkout, a tier rise, and a seat rise all mean paying now
- * and getting credits now. The grant claims `key`, so a redelivery syncs and grants nothing. The
- * sync is a set, so any delivery converges on what Stripe currently says.
+ * now grants more than the row did: a checkout and a tier rise both mean paying now and getting
+ * credits now. The grant claims `key`, so a redelivery syncs and grants nothing. The sync is a
+ * set, so any delivery converges on what Stripe currently says.
  */
 async function applySubscription(
     tx: Tx,
@@ -507,13 +481,12 @@ async function applySubscription(
         warn(`[billing] no plan price on subscription ${sub.id}`);
         return;
     }
-    const after = { ...ws, plan: shape.plan, seats: shape.seats };
+    const after = { ...ws, plan: shape.plan };
     const synced = {
         ...extra,
         plan: shape.plan,
         planInterval: shape.interval,
         stripeSubscriptionId: sub.id,
-        seats: shape.seats,
         planPeriodEnd: subPeriodEnd(sub),
         cancelAtPeriodEnd: sub.cancel_at_period_end,
     };
@@ -527,7 +500,7 @@ async function applySubscription(
 
     // The group's own traits, not just the event: a plan change arrives with no client in the
     // request, so nothing else would refresh them until someone next opened the app.
-    identifyWorkspace(ws.id, { plan_id: shape.plan, seats_total: shape.seats });
+    identifyWorkspace(ws.id, { plan_id: shape.plan });
     const from = planFor(ws.plan).id;
     const fromInterval = ws.planInterval ?? shape.interval;
     if (from !== shape.plan)
@@ -546,16 +519,10 @@ async function applySubscription(
             to_interval: shape.interval,
             direction: "interval",
         });
-    if (shape.seats !== ws.seats)
-        capture(payer(ws), "seats_changed", {
-            from: ws.seats,
-            to: shape.seats,
-            direction: shape.seats > ws.seats ? "up" : "down",
-        });
 }
 
-// Back to Free. Members stay and sit over the one-seat cap, soft-locked by the resolver's gates;
-// banked credits are untouched, since they were granted or bought, not rented.
+// Back to Free. Members stay and sit over the solo plan's member cap, soft-locked by the resolver's
+// gates; banked credits are untouched, since they were granted or bought, not rented.
 async function dropSubscription(tx: Tx, ws: WorkspaceRow): Promise<void> {
     await tx
         .update(schema.workspaces)
@@ -563,7 +530,6 @@ async function dropSubscription(tx: Tx, ws: WorkspaceRow): Promise<void> {
             plan: "free",
             planInterval: null,
             stripeSubscriptionId: null,
-            seats: 1,
             planPeriodEnd: null,
             cancelAtPeriodEnd: false,
         })
@@ -572,7 +538,7 @@ async function dropSubscription(tx: Tx, ws: WorkspaceRow): Promise<void> {
         .select({ n: sql<string>`count(*)` })
         .from(schema.artifacts)
         .where(eq(schema.artifacts.workspaceId, ws.id));
-    identifyWorkspace(ws.id, { plan_id: "free", seats_total: 1 });
+    identifyWorkspace(ws.id, { plan_id: "free" });
     capture(payer(ws), "plan_cancelled", {
         plan_id: planFor(ws.plan).id,
         days_active: Math.round((Date.now() - ws.createdAt.getTime()) / (24 * 3_600_000)),
@@ -632,7 +598,6 @@ async function handleEvent(
             capture(payer(ws), "checkout_completed", {
                 plan_id: shape.plan,
                 interval: shape.interval,
-                seats: shape.seats,
                 mrr_usd: mrrOf(checkoutSub),
             });
     } else if (

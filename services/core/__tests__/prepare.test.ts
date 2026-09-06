@@ -5,7 +5,7 @@ import { unitPricesFor } from "@services/core/models";
 
 // the DB-backed pass is exercised in prepare.itest.ts; this is the gate it opens with
 describe("affordable", () => {
-    const ws = { id: "ws", plan: "pro", seats: 1 };
+    const ws = { id: "ws", plan: "pro" };
     const first = estimateCost("write-speaker-notes", { sections: 1 }, unitPricesFor());
 
     it("lets a pass start when the balance covers the first thing it will ask for", () => {

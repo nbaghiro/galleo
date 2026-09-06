@@ -65,7 +65,6 @@ const STATUS: Record<number, { title: string; hint: string }> = {
 const PAYWALL: Record<PaywallReason, { title: string; hint?: string }> = {
     credits: { title: "Out of credits" }, // the hint depends on which remedies apply
     storage: { title: "Storage is full", hint: "Upgrade for more space, or remove some uploads." },
-    seats: { title: "Out of seats", hint: "Add seats or remove a member first." },
     feature: { title: "Not on your plan", hint: "Upgrade to unlock it." },
 };
 
