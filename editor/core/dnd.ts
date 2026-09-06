@@ -621,7 +621,16 @@ function elementSlots(
                 for (const kb of flow) {
                     const childPath = [...path, kb.index];
                     if (inSrcSubtree(childPath)) continue;
-                    out.push(...edgeStrips(sid, childPath, stripAxis, kb.box));
+                    // an open container whose axis matches the strip direction needs no strips:
+                    // wrapping above it paints exactly like inserting at its first gap, with a
+                    // nesting level the tree does not want — the gap owns the whole band instead
+                    const stripKid = kids[kb.index];
+                    const stripDir = stripAxis === "row" ? "col" : "row";
+                    const redundant =
+                        isContainer(stripKid) &&
+                        gridColumns(stripKid) === null &&
+                        groupAxis(stripKid) === stripDir;
+                    if (!redundant) out.push(...edgeStrips(sid, childPath, stripAxis, kb.box));
                     // An open child's interior sliver at its leading/trailing edge escapes to
                     // this container's own gap, or a flush group's beside would be unreachable.
                     // Only across perpendicular axes: a child whose own gap lines run in the
@@ -641,7 +650,8 @@ function elementSlots(
                                 : [kb.box.y, kb.box.y + kb.box.h];
                         const v = axis === "row" ? at.px : at.py;
                         const pos = flow.indexOf(kb);
-                        const k = v < lo + e ? pos : v > hi - e ? pos + 1 : -1;
+                        const k =
+                            v >= lo && v < lo + e ? pos : v > hi - e && v <= hi ? pos + 1 : -1;
                         if (k >= 0 && !noop(k))
                             out.push({
                                 ...gapSlot(sid, path, axis, k, flow, box, kids.length, reach),

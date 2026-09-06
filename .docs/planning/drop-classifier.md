@@ -366,6 +366,17 @@ Gates per phase: `tsc` clean, lint, full vitest, `check:elements`, `check:suppre
 any paint path, so any corpus movement is a bug. Pointer feel is manual QA at the end, per the
 established deviation.
 
+## Post-build fixes (2026-09-06, same day)
+
+- The escalation sliver's bounds check was one-sided (`v < lo + e`), so the claim fired for any
+  pointer on the open ground before the child, outranking legitimate depth-1 claims at 1.5 across
+  half the parent. Bounded to the child's own interior; pinned.
+- Edge strips on an open container member whose axis matches the strip direction shadowed the
+  member's own first/last gap (a short first child left no reachable insert-at-0 at a column's
+  top). Such strips are redundant — the wrap paints identically to the gap insert with a nesting
+  level the tree does not want — so they are no longer minted and the gap owns the whole band;
+  pinned with the short-first-child geometry.
+
 ## Not taken, and why
 
 - **Candidate lattices on any path** — retired with the classifier (argued above; fallback

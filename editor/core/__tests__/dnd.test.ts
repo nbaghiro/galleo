@@ -176,6 +176,54 @@ describe("slot resolution — leaf inside a container", () => {
     });
 });
 
+describe("edge strips yield to an open same-axis container's own gaps", () => {
+    // a row of [paragraph, colGroup]: the col member's top band must mean "first item inside",
+    // not "stack above the whole column" — the two paint identically and wrap only adds nesting
+    const art = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(rowGroup([txt("para"), colGroup([txt("label"), txt("head"), txt("card")])])),
+        ]);
+    const regions = (): Region[] => [
+        reg("section:s1", 0, 0, 800, 600),
+        reg("el:s1", 40, 40, 720, 520),
+        reg("el:s1:0", 40, 40, 320, 200),
+        reg("el:s1:1", 420, 40, 340, 520),
+        reg("el:s1:1.0", 420, 40, 340, 20),
+        reg("el:s1:1.1", 420, 80, 340, 120),
+        reg("el:s1:1.2", 420, 240, 340, 320),
+    ];
+
+    it("the top band inserts at index 0 instead of wrapping the column", () => {
+        expect(targetAt(art(), regions(), 590, 42)?.index).toBe(0);
+        expect(targetAt(art(), regions(), 590, 48)?.index).toBe(0);
+        expect(targetAt(art(), regions(), 590, 44)).toEqual({
+            section: "s1",
+            op: "insert",
+            path: [1],
+            index: 0,
+            before: false,
+            direction: "col",
+        });
+        expect(targetAt(art(), regions(), 590, 556)?.index).toBe(3);
+    });
+
+    it("the escalation claims only its interior sliver, never the open ground beside it", () => {
+        // inside the column's left sliver: the root's gap beside it, escalated
+        expect(targetAt(art(), regions(), 425, 70)).toMatchObject({ op: "insert", path: [] });
+        // over the leaf's top band far away, the phantom used to steal this from the strip
+        expect(targetAt(art(), regions(), 200, 42)).toMatchObject({ op: "wrap", path: [0] });
+    });
+
+    it("a leaf member keeps its wrap strips", () => {
+        expect(targetAt(art(), regions(), 90, 42)).toMatchObject({
+            op: "wrap",
+            path: [0],
+            direction: "col",
+            before: true,
+        });
+    });
+});
+
 describe("slot resolution — a col root grows no phantom column bands", () => {
     // a stacked section: heading, then a nested row of two stats — the shape every stat band has.
     // Stacked children sorted "as columns" used to mint a full-height boundary at the section's
