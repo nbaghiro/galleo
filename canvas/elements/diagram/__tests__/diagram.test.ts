@@ -497,8 +497,8 @@ describe("measured sizing", () => {
             items: "A remarkably verbose executive title, CTO",
             links: "A remarkably verbose executive title>CTO",
         });
-        expect(Math.max(...cellWidths(short))).toBe(90);
-        expect(Math.max(...cellWidths(long))).toBe(170);
+        expect(Math.max(...cellWidths(short))).toBe(110);
+        expect(Math.max(...cellWidths(long))).toBe(190);
     });
 
     it("process wraps sooner when labels are long", () => {

@@ -104,9 +104,11 @@ export const Dropdown: Component<{
         onCleanup(() => window.removeEventListener("keydown", onKey));
     });
 
+    // the art earns its width: a compact trigger showing one buys the room back so the label
+    // beside it still reads rather than truncating to "Hub & sp…"
     const triggerCls = (): string =>
         props.compact
-            ? "flex max-w-37.5 items-center gap-1 rounded-md border border-line bg-canvas px-1.5 py-1 text-[12px] text-ink transition-colors hover:border-accent"
+            ? `flex ${currentOpt()?.preview ? "max-w-47.5" : "max-w-37.5"} items-center gap-1 rounded-md border border-line bg-canvas px-1.5 py-1 text-[12px] text-ink transition-colors hover:border-accent`
             : "flex w-full items-center justify-between gap-1 rounded-md border border-line bg-canvas px-2 py-1.5 text-[13px] text-ink transition-colors hover:border-accent";
 
     return (
@@ -119,8 +121,8 @@ export const Dropdown: Component<{
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => (open() ? setOpen(false) : openMenu())}
             >
-                <Show when={!props.compact && currentOpt()?.preview}>
-                    {(svg) => thumb(svg(), "h-5 w-9.5")}
+                <Show when={currentOpt()?.preview}>
+                    {(svg) => thumb(svg(), props.compact ? "h-4 w-7.5" : "h-5 w-9.5")}
                 </Show>
                 <span
                     class={`min-w-0 flex-1 truncate text-left ${placeholding() ? "text-muted" : ""}`}

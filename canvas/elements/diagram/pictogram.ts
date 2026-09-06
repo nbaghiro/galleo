@@ -31,7 +31,9 @@ function arrange(
     const rowH = Math.max(16, (height - PAD * 2 - GAP * (n - 1)) / n);
     const labelW = clamp(maxLabelWidth(ctx, items) + 20, 60, ctx.availWidth * 0.42);
     const stripW = Math.max(1, ctx.availWidth - PAD * 2 - labelW - GAP);
-    const size = clamp(Math.min(rowH * 0.7, (stripW / slots) * 0.82), 7, 28);
+    // capped by the row it sits in, not by a constant: a 28px mark in an 84px row was a pictogram
+    // drawn at thumbnail size, and the step below then left a third of the strip empty
+    const size = clamp(Math.min(rowH * 0.72, (stripW / slots) * 0.86), 7, 44);
     const step = slots > 1 ? Math.min(size * 1.3, (stripW - size) / (slots - 1)) : 0;
 
     return {

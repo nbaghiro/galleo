@@ -11,6 +11,7 @@ import {
     drawLink,
     itemColors,
     layoutTree,
+    markScale,
     maxLabelWidth,
     nodePaint,
     registerDiagram,
@@ -49,13 +50,14 @@ function arrange(
     const cols = itemColors(diagram.items, ctx.theme);
     const byLabel = new Map(diagram.items.map((it, i) => [it.label, i] as const));
     const W = ctx.availWidth;
+    const ms = markScale(height);
     const iconed = diagram.items.some((it) => it.icon);
     const chrome = cellChrome(undefined, MAX_H, iconed ? "icon" : undefined);
     const nodeW = clamp(maxLabelWidth(ctx, diagram.items) + chrome + 6, 88, Math.max(88, W / 4));
     const needs = diagram.items.map((it) =>
         cellHeights(ctx, it, nodeW - cellChrome(undefined, MAX_H, it.icon)),
     );
-    const nodeH = clamp(Math.max(MIN_H, ...needs.map((m) => m.label)), MIN_H, MAX_H);
+    const nodeH = clamp(Math.max(MIN_H, ...needs.map((m) => m.label)), MIN_H * ms, MAX_H * ms);
 
     const half = Math.ceil(data.children.length / 2);
     const sideW = Math.max(1, W / 2);
@@ -135,7 +137,8 @@ function arrange(
                             [x1, s.cy],
                         ],
                         ctx.theme,
-                        { color: ctx.theme.line, width: 2, head: false, corner: 10 },
+                        // a branch, not a wiring run: the elbow is the wrong idiom here
+                        { color: ctx.theme.line, width: 2 * ms, head: false, curve: "h" },
                     );
                 }
             }),

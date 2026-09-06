@@ -12,6 +12,7 @@ import {
     drawNodeBadge,
     itemColors,
     itemRegions,
+    markScale,
     maxLabelWidth,
     nodePaint,
     getNodeShape,
@@ -20,7 +21,7 @@ import {
     type ResolvedDiagram,
 } from "./utils";
 
-const CELL_H = 46;
+const BASE_H = 46;
 
 // fixed-size cells on an ellipse, joined head-to-tail by arc connectors
 function arrange(
@@ -32,16 +33,19 @@ function arrange(
     const n = diagram.items.length;
     const cols = itemColors(diagram.items, ctx.theme);
     const W = ctx.availWidth;
+    const ms = markScale(height);
+    const cellH = clamp(BASE_H * ms, BASE_H, Math.max(BASE_H, height * 0.22));
     const shape = diagram.options.shape ?? "rounded";
     const painted = !getNodeShape(shape).engineRadius; // decorate paints the silhouette
-    const inset = getNodeShape(shape).insetX(CELL_H);
+    const inset = getNodeShape(shape).insetX(cellH);
     const badged = diagram.options.numbers !== "none";
     // content-sized under the geometric cap: short labels tighten the ring, long ones wrap
-    const cap = clamp(W / Math.max(3, n), 100, 150);
+    const cap = clamp(W / Math.max(3, n), 110, 190);
     const need = maxLabelWidth(ctx, diagram.items) + 24 + inset * 2 + (badged ? BADGE_R * 2 : 0);
-    const cellW = clamp(need, 84, cap);
+    // a short label still earns a node with presence: the ring was a chain of small pills
+    const cellW = clamp(need, Math.min(cap, 100 * ms), cap);
     const rx = Math.max(1, W / 2 - cellW / 2 - 16);
-    const ry = Math.max(1, height / 2 - CELL_H / 2 - 16);
+    const ry = Math.max(1, height / 2 - cellH / 2 - 16);
     const angle = (i: number): number => -Math.PI / 2 + (i * Math.PI * 2) / Math.max(1, n);
     const at = (a: number): [number, number] => [
         W / 2 + Math.cos(a) * rx,
@@ -55,13 +59,13 @@ function arrange(
         });
         const cell = diagramCell(kids[i * 2], kids[i * 2 + 1], paint, {
             shape,
-            cellH: CELL_H,
+            cellH: cellH,
             badged,
             icon: item.icon,
         });
         cell.w = fixed(cellW);
-        cell.h = fixed(CELL_H);
-        cell.float = { x: "start", y: "start", dx: x - cellW / 2, dy: y - CELL_H / 2, z: 1 };
+        cell.h = fixed(cellH);
+        cell.float = { x: "start", y: "start", dx: x - cellW / 2, dy: y - cellH / 2, z: 1 };
         return cell;
     });
     return {
@@ -75,7 +79,7 @@ function arrange(
                         i: number,
                     ): { x: number; y: number; w: number; h: number } => {
                         const [x, y] = at(angle(i));
-                        return { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
+                        return { x: x - cellW / 2, y: y - cellH / 2, w: cellW, h: cellH };
                     };
                     const insideRect = (
                         p: [number, number],
@@ -99,11 +103,14 @@ function arrange(
                             if (!insideRect(p, a) && !insideRect(p, b)) pts.push(p);
                         }
                         if (pts.length >= 3)
-                            drawLink(g, pts, ctx.theme, { color: ctx.theme.muted, width: 2 });
+                            drawLink(g, pts, ctx.theme, {
+                                color: ctx.theme.muted,
+                                width: 2 * ms,
+                            });
                     }
                     diagram.items.forEach((item, i) => {
                         const [x, y] = at(angle(i));
-                        const b = { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
+                        const b = { x: x - cellW / 2, y: y - cellH / 2, w: cellW, h: cellH };
                         if (painted)
                             drawShape(
                                 g,
@@ -123,7 +130,7 @@ function arrange(
                 () =>
                     itemRegions(ctx, n, (i) => {
                         const [x, y] = at(angle(i));
-                        return { x: x - cellW / 2, y: y - CELL_H / 2, w: cellW, h: CELL_H };
+                        return { x: x - cellW / 2, y: y - cellH / 2, w: cellW, h: cellH };
                     }),
             ),
         ],

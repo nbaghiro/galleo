@@ -4,7 +4,16 @@ import type { BoxInsets } from "@model/geometry";
 import { fit, fixed, grow, percent } from "@model/geometry";
 import type { Tokens } from "@themes";
 import type { DiagramNumbers, DiagramShape, DiagramStyle } from "@model/elements";
-import { accentRamp, fontStack, inkOn, luminance, mix, pageMix, reachContrast } from "@themes";
+import {
+    accentRamp,
+    contrastRatio,
+    fontStack,
+    inkOn,
+    luminance,
+    mix,
+    pageMix,
+    reachContrast,
+} from "@themes";
 import { bool, num, oneOf, str } from "@elements/coerce";
 import { DIAGRAM_NUMBERS, DIAGRAM_SHAPES, DIAGRAM_STYLES, THEME_ROLES } from "@model/elements";
 import { ICON_LIBRARY, drawIcon } from "@elements/media/vector";
@@ -225,9 +234,22 @@ export function maxLabelWidth(ctx: LayoutCtx, items: DiagItem[]): number {
     return Math.max(0, ...items.map((i) => labelWidth(ctx, i.label)));
 }
 
-// Diagram fills: the shared page-aware opaque ramp (charts use the same one via seriesColors)
+// Diagram fills: the shared page-aware opaque ramp (charts use the same one via seriesColors),
+// held back where it has receded so far it stops reading as a shape. A chart can afford the pale
+// tail because its marks sit adjacent on an axis and are told apart from each other; a diagram node
+// is an island of fill in a field of page, so each one has to hold on its own. Unheld, step 5 is
+// 1.33:1 against the page on studio and steps 6+ sit at 1.26:1, which is a node you cannot see.
+const FILL_FLOOR = 1.5;
 export function diagramColors(theme: Tokens, n: number): string[] {
-    return accentRamp(theme, Math.max(1, n));
+    // where the ramp recedes to, which is what a receded step has to stay distinct from
+    const page = pageMix(theme.accent, theme, 1);
+    return accentRamp(theme, Math.max(1, n)).map((c) => {
+        for (let f = 0; f < 1; f += 0.1) {
+            const held = mix(c, theme.accent, f);
+            if (contrastRatio(held, page) >= FILL_FLOOR) return held;
+        }
+        return theme.accent;
+    });
 }
 
 export interface NodePaint {
@@ -327,6 +349,12 @@ export const frame = (W: number, H: number, pad = PAD): Rect => ({
     w: Math.max(1, W - pad * 2),
     h: Math.max(1, H - pad * 2),
 });
+
+// Chrome weight for a box of this height. A 2px rail and a 5px dot are right at the authored
+// default and vanish at 480, which is the height an author reaches for when the diagram is the
+// slide; one curve, so every type's chrome thickens together.
+const REF_H = 260;
+export const markScale = (h: number): number => clamp(h / REF_H, 0.9, 1.9);
 
 export const NODE_RADIUS = 6; // charts round marks 2-3px; nodes are bigger, so a touch more
 export const NODE_TEXT = 12;
@@ -547,6 +575,10 @@ export interface LinkOpts {
     head?: boolean;
     dashed?: boolean;
     corner?: number; // elbow rounding for orthogonal runs
+    // A single cubic from the first point to the last, leaving and arriving along this axis, for
+    // the types an orthogonal elbow reads wrong on. Intermediate points are the route a corner
+    // run would have taken and are ignored.
+    curve?: "h" | "v";
 }
 
 export function drawLink(
@@ -565,6 +597,27 @@ export function drawLink(
         dash: o.dashed ? [width * 3, width * 2.5] : undefined,
         ...(corner > 0 ? { cap: "round" as const, join: "round" as const } : {}),
     };
+    if (o.curve) {
+        const [x0, y0] = points[0]!;
+        const [x1, y1] = points[points.length - 1]!;
+        g.path((p) => {
+            p.moveTo(x0, y0);
+            if (o.curve === "h") p.bezierCurveTo((x0 + x1) / 2, y0, (x0 + x1) / 2, y1, x1, y1);
+            else p.bezierCurveTo(x0, (y0 + y1) / 2, x1, (y0 + y1) / 2, x1, y1);
+        }, style);
+        // the curve arrives along its own axis, so that is the tangent the head points down
+        if (o.head !== false)
+            headAt(
+                g,
+                o.curve === "h" ? x0 : x1,
+                o.curve === "h" ? y1 : y0,
+                x1,
+                y1,
+                color,
+                HEAD_SIZE,
+            );
+        return;
+    }
     if (points.length === 2) {
         g.line(points[0]![0], points[0]![1], points[1]![0], points[1]![1], style);
     } else if (corner <= 0) {
@@ -857,6 +910,19 @@ export function bandGeometry(
 }
 
 // the shared pyramid/funnel arrange: transparent label rows over decorate-painted trapezoids
+// A stack of touching bands (or nested rings) has no gaps for paper to sit in, so `card` painted
+// every one of them the same surface color and the shape vanished. Read as the wash it has to be,
+// keeping the hairline that made it card-like: the option still means something here.
+export function stackedPaint(
+    color: string,
+    theme: Tokens,
+    style: DiagramStyle,
+    emphasis?: boolean,
+): NodePaint {
+    if (style !== "card") return nodePaint(color, theme, { style, emphasis });
+    return nodePaint(color, theme, { style: "tinted", emphasis, stroke: theme.line, width: 1 });
+}
+
 export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
     return (diagram, ctx, kids, height) => {
         const items = diagram.items;
@@ -875,10 +941,12 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
             children: [
                 ...items.map((item, i) => {
                     const band = geo.bands[i]!;
-                    const paint = nodePaint(cols[i]!, ctx.theme, {
-                        style: diagram.options.style,
-                        emphasis: item.emphasis,
-                    });
+                    const paint = stackedPaint(
+                        cols[i]!,
+                        ctx.theme,
+                        diagram.options.style,
+                        item.emphasis,
+                    );
                     const cell = diagramCell(kids[i * 2], kids[i * 2 + 1], paint, {
                         transparent: true,
                         pad: { top: 2, bottom: 2, left: 8, right: 8 },
@@ -900,10 +968,12 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
                         const inner = bandGeometry(items, box.w, box.h, narrowTop, minHalf);
                         items.forEach((_, i) => {
                             const b = inner.bands[i]!;
-                            const paint = nodePaint(cols[i]!, ctx.theme, {
-                                style: diagram.options.style,
-                                emphasis: items[i]?.emphasis,
-                            });
+                            const paint = stackedPaint(
+                                cols[i]!,
+                                ctx.theme,
+                                diagram.options.style,
+                                items[i]?.emphasis,
+                            );
                             g.path(
                                 (p) => {
                                     p.moveTo(inner.cx - b.half0, b.y0);
@@ -998,7 +1068,11 @@ export interface Placed {
     cy: number;
 }
 
-// d3 tree() at natural spacing, uniformly scaled to fit (W,H); never upscales past natural gaps.
+// d3 tree() at natural spacing, uniformly scaled to fit (W,H). It also spreads into a box bigger
+// than the natural extent, up to SPREAD: refusing to upscale is what left an org chart and a mind
+// map drawn small in the middle of whatever height their author set, and the cap is what stops a
+// three-node tree from becoming three nodes in three corners.
+const SPREAD = 1.9;
 export function layoutTree(
     data: TreeDatum,
     W: number,
@@ -1028,21 +1102,21 @@ export function layoutTree(
 
     const crossBox = Math.max(1, horizontal ? H - 2 * pad - nodeH : W - 2 * pad - nodeW);
     const mainBox = Math.max(1, horizontal ? W - 2 * pad - nodeW : H - 2 * pad - nodeH);
-    const s = Math.min(
-        1,
-        spanX > 0 ? crossBox / spanX : Infinity,
-        spanY > 0 ? mainBox / spanY : Infinity,
-    );
+    // Per axis, not one scale for both: a tree's sibling gap and its level gap answer to different
+    // sides of the box, and tying them together let a shallow-but-wide map be squeezed by the axis
+    // it was not short of. Nothing here has an aspect to preserve, only gaps between fixed nodes.
+    const sCross = Math.min(SPREAD, spanX > 0 ? crossBox / spanX : Infinity);
+    const sMain = Math.min(SPREAD, spanY > 0 ? mainBox / spanY : Infinity);
     const midX = (minX + maxX) / 2;
 
     // centre the natural extent; a shallow tree would otherwise hug the top
     const mainNode = horizontal ? nodeW : nodeH;
     const mainSpace = horizontal ? W : H;
-    const base = (mainSpace - (spanY * s + mainNode)) / 2 + mainNode / 2;
+    const base = (mainSpace - (spanY * sMain + mainNode)) / 2 + mainNode / 2;
 
     const placed = all.map((node): Placed => {
-        const cross = (node.x - midX) * s;
-        const main = (node.y - minY) * s;
+        const cross = (node.x - midX) * sCross;
+        const main = (node.y - minY) * sMain;
         return horizontal
             ? { node, cx: base + main, cy: H / 2 + cross }
             : { node, cx: W / 2 + cross, cy: base + main };

@@ -3,13 +3,14 @@ import type { LayoutCtx } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
 import {
     PAD,
+    cellHeights,
     circlePoints,
     decorate,
     diagramCell,
     itemRegions,
     itemColors,
-    nodePaint,
     registerDiagram,
+    stackedPaint,
     type ResolvedDiagram,
 } from "./utils";
 
@@ -44,10 +45,16 @@ function arrange(
         // every ring but the bullseye labels its upper band, so no two labels collide
         const dy = last ? 0 : -(outer + inner) / 2;
         const chord = Math.sqrt(Math.max(1, outer * outer - dy * dy));
-        const w = Math.max(40, chord * 1.5);
+        // chord is the band's half-width, so this is most of its real span: the old 1.5 left a
+        // quarter of the ring unused and wrapped labels that had room to sit on one line
+        const w = Math.max(40, chord * 1.8);
         // the bullseye's inner radius is 0 by construction, so its band is sized by its own circle
         const h = Math.max(MIN_BAND, last ? outer * 1.4 : outer - inner);
-        const cell = diagramCell(kids[i * 2], kids[i * 2 + 1], nodePaint(cols[i]!, ctx.theme), {
+        // a band is only as deep as its own ring: a detail that does not fit is dropped rather
+        // than painted across the ring inside it, which is where it used to be clipped
+        const fits = cellHeights(ctx, item, Math.max(24, w - 12)).full <= h;
+        const paint = stackedPaint(cols[i]!, ctx.theme, diagram.options.style, item.emphasis);
+        const cell = diagramCell(kids[i * 2], fits ? kids[i * 2 + 1] : undefined, paint, {
             transparent: true,
             pad: { top: 2, bottom: 2, left: 6, right: 6 },
             icon: item.icon,
@@ -67,13 +74,20 @@ function arrange(
                 (g, box) => {
                     const br = radii(n, outerR(box.w, box.h));
                     // outermost first, so each inner ring paints over the one containing it
-                    items.forEach((_, i) =>
+                    items.forEach((item, i) => {
+                        const p = stackedPaint(
+                            cols[i]!,
+                            ctx.theme,
+                            diagram.options.style,
+                            item.emphasis,
+                        );
                         g.circle(box.w / 2, box.h / 2, br[i]!, {
-                            fill: cols[i]!,
-                            stroke: ctx.theme.surface,
-                            width: 1.5,
-                        }),
-                    );
+                            fill: p.fill,
+                            gradient: p.gradient,
+                            stroke: p.stroke ?? ctx.theme.surface,
+                            width: p.width ?? 1.5,
+                        });
+                    });
                 },
                 -1,
                 // full circles in the same order: the last-wins scan lands a point on the

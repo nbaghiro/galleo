@@ -346,8 +346,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 48,
-        "w": 125,
-        "x": 258,
+        "w": 130,
+        "x": 255,
         "y": 106,
       },
       "kind": "rect",
@@ -355,8 +355,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 105,
-        "x": 268,
+        "w": 110,
+        "x": 265,
         "y": 114,
       },
       "kind": "text",
@@ -364,8 +364,8 @@ exports[`composed diagrams > hub keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 105,
-        "x": 268,
+        "w": 110,
+        "x": 265,
         "y": 132,
       },
       "kind": "text",
@@ -498,18 +498,10 @@ exports[`composed diagrams > mindmap keeps a stable command profile 1`] = `
     [
       "path",
       "moveTo",
-      "lineTo",
-      "quadraticCurveTo",
-      "lineTo",
-      "quadraticCurveTo",
-      "lineTo",
+      "bezierCurveTo",
       "path",
       "moveTo",
-      "lineTo",
-      "quadraticCurveTo",
-      "lineTo",
-      "quadraticCurveTo",
-      "lineTo",
+      "bezierCurveTo",
     ],
   ],
   "profile": [
@@ -613,8 +605,8 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 64,
-        "w": 104,
-        "x": 268,
+        "w": 110,
+        "x": 265,
         "y": 16,
       },
       "kind": "rect",
@@ -622,8 +614,8 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 84,
-        "x": 278,
+        "w": 90,
+        "x": 275,
         "y": 24,
       },
       "kind": "text",
@@ -631,8 +623,8 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 30,
-        "w": 84,
-        "x": 278,
+        "w": 90,
+        "x": 275,
         "y": 42,
       },
       "kind": "text",
@@ -640,8 +632,8 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 64,
-        "w": 104,
-        "x": 268,
+        "w": 110,
+        "x": 265,
         "y": 98,
       },
       "kind": "rect",
@@ -649,8 +641,8 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 84,
-        "x": 278,
+        "w": 90,
+        "x": 275,
         "y": 106,
       },
       "kind": "text",
@@ -658,8 +650,8 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 30,
-        "w": 84,
-        "x": 278,
+        "w": 90,
+        "x": 275,
         "y": 124,
       },
       "kind": "text",
@@ -667,8 +659,8 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 64,
-        "w": 104,
-        "x": 268,
+        "w": 110,
+        "x": 265,
         "y": 180,
       },
       "kind": "rect",
@@ -676,8 +668,8 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 84,
-        "x": 278,
+        "w": 90,
+        "x": 275,
         "y": 196,
       },
       "kind": "text",
@@ -685,8 +677,8 @@ exports[`composed diagrams > org keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 84,
-        "x": 278,
+        "w": 90,
+        "x": 275,
         "y": 214,
       },
       "kind": "text",
@@ -1443,10 +1435,10 @@ exports[`composed diagrams > process keeps a stable command profile 1`] = `
   "profile": [
     {
       "box": {
-        "h": 56,
+        "h": 110,
         "w": 177,
         "x": 14,
-        "y": 102,
+        "y": 75,
       },
       "kind": "rect",
     },
@@ -1470,10 +1462,10 @@ exports[`composed diagrams > process keeps a stable command profile 1`] = `
     },
     {
       "box": {
-        "h": 56,
+        "h": 110,
         "w": 177,
         "x": 231,
-        "y": 102,
+        "y": 75,
       },
       "kind": "rect",
     },
@@ -1497,10 +1489,10 @@ exports[`composed diagrams > process keeps a stable command profile 1`] = `
     },
     {
       "box": {
-        "h": 56,
+        "h": 110,
         "w": 177,
         "x": 449,
-        "y": 102,
+        "y": 75,
       },
       "kind": "rect",
     },
@@ -2016,54 +2008,27 @@ exports[`composed diagrams > target keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 84,
-        "x": 278,
-        "y": 16,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 30,
-        "w": 84,
-        "x": 278,
-        "y": 34,
+        "w": 103,
+        "x": 268,
+        "y": 25,
       },
       "kind": "text",
     },
     {
       "box": {
         "h": 16,
-        "w": 65,
-        "x": 288,
-        "y": 55,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 30,
-        "w": 65,
-        "x": 288,
-        "y": 73,
+        "w": 80,
+        "x": 280,
+        "y": 64,
       },
       "kind": "text",
     },
     {
       "box": {
         "h": 32,
-        "w": 46,
-        "x": 297,
-        "y": 105,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 15,
-        "w": 46,
-        "x": 297,
-        "y": 140,
+        "w": 58,
+        "x": 291,
+        "y": 114,
       },
       "kind": "text",
     },
@@ -2076,8 +2041,11 @@ exports[`composed diagrams > timeline keeps a stable command profile 1`] = `
   "chrome": [
     [
       "line",
+      "line",
       "circle",
+      "line",
       "circle",
+      "line",
       "circle",
     ],
   ],
@@ -2087,7 +2055,7 @@ exports[`composed diagrams > timeline keeps a stable command profile 1`] = `
         "h": 16,
         "w": 188,
         "x": 18,
-        "y": 79,
+        "y": 26,
       },
       "kind": "text",
     },
@@ -2096,7 +2064,7 @@ exports[`composed diagrams > timeline keeps a stable command profile 1`] = `
         "h": 15,
         "w": 188,
         "x": 18,
-        "y": 97,
+        "y": 44,
       },
       "kind": "text",
     },
@@ -2105,7 +2073,7 @@ exports[`composed diagrams > timeline keeps a stable command profile 1`] = `
         "h": 16,
         "w": 188,
         "x": 226,
-        "y": 148,
+        "y": 201,
       },
       "kind": "text",
     },
@@ -2114,7 +2082,7 @@ exports[`composed diagrams > timeline keeps a stable command profile 1`] = `
         "h": 15,
         "w": 188,
         "x": 226,
-        "y": 166,
+        "y": 219,
       },
       "kind": "text",
     },
@@ -2123,7 +2091,7 @@ exports[`composed diagrams > timeline keeps a stable command profile 1`] = `
         "h": 16,
         "w": 188,
         "x": 434,
-        "y": 79,
+        "y": 26,
       },
       "kind": "text",
     },
@@ -2132,7 +2100,7 @@ exports[`composed diagrams > timeline keeps a stable command profile 1`] = `
         "h": 15,
         "w": 188,
         "x": 434,
-        "y": 97,
+        "y": 44,
       },
       "kind": "text",
     },

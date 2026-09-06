@@ -41,7 +41,13 @@ function shape(n: number, W: number, H: number, gap: number, minW: number): Shap
     const perRow = Math.ceil(n / rows);
     const cell = (H - PAD * 2) / rows;
     const rowGap = Math.min(ROW_GAP, cell * 0.22);
-    return { perRow, rows, nodeH: Math.max(1, Math.min(NODE_H, cell - rowGap)), rowGap };
+    // Take the row's share rather than sitting a constant-height node in the middle of it, which
+    // is what left a taller box padded instead of filled. Bounded by the cell's own width so a
+    // node stays landscape however tall the box gets.
+    const cellW = (avail - gap * (perRow - 1)) / perRow;
+    const room = cell - rowGap;
+    const nodeH = clamp(room, Math.min(NODE_H, room), Math.max(NODE_H, cellW * 0.62));
+    return { perRow, rows, nodeH: Math.max(1, nodeH), rowGap };
 }
 
 // Weighted split with a per-item floor: a cell never squeezes below its own label, so weights can
@@ -97,17 +103,42 @@ function cellRects(
     return out;
 }
 
-function links(g: DrawContext, b: Rect, last: boolean, theme: Tokens, gap: number): void {
-    if (last) return;
-    const cy = b.y + b.h / 2;
+// Straight across to the next node, or the return elbow down through the row gap where the row
+// ends and another follows: a wrapped process used to stop dead at the end of its first row.
+function links(
+    g: DrawContext,
+    b: Rect,
+    next: Rect | undefined,
+    theme: Tokens,
+    gap: number,
+    rowGap: number,
+): void {
+    if (!next) return;
+    const o = { color: theme.muted, width: 2 };
+    if (next.y <= b.y) {
+        const cy = b.y + b.h / 2;
+        drawLink(
+            g,
+            [
+                [b.x + b.w, cy],
+                [b.x + b.w + gap, cy],
+            ],
+            theme,
+            o,
+        );
+        return;
+    }
+    const lane = b.y + b.h + rowGap / 2;
     drawLink(
         g,
         [
-            [b.x + b.w, cy],
-            [b.x + b.w + gap, cy],
+            [b.x + b.w / 2, b.y + b.h],
+            [b.x + b.w / 2, lane],
+            [next.x + next.w / 2, lane],
+            [next.x + next.w / 2, next.y],
         ],
         theme,
-        { color: theme.muted, width: 2 },
+        { ...o, corner: Math.min(10, rowGap / 2) },
     );
 }
 
@@ -189,15 +220,23 @@ function arrange(
                 const boxRects = cellRects(diagram.items, s, box.w, gap, floors);
                 const total = s.rows * s.nodeH + (s.rows - 1) * s.rowGap;
                 const top = (box.h - total) / 2;
+                const rectAt = (k: number): Rect => ({
+                    x: boxRects[k]!.x,
+                    y: top + Math.floor(k / s.perRow) * (s.nodeH + s.rowGap),
+                    w: boxRects[k]!.w,
+                    h: s.nodeH,
+                });
                 for (let i = 0; i < n; i++) {
-                    const b = {
-                        x: boxRects[i]!.x,
-                        y: top + Math.floor(i / s.perRow) * (s.nodeH + s.rowGap),
-                        w: boxRects[i]!.w,
-                        h: s.nodeH,
-                    };
+                    const b = rectAt(i);
                     if (!chevron)
-                        links(g, b, i % s.perRow >= s.perRow - 1 || i >= n - 1, ctx.theme, gap);
+                        links(
+                            g,
+                            b,
+                            i + 1 < n ? rectAt(i + 1) : undefined,
+                            ctx.theme,
+                            gap,
+                            s.rowGap,
+                        );
                     // an item's icon takes the leading slot, so its number stands down
                     const badge = diagram.items[i]?.icon
                         ? undefined

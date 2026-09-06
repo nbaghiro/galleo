@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { EngineNode, PathSink, Rect, RenderCommand } from "@engine/node";
 import { layout } from "@engine/layout";
-import { fit, grow } from "@model/geometry";
+import type { Tokens } from "@themes";
 import { diagramTypeOptions } from "@elements/diagram/render";
-import { contrastRatio, resolveTheme } from "@themes";
+import { fit, grow } from "@model/geometry";
+import { THEME_LIST, contrastRatio, pageMix, resolveTheme } from "@themes";
 import {
     BADGE_R,
+    diagramColors,
     getDiagram,
     getNodeShape,
     normalizeDiagram,
@@ -31,7 +33,13 @@ import { tokens } from "@canvas/testkit";
 //      under the flow; a band or silhouette over the text renders it invisible);
 //   9. label alignment — inside a cell a label block is either top-anchored or centered, never
 //      drifting (an empty detail slot reserving height pushed labels off-center);
-//   10. caption clearance — text outside every cell (axis captions) must not lap into a cell fill.
+//   10. caption clearance — text outside every cell (axis captions) must not lap into a cell fill;
+//   11. box response — the types whose geometry is height-driven paint further down a taller box.
+//       Each used to size from a constant (a 5px dot, a 46px ring cell, a tree that refused to
+//       upscale) and centre the result, so an author's height bought margin and nothing else. Only
+//       these five: a process wraps by row count and a flow by rank, so both legitimately paint the
+//       same extent in a taller box rather than growing squarer nodes to fill it;
+//   12. fill visibility — every ramp step still reads against the page it recedes toward.
 // The aesthetic half (rhythm, balance, palette) is the LLM-judge script in scripts/eval-diagrams.ts,
 // which renders this same matrix to SVG fixtures.
 
@@ -289,6 +297,47 @@ const THEME_CASES = [
     ["studio", tokens],
     ["carbon", resolveTheme("carbon").tokens],
 ] as const;
+
+describe.each(THEME_CASES)("box response (%s)", (_themeName, themeTokens) => {
+    const painted = (type: string, h: number, theme: Tokens): number => {
+        const a = audit(
+            {
+                type,
+                items: "Alpha, Beta, Gamma, Delta",
+                links: "Alpha>Beta, Alpha>Gamma, Alpha>Delta",
+            },
+            560,
+            h,
+            theme,
+        );
+        const boxes = [
+            ...a.cellFills,
+            ...a.labelTexts,
+            ...a.chrome.flatMap((c) => c.ops.map((o) => o.box)),
+        ];
+        return Math.max(...boxes.map((b) => b.y + b.h)) - Math.min(...boxes.map((b) => b.y));
+    };
+    for (const type of ["timeline", "cycle", "hub", "org", "target"]) {
+        it(`${type} paints further down a taller box`, () => {
+            expect(painted(type, 380, themeTokens)).toBeGreaterThan(
+                painted(type, 240, themeTokens) * 1.15,
+            );
+        });
+    }
+});
+
+describe("fill visibility", () => {
+    it("no ramp step recedes past reading against the page", () => {
+        for (const t of THEME_LIST) {
+            const tk = resolveTheme(t.id).tokens;
+            const page = pageMix(tk.accent, tk, 1);
+            for (const c of diagramColors(tk, 8))
+                expect(contrastRatio(c, page), `${t.id} ramp step on the page`).toBeGreaterThan(
+                    1.49,
+                );
+        }
+    });
+});
 
 describe.each(THEME_CASES)("visual invariants (%s)", (_themeName, themeTokens) => {
     for (const { label, data } of MATRIX) {

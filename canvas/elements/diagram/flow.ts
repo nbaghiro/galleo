@@ -34,7 +34,10 @@ function shapeOf(label: string, terminal: boolean): NodeShape {
     return terminal ? "pill" : "rounded";
 }
 
-// longest-path ranking over a topological sweep; nodes left in a cycle keep the rank they reached
+// Longest-path ranking over a topological sweep. A back edge (the revision loop every real flow
+// has) would otherwise stall the sweep at the node it re-enters and leave everything downstream of
+// it on rank 0, drawn as one wide row: so the sweep releases the most-resolved unvisited node when
+// it stalls, and an edge into a node already placed no longer moves it.
 function ranks(ids: string[], edges: DiagEdge[]): Map<string, number> {
     const rank = new Map(ids.map((id) => [id, 0]));
     const indeg = new Map(ids.map((id) => [id, 0]));
@@ -48,12 +51,19 @@ function ranks(ids: string[], edges: DiagEdge[]): Map<string, number> {
     }
     const queue = ids.filter((id) => (indeg.get(id) ?? 0) === 0);
     const seen = new Set<string>();
-    while (queue.length) {
+    while (seen.size < ids.length) {
+        if (queue.length === 0) {
+            const next = ids
+                .filter((id) => !seen.has(id))
+                .sort((a, b) => (indeg.get(a) ?? 0) - (indeg.get(b) ?? 0))[0];
+            if (next === undefined) break;
+            queue.push(next);
+        }
         const id = queue.shift()!;
         if (seen.has(id)) continue;
         seen.add(id);
         for (const to of out.get(id) ?? []) {
-            rank.set(to, Math.max(rank.get(to) ?? 0, (rank.get(id) ?? 0) + 1));
+            if (!seen.has(to)) rank.set(to, Math.max(rank.get(to) ?? 0, (rank.get(id) ?? 0) + 1));
             const left = (indeg.get(to) ?? 1) - 1;
             indeg.set(to, left);
             if (left <= 0) queue.push(to);
@@ -205,21 +215,42 @@ function arrange(
             ...cells,
             decorate((g) => {
                 const link = mix(ctx.theme.line, ctx.theme.surface, 0.15);
+                const lane = Math.min(
+                    ctx.availWidth - 8,
+                    Math.max(...ids.map((id) => box.get(id)!.x + box.get(id)!.w)) + GAP / 2,
+                );
                 for (const e of edges) {
                     const a = box.get(e.from);
                     const b = box.get(e.to);
                     if (!a || !b) continue;
-                    const forward = b.y > a.y;
-                    const y0 = forward ? a.y + a.h : a.y;
-                    const y1 = forward ? b.y : b.y + b.h;
-                    const mid = (y0 + y1) / 2;
+                    // A loop back to an earlier rank, which every revision flow has. Routed up the
+                    // right margin: straight between the two it ran through the middle of the
+                    // chart, where the nodes it crossed painted over it and it read as missing.
+                    if (b.y <= a.y) {
+                        const ay = a.y + a.h / 2;
+                        const by = b.y + b.h / 2;
+                        drawLink(
+                            g,
+                            [
+                                [a.x + a.w, ay],
+                                [lane, ay],
+                                [lane, by],
+                                [b.x + b.w, by],
+                            ],
+                            ctx.theme,
+                            { color: link, width: 1.6, corner: 6, dashed: true },
+                        );
+                        if (e.label) edgeChip(g, lane, (ay + by) / 2, e.label, ctx.theme);
+                        continue;
+                    }
+                    const mid = (a.y + a.h + b.y) / 2;
                     drawLink(
                         g,
                         [
-                            [a.x + a.w / 2, y0],
+                            [a.x + a.w / 2, a.y + a.h],
                             [a.x + a.w / 2, mid],
                             [b.x + b.w / 2, mid],
-                            [b.x + b.w / 2, y1],
+                            [b.x + b.w / 2, b.y],
                         ],
                         ctx.theme,
                         { color: link, width: 1.6, corner: 6 },
