@@ -68,7 +68,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/ca3bbea3-8699-4d58-860c-6ad8345b7cc6",
+                        image: "https://images.pexels.com/photos/36445548/pexels-photo-36445548.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.45,
                     },
                 },
@@ -250,7 +250,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-d7c98411",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/03d03e95-a12a-4a95-8438-bb8554753f27",
+                                                                src: "https://images.pexels.com/photos/3850398/pexels-photo-3850398.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -277,7 +277,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-4afb5f74",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/a1cf1b4f-66e0-4b29-8467-cce8a99b3871",
+                                                                src: "https://images.pexels.com/photos/30935145/pexels-photo-30935145.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -304,7 +304,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-38bcc634",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/06e8ac2c-1fa7-4088-91a4-fa4914302bfe",
+                                                                src: "https://images.pexels.com/photos/30826793/pexels-photo-30826793.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -360,7 +360,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-98126743",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/feaffb4b-9a10-4f99-8f3f-089c1c541668",
+                                        src: "https://images.pexels.com/photos/5764077/pexels-photo-5764077.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 0.95,
                                         radius: 14,
@@ -454,7 +454,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-9c8f7798",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/32729f56-99c2-4f39-81c8-69f62766f108",
+                                                    src: "https://images.pexels.com/photos/7287676/pexels-photo-7287676.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.4,
                                                     radius: 14,
@@ -465,7 +465,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-3a563409",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/f05c7bdc-817a-4408-a3f0-262886ec2aed",
+                                                    src: "https://images.pexels.com/photos/30350350/pexels-photo-30350350.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.4,
                                                     radius: 14,
@@ -548,7 +548,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                         {
                                                             id: "e-ada785b6",
                                                             data: {
-                                                                src: "/api/media/asset/ff5edbc4-1c69-4ecd-a070-d12f01f2e905",
+                                                                src: "https://images.pexels.com/photos/20302334/pexels-photo-20302334.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                 kind: "photo",
                                                                 size: 88,
                                                                 shape: "circle",
@@ -585,7 +585,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                         {
                                                             id: "e-06944c84",
                                                             data: {
-                                                                src: "/api/media/asset/1827300e-17b9-45f5-bfdc-b12f49493c0a",
+                                                                src: "https://images.pexels.com/photos/14370816/pexels-photo-14370816.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                 kind: "photo",
                                                                 size: 88,
                                                                 shape: "circle",
@@ -656,7 +656,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-177fe66d",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/f05c7bdc-817a-4408-a3f0-262886ec2aed",
+                                                    src: "https://images.pexels.com/photos/30350350/pexels-photo-30350350.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.15,
                                                     radius: 8,
@@ -718,7 +718,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/f0f3db1b-fa47-4844-b232-d040fccb00b4",
+                        image: "https://images.pexels.com/photos/10371358/pexels-photo-10371358.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.4,
                     },
                 },
@@ -764,7 +764,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/45ec503c-d9d1-46ea-a9eb-813cbae3969d",
+                image: "https://images.pexels.com/photos/1047326/pexels-photo-1047326.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.06,
             },
         },
@@ -815,7 +815,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/e26b90c8-7b26-4634-ab1a-abfef311ff5e",
+                        image: "https://images.pexels.com/photos/2927607/pexels-photo-2927607.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.5,
                     },
                 },
@@ -1005,7 +1005,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-ed6d029c",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/7087a358-a071-4f21-ae2a-c5a926e47540",
+                                        src: "https://images.pexels.com/photos/19374140/pexels-photo-19374140.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 1.15,
                                         radius: 14,
@@ -1049,7 +1049,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-813fbeca",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/17c66643-495e-4305-927a-a41b37ade8ed",
+                                                                src: "https://images.pexels.com/photos/34084883/pexels-photo-34084883.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -1076,7 +1076,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-a9db9e17",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/072470f3-bee5-4b4b-a2e9-05fbee65748e",
+                                                                src: "https://images.pexels.com/photos/4982005/pexels-photo-4982005.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -1103,7 +1103,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-5375eff9",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/db8bc331-b817-4276-a586-a4aee1320623",
+                                                                src: "https://images.pexels.com/photos/713149/pexels-photo-713149.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -1320,7 +1320,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/7b4f88d9-4f12-4cb4-9f0a-87e7eea3c856",
+                        image: "https://images.pexels.com/photos/7513412/pexels-photo-7513412.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.45,
                     },
                 },
@@ -1644,7 +1644,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-d3d6a109",
                                                                         data: {
-                                                                            src: "/api/media/asset/7cb5e6e6-c813-4183-9a43-a3f9996f9056",
+                                                                            src: "https://images.pexels.com/photos/36764614/pexels-photo-36764614.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -1715,7 +1715,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-c24e1975",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/17c66643-495e-4305-927a-a41b37ade8ed",
+                                                                src: "https://images.pexels.com/photos/34084883/pexels-photo-34084883.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1.1,
                                                                 radius: 8,
@@ -1772,7 +1772,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                             {
                                                 id: "e-3e71f185",
                                                 data: {
-                                                    src: "/api/media/asset/c16c389a-e0e8-437d-8556-56098b24e0db",
+                                                    src: "https://images.pexels.com/photos/8271461/pexels-photo-8271461.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                     kind: "photo",
                                                     size: 52,
                                                     shape: "circle",
@@ -1932,7 +1932,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/d3187587-d357-4292-99b3-91878ffd112d",
+                image: "https://images.pexels.com/photos/38204244/pexels-photo-38204244.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.5,
             },
         },
@@ -1993,7 +1993,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/14b592bc-fd0a-48c8-b858-f8f37f689ea1",
+                        image: "https://images.pexels.com/photos/14252715/pexels-photo-14252715.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.5,
                     },
                 },
@@ -2161,7 +2161,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-9633fe08",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/10d901e4-f385-4039-b499-1be1a3d92941",
+                                        src: "https://images.pexels.com/photos/20375778/pexels-photo-20375778.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1400&h=900",
                                         kind: "photo",
                                         aspect: 1.2,
                                         radius: 14,
@@ -2208,7 +2208,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-23de1847",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/13cd3afa-be9e-49e2-beef-e3f3b2bd98af",
+                                                    src: "https://images.pexels.com/photos/29416174/pexels-photo-29416174.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1400&h=900",
                                                     kind: "photo",
                                                     aspect: 1.35,
                                                     radius: 14,
@@ -2219,7 +2219,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-81dc8239",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/3d694376-0b5b-4b55-a28d-b9dc3fb7c0f1",
+                                                    src: "https://images.pexels.com/photos/997615/pexels-photo-997615.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.35,
                                                     radius: 14,
@@ -2230,7 +2230,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-e817a30d",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/4c4f09af-5a2e-4b42-b0e8-a5aaf9e05580",
+                                                    src: "https://images.pexels.com/photos/8917675/pexels-photo-8917675.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.35,
                                                     radius: 14,
@@ -2493,7 +2493,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-a059c023",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/39a943af-3f85-48f0-a986-edbc9346a3c9",
+                                        src: "https://images.pexels.com/photos/11769975/pexels-photo-11769975.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1400&h=900",
                                         kind: "photo",
                                         aspect: 1.2,
                                         radius: 14,
@@ -2733,7 +2733,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-94db4449",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/562d27bb-987e-446a-bb03-875a7912d794",
+                                        src: "https://images.pexels.com/photos/31092917/pexels-photo-31092917.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 0.95,
                                         radius: 14,
@@ -2883,7 +2883,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-4d47b547",
                                                                         data: {
-                                                                            src: "/api/media/asset/fc1862ec-3b21-477f-ac8a-8187c5c7ae38",
+                                                                            src: "https://images.pexels.com/photos/39306205/pexels-photo-39306205.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -2920,7 +2920,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-5bce2bc9",
                                                                         data: {
-                                                                            src: "/api/media/asset/126de0cd-1203-4c12-968c-8d9c7e2fc806",
+                                                                            src: "https://images.pexels.com/photos/15989192/pexels-photo-15989192.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -2957,7 +2957,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-79bd5873",
                                                                         data: {
-                                                                            src: "/api/media/asset/6bd9c196-d481-41e1-bfaf-cc3ad4d5e16e",
+                                                                            src: "https://images.pexels.com/photos/3862614/pexels-photo-3862614.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -3002,7 +3002,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-3292947f",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/648e1004-73c6-41b3-aa32-14192ec9e490",
+                                                                src: "https://images.pexels.com/photos/7068086/pexels-photo-7068086.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.2,
                                                                 radius: 8,
@@ -3174,14 +3174,14 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/14b592bc-fd0a-48c8-b858-f8f37f689ea1",
+                        image: "https://images.pexels.com/photos/14252715/pexels-photo-14252715.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.75,
                     },
                 },
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/639cbf88-97e4-42a5-b05f-651de8c513d0",
+                image: "https://images.pexels.com/photos/8422602/pexels-photo-8422602.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.55,
             },
         },
@@ -3237,7 +3237,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/85cc34bf-c25a-4c67-bf83-7a227851edc0",
+                        image: "https://images.pexels.com/photos/16239693/pexels-photo-16239693.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.45,
                     },
                 },
@@ -3363,7 +3363,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-a1288211",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/fc5b0505-338e-4a7b-94cd-4b703f4edb80",
+                                        src: "https://images.pexels.com/photos/5984612/pexels-photo-5984612.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=1200",
                                         kind: "photo",
                                         aspect: 0.85,
                                         radius: 14,
@@ -3487,7 +3487,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-b2a53aa2",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/0743cb24-9e9d-481b-8a8f-7b378f6cc9ca",
+                                        src: "https://images.pexels.com/photos/8450475/pexels-photo-8450475.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1400&h=900",
                                         kind: "photo",
                                         aspect: 1.25,
                                         radius: 14,
@@ -3535,7 +3535,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-f9a4b2d0",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/69d898f6-7324-4c80-b6db-df21c78f0250",
+                                                                src: "https://images.pexels.com/photos/35379397/pexels-photo-35379397.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.3,
                                                                 radius: 14,
@@ -3567,7 +3567,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-de9c3339",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/a90b5b07-93b2-4ff6-b206-bb8cad8b944e",
+                                                                src: "https://images.pexels.com/photos/2897368/pexels-photo-2897368.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.3,
                                                                 radius: 14,
@@ -3599,7 +3599,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-223ca2ea",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/9d555ea9-9c53-4fec-acfb-e919a247c03b",
+                                                                src: "https://images.pexels.com/photos/6945831/pexels-photo-6945831.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.3,
                                                                 radius: 14,
@@ -3714,7 +3714,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-9e65640c",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/266c54a3-17d9-4011-99e5-ec4fd4fb7c00",
+                                                                src: "https://images.pexels.com/photos/7526500/pexels-photo-7526500.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -3741,7 +3741,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-daa905cc",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/ac5cb764-0e81-4c42-976c-ff2427965655",
+                                                                src: "https://images.pexels.com/photos/10028599/pexels-photo-10028599.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -3768,7 +3768,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-7ac68394",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/91a3c93e-ae28-4d05-9dc2-d37f9e4c023f",
+                                                                src: "https://images.pexels.com/photos/7789881/pexels-photo-7789881.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -3795,7 +3795,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-7a409099",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/1ec383e2-ab1a-4db2-8197-afee44940df9",
+                                                                src: "https://images.pexels.com/photos/3693296/pexels-photo-3693296.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -3876,7 +3876,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/ddc6dadc-38fa-4b77-89ec-db1d6b5ad5f9",
+                        image: "https://images.pexels.com/photos/34571562/pexels-photo-34571562.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.35,
                     },
                 },
@@ -4164,7 +4164,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/8da1c8f2-1c7c-41d5-b8c9-8cfea56060ad",
+                image: "https://images.pexels.com/photos/21926656/pexels-photo-21926656.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.55,
             },
         },
@@ -4218,7 +4218,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/ace1df21-5c54-4925-a1fd-d83af3b04107",
+                        image: "https://images.pexels.com/photos/4654557/pexels-photo-4654557.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.45,
                     },
                 },
@@ -4353,7 +4353,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-9d7704c7",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/fe1842a8-e7f2-47fa-ad53-66af3954a8d4",
+                                                    src: "https://images.pexels.com/photos/36715340/pexels-photo-36715340.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.35,
                                                     radius: 14,
@@ -4364,7 +4364,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-8782e76f",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/f4ca7714-2b73-432b-aa74-0287b952ac28",
+                                                    src: "https://images.pexels.com/photos/4232974/pexels-photo-4232974.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.35,
                                                     radius: 14,
@@ -4375,7 +4375,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-e51aaa4d",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/34e143ea-5bd1-4e4f-b3b7-31d1ff53f077",
+                                                    src: "https://images.pexels.com/photos/1437956/pexels-photo-1437956.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.35,
                                                     radius: 14,
@@ -4556,7 +4556,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/b4d1ebb0-bda0-4233-8836-bbb19f6fb41d",
+                        image: "https://images.pexels.com/photos/11685290/pexels-photo-11685290.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.4,
                     },
                 },
@@ -4598,7 +4598,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-1c199997",
                                                                         data: {
-                                                                            src: "/api/media/asset/4886136c-8665-448f-84cc-7dba081b2c50",
+                                                                            src: "https://images.pexels.com/photos/7451125/pexels-photo-7451125.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 52,
                                                                             shape: "circle",
@@ -4641,7 +4641,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-84105a65",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/f4ca7714-2b73-432b-aa74-0287b952ac28",
+                                                                src: "https://images.pexels.com/photos/4232974/pexels-photo-4232974.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.1,
                                                                 radius: 8,
@@ -4758,7 +4758,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/cef60a1d-02e6-405f-9494-39d98c767ae1",
+                image: "https://images.pexels.com/photos/17491759/pexels-photo-17491759.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.5,
             },
         },
@@ -4815,7 +4815,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/bd706544-9eb6-4b50-b747-4e80383d75ab",
+                        image: "https://images.pexels.com/photos/7095503/pexels-photo-7095503.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.5,
                     },
                 },
@@ -4975,7 +4975,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-fe1f0628",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/cdf223f6-7312-487d-aa46-7bef03b22276",
+                                        src: "https://images.pexels.com/photos/37162560/pexels-photo-37162560.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 1.1,
                                         radius: 14,
@@ -5013,7 +5013,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-ee78e97a",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/69ca8d97-afc6-4c4a-8539-313a315b8ace",
+                                                                src: "https://images.pexels.com/photos/25859077/pexels-photo-25859077.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -5040,7 +5040,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-e2b69924",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/2b8c684b-d08f-41d6-9409-cd56c5c4b387",
+                                                                src: "https://images.pexels.com/photos/697672/pexels-photo-697672.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -5067,7 +5067,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-fb5d25a0",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/84d73835-6723-4212-bdc1-29d02d1ea199",
+                                                                src: "https://images.pexels.com/photos/35582915/pexels-photo-35582915.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -5154,7 +5154,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/39a28594-9830-4d8d-96fb-c86378d17420",
+                        image: "https://images.pexels.com/photos/5855909/pexels-photo-5855909.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.35,
                     },
                 },
@@ -5304,7 +5304,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-d6185aa0",
                                                                         data: {
-                                                                            src: "/api/media/asset/7f5177d4-a3f5-4fa9-918f-d819029f0310",
+                                                                            src: "https://images.pexels.com/photos/14446556/pexels-photo-14446556.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -5375,7 +5375,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-0eace596",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/18459b59-7ba5-4ab8-b5c9-7116ff9ba184",
+                                                                src: "https://images.pexels.com/photos/6791544/pexels-photo-6791544.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1.1,
                                                                 radius: 8,
@@ -5417,7 +5417,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-758f02b4",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/7ae5d2f2-993b-4cb7-a6ba-6d30c415100b",
+                                        src: "https://images.pexels.com/photos/4898305/pexels-photo-4898305.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 0.95,
                                         radius: 14,
@@ -5449,7 +5449,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                         {
                                                             id: "e-24a985b5",
                                                             data: {
-                                                                src: "/api/media/asset/e3769be0-64bc-4fd7-9ebd-b1740e776875",
+                                                                src: "https://images.pexels.com/photos/8929455/pexels-photo-8929455.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                 kind: "photo",
                                                                 size: 52,
                                                                 shape: "circle",
@@ -5551,7 +5551,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/66c6f420-9195-41cb-b807-092e3bf89293",
+                image: "https://images.pexels.com/photos/28101637/pexels-photo-28101637.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.5,
             },
         },
@@ -5598,7 +5598,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/bb2c67a3-34fc-4f51-9bee-64369605fae2",
+                        image: "https://images.pexels.com/photos/3938693/pexels-photo-3938693.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.45,
                     },
                 },
@@ -5699,7 +5699,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-375af78f",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/ca3e10f4-bfe2-4193-8099-01569863c9fd",
+                                                    src: "https://images.pexels.com/photos/33524591/pexels-photo-33524591.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.35,
                                                     radius: 14,
@@ -5710,7 +5710,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-b463a6b7",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/f0c90c92-a641-4da5-adbe-40591ddb63bd",
+                                                    src: "https://images.pexels.com/photos/36430088/pexels-photo-36430088.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.35,
                                                     radius: 14,
@@ -5721,7 +5721,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-b128b470",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/93b8ba82-096c-4bc5-ad03-b0bb9e70d5b5",
+                                                    src: "https://images.pexels.com/photos/8699427/pexels-photo-8699427.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.35,
                                                     radius: 14,
@@ -5895,7 +5895,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-d6134169",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/0f7e8b6e-3e9f-455c-ab07-3e5c4f7f5472",
+                                                    src: "https://images.pexels.com/photos/6223001/pexels-photo-6223001.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                     kind: "photo",
                                                     aspect: 0.9,
                                                     radius: 8,
@@ -6114,7 +6114,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/f6548785-c61a-4abd-a5c9-eb5d001883a9",
+                        image: "https://images.pexels.com/photos/5864616/pexels-photo-5864616.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.45,
                     },
                 },
@@ -6150,7 +6150,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                         {
                                                             id: "e-a453293b",
                                                             data: {
-                                                                src: "/api/media/asset/04e89232-2047-4ac2-9295-a5100ce41273",
+                                                                src: "https://images.pexels.com/photos/11368690/pexels-photo-11368690.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                 kind: "photo",
                                                                 size: 52,
                                                                 shape: "circle",
@@ -6239,7 +6239,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-0700a801",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/6bb99f64-ddb7-4d06-bfc9-63659e1f1af1",
+                                        src: "https://images.pexels.com/photos/12519455/pexels-photo-12519455.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 1.2,
                                         radius: 14,
@@ -6362,7 +6362,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/bcb978c6-0cf0-4aa5-90a8-fad4d38b53ab",
+                image: "https://images.pexels.com/photos/6957674/pexels-photo-6957674.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.06,
             },
         },
@@ -6409,7 +6409,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/43d37c12-39f1-4ca9-95db-7fdaff75f122",
+                        image: "https://images.pexels.com/photos/38468348/pexels-photo-38468348.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.45,
                     },
                 },
@@ -6524,7 +6524,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-7bc98ac2",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/601e3556-fb43-4449-b07c-2d5f2ec22729",
+                                                                src: "https://images.pexels.com/photos/1928073/pexels-photo-1928073.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.2,
                                                                 radius: 14,
@@ -6559,7 +6559,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-a844efe8",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/d5baf7e0-0fc9-40ef-8488-9beb5d48275f",
+                                                                src: "https://images.pexels.com/photos/47356/freerider-skiing-ski-sports-47356.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.2,
                                                                 radius: 14,
@@ -6594,7 +6594,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-9f553e2c",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/29b67ac6-fa1c-4e5d-b5c2-701d9f8ef8fb",
+                                                                src: "https://images.pexels.com/photos/36562107/pexels-photo-36562107.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.2,
                                                                 radius: 14,
@@ -6774,7 +6774,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-c36e2081",
                                                                         data: {
-                                                                            src: "/api/media/asset/42953b21-3564-4df2-ac29-dcc7e9e5e39b",
+                                                                            src: "https://images.pexels.com/photos/5779251/pexels-photo-5779251.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -6811,7 +6811,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-63933119",
                                                                         data: {
-                                                                            src: "/api/media/asset/59e9cd41-71cf-4675-9c34-049b49209c0e",
+                                                                            src: "https://images.pexels.com/photos/38468355/pexels-photo-38468355.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -6848,7 +6848,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-9503084b",
                                                                         data: {
-                                                                            src: "/api/media/asset/8065ea80-d462-44a4-a91c-7a87c3a2458e",
+                                                                            src: "https://images.pexels.com/photos/6328148/pexels-photo-6328148.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -6893,7 +6893,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-ed75bb1b",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/28f2d4af-ee48-403a-9f8f-69da9bcfa43b",
+                                                                src: "https://images.pexels.com/photos/13831839/pexels-photo-13831839.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=900&h=1100",
                                                                 kind: "photo",
                                                                 aspect: 0.85,
                                                                 radius: 8,
@@ -6995,7 +6995,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-40ba289e",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/9b26b3c2-66a7-4618-baf7-69ba1f6fc9e7",
+                                                                src: "https://images.pexels.com/photos/416805/pexels-photo-416805.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -7022,7 +7022,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-27445909",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/b58acb09-51c2-4cd2-8031-d0cad3e6dd3a",
+                                                                src: "https://images.pexels.com/photos/12071906/pexels-photo-12071906.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -7049,7 +7049,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-6bbc5775",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/cfde5a37-1247-4f3a-a360-38f8e412c128",
+                                                                src: "https://images.pexels.com/photos/10050579/pexels-photo-10050579.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -7228,7 +7228,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/7d0529bc-6d25-4211-990f-6bbe00a839be",
+                        image: "https://images.pexels.com/photos/1624256/pexels-photo-1624256.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.35,
                     },
                 },
@@ -7287,7 +7287,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/46553892-fb7b-4d48-8000-04db85933893",
+                image: "https://images.pexels.com/photos/5889194/pexels-photo-5889194.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.05,
             },
         },
@@ -7427,7 +7427,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     frame: { aspect: 2.2857142857142856 },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/abd07f94-8fa2-4660-a41f-feca19397568",
+                        image: "https://images.pexels.com/photos/32349271/pexels-photo-32349271.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.35,
                     },
                 },
@@ -7665,7 +7665,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-ab2b7b74",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/365195b2-5b24-4a5c-a843-6ab627f724ad",
+                                                                src: "https://images.pexels.com/photos/28961744/pexels-photo-28961744.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -7692,7 +7692,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-d399a0dd",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/0d923aae-e2da-486e-8776-e05432c0c236",
+                                                                src: "https://images.pexels.com/photos/3804878/pexels-photo-3804878.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -7719,7 +7719,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-58bbaffd",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/798dc733-a2ac-47aa-86ca-6eda2d24c1c0",
+                                                                src: "https://images.pexels.com/photos/4973046/pexels-photo-4973046.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -7760,7 +7760,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-6d7065b4",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/3a1fc948-7501-44d5-b826-d9db807cf02f",
+                                        src: "https://images.pexels.com/photos/911810/pexels-photo-911810.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 1.15,
                                         radius: 14,
@@ -7883,7 +7883,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     bleed: true,
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/731b3d5d-8689-47fd-bceb-b0c60cbc3a0f",
+                        image: "https://images.pexels.com/photos/4946627/pexels-photo-4946627.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.35,
                     },
                 },
@@ -8164,7 +8164,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-ae6dfbcb",
                                                                         data: {
-                                                                            src: "/api/media/asset/7c30141b-b7fa-4a90-9031-54462ee11222",
+                                                                            src: "https://images.pexels.com/photos/36729360/pexels-photo-36729360.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -8235,7 +8235,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-04ac5811",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/dcd46358-41fb-4d49-9300-086305f40aa8",
+                                                                src: "https://images.pexels.com/photos/36812314/pexels-photo-36812314.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.1,
                                                                 radius: 8,
@@ -8403,7 +8403,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/201b458b-2a32-4ab9-bf02-bfb5a4724a6e",
+                image: "https://images.pexels.com/photos/6793893/pexels-photo-6793893.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.08,
             },
         },
@@ -8509,7 +8509,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     frame: { aspect: 2.2857142857142856 },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/98d4d171-58be-40da-a3b1-2373b2cddd63",
+                        image: "https://images.pexels.com/photos/10610439/pexels-photo-10610439.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.45,
                     },
                 },
@@ -8541,7 +8541,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-922387e9",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/d14a009b-b6c2-44a7-b998-49a9656b06b5",
+                                                    src: "https://images.pexels.com/photos/18071824/pexels-photo-18071824.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.4,
                                                     radius: 14,
@@ -8552,7 +8552,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-a0fde889",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/b601c080-ddd9-49c8-9664-81c9f97fc524",
+                                                    src: "https://images.pexels.com/photos/10611843/pexels-photo-10611843.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.4,
                                                     radius: 14,
@@ -8563,7 +8563,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-788361ac",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/b7aaee74-c15e-4c0d-a8a8-36fa3c6cfe4a",
+                                                    src: "https://images.pexels.com/photos/32346208/pexels-photo-32346208.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.4,
                                                     radius: 14,
@@ -8601,7 +8601,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-631296f3",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/b601c080-ddd9-49c8-9664-81c9f97fc524",
+                                        src: "https://images.pexels.com/photos/10611843/pexels-photo-10611843.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 1.15,
                                         radius: 14,
@@ -8767,7 +8767,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     bleed: true,
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/85401f6a-c3b1-4ef3-8149-4888b700c03d",
+                        image: "https://images.pexels.com/photos/2149421/pexels-photo-2149421.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.3,
                     },
                 },
@@ -8795,7 +8795,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-6933d467",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/88b1b057-c033-478d-9de9-956efb0c7908",
+                                                                src: "https://images.pexels.com/photos/37912516/pexels-photo-37912516.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -8822,7 +8822,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-6e13aa27",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/77a22a75-4a0d-4ab9-be18-7efa5e631ef8",
+                                                                src: "https://images.pexels.com/photos/32843696/pexels-photo-32843696.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -8849,7 +8849,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-a74a3d8c",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/40cd02a0-1c0d-4609-9285-b00ab252fa56",
+                                                                src: "https://images.pexels.com/photos/33554285/pexels-photo-33554285.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -8910,7 +8910,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                         {
                                                             id: "e-ccf4ae65",
                                                             data: {
-                                                                src: "/api/media/asset/6f5b50cc-a0c7-4b4b-be71-e8f479cadef7",
+                                                                src: "https://images.pexels.com/photos/758864/pexels-photo-758864.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                 kind: "photo",
                                                                 size: 52,
                                                                 shape: "circle",
@@ -9114,7 +9114,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/a8bb058e-73cc-4664-8ebe-1fafd463f6d6",
+                image: "https://images.pexels.com/photos/18325786/pexels-photo-18325786.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.5,
             },
         },
@@ -9226,7 +9226,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/619dc3df-d5d0-472b-b43f-b43e1e079560",
+                        image: "https://images.pexels.com/photos/33741685/pexels-photo-33741685.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.35,
                     },
                 },
@@ -9373,7 +9373,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-81d67952",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/d7e9ca21-6862-4544-987d-f2bb52fda975",
+                                                                src: "https://images.pexels.com/photos/30569741/pexels-photo-30569741.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=1000",
                                                                 kind: "photo",
                                                                 aspect: 0.8,
                                                                 radius: 14,
@@ -9400,7 +9400,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-df91bac2",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/ea017f6b-ad45-42da-b1b7-49243d3f3f36",
+                                                                src: "https://images.pexels.com/photos/12931722/pexels-photo-12931722.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=1000",
                                                                 kind: "photo",
                                                                 aspect: 0.8,
                                                                 radius: 14,
@@ -9427,7 +9427,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-4880a9cb",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/7b40818e-c805-4257-9c6d-243c6b9d399a",
+                                                                src: "https://images.pexels.com/photos/6757412/pexels-photo-6757412.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=1000",
                                                                 kind: "photo",
                                                                 aspect: 0.8,
                                                                 radius: 14,
@@ -9474,7 +9474,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-e2498823",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/f13f4c81-e4c5-4d94-b96a-e902c6ebfdb0",
+                                        src: "https://images.pexels.com/photos/8931790/pexels-photo-8931790.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 1.15,
                                         radius: 14,
@@ -9578,7 +9578,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-767bcb62",
                                                                         data: {
-                                                                            src: "/api/media/asset/6401c0a9-8e5e-467d-a24a-933d7bf292e7",
+                                                                            src: "https://images.pexels.com/photos/6196399/pexels-photo-6196399.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -9649,7 +9649,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-73082d36",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/28717709-bbca-448d-a545-f28bc320b4ea",
+                                                                src: "https://images.pexels.com/photos/29765604/pexels-photo-29765604.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                                 kind: "photo",
                                                                 aspect: 1.1,
                                                                 radius: 8,
@@ -9824,7 +9824,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-183ffb48",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/e306c31d-bc2f-4895-9e8e-7c3d2e2794f3",
+                                                                src: "https://images.pexels.com/photos/15248059/pexels-photo-15248059.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -9851,7 +9851,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-837f589a",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/482a651e-fc6f-45ab-809f-1ad87e136c3a",
+                                                                src: "https://images.pexels.com/photos/5660451/pexels-photo-5660451.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -9878,7 +9878,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-c3e413c0",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/62c28a8c-395c-442a-97e0-546c44e3004a",
+                                                                src: "https://images.pexels.com/photos/1487703/pexels-photo-1487703.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -9974,7 +9974,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/473659da-fad4-4ba2-99a9-3a8dea4d7726",
+                        image: "https://images.pexels.com/photos/9711113/pexels-photo-9711113.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.35,
                     },
                 },
@@ -10050,7 +10050,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/41d369bb-3033-48c9-b135-74a0fe9406bb",
+                image: "https://images.pexels.com/photos/6843275/pexels-photo-6843275.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.05,
             },
         },
@@ -10175,7 +10175,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/2e23b56c-68b8-4a1a-9e8d-eb379c9efb0f",
+                        image: "https://images.pexels.com/photos/31769333/pexels-photo-31769333.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.5,
                     },
                 },
@@ -10191,7 +10191,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-addf6525",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/795b98d5-f4fb-482b-b2db-0921f9ead137",
+                                        src: "https://images.pexels.com/photos/1238941/pexels-photo-1238941.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                         kind: "photo",
                                         aspect: 1.1,
                                         radius: 14,
@@ -10324,7 +10324,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                     id: "e-dddc1e4b",
                                     data: {
                                         fit: "cover",
-                                        src: "/api/media/asset/2427f3dd-9828-430e-8541-0c6cb6887adb",
+                                        src: "https://images.pexels.com/photos/2615326/pexels-photo-2615326.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=900&h=1100",
                                         kind: "photo",
                                         aspect: 0.85,
                                         radius: 14,
@@ -10660,7 +10660,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                             {
                                                 id: "e-46900903",
                                                 data: {
-                                                    src: "/api/media/asset/d0b2d9ae-b0eb-4b21-80b4-d82a69f7f3ed",
+                                                    src: "https://images.pexels.com/photos/5055800/pexels-photo-5055800.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                     kind: "photo",
                                                     size: 52,
                                                     shape: "circle",
@@ -10694,7 +10694,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                 id: "e-88bf9291",
                                                 data: {
                                                     fit: "cover",
-                                                    src: "/api/media/asset/f9b57ae8-5973-4215-8880-504495bae92f",
+                                                    src: "https://images.pexels.com/photos/22891887/pexels-photo-22891887.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1100&h=900",
                                                     kind: "photo",
                                                     aspect: 1.2,
                                                     radius: 8,
@@ -10750,7 +10750,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-b8c14362",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/810ae7ba-9ffc-4de9-b4d7-8580dbdb2aea",
+                                                                src: "https://images.pexels.com/photos/9501874/pexels-photo-9501874.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -10777,7 +10777,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-9a1ef832",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/74659bde-96dc-4e9e-a9c5-54a8f4ba4be3",
+                                                                src: "https://images.pexels.com/photos/36189461/pexels-photo-36189461.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -10804,7 +10804,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-f0575d38",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/a3057c07-b8e2-4d65-8230-8cb2b7ca2348",
+                                                                src: "https://images.pexels.com/photos/4383295/pexels-photo-4383295.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1,
                                                                 radius: 14,
@@ -10863,7 +10863,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                                     {
                                                                         id: "e-b44771bd",
                                                                         data: {
-                                                                            src: "/api/media/asset/59b1d797-9ba6-4fcd-9ffb-c4947f61e01c",
+                                                                            src: "https://images.pexels.com/photos/8102697/pexels-photo-8102697.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=700&h=700",
                                                                             kind: "photo",
                                                                             size: 88,
                                                                             shape: "circle",
@@ -10934,7 +10934,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                                                             id: "e-fc8754f7",
                                                             data: {
                                                                 fit: "cover",
-                                                                src: "/api/media/asset/2c52a993-dea4-45c0-9e00-62723aed5b99",
+                                                                src: "https://images.pexels.com/photos/7644797/pexels-photo-7644797.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=800",
                                                                 kind: "photo",
                                                                 aspect: 1.1,
                                                                 radius: 8,
@@ -11053,7 +11053,7 @@ export const SHOWCASE: ShowcasePiece[] = [
                     },
                     background: {
                         kind: "image",
-                        image: "/api/media/asset/2fd5ad9a-1295-4968-b66f-e1fd6fbab5c2",
+                        image: "https://images.pexels.com/photos/10995856/pexels-photo-10995856.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                         scrim: 0.45,
                     },
                 },
@@ -11135,7 +11135,7 @@ export const SHOWCASE: ShowcasePiece[] = [
             ],
             background: {
                 kind: "image",
-                image: "/api/media/asset/8dac5ed9-44be-4ddf-89ec-ad8e45f93abe",
+                image: "https://images.pexels.com/photos/4097157/pexels-photo-4097157.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=1700&h=1100",
                 scrim: 0.5,
             },
         },

@@ -2,6 +2,8 @@ import "dotenv/config";
 import { writeFileSync } from "node:fs";
 import { inArray } from "drizzle-orm";
 import type { ArtifactContent } from "@model/artifact";
+import { assetIdFromUrl } from "@model/media";
+import { mapMediaRefs, mediaRefs } from "@model/artifact";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import { out } from "@services/utils/env";
@@ -13,6 +15,12 @@ import { out } from "@services/utils/env";
  * them, so it needs their content in the bundle. It cannot read the corpus itself: the layering law
  * stops `website` at `@ui`, and the bodies live in services. This script sits in scripts/, which may
  * compose services and model, and writes the content down as a typed module the page can import.
+ *
+ * Pictures travel as the photograph's own url, not as `/api/media/asset/<uuid>`. Those uuids are
+ * per-row, handed out by whichever database the demo library was seeded into, so a file generated
+ * here referenced rows that exist on this machine and nowhere else: in production every one of them
+ * 404s and the hero paints text on empty plates. Resolving each back to the `origin` it was adopted
+ * from makes the module self-contained, which is what a marketing bundle has to be.
  *
  * Whole pieces travel, not covers. Trimming to the opening sections made every card look cut off:
  * a plate on a large monitor is tall enough to want ten sections, and it had three. The full twelve
@@ -59,6 +67,35 @@ export interface ShowcasePiece {
 export const SHOWCASE: ShowcasePiece[] = [
 `;
 
+/** id -> the url the asset was adopted from, for every canonical ref these pieces carry. */
+async function originsFor(contents: ArtifactContent[]): Promise<Map<string, string>> {
+    const ids = [
+        ...new Set(
+            contents
+                .flatMap((c) => mediaRefs(c))
+                .map(assetIdFromUrl)
+                .filter((id): id is string => !!id),
+        ),
+    ];
+    if (!ids.length) return new Map();
+    const rows = await db
+        .select({ id: schema.assets.id, origin: schema.assets.origin })
+        .from(schema.assets)
+        .where(inArray(schema.assets.id, ids));
+    const found = new Map(rows.filter((r) => r.origin).map((r) => [r.id, r.origin!]));
+    // an uploaded asset has bytes and no origin, so there is no url to ship and no silent fallback
+    const stuck = ids.filter((id) => !found.has(id));
+    if (stuck.length)
+        throw new Error(`no origin url for ${stuck.length} assets: ${stuck.join(", ")}`);
+    return found;
+}
+
+const deref = (content: unknown, origins: Map<string, string>): unknown =>
+    mapMediaRefs(content, (url) => {
+        const id = assetIdFromUrl(url);
+        return (id && origins.get(id)) || url;
+    });
+
 async function main(): Promise<void> {
     const titles = PICKS.map((p) => p.title);
     const rows = await db
@@ -70,8 +107,10 @@ async function main(): Promise<void> {
     const missing = PICKS.filter((p) => !byTitle.has(p.title)).map((p) => p.title);
     if (missing.length) throw new Error(`not in the library: ${missing.join(" | ")}`);
 
+    const origins = await originsFor([...byTitle.values()]);
+
     const lines = PICKS.map((p) => {
-        const full = byTitle.get(p.title)!;
+        const full = deref(byTitle.get(p.title)!, origins) as ArtifactContent;
         const piece = {
             title: p.title,
             format: p.format,
