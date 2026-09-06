@@ -9,6 +9,7 @@ import {
     getElementAt,
     insertChild,
     insertSection,
+    liftChildren,
     moveChildrenTo,
     moveSection,
     removeAt,
@@ -16,7 +17,7 @@ import {
     sharedParent,
     wrapWith,
 } from "@elements/ops";
-import { addressesEqual, elementRegionId, parseTarget } from "@model/artifact";
+import { addressesEqual, colGroup, elementRegionId, parseTarget, rowGroup } from "@model/artifact";
 import { getElement } from "@elements/spec";
 import { gridColumnsOf as gridColumns } from "@elements/composite/container";
 import { setRightTab } from "./store";
@@ -328,6 +329,14 @@ function columnSlots(art: ArtifactContent, regions: Region[], payload: DragPaylo
                       : null
                 : null;
         if (srcCol === -2) continue;
+        const srcCols =
+            payload.kind === "moveMany" &&
+            payload.parent.section === s.id &&
+            payload.parent.path.length === 0
+                ? payload.indices
+                : srcCol !== null
+                  ? [srcCol]
+                  : [];
         const top = Math.min(...columns.map((c) => c.y));
         const bottom = Math.max(...columns.map((c) => c.y + c.h));
         const boundaries: { x: number; index: number }[] = [{ x: columns[0]!.x, index: 0 }];
@@ -340,7 +349,7 @@ function columnSlots(art: ArtifactContent, regions: Region[], payload: DragPaylo
         boundaries.push({ x: last.x + last.w, index: columns.length });
         for (const b of boundaries) {
             // moving a column beside itself is a no-op
-            if (srcCol !== null && (b.index === srcCol || b.index === srcCol + 1)) continue;
+            if (srcCols.some((i) => b.index === i || b.index === i + 1)) continue;
             out.push({
                 target: {
                     section: s.id,
@@ -512,8 +521,20 @@ function elementSlots(
         if (!card || !reaches(card)) continue;
         const srcPath =
             payload.kind === "move" && payload.from.section === sid ? payload.from.path : null;
+        const members =
+            payload.kind === "moveMany" && payload.parent.section === sid
+                ? payload.indices.map((i) => [...payload.parent.path, i])
+                : [];
         const inSrcSubtree = (p: number[]): boolean =>
-            srcPath !== null && srcPath.length <= p.length && srcPath.every((v, i) => v === p[i]);
+            (srcPath !== null &&
+                srcPath.length <= p.length &&
+                srcPath.every((v, i) => v === p[i])) ||
+            members.some((m) => m.length <= p.length && m.every((v, i) => v === p[i]));
+        const isBlockParent = (p: number[]): boolean =>
+            payload.kind === "moveMany" &&
+            payload.parent.section === sid &&
+            p.length === payload.parent.path.length &&
+            p.every((v, i) => v === payload.parent.path[i]);
 
         const visit = (path: number[]): void => {
             if (inSrcSubtree(path)) return; // never target the dragged element or its interior
@@ -580,13 +601,18 @@ function elementSlots(
                         ? srcPath[path.length]!
                         : null;
                 const srcPos = srcIndex !== null ? flow.findIndex((b) => b.index === srcIndex) : -1;
-                // the gaps flanking the source in its own parent are no-op moves
+                // the gaps flanking the source in its own parent are no-op moves; a block's own
+                // parent already contributed its gaps through parentGapSlots, contiguity rule and all
                 const noop = (k: number): boolean =>
                     srcPos >= 0 && (k === srcPos || k === srcPos + 1);
+                const gapsElsewhere = isBlockParent(path);
                 if (cols !== null) {
-                    out.push(...gridGapSlots(sid, path, flow, cols, box, kids.length, noop, reach));
+                    if (!gapsElsewhere)
+                        out.push(
+                            ...gridGapSlots(sid, path, flow, cols, box, kids.length, noop, reach),
+                        );
                 } else {
-                    for (let k = 0; k <= flow.length; k++) {
+                    for (let k = 0; !gapsElsewhere && k <= flow.length; k++) {
                         if (noop(k)) continue;
                         out.push(gapSlot(sid, path, axis, k, flow, box, kids.length, reach));
                     }
@@ -634,6 +660,22 @@ function elementSlots(
         visit([]);
     }
     return out;
+}
+
+// The one precedence rule for a body grab: a multi-selection the grip belongs to drags as its
+// block (else grabbing any unit's text silently collapses the set into an item reorder), then a
+// unit item reorders within its unit, then the movable ancestor drags alone.
+export function movePayloadFor(
+    art: ArtifactContent,
+    address: ElementAddress,
+    selected: ElementAddress[],
+): { payload: DragPayload; clear: boolean } {
+    const a = movableAncestor(art, address);
+    const block = moveManyPayload(a, selected);
+    if (block) return { payload: block, clear: false };
+    const item = unitItem(art, address);
+    if (item) return { payload: { kind: "move", from: item }, clear: true };
+    return { payload: { kind: "move", from: a }, clear: true };
 }
 
 /**
@@ -710,7 +752,12 @@ export function classifyDrop(
     const at = { px, py };
     let claims: DropSlot[];
     if (payload.kind === "moveMany")
-        claims = parentGapSlots(art, regions, payload.parent, payload.indices);
+        claims = [
+            ...parentGapSlots(art, regions, payload.parent, payload.indices),
+            ...sectionGapSlots(art, regions, payload),
+            ...columnSlots(art, regions, payload),
+            ...elementSlots(art, regions, payload, at),
+        ];
     else if (payload.kind === "move" && unitItem(art, payload.from))
         claims = parentGapSlots(
             art,
@@ -933,12 +980,56 @@ function resolveDrop(
             target.section === parent.section &&
             target.path.length === parent.path.length &&
             target.path.every((v, i) => v === parent.path[i]);
-        if (!here) return result(art, null);
-        const moved = moveChildrenTo(art, parent, indices, target.index);
-        return result(moved.content, {
-            section: parent.section,
-            path: [...parent.path, moved.at],
-        });
+        if (here) {
+            const moved = moveChildrenTo(art, parent, indices, target.index);
+            return result(moved.content, {
+                section: parent.section,
+                path: [...parent.path, moved.at],
+            });
+        }
+        // anywhere else: lift the block out, re-aim the target across the lift, land it —
+        // sequentially into a gap, as one source-axis group for every other op
+        const inst = getElementAt(art, parent);
+        const sorted = [...new Set(indices)].sort((x, y) => x - y);
+        const depth = parent.path.length;
+        const under = (p: number[]): boolean =>
+            target.section === parent.section &&
+            p.length > depth &&
+            parent.path.every((v, i) => v === p[i]);
+        if (under(target.path) && sorted.includes(target.path[depth]!)) return result(art, null);
+        const lift = inst && liftChildren(art, parent, sorted);
+        if (!lift) return result(art, null);
+        const { content: lifted, block } = lift;
+        const rebased = under(target.path)
+            ? target.path.map((v, i) => (i === depth ? v - sorted.filter((k) => k < v).length : v))
+            : target.path;
+        const aimed: DropTarget = {
+            ...target,
+            path: rebased,
+            index:
+                target.op === "column" && target.section === parent.section && depth === 0
+                    ? target.index - sorted.filter((i) => i < target.index).length
+                    : target.index,
+        };
+        let placed: { content: ArtifactContent; address: ElementAddress | null };
+        if (aimed.op === "insert") {
+            let content = lifted;
+            for (const [i, el] of block.entries())
+                content = insertChild(
+                    content,
+                    { section: aimed.section, path: aimed.path },
+                    aimed.index + i,
+                    el,
+                );
+            placed = result(content, {
+                section: aimed.section,
+                path: [...aimed.path, aimed.index],
+            });
+        } else {
+            const group = groupAxis(inst) === "row" ? rowGroup(block) : colGroup(block);
+            placed = place(lifted, aimed, group);
+        }
+        return result(collapseSection(placed.content, parent.section, parent.path), placed.address);
     }
     if (payload.kind === "move") {
         const element = getElementAt(art, payload.from);

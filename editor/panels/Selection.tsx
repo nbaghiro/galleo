@@ -44,7 +44,7 @@ import {
     drag,
     indicatorDistance,
     movableAncestor,
-    moveManyPayload,
+    movePayloadFor,
     startDrag,
     unitItem,
     type DropHit,
@@ -231,24 +231,18 @@ export function beginElementMove(address: ElementAddress, sx: number, sy: number
         beginPinMove(pinned, sx, sy);
         return;
     }
-    // an item of an open unit (a bullet line) reorders within its list and nowhere else
-    const item = unitItem(editor.artifact, address);
-    if (item) {
-        clearExtras();
-        startDrag({ kind: "move", from: item }, sx, sy, "Item");
+    const { payload, clear } = movePayloadFor(editor.artifact, address, selectedAddresses());
+    if (clear) clearExtras();
+    if (payload.kind === "moveMany") {
+        startDrag(payload, sx, sy, `${payload.indices.length} elements`);
         return;
     }
-    const a = movableAncestor(editor.artifact, address);
-    const inst = getElementAt(editor.artifact, a);
+    const from = payload.kind === "move" ? payload.from : address;
+    const inst = getElementAt(editor.artifact, from);
     const spec = inst && getElement(inst.type);
-    const label = (spec && inst && labelOf(spec, inst.data)) || "Element";
-    const block = moveManyPayload(a, selectedAddresses());
-    if (block) {
-        startDrag(block, sx, sy, `${block.indices.length} elements`);
-        return;
-    }
-    clearExtras(); // the grab is dragging its own element, so the set is done
-    startDrag({ kind: "move", from: a }, sx, sy, label);
+    const item = unitItem(editor.artifact, address);
+    const label = item ? "Item" : (spec && inst && labelOf(spec, inst.data)) || "Element";
+    startDrag(payload, sx, sy, label);
 }
 
 /**

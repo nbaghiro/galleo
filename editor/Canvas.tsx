@@ -996,13 +996,19 @@ export const Canvas: Component = () => {
                 noteDropSelection(); // the flyout must not open over what was just dropped
                 const landed = res.address;
                 if (block && landed && res.content !== before) {
-                    // the block landed contiguously, so the whole set survives the drop
+                    // a gap drop lands the set as siblings; any other op grouped it, so the
+                    // members live inside the landed address
                     const head = landed.path[landed.path.length - 1] ?? 0;
                     selectMany(
-                        block.indices.map((_, i) => ({
-                            section: landed.section,
-                            path: [...landed.path.slice(0, -1), head + i],
-                        })),
+                        d.target.op === "insert"
+                            ? block.indices.map((_, i) => ({
+                                  section: landed.section,
+                                  path: [...landed.path.slice(0, -1), head + i],
+                              }))
+                            : block.indices.map((_, i) => ({
+                                  section: landed.section,
+                                  path: [...landed.path, i],
+                              })),
                     );
                 } else
                     setSelection(

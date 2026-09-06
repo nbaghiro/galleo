@@ -588,6 +588,27 @@ export function ungroupAt(
 }
 
 /** Block reorder inside one parent: the children at `indices` land together at gap `index`. */
+/** Removes a set of one parent's children without collapsing, handing the removed block back. */
+export function liftChildren(
+    art: ArtifactContent,
+    parent: ElementAddress,
+    indices: number[],
+): { content: ArtifactContent; block: ElementInstance[] } | null {
+    const inst = getElementAt(art, parent);
+    const kids = inst ? childrenOf(inst) : null;
+    if (!inst || !kids) return null;
+    const sorted = [...new Set(indices)].sort((a, b) => a - b);
+    const block = sorted.map((i) => kids[i]).filter((k): k is ElementInstance => k !== undefined);
+    if (block.length !== sorted.length) return null;
+    const content = updateElementAt(art, parent, (p) =>
+        withChildren(
+            p,
+            kids.filter((_, i) => !sorted.includes(i)),
+        ),
+    );
+    return { content, block: block.map((el) => structuredClone(el)) };
+}
+
 export function moveChildrenTo(
     art: ArtifactContent,
     parent: ElementAddress,

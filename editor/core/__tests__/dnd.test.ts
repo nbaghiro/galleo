@@ -14,6 +14,7 @@ import {
     previewFor,
     movableAncestor,
     moveManyPayload,
+    movePayloadFor,
     type DragPayload,
     type DropTarget,
 } from "@editor/core/dnd";
@@ -1000,6 +1001,105 @@ describe("compensatePoint — aiming through the parting, per axis", () => {
     });
 });
 
+describe("moveMany — beyond the parent", () => {
+    const art = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(rowGroup([txt("a"), txt("b")]), { id: "s1" }),
+            sectionOf(colGroup([txt("x"), txt("y")]), { id: "s2" }),
+        ]);
+    const regions = (): Region[] => [
+        reg("section:s1", 0, 0, 400, 200),
+        reg("el:s1", 20, 20, 360, 160),
+        reg("el:s1:0", 20, 20, 170, 160),
+        reg("el:s1:1", 210, 20, 170, 160),
+        reg("section:s2", 0, 240, 400, 300),
+        reg("el:s2", 20, 260, 360, 260),
+        reg("el:s2:0", 20, 260, 360, 120),
+        reg("el:s2:1", 20, 400, 360, 120),
+    ];
+    const block: DragPayload = {
+        kind: "moveMany",
+        parent: { section: "s1", path: [] },
+        indices: [0, 1],
+    };
+
+    it("classifies a foreign container's gap like any drag", () => {
+        expect(targetAt(art(), regions(), 200, 395, block)).toMatchObject({
+            section: "s2",
+            op: "insert",
+            path: [],
+            index: 1,
+        });
+    });
+
+    it("lands the members in order; the emptied source keeps its section as a placeholder", () => {
+        const t: DropTarget = {
+            section: "s2",
+            op: "insert",
+            path: [],
+            index: 1,
+            before: false,
+            direction: "col",
+        };
+        const res = applyDrop(art(), t, block);
+        expect(collectTexts(res.content.sections[1]!.root)).toEqual(["x", "a", "b", "y"]);
+        expect(res.address).toEqual({ section: "s2", path: [1] });
+        expect(collectTexts(res.content.sections[0]!.root)).toEqual([]);
+    });
+
+    it("a new-section band takes the block as one fresh section, source axis kept", () => {
+        const t: DropTarget = {
+            section: "s2",
+            op: "newSection",
+            path: [],
+            index: 2,
+            before: false,
+            direction: "col",
+        };
+        const res = applyDrop(art(), t, block);
+        expect(res.content.sections).toHaveLength(3);
+        expect(collectTexts(res.content.sections[2]!.root)).toEqual(["a", "b"]);
+    });
+});
+
+describe("movePayloadFor — the one precedence rule for a body grab", () => {
+    const listArt = (): ArtifactContent =>
+        artifactOf([
+            sectionOf(
+                colGroup([
+                    { type: "bullets", data: { children: [txt("one"), txt("two")] } },
+                    { type: "bullets", data: { children: [txt("three")] } },
+                ]),
+            ),
+        ]);
+
+    it("a multi-selection the grip belongs to drags as its block, set kept", () => {
+        const d = movePayloadFor(listArt(), { section: "s1", path: [0, 0] }, [
+            { section: "s1", path: [0] },
+            { section: "s1", path: [1] },
+        ]);
+        expect(d.payload).toMatchObject({ kind: "moveMany", indices: [0, 1] });
+        expect(d.clear).toBe(false);
+    });
+
+    it("a lone grab inside a unit still reorders the item", () => {
+        const d = movePayloadFor(listArt(), { section: "s1", path: [0, 0] }, [
+            { section: "s1", path: [0] },
+        ]);
+        expect(d.payload).toEqual({ kind: "move", from: { section: "s1", path: [0, 0] } });
+        expect(d.clear).toBe(true);
+    });
+
+    it("a grab outside the set falls back to the ordinary single-drag rules", () => {
+        // inside a foreign unit: the item reorder, exactly as a lone grab gets
+        const d = movePayloadFor(listArt(), { section: "s1", path: [1, 0] }, [
+            { section: "s1", path: [0] },
+        ]);
+        expect(d.payload).toEqual({ kind: "move", from: { section: "s1", path: [1, 0] } });
+        expect(d.clear).toBe(true);
+    });
+});
+
 describe("moveMany", () => {
     const blockArt = (): ArtifactContent =>
         artifactOf([sectionOf(colGroup([txt("a"), txt("b"), txt("c"), txt("d")]))]);
@@ -1047,7 +1147,9 @@ describe("moveMany", () => {
         expect(res.address).toEqual({ section: "s1", path: [1] });
     });
 
-    it("refuses a target outside its own parent", () => {
+    // flipped by design (2026-09-06): a block drags anywhere a single element can; the old
+    // "refuses a target outside its own parent" confinement is the U10 residue this closes
+    it("takes a column target, grouped by the source axis, index re-aimed past the lift", () => {
         const art = blockArt();
         const elsewhere: DropTarget = {
             section: "s1",
@@ -1057,7 +1159,42 @@ describe("moveMany", () => {
             before: false,
             direction: "row",
         };
-        expect(applyDrop(art, elsewhere, payload([0, 1])).content).toBe(art);
+        const res = applyDrop(art, elsewhere, payload([0, 1]));
+        expect(collectTexts(res.content.sections[0]!.root)).toEqual(["a", "b", "c", "d"]);
+        // the block rides in as one col group forming the new first column
+        const first = getElementAt(res.content, { section: "s1", path: [0] })!;
+        expect(collectTexts(first)).toEqual(["a", "b"]);
+        expect(res.address).toEqual({ section: "s1", path: [0] });
+    });
+
+    it("a wrap on a later sibling re-aims the path across the lifted members", () => {
+        const art = blockArt();
+        // wrap onto d (frozen path [3]); after lifting [0,1] it lives at [1]
+        const onD: DropTarget = {
+            section: "s1",
+            op: "wrap",
+            path: [3],
+            index: 0,
+            before: false,
+            direction: "col",
+        };
+        const res = applyDrop(art, onD, payload([0, 1]));
+        expect(collectTexts(res.content.sections[0]!.root)).toEqual(["c", "d", "a", "b"]);
+        const wrapped = getElementAt(res.content, { section: "s1", path: [1] })!;
+        expect(collectTexts(wrapped)).toEqual(["d", "a", "b"]);
+    });
+
+    it("refuses only a target inside a dragged member", () => {
+        const art = blockArt();
+        const inside: DropTarget = {
+            section: "s1",
+            op: "wrap",
+            path: [0],
+            index: 0,
+            before: false,
+            direction: "row",
+        };
+        expect(applyDrop(art, inside, payload([0, 1])).content).toBe(art);
     });
 
     it("moveManyPayload gates on the grip being a member of one co-parented set", () => {
