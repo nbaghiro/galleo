@@ -36,6 +36,7 @@ import { CommandPalette } from "@ui/CommandPalette";
 import { ShortcutsSheet } from "@ui/ShortcutsSheet";
 import { installKeyDispatcher } from "@ui/keys";
 import { setNavigate } from "./stores/navigate";
+import { closeChat } from "./stores/chat";
 import "./stores/palette"; // side-effect: register the app commands + the ⌘K sources
 import { publishRoute } from "./stores/route-context";
 import "@editor/core/commands"; // side-effect: register studio commands + editor context keys
@@ -74,6 +75,19 @@ const AppShell: Component<{ children?: JSX.Element }> = (props) => {
             () => {
                 if (checklistVisible()) void loadOnboarding();
             },
+        ),
+    );
+    // The chat's context follows the current view, so a conversation started over the library reads
+    // oddly once an artifact is open. Close the dock when entering the editor from anywhere else; the
+    // thread already re-keys, and the reader reopens it with the artifact in context. An artifact to
+    // artifact switch is left alone, so an active editor conversation is not cut off.
+    createEffect(
+        on(
+            () => location.pathname,
+            (path, prev) => {
+                if (path.startsWith("/edit/") && !(prev ?? "").startsWith("/edit/")) closeChat();
+            },
+            { defer: true },
         ),
     );
     // An unconfirmed account gets the confirm step in place of whatever the URL asked for, and none

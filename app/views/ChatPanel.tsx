@@ -736,8 +736,13 @@ export const MessageView: Component<{ m: ChatMsg }> = (props) => (
                     </Show>
                 )}
             </For>
+            {/* waiting for the first token: dots at the responder's spot, not a self-centering Spinner */}
             <Show when={props.m.streaming && props.m.blocks.length === 0}>
-                <Spinner size={12} />
+                <div class="flex items-center gap-1 py-1.5" aria-label="Waiting for a response">
+                    <span class="typing-dot size-1.5 rounded-full bg-soft" />
+                    <span class="typing-dot size-1.5 rounded-full bg-soft" />
+                    <span class="typing-dot size-1.5 rounded-full bg-soft" />
+                </div>
             </Show>
         </div>
     </Show>

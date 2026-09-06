@@ -239,6 +239,37 @@ select:-webkit-autofill {
     }
 }
 
+/* chat "typing" indicator: three dots rising and falling in a staggered wave while the assistant's
+   first tokens are still on the way. The per-dot delay is set in the markup. */
+@keyframes typing-dot {
+    0%,
+    80%,
+    100% {
+        transform: translateY(0);
+        opacity: 0.5;
+    }
+    40% {
+        transform: translateY(-4px);
+        opacity: 1;
+    }
+}
+.typing-dot {
+    animation: typing-dot 1.2s ease-in-out infinite;
+}
+/* stagger the wave here, not in the markup: the `animation` shorthand above resets delay to 0, and
+   this class outranks a Tailwind delay utility, so the dots would otherwise rise together */
+.typing-dot:nth-child(2) {
+    animation-delay: 0.2s;
+}
+.typing-dot:nth-child(3) {
+    animation-delay: 0.4s;
+}
+@media (prefers-reduced-motion: reduce) {
+    .typing-dot {
+        animation: none;
+    }
+}
+
 /* Applied to the sanitized HTML `marked` emits; see @ui/markdown. */
 .md {
     color: var(--color-ink);
