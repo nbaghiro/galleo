@@ -1,6 +1,8 @@
 import { LAYOUT_PRESETS } from "@model/artifact";
 import {
     BULLET_MARKERS,
+    CARD_SHAPES,
+    FORM_FIELDS,
     BUTTON_SHAPES,
     BUTTON_SIZES,
     BUTTON_VARIANTS,
@@ -115,7 +117,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "text",
                 type: "text",
                 required: true,
-                desc: "the writing itself; real, specific copy. Never lorem ipsum or placeholders",
+                desc: "the writing itself, real specific copy, never lorem ipsum or placeholders. Emphasize a key phrase, number, or name with inline markup: **bold**, *italic*, `code`, or a [label](url) link; use it sparingly, never on a whole sentence",
             },
             {
                 key: "style",
@@ -210,9 +212,9 @@ export const ELEMENTS: readonly ElementSchema[] = [
             {
                 key: "kind",
                 type: "enum",
-                values: ["photo", "video"],
+                values: ["photo", "video", "gif", "illustration", "sticker"],
                 default: "photo",
-                desc: "photo for a picture, video for an embeddable clip. Everything else about the frame is the same, so a picture can become a clip later without being replaced",
+                desc: "photo for a picture, video for an embeddable clip, gif for a short loop, illustration or sticker for drawn art (both letterbox rather than crop and steer the source toward artwork, not photography). Everything else about the frame is the same, so one kind can become another later without being replaced",
             },
             {
                 key: "src",
@@ -248,6 +250,44 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 type: "string",
                 desc: "one plain sentence describing what the picture shows, for screen readers and search. Write it whenever the picture carries meaning; leave it out for pure decoration",
             },
+            {
+                key: "shape",
+                type: "enum",
+                values: ["frame", "circle"],
+                desc: "circle crops the image round for a portrait; frame (default) keeps the rectangle",
+            },
+            { key: "size", type: "number", desc: "circle only: the diameter in px" },
+            {
+                key: "ring",
+                type: "boolean",
+                desc: "circle only: an accent border around the portrait",
+            },
+            {
+                key: "zoom",
+                type: "number",
+                desc: "percent, 100 fits the frame and higher crops in; for a cover photo that should sit tighter",
+            },
+            {
+                key: "focusX",
+                type: "number",
+                desc: "percent, the horizontal point a crop keeps; 50 (absent) centers, higher keeps the right, lower the left",
+            },
+            {
+                key: "focusY",
+                type: "number",
+                desc: "percent, the vertical point a crop keeps; lower keeps the top (a face), higher the bottom",
+            },
+            {
+                key: "autoplay",
+                type: "boolean",
+                desc: "video on doc or web: play on its own; pair with loop and muted for an ambient background clip (a deck paints the poster, so it does nothing there)",
+            },
+            { key: "loop", type: "boolean", desc: "video: restart when it ends" },
+            {
+                key: "muted",
+                type: "boolean",
+                desc: "video: play with no sound, required for autoplay",
+            },
         ],
     },
     {
@@ -272,13 +312,28 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "data",
                 type: "text",
                 required: true,
-                desc: "rows separated by newline (\\n), cells by comma. First row is the header.",
+                desc: "rows separated by newline (\\n), cells by comma, so never put a comma inside a cell: write 2720 not 2,720, and join a label to its value with a middot (Coastal · two nights). The first row is the header.",
             },
             {
                 key: "header",
                 type: "boolean",
                 default: true,
-                desc: "render the first row as a bold header",
+                desc: "render the first row as a bold header; on by default, set false only for a headerless grid",
+            },
+            {
+                key: "lines",
+                type: "enum",
+                values: ["rows", "grid", "none"],
+                default: "rows",
+                desc: "rules between rows, a full grid, or none",
+            },
+            { key: "zebra", type: "boolean", desc: "shade alternate rows" },
+            {
+                key: "density",
+                type: "enum",
+                values: ["compact", "cozy", "roomy"],
+                default: "cozy",
+                desc: "cell padding; compact for a dense price or schedule grid",
             },
             {
                 key: "clamp",
@@ -305,7 +360,7 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "values",
                 type: "text",
                 required: true,
-                desc: "one series per line (\\n); points comma-separated within a line. e.g. '48, 62, 55, 71' or two lines for two series. scatter=x row+y row; bubble=x+y+size rows; gauge and progress='value, max'; heatmap=one row of cells per grid row (categories label the columns, seriesNames the rows); waterfall=one row of signed deltas that accumulate left to right (categories name each step); pack=one row of magnitudes.",
+                desc: "one value per category on a SINGLE comma-separated line, in category order: for five places write '11871, 3124, 121, 15, 0', never one number per line. A new line starts another whole series, so one-value-per-line renders as several empty one-point series; add a line only for a genuinely separate series. scatter=x row+y row; bubble=x+y+size rows; gauge and progress='value, max'; heatmap=one row of cells per grid row (categories label the columns, seriesNames the rows); waterfall=one row of signed deltas that accumulate left to right (categories name each step); pack=one row of magnitudes.",
             },
             {
                 key: "categories",
@@ -319,6 +374,16 @@ export const ELEMENTS: readonly ElementSchema[] = [
             },
             { key: "stacked", type: "boolean", desc: "stack series (bar/column/area)" },
             { key: "smooth", type: "boolean", desc: "smooth the line (line/area)" },
+            {
+                key: "showValues",
+                type: "boolean",
+                desc: "print the number on each mark, for bar, column, heatmap, waterfall, when the reader wants the figure and not just the shape",
+            },
+            {
+                key: "height",
+                type: "number",
+                desc: "chart height in px (160 to 460); omit to let the column size it, set it only for a deliberately tall or short chart",
+            },
         ],
     },
 
@@ -373,6 +438,11 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "itemsMeta",
                 type: "json",
                 desc: `optional per-item styling, positional: entry i styles item i, so give one entry per item ({} for an unstyled one) or omit the field entirely. Each entry may set: icon, one of ${DIAGRAM_ICONS.join(" | ")}, a leading glyph on the node (all types except pyramid/funnel; a timeline renders it as the milestone marker on the line) that replaces that item's number badge; emphasis: true, promoting the node to the solid treatment (the hub centre and org root already have it); color, overriding that item's ramp color with a hex or a theme role name (\`accent\`, \`ink\`, ...), roles staying live when the theme changes. In a \`pictogram\` the icon is the mark itself, so set one per row there. Elsewhere icons earn their place on peer-value sets (hub spokes, matrix cells, quadrants) and milestones. Never invent an icon key. An entry may also set weight, a positive width ratio vs the item's row siblings (\`process\` only; 1 = equal share); omit it unless the content genuinely wants uneven emphasis.`,
+            },
+            {
+                key: "height",
+                type: "number",
+                desc: "diagram height in px (140 to 480); omit to let the column size it, set it only for a deliberately tall or short diagram",
             },
         ],
     },
@@ -558,11 +628,80 @@ export const ELEMENTS: readonly ElementSchema[] = [
                 key: "surface",
                 type: "enum",
                 values: CARD_STYLES,
-                desc: "omit for a plain stack; set it to draw the container as a panel (solid filled / outline / left sideline / top topline / plain)",
+                desc: "omit for a plain stack; set it to draw the container as a panel: solid filled, outline, left sideline, top topline, glass (a frosted card for text over an image band), or plain",
+            },
+            {
+                key: "shape",
+                type: "enum",
+                values: CARD_SHAPES,
+                desc: "panel corners: rounded (default), sharp, or circle, which crops the whole panel and its children round for a badge or a portrait medallion",
             },
         ],
     },
 
+    {
+        type: "field",
+        label: "Form field",
+        category: "interactive",
+        when: "one input inside a form element, never on its own; the form family is for site surfaces that collect from the reader (contact, signup, RSVP)",
+        fields: [
+            {
+                key: "kind",
+                type: "enum",
+                values: FORM_FIELDS,
+                default: "text",
+                desc: "what the reader types or picks; `choice` is radio options, `select` a dropdown",
+            },
+            { key: "label", type: "string", required: true, desc: "the field's visible label" },
+            { key: "placeholder", type: "string", desc: "ghost text inside the box" },
+            { key: "required", type: "boolean", desc: "the submit refuses while this is empty" },
+            {
+                key: "options",
+                type: "string",
+                desc: "select/choice only: the options, comma-separated or one per line",
+            },
+        ],
+    },
+    {
+        type: "contactForm",
+        label: "Contact form",
+        category: "interactive",
+        container: true,
+        when: "a site section that collects from the reader: contact, signup, RSVP, feedback. Children are `field` elements; the form paints its own submit button. On a published page the inputs are real and responses reach the owner; exports show the resting look",
+        fields: [
+            childrenField("the `field` elements, in order"),
+            {
+                key: "submitLabel",
+                type: "string",
+                desc: "the submit button's text, e.g. 'Send message'",
+            },
+            {
+                key: "success",
+                type: "string",
+                desc: "what replaces the form after a submission lands",
+            },
+        ],
+    },
+    {
+        type: "signupForm",
+        label: "Signup form",
+        category: "interactive",
+        container: true,
+        when: "a site section that captures an email to join a list or waitlist: the same shape as `contactForm`, built around a single `email` field. On a published page the input is real and addresses reach the owner; exports show the resting look",
+        fields: [
+            childrenField("the `field` elements, usually one `email`, in order"),
+            {
+                key: "submitLabel",
+                type: "string",
+                desc: "the submit button's text, e.g. 'Join the list'",
+            },
+            {
+                key: "success",
+                type: "string",
+                desc: "what replaces the form after a submission lands",
+            },
+        ],
+    },
     {
         type: "button",
         label: "Button",
@@ -662,8 +801,9 @@ export function layoutCatalog(): string {
         '- `width`: `{ pct }` for a share of the row, `"fill"` to take whatever is left, `"fit"` to shrink to its content. Give EVERY column in a row a share or give none of them: one missing share drops the whole row back to equal columns.',
         '- `height: "fill"`: stretch a COLUMN to the full height of its row, so side-by-side cards stay level. It only fills against a row that gives it a height; inside a plain stack there is nothing to fill. A chart, diagram or image already carries its own height, so do not put `fill` on the visual itself: to keep a short visual from stranding at the top of a taller column, put `fill` on the column that holds it, or center that column with `align: "center"`. The row takes its height from the columns that do NOT fill, so leave it off the tallest one: a row where every column fills has no height to share and collapses to nothing.',
         "- `align`: `start` / `center` / `end`, this one child's cross-axis position, overriding whatever the container sets for the rest.",
+        "- `span`: in a grid container only, how many columns this child fills (2 or more); a featured card taking the whole first row of a two-column grid is `span: 2`.",
         "Balance a split: two columns should carry comparable weight, so do not pair one dense text column against a lone visual. Fill a frame by nesting, a caption and a key `stat` stacked under a chart, rather than by padding the text side with more bullets. One `container` tree, nested to any depth, is the whole freedom you have; use it to make each column earn its height.",
-        '- `pin`: `{ "x": "start"|"center"|"end", "y": "start"|"center"|"end", "dx"?, "dy"?, "z"? }` lifts this child out of the flow and anchors it to a point of its parent\'s box, offset in px. For one small overlay that carries something true: a date badge on a cover photo, a corner price flash, a sold-out chip. At most one pinned element in the whole piece, width `"fit"`, insets of 16 to 32 px, and never body content; a piece that needs none is the common case.',
+        '- `pin`: `{ "x": "start"|"center"|"end", "y": "start"|"center"|"end", "dx"?, "dy"?, "z"?, "rotate"? }` lifts this child out of the flow and anchors it to a point of its parent\'s box, offset in px, and a small `rotate` (about 2 degrees) turns a badge into a stamp. For a small overlay that carries something true, riding on a photo: a date badge on a cover, a corner price flash, a sold-out chip. One or two in the whole piece, width `"fit"`, insets of 16 to 32 px, small rotation, and never body content; a piece that needs none is the common case.',
         "",
         "A row stacks itself into a column on narrow screens, so never write a second mobile variant of a section. For more cells than one row should hold, nest: a `col` container of row containers, which is also how an uneven grid is built (a 2-up above a 3-up).",
     ].join("\n");
@@ -681,9 +821,9 @@ export function siteAnatomy(): string {
         "",
         "**2. Every nav item names a real section.** An `href` of `#<section id>` scrolls the reader to that section of this same page, so the ids you write are the link targets: `#pricing` only works if a section is called `pricing`. Give sections meaningful ids (`hero`, `features`, `pricing`, `faq`, `contact`) rather than s1 and s2, and label each nav item with the words that section's own headline uses. Keep external URLs to one or two, for a real destination you actually know. The hero's own button links DOWN the page to the section that answers it, and the closing band repeats that link, which is the bookend.",
         "",
-        '**3. The hero is a band, and the page keeps a rhythm after it.** Give the first section `"frame": { "aspect": 2.3 }` (16:7, and 1.78 is 16:9 if it should sit shorter) with a background image, `"bleed": true` and a `scrim` around 0.55: on a scrolling page that number is a minimum height, so the section opens as a tall band with its content centred in it. A slim interlude between two dense sections is the same trick at `"frame": { "aspect": 3.2 }` (16:5): a full-width photo with one line of type over it and nothing else. Then alternate the section backgrounds down the page instead of running ten identical bands: default surface, then a tinted one (`"background": { "kind": "tone", "tone": "tint" }, "bleed": true`), then an image band, then plain again. `"bleed": true` belongs on every section that carries a `background` and on no section that does not: it is what marks a band, and marking them consistently is what keeps the page in one column when the same artifact is opened as a document. The band before the footer holds the last ask and takes `"tone": "contrast"`, the inverted band; `"tone": "accent"` is the brand colour, for at most one band in a page. Name the tone rather than picking a hex: a tone derives its ground AND the text colours on it from the theme, so the band stays legible under any theme, while a hard-coded colour only suits the one it was chosen for.',
+        '**3. The hero is a band, and the page keeps a rhythm after it.** Give the first section `"frame": { "aspect": 2.3 }` (16:7, and 1.78 is 16:9 if it should sit shorter) with a background image, `"bleed": true` and a `scrim` around 0.55: on a scrolling page that number is a minimum height, so the section opens as a tall band with its content centred in it. A slim interlude between two dense sections is the same trick at `"frame": { "aspect": 3.2 }` (16:5): a full-width photo with one line of type over it and nothing else. Then alternate the section backgrounds down the page instead of running ten identical bands: default surface, then a tinted one (`"background": { "kind": "tone", "tone": "tint" }, "bleed": true`), then an image band, then plain again. `"bleed": true` belongs on every section that carries a `background` and on no section that does not: it is what marks a band, and marking them consistently is what keeps the page in one column when the same artifact is opened as a document. The band before the footer holds the last ask and takes `"tone": "contrast"`, the inverted band; `"tone": "accent"` is the brand colour, for at most one band in a page. Name the tone rather than picking a hex: a tone derives its ground AND the text colours on it from the theme, so the band stays legible under any theme, while a hard-coded colour only suits the one it was chosen for. A band can also carry `"background": { "kind": "gradient", "gradient": { "kind": "radial", "from": "<centre hex>", "to": "<edge hex>" } }`: the radial form is a vignette, a spotlight ground for one statement without needing a photo.',
         "",
-        '**4. Use the blocks a reader can act on.** `faq` with `"collapse": "collapsible"` for the questions someone has before signing up, `tabs` for two to four takes on one feature area, `video` where a demo explains it faster than a paragraph, `pricing` tiers side by side in a row rather than a pricing table, `testimonial` for a customer\'s words, `profile` for the people, `feature` for a capability grid. Close on a footer section: one row `container` with `"justify": "between"`, each column a `fit`-width stack of a label and its caption lines.',
+        '**4. Use the blocks a reader can act on.** `faq` with `"collapse": "collapsible"` for the questions someone has before signing up, `tabs` for two to four takes on one feature area, `video` where a demo explains it faster than a paragraph, `pricing` tiers side by side in a row rather than a pricing table, `testimonial` for a customer\'s words, `profile` for the people, `feature` for a capability grid. Where the page asks the reader for something, make the section a form: a `contactForm` (name, email, message) for a contact or enquiry close, a `signupForm` (one email field) for a waitlist or newsletter CTA; each holds `field` children and paints its own submit button, and the inputs go live only on the published page. Close on a footer section: one row `container` with `"justify": "between"`, each column a `fit`-width stack of a label and its caption lines.',
     ].join("\n");
 }
 

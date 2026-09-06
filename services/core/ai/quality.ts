@@ -153,6 +153,7 @@ interface Found {
     rows: Set<string>;
     raggedTables: number;
     emptyContainers: number;
+    optionlessFields: number;
     h1s: number;
 }
 
@@ -163,6 +164,7 @@ function scan(section: Section): Found {
         rows: new Set(),
         raggedTables: 0,
         emptyContainers: 0,
+        optionlessFields: 0,
         h1s: 0,
     };
     walkTree(section.root, (el, inFlow) => {
@@ -185,6 +187,14 @@ function scan(section: Section): Found {
             const cols = rows[0]?.split(",").length ?? 0;
             if (cols > 1 && rows.some((r) => r.split(",").length !== cols)) f.raggedTables += 1;
         }
+
+        // a select/choice field with no options renders an empty control
+        if (
+            el.type === "field" &&
+            (data.kind === "select" || data.kind === "choice") &&
+            !filled(data.options)
+        )
+            f.optionlessFields += 1;
 
         if (spec.container && !filled(data.children)) {
             f.emptyContainers += 1;
@@ -224,6 +234,10 @@ export function renderIssues(section: Section): string[] {
     if (f.raggedTables)
         issues.push(
             `${plural(f.raggedTables, "a table", "tables")} whose rows disagree with the header's column count: cells split on commas, so a comma inside a cell (a thousands separator like "2,720") breaks the grid. Write "2720", and join a label to a value with a middot`,
+        );
+    if (f.optionlessFields)
+        issues.push(
+            `${plural(f.optionlessFields, "a select/choice field", "select/choice fields")} with no options: list them comma-separated, or use a text field instead`,
         );
     issues.push(...f.rows);
     return issues;

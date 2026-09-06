@@ -133,6 +133,58 @@ export function normalizeMarks(marks: Mark[]): Mark[] {
     return out;
 }
 
+// Inline markup an LLM writes in a plain `text` field, folded to offset marks once so stored content
+// stays clean text plus structured marks and the editor never meets the raw markers. Supports
+// **bold**, *italic*, `code`, [label](url); emphasis needs a non-space char just inside the delimiter
+// so "3 * 4" stays literal, and an unmatched delimiter is kept as text. Flat, not nested.
+export function parseInlineMarkup(raw: string): { text: string; marks: Mark[] } {
+    const marks: Mark[] = [];
+    let out = "";
+    let i = 0;
+    const add = (content: string, type: MarkType, value?: string): void => {
+        const from = out.length;
+        out += content;
+        marks.push({ from, to: out.length, type, value });
+    };
+    const emphasisClose = (open: number, delim: string): number => {
+        for (let j = open + delim.length; j < raw.length; j++)
+            if (raw.startsWith(delim, j) && raw[j - 1] !== " ") return j;
+        return -1;
+    };
+    while (i < raw.length) {
+        const c = raw[i]!;
+        if (c === "[") {
+            const close = raw.indexOf("]", i + 1);
+            const end = close > i && raw[close + 1] === "(" ? raw.indexOf(")", close + 2) : -1;
+            if (end > close) {
+                add(raw.slice(i + 1, close), "link", raw.slice(close + 2, end));
+                i = end + 1;
+                continue;
+            }
+        }
+        if (c === "`") {
+            const close = raw.indexOf("`", i + 1);
+            if (close > i) {
+                add(raw.slice(i + 1, close), "code");
+                i = close + 1;
+                continue;
+            }
+        }
+        const delim = raw.startsWith("**", i) ? "**" : c === "*" ? "*" : "";
+        if (delim && raw[i + delim.length] !== " " && raw[i + delim.length] !== undefined) {
+            const close = emphasisClose(i, delim);
+            if (close > i) {
+                add(raw.slice(i + delim.length, close), delim === "**" ? "b" : "i");
+                i = close + delim.length;
+                continue;
+            }
+        }
+        out += c;
+        i++;
+    }
+    return marks.length ? { text: out, marks: normalizeMarks(marks) } : { text: raw, marks: [] };
+}
+
 // mark types that fully cover [from, to) (a toolbar's "active" state)
 export function activeMarks(marks: Mark[], from: number, to: number): MarkType[] {
     if (to <= from) {
@@ -314,3 +366,7 @@ export function offsetRange(
     if (start.para !== para || end.para !== para) return undefined;
     return { from: start.offset, to: end.offset };
 }
+
+// The default leading when a leaf names none. Lives with the text contract so an element (bullets'
+// marker alignment) and the render bridge measure with the same number without an upward import.
+export const LINE_HEIGHT_FACTOR = 1.35;

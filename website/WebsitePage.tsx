@@ -1,8 +1,17 @@
 import type { Accessor, Component, JSX } from "solid-js";
-import { createSignal, For, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { THEME_LIST } from "@themes";
-import { visiblePlans } from "@model/billing";
+import { PLAN_ORDER, PLANS } from "@model/billing";
+import { TEMPLATE_INDEX } from "@model/templates";
+import { listElements } from "@elements/spec";
 import { capture } from "@ui/analytics";
+// the marketing page paints real artifacts through the real engine, so it needs the element
+// registry: without this side-effect import the solver has no spec for a text or media
+// element and lays every one out as a bare block
+import "@elements/register";
+import { ArtifactPlate, plateGeometry } from "@ui/section";
+import { showcaseFor, type ShowcasePiece } from "./showcase";
+import type { ArtifactContent } from "@model/artifact";
 
 // Which placement earned the account. The landing itself is a $pageview carrying the referrer and
 // the click id; this is the click that leaves for signup, so the two together close the loop from
@@ -15,7 +24,6 @@ const ctaClicked = (placement: string) => (): void => {
 const THEME_COUNT = THEME_LIST.length;
 
 const announceItems = [
-    "Now in public beta",
     "One source, three views",
     `${THEME_COUNT} designer themes, one click`,
     "Edit once, stays in sync",
@@ -49,24 +57,28 @@ const sourceBlocks = [
     "CALLOUT · THE ASK",
 ];
 
-const viewCards = [
+// The three shapes one artifact takes. Rendered from a single piece so the claim is literally true:
+// it is the same content in all three, not three different documents photographed separately.
+// a strip cell is bigger than a library card, so it wants more head room than
+// PLATE_PAD_TOP: at 14 the pieces ran off the top edge of the frame
+const STRIP_PAD_TOP = 26;
+
+const VIEW_PIECE: ShowcasePiece = showcaseFor("deck")[0]!;
+const VIEWS: { format: ShowcasePiece["format"]; name: string; tag: string; desc: string }[] = [
     {
-        src: "https://images.pexels.com/photos/9275222/pexels-photo-9275222.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=520",
-        alt: "Deck view",
+        format: "deck",
         name: "Deck",
         tag: "16:9",
         desc: "Big type, one idea per slide. Present live, or export to PPTX.",
     },
     {
-        src: "https://images.pexels.com/photos/4271615/pexels-photo-4271615.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=520",
-        alt: "Document view",
+        format: "doc",
         name: "Doc",
         tag: "A4",
         desc: "Flowing columns and footnotes. A leave-behind that reads like print.",
     },
     {
-        src: "https://images.pexels.com/photos/6010424/pexels-photo-6010424.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=800&h=520",
-        alt: "Website view",
+        format: "web",
         name: "Site",
         tag: "RESPONSIVE",
         desc: "A scrolling page on your domain. Publish in one click, with no build step.",
@@ -84,39 +96,6 @@ const blockTypes = [
     "Callout",
     "Bullets",
     "Divider",
-];
-
-const features = [
-    {
-        num: "01",
-        title: "A real layout engine",
-        body: "True typesetting, not boxes nudged on a canvas. Every block re-flows to fit the format, the column, the theme.",
-    },
-    {
-        num: "02",
-        title: "One source, three views",
-        body: "Deck, doc, and site come from a single canonical artifact. Change a stat once; it updates everywhere.",
-    },
-    {
-        num: "03",
-        title: `${THEME_COUNT} designer themes`,
-        body: "Each is a complete system: font trio, color, radius, borders, shadow. One click restyles the whole artifact.",
-    },
-    {
-        num: "04",
-        title: "AI first draft",
-        body: "Prompt it, or import an outline, and get a structured draft rather than a wall of text.",
-    },
-    {
-        num: "05",
-        title: "High-fidelity export",
-        body: "PDF, PPTX, and live web publishing, pixel-faithful to what you see and ready to send.",
-    },
-    {
-        num: "06",
-        title: "Built for teams",
-        body: "Real-time collaboration, shared workspaces, and folders, so the whole team works from one source.",
-    },
 ];
 
 const themesRowA = [
@@ -161,40 +140,31 @@ const themesRowB = [
     "Carbon",
 ];
 
+// Counted from the registries the editor reads, never typed. The two this replaced ("~8s to
+// first draft", "12k+ artifacts made") were invented, and a landing page may not invent numbers.
 const stats: { value: string; label: string; accent?: boolean }[] = [
     { value: "3-in-1", label: "Deck · doc · site", accent: true },
     { value: String(THEME_COUNT), label: "Designer themes" },
-    { value: "~8s", label: "To first draft" },
-    { value: "12k+", label: "Artifacts made" },
-];
-
-const logos = [
-    "Northwind",
-    "Lumen",
-    "Atlas Labs",
-    "Foundry",
-    "Vellum",
-    "Meridian",
-    "Parallel",
-    "Northstar",
-    "Hatch",
+    { value: String(TEMPLATE_INDEX.length), label: "Starters" },
+    { value: String(listElements().length), label: "Elements" },
 ];
 
 // Derived from @model/billing, never retyped: the table drifted to a $48 "Team" tier while the
 // product sold Premium at $99, and promised a Pro trial that does not exist.
-const plans = visiblePlans().map((p) => ({
+const plans = PLAN_ORDER.map((id) => PLANS[id]).map((p) => ({
     name: p.name,
     price: `$${p.billing.priceMonthly}`,
-    // one plan is one base subscription; extra seats are an add-on, never a different rate
-    per: p.billing.priceMonthly === 0 ? "/forever" : "/month",
+    // every price is per seat; a solo plan is one seat, so it reads as a plain monthly price
+    per:
+        p.billing.priceMonthly === 0
+            ? "/forever"
+            : p.billing.maxSeats > 1
+              ? "/seat/month"
+              : "/month",
     blurb: p.tagline,
     features: p.highlights,
-    cta: p.contactSales
-        ? "Talk to us"
-        : p.billing.priceMonthly === 0
-          ? "Get started"
-          : `Start ${p.name}`,
-    href: p.contactSales ? "/login" : "/signup",
+    cta: p.billing.priceMonthly === 0 ? "Get started" : `Start ${p.name}`,
+    href: "/signup",
     featured: !!p.badge,
 }));
 
@@ -205,7 +175,6 @@ const footerCols = [
         title: "Product",
         links: [
             { label: "Three views", href: "#views" },
-            { label: "Features", href: "#features" },
             { label: "Themes", href: "#themes" },
             { label: "Pricing", href: "#pricing" },
         ],
@@ -245,6 +214,259 @@ const Strip: Component<{ text: string; sep?: string }> = (props) => (
     </span>
 );
 
+/**
+ * An artifact plate that fits whatever box it is given.
+ *
+ * ArtifactPlate draws at an exact pixel width, so a hardcoded one overflows its container the
+ * moment a border or a breakpoint changes the box: the format cards asked for 236px inside a 224px
+ * hole and the artifact hung off the right edge. Measuring means the plate is correct at every
+ * width instead of at the one it was tuned against.
+ */
+const FitPlate: Component<{
+    content: ArtifactContent;
+    theme: string;
+    /** head margin in drawn px; the backdrop still fills the box behind it */
+    padTop?: number;
+}> = (props) => {
+    let box!: HTMLDivElement;
+    const [w, setW] = createSignal(0);
+    onMount(() => {
+        const ro = new ResizeObserver(([e]) => setW(Math.floor(e!.contentRect.width)));
+        ro.observe(box);
+        onCleanup(() => ro.disconnect());
+    });
+    // the shared rule, so a deck, a doc and a site drawn in identical boxes still look like three
+    // different formats rather than three copies of the same page
+    const geom = (): { width: number; layoutWidth: number; padTop: number } =>
+        plateGeometry(props.content.format, w(), props.padTop);
+    return (
+        // A rendered artifact is real content, so its links are real links: 283 of this page's 314
+        // tab stops were anchors inside the pieces, ahead of the actual call to action. Here they
+        // are illustration, so the subtree is taken out of the tab order and out of the
+        // accessibility tree entirely. `pointer-events: none` does neither.
+        <div ref={box} class="flex h-full w-full justify-center" inert aria-hidden="true">
+            <Show when={w() > 0}>
+                <ArtifactPlate
+                    content={props.content}
+                    themeId={props.theme}
+                    width={geom().width}
+                    layoutWidth={geom().layoutWidth}
+                    padTop={geom().padTop}
+                    // the plate paints six sections unless told otherwise, and a card on a large
+                    // display is tall enough to run out of artifact before it runs out of box
+                    depth={props.content.sections.length}
+                />
+            </Show>
+        </div>
+    );
+};
+
+/**
+ * Real artifacts orbiting the hero copy.
+ *
+ * Each card is an ArtifactPlate, so these are the pieces themselves rather than pictures of them,
+ * and they wear the reader's theme.
+ *
+ * Two rules, both learned the hard way. They live in the margins either side of the centred column
+ * and never cross into it: cards tucked into whatever corner the type left over is what made every
+ * previous arrangement feel crowded. And a few of them are blurred rather than dimmed, which is
+ * what puts a card behind another card. Fading toward the page colour only makes it grey.
+ */
+type Orbiter = {
+    piece: ShowcasePiece;
+    /** percentage of the section, so the ring holds its shape as the viewport changes */
+    top: number;
+    side: "left" | "right";
+    inset: number;
+    rotate: number;
+    scale: number;
+    soft?: boolean;
+};
+
+const ORBIT: Orbiter[] = [
+    { piece: showcaseFor("web")[0]!, top: 6, side: "left", inset: 7, rotate: -9, scale: 1 },
+    { piece: showcaseFor("doc")[1]!, top: 40, side: "left", inset: 1, rotate: 6, scale: 0.86 },
+    { piece: showcaseFor("deck")[2]!, top: 70, side: "left", inset: 9, rotate: -4, scale: 0.94 },
+    { piece: showcaseFor("deck")[1]!, top: 4, side: "right", inset: 9, rotate: 8, scale: 0.92 },
+    { piece: showcaseFor("web")[2]!, top: 38, side: "right", inset: 1, rotate: -7, scale: 1 },
+    { piece: showcaseFor("doc")[3]!, top: 71, side: "right", inset: 8, rotate: 5, scale: 0.88 },
+    // Out of focus and set well inside the sharp ring, close enough to the copy to fill the gap
+    // between the two. Pushed out to the edges they stopped doing anything; this is the depth the
+    // arrangement was missing, and being unreadable is the point of them.
+    {
+        piece: showcaseFor("doc")[0]!,
+        top: 22,
+        side: "left",
+        inset: 20,
+        rotate: 4,
+        scale: 1.15,
+        soft: true,
+    },
+    {
+        piece: showcaseFor("web")[1]!,
+        top: 56,
+        side: "right",
+        inset: 19,
+        rotate: -6,
+        scale: 1.2,
+        soft: true,
+    },
+];
+
+/**
+ * A ring needs a margin either side of the centred column to live in, and on a phone the copy is
+ * the full width, so the arrangement cannot simply shrink: it is replaced by a fan below the copy.
+ * A fan only needs the width of its widest card, which is the one thing a narrow screen has.
+ *
+ * The breakpoint is a signal rather than a CSS `display` toggle because a hidden FitPlate measures
+ * a zero-width box and paints nothing, so a CSS-only switch would mount eight empty plates on a
+ * phone and wait for a resize to fill them. One arrangement exists at a time.
+ */
+const RING_MIN = 1180;
+const ringQuery = window.matchMedia(`(min-width: ${RING_MIN}px)`);
+const [wide, setWide] = createSignal(ringQuery.matches);
+ringQuery.addEventListener("change", (e) => setWide(e.matches));
+
+type Fanned = {
+    piece: ShowcasePiece;
+    /** offset from centre, as a percentage of the card's own width, so it scales with the card */
+    shift: number;
+    /** px below the top of the fan, which is what gives the arc its rise and fall */
+    top: number;
+    rotate: number;
+    scale: number;
+    z: number;
+};
+
+// One per format, so the fan carries the same "three views" claim the headline makes, with the
+// document in front because it is the format that survives being shown small. No blurred card
+// behind these: the ring uses one to fill the gap between itself and the copy, but a fan overlaps
+// its own cards, and behind the front one all a soft card shows is a fringe that reads as a smudge.
+const FAN: Fanned[] = [
+    { piece: showcaseFor("deck")[2]!, shift: -52, top: 30, rotate: -12, scale: 0.9, z: 1 },
+    { piece: showcaseFor("web")[0]!, shift: 52, top: 25, rotate: 11, scale: 0.9, z: 1 },
+    { piece: showcaseFor("doc")[1]!, shift: 0, top: 10, rotate: -2, scale: 1, z: 2 },
+];
+
+const PlateFan: Component<{ theme: string }> = (props) => (
+    <div class="fan" aria-hidden="true">
+        <For each={FAN}>
+            {(f) => (
+                <div
+                    class="fan__card"
+                    style={{
+                        top: `${f.top}px`,
+                        "z-index": f.z,
+                        transform: `translateX(calc(-50% + ${f.shift}%)) rotate(${f.rotate}deg) scale(${f.scale})`,
+                    }}
+                >
+                    <FitPlate
+                        content={{ ...f.piece.content, theme: props.theme }}
+                        theme={props.theme}
+                        padTop={8}
+                    />
+                </div>
+            )}
+        </For>
+    </div>
+);
+
+const PlateOrbit: Component<{ theme: string }> = (props) => (
+    <div class="orbit" aria-hidden="true">
+        <For each={ORBIT}>
+            {(o) => (
+                <div
+                    class={`orbit__card${o.soft ? " orbit__card--soft" : ""}`}
+                    // Static keys: Solid resolves a style object's keys at compile time, so a
+                    // computed one (`[o.side]`) is dropped without an error and every card ends up
+                    // stacked at the left edge.
+                    style={{
+                        top: `${o.top}%`,
+                        left: o.side === "left" ? `${o.inset}%` : undefined,
+                        right: o.side === "right" ? `${o.inset}%` : undefined,
+                        transform: `rotate(${o.rotate}deg) scale(${o.scale})`,
+                    }}
+                >
+                    <FitPlate
+                        content={{ ...o.piece.content, theme: props.theme }}
+                        theme={props.theme}
+                        padTop={10}
+                    />
+                </div>
+            )}
+        </For>
+    </div>
+);
+
+/**
+ * A strip of real artifacts, painted rather than photographed.
+ *
+ * Every cell is an ArtifactPlate, the same component the library cards and the onboarding previews
+ * use, so what scrolls past is the product's own rendering. Three things follow from that and none
+ * of them are true of a wall of PNGs: it costs tens of kilobytes instead of megabytes, the layout is
+ * solved at the reader's own device pixel ratio, and the pieces re-theme with the page, because the
+ * active app theme is handed to the plate instead of being baked into an image months ago.
+ */
+const LiveStrip: Component<{
+    pieces: ShowcasePiece[];
+    theme: string;
+    /** drawn cell size; the plate scales its own layout width down to this */
+    w: number;
+    h: number;
+    /**
+     * Drawn pixels per second, not a duration.
+     *
+     * A marquee's duration is the time to travel one group's width, and the three groups are
+     * different widths, so equal-looking durations were never equal speeds: 72s/86s/78s worked out
+     * as 24.4, 14.9 and 20.5 px/s, and the doc strip crawled at forty per cent of the deck's pace.
+     * Stating the pace and deriving the duration keeps them in step, and stays right if a piece is
+     * added or a cell is resized.
+     */
+    pace: number;
+    reverse?: boolean;
+}> = (props) => {
+    const GAP = 20; // matches grpStyle's 1.25rem gap
+
+    // Marquee repeats the items itself until a group covers the viewport, so the pace is stated
+    // against one pass of the real pieces and stays right however many times it repeats them.
+    const seconds = (): string =>
+        `${((props.pieces.length * (props.w + GAP)) / props.pace).toFixed(1)}s`;
+    const cell = (p: ShowcasePiece): JSX.Element => (
+        <figure
+            class="feat shrink-0 overflow-hidden"
+            style={{
+                width: `${props.w}px`,
+                height: `${props.h}px`,
+                // A cell is a crop of something longer, and the pieces are different lengths, so
+                // some end inside the box and leave the backdrop showing under a hard horizontal
+                // edge that reads as a rendering fault. The library cards fade their foot for the
+                // same reason; this is that device.
+                "mask-image": "linear-gradient(180deg,#000 82%,transparent 100%)",
+                "-webkit-mask-image": "linear-gradient(180deg,#000 82%,transparent 100%)",
+            }}
+        >
+            <FitPlate
+                content={{ ...p.content, theme: props.theme }}
+                theme={props.theme}
+                padTop={STRIP_PAD_TOP}
+            />
+        </figure>
+    );
+    return (
+        <Marquee
+            items={props.pieces}
+            speed={seconds()}
+            rev={props.reverse}
+            pauseable
+            fade
+            mqClass="mq--lift"
+            grpStyle={{ gap: "1.25rem", "padding-right": "1.25rem" }}
+        >
+            {cell}
+        </Marquee>
+    );
+};
+
 // group rendered twice (2nd copy aria-hidden) so `web-mq` can translateX(-50%) for a seamless loop
 function Marquee<T>(props: {
     items: readonly T[];
@@ -263,17 +485,56 @@ function Marquee<T>(props: {
     const rowClasses = ["mq__row", props.rev ? "rev" : "", props.pauseable ? "pauseable" : ""]
         .filter(Boolean)
         .join(" ");
+
+    /**
+     * The row holds two groups and slides by exactly one group's width, so a group narrower than
+     * the viewport leaves an empty tail at the end of every cycle. Every marquee here was short on
+     * a wide display: the theme rows by 500px at 2560, the footer wordmark by 840, the document
+     * strip by 1280.
+     *
+     * Repeating the items until a group covers the viewport fixes all of them. The width has to be
+     * measured rather than derived, because an item's width is whatever the caller renders, and a
+     * word is not a card.
+     */
+    let group: HTMLSpanElement | undefined;
+    const [reps, setReps] = createSignal(1);
+    onMount(() => {
+        const fit = (): void => {
+            const width = group?.getBoundingClientRect().width ?? 0;
+            const pass = width / reps();
+            // exactly enough: the row travels one group, so a group equal to the viewport already
+            // covers it. The `+ 1` this used to carry bought a whole extra pass of plates for
+            // nothing, and the edge fade hides any sub-pixel shortfall.
+            if (pass > 0) setReps(Math.max(1, Math.ceil(window.innerWidth / pass)));
+        };
+        fit();
+        window.addEventListener("resize", fit, { passive: true });
+        onCleanup(() => window.removeEventListener("resize", fit));
+    });
+    const shown = (): readonly T[] =>
+        reps() <= 1 ? props.items : Array.from({ length: reps() }, () => props.items).flat();
+
+    /**
+     * `speed` is the time to cross one pass of the caller's items, which is what it meant when a
+     * group held exactly one pass. Repeating widens the group, and the animation always travels a
+     * whole group, so the duration has to grow with it or every marquee runs `reps` times faster
+     * than it was asked to.
+     */
+    const duration = (): string => `${(parseFloat(props.speed) || 40) * reps()}s`;
     return (
         <div class={mqClasses} style={props.mqStyle}>
-            <div class={rowClasses} style={{ "--mqd": props.speed }}>
+            <div class={rowClasses} style={{ "--mqd": duration() }}>
                 <For each={[0, 1] as const}>
                     {(dup) => (
                         <span
+                            ref={(el) => {
+                                if (dup === 0) group = el;
+                            }}
                             class="mq__grp"
                             aria-hidden={dup === 1 ? "true" : undefined}
                             style={props.grpStyle}
                         >
-                            <For each={props.items}>{props.children}</For>
+                            <For each={shown()}>{props.children}</For>
                         </span>
                     )}
                 </For>
@@ -302,17 +563,30 @@ export const Wordmark: Component<{ href?: string }> = (props) => (
     </a>
 );
 
-// The session cookie is httpOnly, so ask the API; null = still checking, show the signed-out CTA.
-export const AuthCta: Component = () => {
-    const [authed, setAuthed] = createSignal<boolean | null>(null);
-    onMount(async () => {
+/**
+ * Whether this visitor is signed in. The session cookie is httpOnly, so it has to be asked for, and
+ * `null` means still asking, which reads as signed out until it resolves.
+ *
+ * Module level and fetched once: the nav and the hero both need the answer, and two components each
+ * running their own check would ask /api/me twice on every page load and could disagree for a frame.
+ */
+const [authed, setAuthed] = createSignal<boolean | null>(null);
+let asked = false;
+function askAuth(): void {
+    if (asked) return;
+    asked = true;
+    void (async () => {
         try {
             const res = await fetch("/api/me", { credentials: "same-origin" });
             setAuthed(res.ok);
         } catch {
             setAuthed(false);
         }
-    });
+    })();
+}
+
+export const AuthCta: Component = () => {
+    onMount(askAuth);
     return (
         <div class="flex items-center gap-3">
             <Show
@@ -344,7 +618,10 @@ export const AuthCta: Component = () => {
     );
 };
 
-export const WebsitePage: Component = () => (
+// The active app theme, read once by main.tsx. The chrome already recolours through the CSS vars
+// it sets on the root; the live artifacts need the id itself, because a plate resolves tokens
+// rather than reading vars.
+export const WebsitePage: Component<{ theme: string }> = (props) => (
     <div class="web h-full w-full overflow-y-auto bg-canvas font-body text-ink">
         <Marquee
             items={announceItems}
@@ -372,9 +649,6 @@ export const WebsitePage: Component = () => (
                     <a href="#views" class="hover:text-accent transition-colors">
                         Views
                     </a>
-                    <a href="#features" class="hover:text-accent transition-colors">
-                        Features
-                    </a>
                     <a href="#themes" class="hover:text-accent transition-colors">
                         Themes
                     </a>
@@ -387,104 +661,88 @@ export const WebsitePage: Component = () => (
         </header>
 
         <section id="top" class="relative overflow-hidden">
-            <div
-                class="shape ring float hidden md:block"
-                style={{
-                    width: "120px",
-                    height: "120px",
-                    top: "90px",
-                    right: "6%",
-                    "animation-delay": "0.4s",
-                }}
-            />
-            <div
-                class="shape disc float hidden md:block"
-                style={{
-                    width: "34px",
-                    height: "34px",
-                    top: "240px",
-                    left: "5%",
-                    "animation-delay": "1.1s",
-                }}
-            />
-            <div
-                class="shape cross spin hidden md:block"
-                style={{ width: "46px", height: "46px", bottom: "120px", right: "14%" }}
-            />
-            <div
-                class="shape float hidden lg:block"
-                style={{ bottom: "60px", left: "8%", "animation-delay": "0.7s" }}
-            >
-                <svg width="92" height="26" viewBox="0 0 92 26" fill="none">
-                    <path
-                        d="M2 24L14 4L26 24L38 4L50 24L62 4L74 24L86 4"
-                        stroke="var(--color-accent)"
-                        stroke-width="5"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                    />
-                </svg>
-            </div>
-
-            <div class="max-w-[1280px] mx-auto px-5 md:px-8 pt-16 md:pt-24 pb-12 md:pb-16 relative">
-                <div
-                    class="flex items-center gap-3 mb-7 rise"
-                    style={{ "animation-delay": "0.05s" }}
-                >
-                    <span class="lab text-accent">✺ AI content engine</span>
-                    <span class="hidden sm:inline lab text-muted">Est. 2026</span>
-                </div>
-
-                <h1 class="display text-[clamp(3rem,11vw,8.4rem)]">
-                    <span class="block rise" style={{ "animation-delay": "0.1s" }}>
-                        One source.
+            {/* Centred, with the work orbiting it.
+                Left-aligned, the headline took the full measure and the cards had to live in
+                whatever corner was left, which is why they kept fighting the type however they were
+                nudged. A centred column leaves a real margin on both sides, and the pieces sit in
+                it instead of under the words. */}
+            <Show when={wide()}>
+                <PlateOrbit theme={props.theme} />
+            </Show>
+            <div class="max-w-[1280px] mx-auto px-5 md:px-8 pt-20 md:pt-28 pb-20 md:pb-28 relative z-raised">
+                <div class="mx-auto max-w-[54rem] text-center">
+                    <span class="hero-chip rise" style={{ "animation-delay": "0.05s" }}>
+                        <span class="lab text-accent">✺ AI content engine</span>
                     </span>
-                    <span class="block rise" style={{ "animation-delay": "0.22s" }}>
-                        Three{" "}
-                        <span
-                            class="relative inline-block"
-                            style={{
-                                background: "var(--color-accent)",
-                                color: "var(--color-onaccent)",
-                                padding: "0 0.14em",
-                                border: "calc(var(--border-width) * 2) solid var(--color-ink)",
-                                transform: "rotate(-1.5deg)",
-                            }}
-                        >
-                            polished
+
+                    <h1 class="display mt-7 text-[clamp(2.6rem,6.4vw,5.2rem)]">
+                        <span class="block rise" style={{ "animation-delay": "0.12s" }}>
+                            One source.
                         </span>
-                    </span>
-                    <span class="block rise hollow-ink" style={{ "animation-delay": "0.34s" }}>
-                        views.
-                    </span>
-                </h1>
+                        <span class="block rise" style={{ "animation-delay": "0.24s" }}>
+                            Three{" "}
+                            <span
+                                class="relative inline-block"
+                                style={{
+                                    background: "var(--color-accent)",
+                                    color: "var(--color-onaccent)",
+                                    padding: "0 0.14em",
+                                    border: "calc(var(--border-width) * 2) solid var(--color-ink)",
+                                    transform: "rotate(-1.5deg)",
+                                }}
+                            >
+                                polished
+                            </span>{" "}
+                            <span class="hollow-ink">views.</span>
+                        </span>
+                    </h1>
 
-                <div class="mt-9 grid md:grid-cols-12 gap-8 items-end">
                     <p
-                        class="md:col-span-7 text-soft text-lg md:text-xl leading-relaxed rise"
-                        style={{ "animation-delay": "0.46s" }}
+                        class="mt-7 mx-auto max-w-[46rem] text-soft text-lg leading-relaxed rise"
+                        style={{ "animation-delay": "0.4s" }}
                     >
-                        Describe what you need. Galleo generates one canonical artifact that renders
+                        Describe what you need and Galleo writes one canonical artifact that renders
                         three ways: a <strong style={{ color: "var(--color-ink)" }}>deck</strong>, a{" "}
                         <strong style={{ color: "var(--color-ink)" }}>document</strong>, and a live{" "}
                         <strong style={{ color: "var(--color-ink)" }}>website</strong>. Edit once;
-                        every format stays in sync. Real typesetting, not slides-with-textboxes.
+                        every format stays in sync.
                     </p>
+
                     <div
-                        class="md:col-span-5 flex flex-wrap gap-3 md:justify-end rise"
-                        style={{ "animation-delay": "0.58s" }}
+                        class="mt-9 flex flex-wrap justify-center gap-3 rise"
+                        style={{ "animation-delay": "0.52s" }}
                     >
-                        <a
-                            href="/signup"
-                            onClick={ctaClicked("hero")}
-                            class="btn btn-primary text-base"
+                        {/* Someone already signed in does not need to be sold a free trial; send
+                            them to their work, the way the nav does. */}
+                        <Show
+                            when={authed()}
+                            fallback={
+                                <a
+                                    href="/signup"
+                                    onClick={ctaClicked("hero")}
+                                    class="btn btn-primary text-base"
+                                >
+                                    Start creating free →
+                                </a>
+                            }
                         >
-                            Start creating free →
-                        </a>
-                        <a href="#views" class="btn btn-ghost text-base">
-                            See it switch
-                        </a>
+                            <a href="/" class="btn btn-primary text-base">
+                                Open your library →
+                            </a>
+                        </Show>
                     </div>
+                    <p class="mt-5 lab text-muted rise" style={{ "animation-delay": "0.6s" }}>
+                        <Show when={authed()} fallback="Free to start · no card">
+                            You are signed in
+                        </Show>
+                    </p>
+
+                    {/* Below the call to action, never above it: the hero already fills a phone
+                        screen, and the pieces are the reward for scrolling rather than the thing
+                        standing between the reader and the button. */}
+                    <Show when={!wide()}>
+                        <PlateFan theme={props.theme} />
+                    </Show>
                 </div>
             </div>
 
@@ -553,18 +811,21 @@ export const WebsitePage: Component = () => (
                                     class="flex items-center gap-3 lab"
                                     style={{ color: "var(--color-canvas)", opacity: "0.85" }}
                                 >
-                                    <span style={{ color: "var(--color-accent)" }}>■</span> {b}
+                                    <span style={{ color: "var(--color-canvas)" }}>■</span> {b}
                                 </div>
                             )}
                         </For>
                     </div>
-                    <div class="mt-auto pt-6 lab" style={{ color: "var(--color-accent)" }}>
+                    <div class="mt-auto pt-6 lab" style={{ color: "var(--color-canvas)" }}>
                         ↓ renders as ↓
                     </div>
                 </div>
 
+                {/* the same artifact painted in all three formats, live. It was three greyscale
+                    stock photographs from a third-party CDN, which is a strange thing for a design
+                    tool to show instead of its own output. */}
                 <div class="lg:col-span-8 grid sm:grid-cols-3 gap-6">
-                    <For each={viewCards}>
+                    <For each={VIEWS}>
                         {(v) => (
                             <article class="feat p-3 flex flex-col">
                                 <div
@@ -572,12 +833,22 @@ export const WebsitePage: Component = () => (
                                     style={{
                                         border: "calc(var(--border-width) * 2) solid var(--color-ink)",
                                         "border-radius": "calc(var(--radius) * 0.6)",
+                                        height: "220px",
+                                        // same crop treatment as the strips: a card shows the top
+                                        // of a whole piece, so it fades out rather than stopping
+                                        "mask-image":
+                                            "linear-gradient(180deg,#000 84%,transparent 100%)",
+                                        "-webkit-mask-image":
+                                            "linear-gradient(180deg,#000 84%,transparent 100%)",
                                     }}
                                 >
-                                    <img
-                                        src={v.src}
-                                        alt={v.alt}
-                                        class="w-full aspect-[4/3] object-cover grayscale"
+                                    <FitPlate
+                                        content={{
+                                            ...VIEW_PIECE.content,
+                                            format: v.format,
+                                            theme: props.theme,
+                                        }}
+                                        theme={props.theme}
                                     />
                                 </div>
                                 <div class="flex items-center justify-between mt-3 px-1">
@@ -606,30 +877,6 @@ export const WebsitePage: Component = () => (
             </Marquee>
         </section>
 
-        <section id="features" class="max-w-[1280px] mx-auto px-5 md:px-8 py-20 md:py-28">
-            <div class="mb-12 max-w-3xl">
-                <div class="lab text-accent mb-4">✺ What's under the hood</div>
-                <h2 class="display text-[clamp(2.2rem,5.5vw,4rem)]">
-                    Built like a tool that
-                    <br />
-                    respects the work.
-                </h2>
-            </div>
-
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <For each={features}>
-                    {(f) => (
-                        <article class="feat p-7">
-                            <div class="font-mono text-accent text-sm">{f.num}</div>
-                            <h3 class="font-display font-bold text-2xl mt-4">{f.title}</h3>
-                            <p class="text-soft mt-2.5 leading-relaxed">{f.body}</p>
-                            <span class="feat__bar" />
-                        </article>
-                    )}
-                </For>
-            </div>
-        </section>
-
         <section class="band-ink py-20 md:py-28 relative overflow-hidden">
             <div
                 class="shape disc float hidden md:block"
@@ -652,14 +899,12 @@ export const WebsitePage: Component = () => (
                 }}
             />
             <div class="max-w-[1100px] mx-auto px-5 md:px-8 relative">
-                <div class="lab mb-7" style={{ color: "var(--color-accent)" }}>
-                    ✺ Why we built it
-                </div>
+                <div class="lab mb-7">✺ Why we built it</div>
                 <p class="font-display font-semibold text-[clamp(1.8rem,4.6vw,3.4rem)] leading-[1.08] tracking-tight">
                     AI made a first draft free, and the average deck{" "}
-                    <span style={{ color: "var(--color-accent)" }}>worse</span>. The bottleneck
-                    moved from <span class="hollow-bg">making</span> to{" "}
-                    <span style={{ "border-bottom": "6px solid var(--color-accent)" }}>
+                    <span class="mark-accent">worse</span>. The bottleneck moved from{" "}
+                    <span class="hollow-bg">making</span> to{" "}
+                    <span style={{ "border-bottom": "6px solid var(--color-canvas)" }}>
                         judging
                     </span>
                     . Galleo is the editor for the judging.
@@ -677,6 +922,46 @@ export const WebsitePage: Component = () => (
                     </span>
                 </div>
             </div>
+        </section>
+
+        {/* Three strips of real pieces, one per format, painted live.
+            This replaced a marquee of nine invented company names presented as customers and a
+            testimonial from nobody. We have no customers to name yet, and the work is the only
+            proof we actually have. */}
+        <section class="py-16 md:py-24 overflow-hidden">
+            <div class="max-w-[1280px] mx-auto px-5 md:px-8 mb-10">
+                <div class="lab text-accent mb-4">✺ Made with Galleo</div>
+                <h2 class="sec-title text-3xl md:text-5xl max-w-[18ch]">
+                    Every one of these is
+                    <br />
+                    rendering as you scroll.
+                </h2>
+                <p class="text-muted mt-5 max-w-[56ch] leading-relaxed">
+                    Not screenshots. The strips below are painted in your browser by the same engine
+                    the editor runs, so they wear whatever theme you last picked rather than the one
+                    they were made in.
+                </p>
+            </div>
+
+            <div class="lab text-muted max-w-[1280px] mx-auto px-5 md:px-8 mb-3">As a deck</div>
+            <LiveStrip pieces={showcaseFor("deck")} theme={props.theme} w={420} h={264} pace={26} />
+
+            <div class="lab text-muted max-w-[1280px] mx-auto px-5 md:px-8 mt-10 mb-3">
+                As a document
+            </div>
+            <LiveStrip
+                pieces={showcaseFor("doc")}
+                theme={props.theme}
+                w={300}
+                h={380}
+                pace={24}
+                reverse
+            />
+
+            <div class="lab text-muted max-w-[1280px] mx-auto px-5 md:px-8 mt-10 mb-3">
+                As a site
+            </div>
+            <LiveStrip pieces={showcaseFor("web")} theme={props.theme} w={380} h={300} pace={25} />
         </section>
 
         <section id="themes" class="py-20 md:py-28 overflow-hidden">
@@ -737,65 +1022,10 @@ export const WebsitePage: Component = () => (
             </div>
         </section>
 
-        <section class="py-12 overflow-hidden">
-            <div class="max-w-[1280px] mx-auto px-5 md:px-8 mb-6">
-                <div class="lab text-muted text-center">
-                    Teams that care how it looks build with Galleo
-                </div>
-            </div>
-            <Marquee items={logos} speed="44s" pauseable fade grpStyle={{ gap: "0" }}>
-                {(name) => (
-                    <span
-                        class="font-display font-black text-2xl md:text-3xl opacity-60 px-7"
-                        style={{ "white-space": "nowrap" }}
-                    >
-                        {name}
-                    </span>
-                )}
-            </Marquee>
-        </section>
-
-        <section class="max-w-[1280px] mx-auto px-5 md:px-8 pb-20 md:pb-28">
-            <div class="card p-8 md:p-14 relative overflow-hidden">
-                <span
-                    class="font-display font-black absolute select-none"
-                    style={{
-                        "font-size": "14rem",
-                        "line-height": "0.7",
-                        top: "-1rem",
-                        right: "1.5rem",
-                        color: "var(--color-accent)",
-                        opacity: "0.14",
-                    }}
-                >
-                    ”
-                </span>
-                <blockquote class="font-display font-semibold text-[clamp(1.5rem,3.6vw,2.6rem)] leading-snug max-w-4xl relative">
-                    We replaced three tools with one. The pitch deck, the leave-behind doc, and the
-                    launch microsite now come from a single Galleo file, and they finally{" "}
-                    <span class="text-accent">look the same</span>.
-                </blockquote>
-                <div class="mt-8 flex items-center gap-4 relative">
-                    <img
-                        src="https://images.pexels.com/photos/27086922/pexels-photo-27086922.jpeg?auto=compress&cs=tinysrgb&fit=crop&w=120&h=120"
-                        alt=""
-                        class="w-12 h-12 rounded-full object-cover grayscale"
-                        style={{ border: "calc(var(--border-width) * 2) solid var(--color-ink)" }}
-                    />
-                    <div>
-                        <div class="font-bold">Priya Natarajan</div>
-                        <div class="lab text-muted mt-1">Head of Brand · Meridian</div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <section id="pricing" class="band-ink py-20 md:py-28">
             <div class="max-w-[1280px] mx-auto px-5 md:px-8">
                 <div class="text-center mb-14">
-                    <div class="lab mb-4" style={{ color: "var(--color-accent)" }}>
-                        ✺ Pricing
-                    </div>
+                    <div class="lab mb-4">✺ Pricing</div>
                     <h2 class="display text-[clamp(2.2rem,5.5vw,4rem)]">
                         Start free.
                         <br />

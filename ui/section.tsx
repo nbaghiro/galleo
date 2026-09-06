@@ -1,13 +1,21 @@
 import type { Component, JSX } from "solid-js";
 import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
-import type { Section, SectionBackground, SectionSummary } from "@model/artifact";
+import type { ArtifactContent, Section, SectionBackground, SectionSummary } from "@model/artifact";
 import type { RenderCommand } from "@engine/node";
 import type { FormatDescriptor } from "@model/geometry";
+import { profileFor } from "@engine/profile";
+import { resolveTheme } from "@themes";
 import type { Tokens } from "@themes";
-import { paint, backdropCss, scaledHostCss } from "@canvas/render/backends";
+import {
+    paint,
+    backdropCss,
+    createSectionStackCache,
+    paintSectionStack,
+    scaledHostCss,
+} from "@canvas/render/backends";
 import { layoutPlaceholder } from "@canvas/render/placeholder";
 import { fitIntoBox, fitSectionToFrame, thumbFrame } from "@canvas/render/fit";
-import { fontsGeneration } from "./fonts";
+import { createFontsInvalidator, fontsGeneration } from "./fonts";
 import {
     measureText,
     layoutSlide,
@@ -255,3 +263,127 @@ export function backdropHostStyle(
         "background-position": "center",
     };
 }
+
+/**
+ * How wide to draw a plate of a given format inside a box of a given width.
+ *
+ * Tuned drawing widths rather than the profiles' page widths: the editor lays a doc's column out at
+ * maxContentWidth (1000), reached once fullW hits 1064, and passing the 816 page width instead
+ * rendered it at 752 and read too narrow.
+ *
+ * Normalising against the widest is what makes the formats tell themselves apart in an identical
+ * box: a site runs to the edges, a deck sits slightly inside them, and a doc sits on noticeably more
+ * backdrop. That difference is the thing a reader sees before they read the label, which is why it
+ * lives here with the plate rather than in whichever surface happened to need it first.
+ */
+const CARD_LAYOUT_W: Record<string, number> = { deck: 1280, doc: 1064, web: 1440 };
+const CARD_WIDEST = Math.max(...Object.values(CARD_LAYOUT_W));
+
+/** Head margin so a page clears its card edge the way it clears the editor's top padding. */
+export const PLATE_PAD_TOP = 14;
+
+/**
+ * `padTop` is part of the same rule, not a caller's choice: a deck and a doc are pages and clear
+ * the edge, and a site has no page margin to clear, so it starts at the edge and runs to it. The
+ * profile already knows which is which through `bleedSections`, so nothing here is a list of
+ * formats that would need editing when a fourth one arrives.
+ */
+export function plateGeometry(
+    format: string,
+    boxWidth: number,
+    headMargin = PLATE_PAD_TOP,
+): { width: number; layoutWidth: number; padTop: number } {
+    const layoutWidth = CARD_LAYOUT_W[format] ?? CARD_LAYOUT_W.deck!;
+    const bleeds = profileFor({ format }).bleedSections === true;
+    return {
+        width: Math.round(layoutWidth * (boxWidth / CARD_WIDEST)),
+        layoutWidth,
+        padTop: bleeds ? 0 : headMargin,
+    };
+}
+
+/**
+ * A whole artifact drawn as a scaled, read-only copy of itself: the section stack over the
+ * artifact's own backdrop, at the format's own layout width.
+ *
+ * Lives here rather than in app/ because four places want it and only one of them could have it.
+ * The library cards, the onboarding previews and the editor's scaled copies went through app's
+ * copy; the marketing site could not reach it at all, since the layering law stops website at @ui,
+ * and widget/main.ts hand-rolls the same three calls because it is framework-free by rule and can
+ * never import this. Moving it down leaves widget as the only duplicate, and that one is load-bearing.
+ *
+ * The two things a bare paintSectionStack drops, and the reason this composition has to exist:
+ * `content.background` belongs to the whole piece rather than to a section, and a transform does
+ * not change layout, so the drawn height has to be stated or a scrolling host measures an extent
+ * several times longer than what a reader sees.
+ */
+export const ArtifactPlate: Component<{
+    content: ArtifactContent;
+    themeId: string;
+    width: number; // drawn width, px
+    layoutWidth: number; // the format's own layout width, so wraps match the real thing
+    depth?: number; // sections painted before the crop takes over
+    // drawn px of head margin, so the first section clears the card edge the way it clears the
+    // editor's own top padding; the backdrop still fills the card behind it
+    padTop?: number;
+    /** Let the plate's box scroll its own stack. Off by default: a plate is normally a crop. */
+    scroll?: boolean;
+}> = (props) => {
+    let host!: HTMLDivElement;
+    let sizer!: HTMLDivElement;
+    let inner!: HTMLDivElement;
+    // one cache for the life of the plate: a re-run with a deeper stack then reuses the layers it
+    // already laid out instead of paying for the whole thing again
+    const cache = createSectionStackCache();
+    const fontsSettled = createFontsInvalidator(cache);
+
+    createEffect(() => {
+        fontsSettled();
+        const tk = resolveTheme(props.themeId).tokens;
+        const profile = profileFor(props.content);
+        const sections = props.content.sections.slice(0, props.depth ?? 6);
+        // paint first: the stack painter lays out and paints in one pass, and its layers are
+        // absolutely positioned, so scaling the host afterwards is safe
+        const { height } = paintSectionStack(inner, sections, profile, tk, {
+            fullW: props.layoutWidth,
+            cache,
+            assets: "thumb", // a plate is a picture of the artifact, drawn at card size
+        });
+        const scale = props.width / props.layoutWidth;
+        inner.style.cssText = scaledHostCss(props.layoutWidth, height, scale);
+        // A transform does not change layout, so the scaled stack still occupies its full unscaled
+        // height. Stating the drawn height here is what lets a scrolling host measure the extent a
+        // reader actually sees rather than one several times too long. The head margin is part of
+        // that extent: box-sizing is border-box, so leaving it out clips the foot of the artifact
+        // by exactly the margin at the head.
+        sizer.style.height = `${Math.round(height * scale) + (props.padTop ?? 0)}px`;
+        host.style.background = backdropCss(props.content.background, tk);
+        host.style.backgroundSize = "cover";
+        host.style.backgroundPosition = "center";
+    });
+
+    // The backdrop fills the host edge to edge and the stack sits centred on it at its own layout
+    // width, which is exactly how the editor canvas reads: a narrow doc column shows more backdrop
+    // either side than a full-bleed site does, and that difference IS the format's proportion.
+    return (
+        <div
+            ref={host}
+            data-testid="plate"
+            class={`relative h-full w-full ${
+                props.scroll
+                    ? // contain, so reaching the end of the plate does not hand the wheel back to
+                      // the page mid-gesture; the scrollbar is left off because the plate is a picture
+                      "overflow-y-auto overscroll-contain [scrollbar-width:none]"
+                    : "overflow-hidden"
+            }`}
+        >
+            <div
+                ref={sizer}
+                class="mx-auto overflow-hidden"
+                style={{ width: `${props.width}px`, "padding-top": `${props.padTop ?? 0}px` }}
+            >
+                <div ref={inner} />
+            </div>
+        </div>
+    );
+};

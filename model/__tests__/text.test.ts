@@ -9,6 +9,7 @@ import {
     normalizeMarks,
     offsetRange,
     orderedPoints,
+    parseInlineMarkup,
     rebaseMarks,
     removeMark,
     spliceText,
@@ -291,5 +292,34 @@ describe("rebaseMarks", () => {
     it("returns the same list when the text did not change", () => {
         const marks = [cm(0, 5)];
         expect(rebaseMarks(marks, "hello", "hello")).toBe(marks);
+    });
+});
+
+describe("parseInlineMarkup", () => {
+    it("returns plain text untouched when there is no markup", () => {
+        expect(parseInlineMarkup("just words")).toEqual({ text: "just words", marks: [] });
+    });
+
+    it("folds bold, italic, and code into offset marks over the stripped text", () => {
+        const { text, marks } = parseInlineMarkup("we grew **41%** in *one* `q4`");
+        expect(text).toBe("we grew 41% in one q4");
+        expect(marks).toEqual([
+            { from: 8, to: 11, type: "b" },
+            { from: 15, to: 18, type: "i" },
+            { from: 19, to: 21, type: "code" },
+        ]);
+    });
+
+    it("turns a link into a link mark carrying the href", () => {
+        const { text, marks } = parseInlineMarkup("see [the report](https://x.co)");
+        expect(text).toBe("see the report");
+        expect(marks).toEqual([{ from: 4, to: 14, type: "link", value: "https://x.co" }]);
+    });
+
+    it("leaves a lone or space-flanked asterisk literal", () => {
+        expect(parseInlineMarkup("3 * 4 and a trailing *")).toEqual({
+            text: "3 * 4 and a trailing *",
+            marks: [],
+        });
     });
 });

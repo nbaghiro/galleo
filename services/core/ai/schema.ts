@@ -103,7 +103,7 @@ export const zBeat = z.object({
         .string()
         .optional()
         .describe(
-            "a named layout preset (full · split-6040 · split-4060 · two-col · three-up) whose column count + widths pre-shape the skeleton",
+            "a named layout preset (full · split-6040 · split-4060 · two-col · three-up · four-up) whose column count + widths pre-shape the skeleton",
         ),
     image: z.boolean().optional().describe("true if this section leads with a prominent image"),
     blocks: z

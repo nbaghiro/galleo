@@ -42,5 +42,5 @@ if (root) {
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
     setFavicon(tokens);
     const legal = legalDocFor(window.location.pathname);
-    render(() => (legal ? <LegalPage doc={legal} /> : <WebsitePage />), root);
+    render(() => (legal ? <LegalPage doc={legal} /> : <WebsitePage theme={read()} />), root);
 }

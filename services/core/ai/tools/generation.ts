@@ -1,7 +1,8 @@
 import type { Beat, Brief, GenerateInput, Generation, GenerationOp, TurnEvent } from "@model/ai";
 import { makeBeat, newBeatId, unwrittenBeats, withDerivedBlocks, writtenBeats } from "@model/ai";
-import type { ArtifactContent, Section } from "@model/artifact";
-import { mapMediaRefs } from "@model/artifact";
+import type { ArtifactContent, ElementInstance, Section } from "@model/artifact";
+import { childrenRaw, mapMediaRefs } from "@model/artifact";
+import { parseInlineMarkup } from "@model/text";
 import type { ToolContext } from "@services/core/ai/tools";
 import { getTool, implement, makeContext } from "@services/core/ai/tools";
 import type { ToolId } from "@model/tools";
@@ -18,6 +19,30 @@ import { SECTION_ATTEMPTS } from "./plan";
 
 const clip = (s: string, n: number): string =>
     s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s;
+
+// The writer emits inline emphasis as markdown in a plain text field; fold it to marks here, before
+// the section streams, so the client never shows the raw markers.
+function withInlineMarkup(el: ElementInstance): ElementInstance {
+    let next = el;
+    if (el.type === "text") {
+        const d = el.data as { text?: string; marks?: unknown };
+        if (typeof d.text === "string" && !(Array.isArray(d.marks) && d.marks.length)) {
+            const { text, marks } = parseInlineMarkup(d.text);
+            if (marks.length)
+                next = { ...el, data: { ...(el.data as Record<string, unknown>), text, marks } };
+        }
+    }
+    const kids = childrenRaw(next);
+    return kids
+        ? {
+              ...next,
+              data: {
+                  ...(next.data as Record<string, unknown>),
+                  children: kids.map(withInlineMarkup),
+              },
+          }
+        : next;
+}
 
 const need = (ctx: ToolContext): Generation => {
     if (!ctx.generation) throw new Error("There is no generation in this context.");
@@ -268,7 +293,7 @@ export const finishGenerationTool = implement(
                 ],
             },
         };
-        await ctx.generations?.finish(gen.id, ctx.tier ? modelMap(ctx.tier, ctx.models) : {});
+        await ctx.generations?.finish(gen.id, modelMap(ctx.models));
         report(ctx, "generation_completed", {
             format: gen.brief.surface,
             section_count: writtenBeats(gen).length,
@@ -430,6 +455,7 @@ async function* draftBeat(
         label: beat.label,
         surface: gen.brief.surface,
     });
+    section = { ...section, root: withInlineMarkup(section.root) };
     // the piece's bookends never render flat
     const anchor = index === 0 || index === beats.length - 1;
     if (anchor && section.background?.kind !== "image")
