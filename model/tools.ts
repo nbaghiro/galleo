@@ -1026,7 +1026,14 @@ const zStructureEdit = z.object({
 });
 const zAction = <K extends string>(kind: K, extra: Record<string, ZodType> = {}) =>
     z.looseObject({ kind: z.literal(kind), id: z.string(), ...extra });
-const zRefs = z.array(z.looseObject({ id: z.string(), title: z.string(), format: z.string() }));
+const zRefs = z.array(
+    z.looseObject({
+        id: z.string(),
+        title: z.string(),
+        format: z.string(),
+        generated: z.boolean().optional(),
+    }),
+);
 
 export const TOOL_SPEC = {
     "start-generation": {
@@ -1240,7 +1247,7 @@ export const TOOL_SPEC = {
     "find-artifacts": {
         output: zRefs,
         describe:
-            "Search the user's library for their existing artifacts by title or topic. Returns a short list of matches (id, title, format). Use it whenever the user refers to something they already made — find the one they mean before reading or editing it. Leave `query` empty to list their most recent work.",
+            "Search the user's library for their existing artifacts by title or topic. Returns a short list of matches (id, title, format, and whether AI made it). Use it whenever the user refers to something they already made — find the one they mean before reading or editing it. Leave `query` empty to list their most recent work.",
         input: z.object({
             query: z
                 .string()

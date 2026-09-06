@@ -483,7 +483,7 @@ export async function startFromTemplate(templateId: string): Promise<string | nu
     const all = await templatesOnce().catch(() => null);
     const t = all?.find((x) => x.id === templateId);
     if (!t) return null;
-    return persistArtifact(t.content, t.name, null, undefined, templateId);
+    return persistArtifact(t.content, t.name, null, templateId);
 }
 
 function runAction(a: WorkspaceAction): void {

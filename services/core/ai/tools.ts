@@ -13,7 +13,7 @@ import type {
     PendingProposal,
     TurnEvent,
 } from "@model/ai";
-import type { ArtifactContent } from "@model/artifact";
+import type { ArtifactContent, GenMeta } from "@model/artifact";
 import type { WorkspaceCreditFields } from "@services/core/ledger";
 import type { WorkspaceRole } from "@model/workspace";
 import type { ToolScope } from "@model/tools";
@@ -26,9 +26,16 @@ import { traceUse } from "@services/core/traces";
 // @model/tools; this module only supplies the body and refuses one that has no definition.
 
 // injected by the route; may be absent (e.g. the generate modal), so tools guard on it
+/** One piece as the library tools see it; `aiMeta` is present when a run made it. */
+export interface LibraryRead {
+    ref: ArtifactRef;
+    content: ArtifactContent;
+    aiMeta?: GenMeta;
+}
+
 export interface WorkspaceReader {
     find(query?: string): Promise<ArtifactRef[]>; // recent when blank
-    read(id: string): Promise<{ ref: ArtifactRef; content: ArtifactContent } | null>;
+    read(id: string): Promise<LibraryRead | null>;
 }
 
 /** Account-level reach, for the one tool that is about the person rather than one workspace. */

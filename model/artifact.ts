@@ -674,6 +674,7 @@ export interface ArtifactSummary {
     page?: PageSize; // so library thumbnails get the true aspect without reading the content
     background?: SectionBackground; // the artifact's backdrop, so a preview paints the real one
     access?: ArtifactAccess; // the caller's own level, resolved server-side per request
+    generated?: boolean; // made by a run (ai_meta is set), as opposed to by hand or by import
 }
 
 // What one person may do to one artifact. Ordered: each level contains the ones below it.
@@ -722,6 +723,7 @@ export function accessFor(input: AccessInput): ArtifactAccess {
 
 export interface Artifact extends ArtifactSummary {
     draftContent: ArtifactContent;
+    aiMeta?: GenMeta;
 }
 
 // Collaborator grants: one person's standing access to one artifact, independent of membership.
@@ -793,6 +795,7 @@ export interface ArtifactWindow {
     sections: Section[];
     access?: ArtifactAccess; // the caller's own level, resolved server-side per request
     seq?: number; // the artifact's revision at this read; the collab baseline the client resumes from
+    aiMeta?: GenMeta;
 }
 
 /** PATCH /artifacts/:id/content; applied in order in one transaction, an unknown id fails it. */
@@ -814,10 +817,12 @@ export interface ContentPatch {
     formatId?: string;
 }
 
-// How an artifact was generated: the brief it came from and the model each step actually ran on.
-// Written once when a run is saved; nothing reads it back at render time.
+// How an artifact was generated: the brief it came from, the model each step ran on, and the run
+// that holds the rest. Written when a run starts, so an abandoned run still marks its piece, and
+// again when it finishes with the models and beats; the full read and the library tools return it.
 export interface GenMeta {
-    at: string; // ISO, when the run was saved
+    at: string; // ISO, when the run was last recorded: its start, then its finish
+    generationId?: string; // the generations row: outline, steer, every take; read-generation reads it
     models: Record<string, string>; // AiTask → "provider:model", resolved when the step ran
     prompt: string;
     surface: string;
@@ -840,7 +845,7 @@ export interface ArtifactInput {
     formatId?: string;
     draftContent?: ArtifactContent;
     folderId?: string | null;
-    aiMeta?: GenMeta;
+    aiMeta?: GenMeta; // written by the generation store only; the route schema does not accept it
     templateId?: string; // provenance: created from this starter; feeds template popularity
 }
 

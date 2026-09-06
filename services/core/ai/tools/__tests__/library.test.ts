@@ -1,49 +1,64 @@
-import { describe, it, expect } from "vitest";
-import type { TemplateRef, TurnEvent } from "@model/ai";
-import { findTemplatesTool } from "@services/core/ai/tools/library";
-import { makeContext } from "@services/core/ai/tools";
-import { TEMPLATE_INDEX } from "@model/templates";
+import { describe, expect, it } from "vitest";
+import type { TurnEvent } from "@model/ai";
+import type { GenMeta } from "@model/artifact";
+import { makeContext, type WorkspaceReader } from "@services/core/ai/tools";
+import { findArtifactsTool, readArtifactTool } from "@services/core/ai/tools/library";
 
-async function find(query?: string): Promise<TemplateRef[]> {
-    const gen = findTemplatesTool.run({ query }, makeContext({ image: {} }));
-    let step: IteratorResult<TurnEvent, TemplateRef[]> = await gen.next();
+// The two library tools over a fake reader: what a model is told about a piece a run made.
+
+async function drain<R>(gen: AsyncGenerator<TurnEvent, R>): Promise<R> {
+    let step: IteratorResult<TurnEvent, R> = await gen.next();
     while (!step.done) step = await gen.next();
     return step.value;
 }
 
-describe("findTemplatesTool", () => {
-    it("no query → returns every template as a { id, name, category } ref", async () => {
-        const out = await find(undefined);
-        expect(out).toHaveLength(TEMPLATE_INDEX.length);
-        expect(out).toEqual(
-            TEMPLATE_INDEX.map((t) => ({ id: t.id, name: t.name, category: t.category })),
-        );
+const made: GenMeta = {
+    at: "2026-09-06T10:00:00.000Z",
+    generationId: "0b6e7c2a-1c1e-4c5a-9f7e-2d3c4b5a6f70",
+    models: { outline: "google:gemini-2.5-pro" },
+    prompt: "A launch deck for Meridian",
+    surface: "deck",
+    steer: "keep it under ten sections",
+};
+const launch = { id: "a1", title: "Launch", format: "deck", generated: true };
+const notes = { id: "a2", title: "Notes", format: "doc" };
+const content = { format: "deck", theme: "studio", sections: [] };
+const workspace: WorkspaceReader = {
+    find: async () => [launch, notes],
+    read: async (id) =>
+        id === launch.id
+            ? { ref: launch, content, aiMeta: made }
+            : id === notes.id
+              ? { ref: notes, content }
+              : null,
+};
+const ctx = makeContext({ image: {}, workspace });
+
+describe("read-artifact", () => {
+    it("opens with how a run made the piece and names the generation to expand", async () => {
+        const text = await drain(readArtifactTool.run({ id: launch.id }, ctx));
+        expect(
+            text.startsWith(
+                "“Launch” (deck)\n\nMade with AI on 2026-09-06 from the brief: “A launch deck for Meridian”",
+            ),
+        ).toBe(true);
+        expect(text).toContain("Steer: “keep it under ten sections”");
+        expect(text).toContain("Models: outline: google:gemini-2.5-pro");
+        expect(text).toContain(`Generation ${made.generationId}: pass it to read-generation`);
     });
 
-    it("blank/whitespace query behaves like no query (returns all)", async () => {
-        expect(await find("   ")).toHaveLength(TEMPLATE_INDEX.length);
+    it("says nothing about a run for a piece made by hand", async () => {
+        const text = await drain(readArtifactTool.run({ id: notes.id }, ctx));
+        expect(text).not.toContain("Made with AI");
+        expect(text).not.toContain("Generation");
     });
+});
 
-    it("matches on name/category (case-insensitive)", async () => {
-        const lower = await find("pitch");
-        const upper = await find("PITCH");
-        expect(lower.length).toBe(upper.length);
-        expect(lower.length).toBeGreaterThan(0);
-        expect(lower.some((t) => t.id === "startup-pitch")).toBe(true);
-        for (const ref of lower) {
-            const src = TEMPLATE_INDEX.find((t) => t.id === ref.id)!;
-            const hay = `${src.name} ${src.category} ${src.description}`.toLowerCase();
-            expect(hay).toContain("pitch");
-        }
-    });
-
-    it("matches on the description alone (a word absent from name + category)", async () => {
-        // "skills" appears only in the Resume template's description.
-        const out = await find("skills");
-        expect(out.map((t) => t.id)).toEqual(["resume"]);
-    });
-
-    it("returns an empty list when nothing matches", async () => {
-        expect(await find("zzz-nonexistent-topic")).toEqual([]);
+describe("find-artifacts", () => {
+    it("marks the pieces a run made", async () => {
+        const items = await drain(findArtifactsTool.run({}, ctx));
+        const note = findArtifactsTool.note?.(items, {});
+        expect(note).toContain("“Launch” (deck, made with AI)");
+        expect(note).toContain("“Notes” (doc)");
     });
 });

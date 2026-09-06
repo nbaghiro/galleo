@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
-import type { ArtifactContent, ArtifactPage, GenMeta } from "@model/artifact";
+import type { ArtifactContent, ArtifactPage } from "@model/artifact";
 import { isAccess } from "@model/artifact";
 import { featuresFor, isUnlimited, limit } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
@@ -89,8 +89,6 @@ async function overArtifactCap(
 // z.custom validates without rebuilding, so stored content and provenance keep every field they
 // arrived with; a z.object here would strip whatever this file does not enumerate.
 const zContent = z.custom<ArtifactContent>(isArtifactContent);
-// nothing reads aiMeta back at render time, so the shape check stops at "is an object"
-const zGenMeta = z.custom<GenMeta>((v) => !!v && typeof v === "object");
 
 const zArtifactInput = z.object({
     title: z.string().optional(),
@@ -98,7 +96,6 @@ const zArtifactInput = z.object({
     formatId: z.string().optional(),
     draftContent: zContent.optional(),
     folderId: z.string().nullish(),
-    aiMeta: zGenMeta.optional(),
     templateId: z.string().optional(),
 });
 
@@ -154,6 +151,7 @@ artifacts.get("/artifacts/:id", requireUser, async (c) => {
             updatedAt: a.updatedAt,
             access: gate.access,
             seq: a.seq,
+            aiMeta: a.aiMeta ?? undefined,
         },
     });
 });

@@ -1,10 +1,9 @@
-import { and, desc, eq, ilike, isNull } from "drizzle-orm";
-import type { ArtifactContent } from "@model/artifact";
+import { and, desc, eq, ilike, isNull, sql } from "drizzle-orm";
 import { asContent } from "@model/artifact";
 import type { ArtifactRef } from "@model/ai";
 import type { Viewer } from "@services/core/artifacts";
 import { searchArtifacts } from "@services/core/search";
-import type { WorkspaceReader } from "./tools";
+import type { LibraryRead, WorkspaceReader } from "./tools";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 
@@ -17,11 +16,13 @@ const toRef = (r: {
     title: string;
     formatId: string;
     updatedAt: Date;
+    generated: boolean;
 }): ArtifactRef => ({
     id: r.id,
     title: r.title,
     format: r.formatId,
     updatedAt: r.updatedAt.toISOString(),
+    generated: r.generated,
 });
 
 /**
@@ -45,6 +46,7 @@ export function makeWorkspaceReader(workspaceId: string, viewer?: Viewer): Works
                     title: h.title,
                     format: h.formatId,
                     updatedAt: h.updatedAt,
+                    generated: h.generated,
                 }));
             }
             const rows = await db
@@ -53,6 +55,7 @@ export function makeWorkspaceReader(workspaceId: string, viewer?: Viewer): Works
                     title: schema.artifacts.title,
                     formatId: schema.artifacts.formatId,
                     updatedAt: schema.artifacts.updatedAt,
+                    generated: sql<boolean>`${schema.artifacts.aiMeta} is not null`,
                 })
                 .from(schema.artifacts)
                 .where(
@@ -66,7 +69,7 @@ export function makeWorkspaceReader(workspaceId: string, viewer?: Viewer): Works
                 .limit(query ? 12 : 8);
             return rows.map(toRef);
         },
-        async read(id: string): Promise<{ ref: ArtifactRef; content: ArtifactContent } | null> {
+        async read(id: string): Promise<LibraryRead | null> {
             if (!isUuid(id)) return null;
             const [a] = await db
                 .select()
@@ -75,7 +78,11 @@ export function makeWorkspaceReader(workspaceId: string, viewer?: Viewer): Works
                     and(eq(schema.artifacts.id, id), eq(schema.artifacts.workspaceId, workspaceId)),
                 );
             if (!a || a.trashedAt) return null;
-            return { ref: toRef(a), content: asContent(a.draftContent) };
+            return {
+                ref: toRef({ ...a, generated: !!a.aiMeta }),
+                content: asContent(a.draftContent),
+                aiMeta: a.aiMeta ?? undefined,
+            };
         },
     };
 }

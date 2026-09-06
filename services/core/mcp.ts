@@ -43,7 +43,9 @@ is only for when they want to browse or begin from a named template.
 
 Everything lives in a workspace. Most tools act on the one this connection was authorized for; pass
 \`workspace\` to name another, and \`artifact\` to say which piece a change applies to. Find an
-artifact by id with find-artifacts before reading or editing it.
+artifact by id with find-artifacts before reading or editing it. A piece a run made says so there and
+in read-artifact, which opens with its brief and names the generation; pass that id to
+read-generation for the outline, the steer note and every take.
 
 Editing tools change the stored piece straight away, so there is nothing to save afterwards.`;
 

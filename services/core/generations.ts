@@ -37,11 +37,13 @@ const emptyContent = (brief: Brief): ArtifactContent => ({
     sections: [],
 });
 
-// what a finished generation records on its artifact, the shape the studio used to write
+// what a run records on its artifact: the brief and its own id at the start, the models and the
+// beats once it finishes, so the piece is marked as generated from its first second
 function runMeta(gen: Generation, models: Record<string, string> = {}): GenMeta {
     const b = gen.brief;
     return {
         at: new Date().toISOString(),
+        generationId: gen.id,
         models,
         prompt: b.prompt,
         surface: b.surface,
@@ -99,7 +101,9 @@ export function makeGenerationStore(workspaceId: string, userId: string): Genera
                 })
                 .returning();
             if (!row) throw new Error("the generation could not be created");
-            return { generation: fromRow(row), content: await content(target) };
+            const generation = fromRow(row);
+            await updateArtifact(workspaceId, target, { aiMeta: runMeta(generation) });
+            return { generation, content: await content(target) };
         },
         read,
         async apply(id, patch) {

@@ -169,6 +169,7 @@ export async function listArtifacts(workspaceId: string, opts: ListOptions): Pro
             createdBy: schema.artifacts.createdBy,
             memberAccess: schema.artifacts.memberAccess,
             grant: schema.artifactGrants.access,
+            generated: sql<boolean>`${schema.artifacts.aiMeta} is not null`,
         })
         .from(schema.artifacts)
         // a per-user grant is part of the level this row reports, so the badge in the library says
@@ -331,6 +332,7 @@ export function windowOf(
         from: win.from,
         sections: sections.slice(win.from, win.from + win.count),
         seq: a.seq,
+        aiMeta: a.aiMeta ?? undefined,
     };
 }
 

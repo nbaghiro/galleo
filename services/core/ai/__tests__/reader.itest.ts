@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import type { GenMeta } from "@model/artifact";
 import { makeWorkspaceReader } from "@services/core/ai/reader";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 import { authed, jsonInit, seedUser } from "@services/__tests__/harness";
 
 // The chat agent's window onto the library: rows are created through the real create/trash routes,
@@ -83,5 +87,35 @@ describe("read", () => {
         const reader = makeWorkspaceReader(mine.workspaceId);
         expect(await reader.read(foreign)).toBeNull();
         expect(await reader.read(doomed)).toBeNull();
+    });
+});
+
+describe("generated", () => {
+    // written by the generation store, never by a client, so the test sets the column itself
+    const made: GenMeta = {
+        at: "2026-09-06T10:00:00.000Z",
+        generationId: "0b6e7c2a-1c1e-4c5a-9f7e-2d3c4b5a6f70",
+        models: { outline: "google:gemini-2.5-pro" },
+        prompt: "A launch deck",
+        surface: "deck",
+    };
+    const mark = (id: string): Promise<unknown> =>
+        db.update(schema.artifacts).set({ aiMeta: made }).where(eq(schema.artifacts.id, id));
+
+    it("flags a piece a run made in the listing, and hands its record back on read", async () => {
+        const { userId, workspaceId } = await seedUser();
+        const byHand = await create(userId, "By hand");
+        const byRun = await create(userId, "By run");
+        await mark(byRun);
+
+        const reader = makeWorkspaceReader(workspaceId);
+        const refs = await reader.find();
+        expect(refs.find((r) => r.id === byRun)?.generated).toBe(true);
+        expect(refs.find((r) => r.id === byHand)?.generated).toBe(false);
+
+        const got = await reader.read(byRun);
+        expect(got?.ref.generated).toBe(true);
+        expect(got?.aiMeta).toEqual(made);
+        expect((await reader.read(byHand))?.aiMeta).toBeUndefined();
     });
 });

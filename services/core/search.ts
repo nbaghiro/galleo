@@ -70,6 +70,7 @@ type Row = {
     folder_id: string | null;
     updated_at: Date;
     digest: ArtifactDigest | null;
+    generated: boolean;
     created_by: string | null;
     author_name: string | null;
     author_avatar: string | null;
@@ -88,6 +89,7 @@ const toHit = (r: Row): SearchHit => ({
     cover: r.digest?.cover ?? {},
     sections: r.digest?.sections ?? [],
     ...(r.digest?.background ? { background: r.digest.background } : {}),
+    generated: r.generated,
     author: r.created_by ? { name: r.author_name, avatarUrl: r.author_avatar } : null,
     lastViewedAt: r.viewed_at ? new Date(r.viewed_at).toISOString() : null,
     matchedIn: r.title_hit === false ? "content" : "title",
@@ -121,6 +123,7 @@ export async function recentArtifacts(opts: {
 }): Promise<SearchHit[]> {
     const rows = await db.execute<Row>(sql`
         SELECT a.id, a.title, a.format_id, a.theme_id, a.folder_id, a.updated_at, a.digest,
+               (a.ai_meta IS NOT NULL) AS generated,
                a.created_by, u.name AS author_name, u.avatar_url AS author_avatar,
                v.seen_at AS viewed_at
         FROM artifacts a
@@ -158,6 +161,7 @@ export async function searchArtifacts(opts: {
     const rows = await db.execute<Row>(sql`
         WITH hits AS (
             SELECT a.id, a.title, a.format_id, a.theme_id, a.folder_id, a.updated_at, a.digest,
+               (a.ai_meta IS NOT NULL) AS generated,
                    a.created_by, a.search_text,
                    (a.title ILIKE ${contains}) AS title_hit,
                    (a.title ILIKE ${prefix}) AS title_prefix,
@@ -168,7 +172,7 @@ export async function searchArtifacts(opts: {
             ORDER BY title_prefix DESC, title_hit DESC, rank DESC, a.updated_at DESC
             LIMIT ${clampLimit(opts.limit)} OFFSET ${clampOffset(opts.offset)}
         )
-        SELECT h.id, h.title, h.format_id, h.theme_id, h.folder_id, h.updated_at, h.digest,
+        SELECT h.id, h.title, h.format_id, h.theme_id, h.folder_id, h.updated_at, h.digest, h.generated,
                h.title_hit, h.created_by, u.name AS author_name, u.avatar_url AS author_avatar,
                v.seen_at AS viewed_at,
                ${

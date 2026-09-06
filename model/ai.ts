@@ -139,6 +139,7 @@ export interface ArtifactRef {
     title: string;
     format: string; // "deck" | "doc" | "web"
     updatedAt?: string;
+    generated?: boolean; // made by a run; read-artifact then opens with how
 }
 
 // A card the agent left that the user has not acted on. Listed in the agent's context so a spoken

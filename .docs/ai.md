@@ -404,8 +404,9 @@ with this, and the consumers are the offline harnesses and an analyzer to come (
 - `pick-version`: `pickVersion` + the matching `replaceSection`.
 - `read-generation`: `{ generation, content, writing }`, where `writing` is whether the lease is
   held; the client polls this after a pause to learn when the in-flight beat has landed.
-- `finish-generation`: stage `done`, and the store records `runMeta` on the artifact with the
-  models that ran. It takes the writer lease like a write, so a stop pressed mid-beat is `busy`
+- `finish-generation`: stage `done`, and the store rewrites `runMeta` on the artifact with the
+  models that ran; `create` wrote the same record at the start, so a piece is marked as generated
+  from its first second and an abandoned run still leaves its brief behind. It takes the writer lease like a write, so a stop pressed mid-beat is `busy`
   until the beat lands; the studio waits for that before it finishes.
 - `apply-patch`: applies a patch the caller hands in, which is the approval path for an `after`
   card that belongs to a generation.
@@ -616,7 +617,10 @@ pinned to a frontier model reserves and settles more credits than the same run o
 why the picker needs no plan gate: the user pays for what they chose.
 
 Each run's per-step choices are recorded in `app/stores/model-usage.ts` and, once the run saves, written to
-the artifact's `ai_meta` column alongside the brief, so provenance outlives the browser that made it.
+the artifact's `ai_meta` column alongside the brief and the generation id, so provenance outlives the
+browser that made it. The full artifact read returns it as `aiMeta`, every summary carries `generated`,
+and `read-artifact` opens with it and names the generation that `read-generation` expands into the
+outline, the steer note and every take.
 
 ## 10. The prompt system (`services/core/ai/prompts/`) — the playbook
 

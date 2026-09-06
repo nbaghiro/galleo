@@ -1,10 +1,4 @@
-import type {
-    ArtifactAccess,
-    ArtifactContent,
-    ElementInstance,
-    Section,
-    GenMeta,
-} from "@model/artifact";
+import type { ArtifactAccess, ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { emptyRegion } from "@model/artifact";
 import { createSignal } from "solid-js";
 import { api, type ArtifactSummary } from "@app/api";
@@ -373,7 +367,6 @@ export async function persistArtifact(
     content: ArtifactContent,
     title = artifactTitle(content),
     folderId: string | null = null,
-    aiMeta?: GenMeta,
     templateId?: string,
 ): Promise<string | null> {
     try {
@@ -383,7 +376,6 @@ export async function persistArtifact(
             themeId: content.theme,
             draftContent: content,
             folderId,
-            ...(aiMeta ? { aiMeta } : {}),
             ...(templateId ? { templateId } : {}),
         });
         const summary: ArtifactSummary = {
@@ -400,41 +392,6 @@ export async function persistArtifact(
         return id;
     } catch {
         return null;
-    }
-}
-
-export async function updateArtifactContent(
-    id: string,
-    content: ArtifactContent,
-    title?: string,
-    aiMeta?: GenMeta,
-): Promise<boolean> {
-    try {
-        await api.saveArtifact(id, {
-            ...(title !== undefined ? { title } : {}),
-            formatId: content.format,
-            themeId: content.theme,
-            draftContent: content,
-            ...(aiMeta ? { aiMeta } : {}),
-        });
-        setArtifacts(
-            artifacts().map((d) =>
-                d.id === id
-                    ? {
-                          ...d,
-                          ...(title !== undefined ? { title } : {}),
-                          formatId: content.format,
-                          themeId: content.theme,
-                          updatedAt: new Date().toISOString(),
-                      }
-                    : d,
-            ),
-        );
-        setContents({ ...contents(), [id]: content });
-        seedCardSections(id, content.sections);
-        return true;
-    } catch {
-        return false;
     }
 }
 

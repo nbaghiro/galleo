@@ -1,9 +1,10 @@
 import type { ArtifactRef, TemplateRef, TurnEvent } from "@model/ai";
+import type { GenMeta } from "@model/artifact";
 import { implement } from "@services/core/ai/tools";
 import { artifactDigest, artifactSpine } from "@services/core/ai/prompts/system";
 import { TEMPLATE_INDEX } from "@model/templates";
 
-implement(
+export const findArtifactsTool = implement(
     "find-artifacts",
     async function* (input, ctx): AsyncGenerator<TurnEvent, ArtifactRef[]> {
         if (!ctx.workspace) return [];
@@ -14,22 +15,44 @@ implement(
         // the note is the model's tool result: it MUST carry ids so a follow-up targets the right one
         note: (items) =>
             items.length
-                ? `Found ${items.length}:\n${items.map((i) => `- ${i.id} — “${i.title}” (${i.format})`).join("\n")}`
+                ? `Found ${items.length}:\n${items.map((i) => `- ${i.id} — “${i.title}” (${i.format}${i.generated ? ", made with AI" : ""})`).join("\n")}`
                 : "No matching artifacts in the library.",
     },
 );
 
-implement(
+export const readArtifactTool = implement(
     "read-artifact",
     async function* (input, ctx): AsyncGenerator<TurnEvent, string> {
         if (!ctx.workspace) return "There is no library access in this context.";
         const found = await ctx.workspace.read(input.id);
         if (!found) return "That artifact was not found.";
-        const { ref, content } = found;
-        return `“${ref.title}” (${ref.format})\n\n${artifactSpine(content)}\n\n${artifactDigest(content)}`;
+        const { ref, content, aiMeta } = found;
+        return [
+            `“${ref.title}” (${ref.format})`,
+            ...(aiMeta ? [madeBy(aiMeta)] : []),
+            artifactSpine(content),
+            artifactDigest(content),
+        ].join("\n\n");
     },
     { present: () => null },
 );
+
+// answers "what made this" before the spine, and names the run that holds the rest
+function madeBy(m: GenMeta): string {
+    const models = Object.entries(m.models)
+        .map(([task, model]) => `${task}: ${model}`)
+        .join(", ");
+    return [
+        `Made with AI on ${m.at.slice(0, 10)} from the brief: “${m.prompt}”`,
+        m.steer ? `Steer: “${m.steer}”` : null,
+        models ? `Models: ${models}` : null,
+        m.generationId
+            ? `Generation ${m.generationId}: pass it to read-generation for the outline, the steer note and every take.`
+            : null,
+    ]
+        .filter((line) => line !== null)
+        .join("\n");
+}
 
 export const findTemplatesTool = implement(
     "find-templates",
