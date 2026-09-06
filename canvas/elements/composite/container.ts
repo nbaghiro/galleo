@@ -4,7 +4,8 @@ import type { ElementInstance } from "@model/artifact";
 import { childrenRaw } from "@model/artifact";
 import { getElement, register } from "@elements/spec";
 import { stacksAtWidth } from "@engine/profile";
-import { fit, fixed, grow } from "@model/geometry";
+import { fit, grow } from "@model/geometry";
+import { hexA } from "@themes";
 import { CARD_SHAPES, CARD_STYLES } from "@model/elements";
 import type { CardShape, CardStyle, FlexDirection, FlexJustify } from "@model/elements";
 import { DIRECTION_OPTIONS } from "@elements/composite/shared";
@@ -27,6 +28,7 @@ export interface ContainerData {
     columns?: number; // grid only: shared-width tracks the children fill row-major
     align?: CrossAlign; // cross-axis; "baseline" applies to rows only
     justify?: FlexJustify; // main-axis: spread the leftover space instead of packing
+    gap?: number; // between children; absent keeps the bare 14 / surfaced 12 the merge proved on
     // absent = a bare stack (what `group` was). Any style = a surface (what `card` was). Flat rather
     // than nested because the control system reads and writes data keys directly.
     surface?: CardStyle;
@@ -39,6 +41,7 @@ const SURFACE_LABELS: Record<CardStyle, string> = {
     outline: "Outline",
     sideline: "Side line",
     topline: "Top line",
+    glass: "Glass",
     plain: "Plain",
 };
 
@@ -113,7 +116,7 @@ const bare = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode 
         h: fit(),
         direction: dir,
         ...(dir === "grid" ? { columns: gridCols(d) } : {}),
-        gap: 14,
+        gap: d.gap ?? 14,
         alignX: dir === "col" ? (stacked ? inferredAlign(d) : colAlign(d)) : undefined,
         alignY: dir === "col" ? (visualColumn(d.children) ? "center" : undefined) : d.align,
         ...(d.justify && dir === "row" ? { distribute: d.justify } : {}),
@@ -125,7 +128,8 @@ const bare = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode 
 // side/top accent lines use cross-axis grow to span the full edge
 const surfaced = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode => {
     const t = ctx.theme;
-    const rad = d.shape === "sharp" ? 2 : t.radius;
+    const circle = d.shape === "circle";
+    const rad = d.shape === "sharp" ? 2 : circle ? 9999 : t.radius;
     const p = 24;
     const inset = { top: p, right: p, bottom: p, left: p };
     const dir = d.direction ?? "col";
@@ -133,9 +137,11 @@ const surfaced = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineN
     const stack = (padding: typeof inset): EngineNode => ({
         w: grow(),
         h: fit(),
+        // the circle crop clips composed children to the ellipse; the fill's own roundness is `rad`
+        ...(circle ? { clip: { x: true, y: true, shape: "ellipse" as const } } : {}),
         direction: dir,
         ...(dir === "grid" ? { columns: gridCols(d) } : {}),
-        gap: 12,
+        gap: d.gap ?? 12,
         padding,
         ...(d.justify && dir === "row" ? { distribute: d.justify } : {}),
         children: dir === "grid" ? kids.map(unfraction) : kids,
@@ -144,20 +150,21 @@ const surfaced = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineN
     if (style === "plain") return stack({ top: 0, right: 0, bottom: 0, left: 0 });
     if (style === "sideline")
         return {
-            w: grow(),
-            h: fit(),
-            direction: "row",
-            children: [
-                { w: fixed(3), h: grow(), fill: { color: t.accent } },
-                stack({ top: p, right: p, bottom: p, left: p - 3 }),
-            ],
+            ...stack(inset),
+            fill: { border: { color: t.accent, width: 3, sides: ["left"] } },
         };
     if (style === "topline")
+        return { ...stack(inset), fill: { border: { color: t.accent, width: 3, sides: ["top"] } } };
+    if (style === "glass")
         return {
-            w: grow(),
-            h: fit(),
-            direction: "col",
-            children: [{ w: grow(), h: fixed(3), fill: { color: t.accent } }, stack(inset)],
+            ...stack(inset),
+            fill: {
+                color: hexA(t.surface, 0.55),
+                radius: rad,
+                border: { color: hexA(t.line, 0.6), width: 1 },
+                shadow: { blur: 24, dy: 8, color: "rgba(0,0,0,0.18)" },
+                backdropBlur: 14,
+            },
         };
     const fill =
         style === "outline"
@@ -178,6 +185,7 @@ export const containerElement: ElementSpec<ContainerData> = {
     label: "Container",
     category: "composite",
     tier: "container",
+    hidden: true,
     create: () => ({ children: [] }),
     layout: (d, ctx) =>
         arrangeContainer(
@@ -194,6 +202,7 @@ export const containerElement: ElementSpec<ContainerData> = {
         withChildren: (d, children) => ({ ...d, children }),
     },
     bar: ["direction", "columns", "align", "surface"],
+    frame: true,
     controls: [
         {
             key: "direction",
@@ -204,11 +213,10 @@ export const containerElement: ElementSpec<ContainerData> = {
         {
             key: "columns",
             label: "Columns",
-            control: "slider",
-            min: 2,
-            max: 6,
-            step: 1,
+            control: "select",
+            numeric: true,
             icon: "grid",
+            options: [2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: String(n) })),
             visibleWhen: (d) => d.direction === "grid",
         },
         {
@@ -219,7 +227,7 @@ export const containerElement: ElementSpec<ContainerData> = {
                 { label: "Align start", value: "start", icon: "alignItemsStart" },
                 { label: "Align center", value: "center", icon: "alignItemsCenter" },
                 { label: "Align end", value: "end", icon: "alignItemsEnd" },
-                { label: "Baseline", value: "baseline" },
+                { label: "Baseline", value: "baseline", icon: "alignBaseline" },
             ],
         },
         {
@@ -236,10 +244,21 @@ export const containerElement: ElementSpec<ContainerData> = {
             ],
         },
         {
+            key: "gap",
+            label: "Gap",
+            control: "slider",
+            min: 0,
+            max: 48,
+            step: 2,
+            unit: "px",
+            group: "Layout",
+        },
+        {
             key: "surface",
             label: "Surface",
             control: "select",
             group: "Appearance",
+            placeholder: "None",
             options: CARD_STYLES.map((v) => ({ value: v, label: SURFACE_LABELS[v] })),
         },
         {

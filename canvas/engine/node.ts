@@ -1,3 +1,4 @@
+import type { Gradient } from "@model/artifact";
 import type { BoxInsets, Size } from "@model/geometry";
 import type { Run } from "@model/text";
 
@@ -19,12 +20,12 @@ export interface DrawStyle {
     fillRule?: "nonzero" | "evenodd";
     cap?: "butt" | "round" | "square";
     join?: "miter" | "round" | "bevel";
-    // linear fill across the shape's bbox; wins over `fill`. CSS angle: 180 = top → bottom,
-    // default 135 (the FillLeaf convention). PDF flattens to the stop midpoint.
-    gradient?: { from: string; to: string; angle?: number };
+    // fill across the shape's bbox; wins over `fill`. CSS angle: 180 = top → bottom, default 135
+    // (the FillLeaf convention). PDF flattens to one color and PPTX rasterizes, stated per backend.
+    gradient?: Gradient;
     // soft drop shadow under the fill (canvas + DOM svg only); surfaces clip at their box, so
     // renderers must inset enough for the blur to land
-    shadow?: { blur: number; dy: number; color: string };
+    shadow?: Shadow;
 }
 
 export interface DrawTextStyle {
@@ -138,7 +139,9 @@ export interface ImageLeaf {
     // tile scale fetches instead of the editor-grade asset
     thumb?: string;
     alt?: string;
-    natural?: { w: number; h: number }; // pixel size of the source, when known: a `fit` width uses it
+    // Pixel size of the source, when known. Width-only by decision: a `fit` width reads `w`;
+    // nothing reads `h` — an image's height channel is the node's `aspect`, never this.
+    natural?: { w: number; h: number };
     fit: "cover" | "contain";
     radius?: number;
     scrim?: number; // 0..1 dark overlay
@@ -150,12 +153,39 @@ export interface ImageLeaf {
     shadow?: string; // CSS box-shadow
 }
 
+export interface Shadow {
+    blur: number;
+    dy: number;
+    dx?: number;
+    spread?: number;
+    color: string;
+}
+
+// tl tr br bl, the CSS order; a bare number stays the uniform radius it always was
+export type Radius = number | [number, number, number, number];
+
+/** The four corners, CSS order; a bare number is uniform, as ever. */
+export const corners = (r: Radius | undefined): [number, number, number, number] =>
+    typeof r === "number" ? [r, r, r, r] : (r ?? [0, 0, 0, 0]);
+
+/** One number for consumers that can only draw one (a region's ring, a legacy shape). */
+export const maxRadius = (r: Radius | undefined): number =>
+    typeof r === "number" ? r : r ? Math.max(...r) : 0;
+
+export type BorderSide = "top" | "right" | "bottom" | "left";
+
 export interface FillLeaf {
     color?: string;
-    gradient?: { from: string; to: string; angle?: number };
-    radius?: number;
-    border?: { color: string; width: number; style?: "solid" | "dashed" };
-    shadow?: string; // CSS box-shadow
+    gradient?: Gradient;
+    radius?: Radius;
+    // `sides` absent draws all four, as ever; present draws only those, one color and width
+    border?: { color: string; width: number; style?: "solid" | "dashed"; sides?: BorderSide[] };
+    // Structured shadows paint in DOM and 2D canvas; PDF drops them and PPTX rasterizes, both by
+    // decision. A legacy CSS string (the theme's card shadow) stays DOM-only, as it always was.
+    shadow?: Shadow | string;
+    // DOM enhancement over a translucent fill; every export degrades to the fill itself, the same
+    // visual family rather than a hole
+    backdropBlur?: number;
 }
 
 export interface SurfaceLeaf {
@@ -165,7 +195,11 @@ export interface SurfaceLeaf {
     regions?: (box: Rect) => Region[];
 }
 
-// A node may carry a leaf (fill/image/text/surface) AND children.
+// A node may carry a leaf (fill/image/text/surface) AND children. When text and children
+// co-exist (a legacy shape; prefer one leaf per node): the width pass measures the text, the
+// height pass sizes by the children (the text paints with no room reserved), and the baseline
+// reads the text. That precedence is load-bearing for existing content — do not add readers
+// that pick differently.
 export interface EngineNode {
     id?: string;
     w: Size;
@@ -189,7 +223,9 @@ export interface EngineNode {
     // axis has no leftover and distributes nothing. Floats are unaffected.
     distribute?: "between" | "around" | "evenly";
     // Clips descendants on the given axes; the resolved rect rides on each command.
-    clip?: { x?: boolean; y?: boolean };
+    // `shape: "ellipse"` crops this node's subtree to the ellipse in its clip rect (a circle when
+    // square); a descendant that narrows the rect degrades to the plain rect
+    clip?: { x?: boolean; y?: boolean; shape?: "ellipse" };
     // Lifted out of the flow (no effect on siblings or fit size). Painted by `z`: negative under
     // the flow (decoration), non-negative above it (overlays), ascending within each side. That
     // order is also the reading order every backend inherits: decoration is marked `decor` and
@@ -219,7 +255,8 @@ export interface Rotation {
     cy: number;
 }
 
-// `clip` is the ancestor-intersected rect the backends honor; absent = no clip.
+// `clip` is the ancestor-intersected rect the backends honor; absent = no clip. `clipShape`
+// crops that rect as an ellipse where an ancestor asked for one and the rect is still its own.
 // `decor` marks a command emitted from a negative-z float, which `float.z` already defines as
 // decoration: it paints, but it is out of the reading order, so the DOM backend hides it from a11y.
 export type RenderCommand =
@@ -231,6 +268,7 @@ export type RenderCommand =
           id?: string;
           opacity?: number;
           clip?: Rect;
+          clipShape?: "ellipse";
           link?: string;
           decor?: boolean;
       }
@@ -245,6 +283,7 @@ export type RenderCommand =
           id?: string;
           opacity?: number;
           clip?: Rect;
+          clipShape?: "ellipse";
           link?: string;
           decor?: boolean;
       }
@@ -256,6 +295,7 @@ export type RenderCommand =
           id?: string;
           opacity?: number;
           clip?: Rect;
+          clipShape?: "ellipse";
           link?: string;
           decor?: boolean;
       }
@@ -267,11 +307,14 @@ export type RenderCommand =
           id?: string;
           opacity?: number;
           clip?: Rect;
+          clipShape?: "ellipse";
           link?: string;
           decor?: boolean;
       };
 
-// Separate from paint so selection and hit-testing don't depend on what was drawn.
+// Separate from paint so selection and hit-testing don't depend on what was drawn. Regions are
+// deliberately NOT trimmed by clips: content a bounded box clipped away must stay selectable in
+// the editor, so a viewer-side consumer that wants paint-accurate hits filters by its own rules.
 export interface Region {
     id: string;
     box: Rect;

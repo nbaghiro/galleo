@@ -1,7 +1,15 @@
-import type { DrawContext, DrawStyle, DrawTextStyle, RenderCommand } from "@engine/node";
+import { LINE_HEIGHT_FACTOR } from "@model/text";
+import type {
+    FillLeaf,
+    Radius,
+    DrawContext,
+    DrawStyle,
+    DrawTextStyle,
+    RenderCommand,
+} from "@engine/node";
 import type { LineCapStyle, PDFDocument, PDFFont, PDFPage, PDFPageDrawSVGOptions } from "pdf-lib";
 import { buildPathData } from "./svg-emit";
-import { CODE_BG, LINE_HEIGHT_FACTOR, layoutRuns, leafForRuns } from "./commands";
+import { CODE_BG, layoutRuns, leafForRuns } from "./commands";
 import { fetchFontTtf, familyFromFont, italicFromFont, slotFor, weightFromFont } from "./fonts";
 
 type RGB = [number, number, number];
@@ -125,13 +133,19 @@ export function drawPathAbs(c: Ctx, d: string, s: DrawStyle): void {
     c.page.drawSvgPath(d, svgOpts(s, c.pageH));
 }
 
-export function roundRectPath(x: number, y: number, w: number, h: number, r: number): string {
-    const rr = Math.max(0, Math.min(r, w / 2, h / 2));
-    if (rr <= 0) return `M${x} ${y}h${w}v${h}h${-w}Z`;
+export function roundRectPath(x: number, y: number, w: number, h: number, r: Radius): string {
+    const cap = (v: number): number => Math.max(0, Math.min(v, w / 2, h / 2));
+    const [tl, tr, br, bl] = (typeof r === "number" ? [r, r, r, r] : r).map(cap) as [
+        number,
+        number,
+        number,
+        number,
+    ];
+    if (tl + tr + br + bl <= 0) return `M${x} ${y}h${w}v${h}h${-w}Z`;
     return (
-        `M${x + rr} ${y}h${w - 2 * rr}a${rr} ${rr} 0 0 1 ${rr} ${rr}` +
-        `v${h - 2 * rr}a${rr} ${rr} 0 0 1 ${-rr} ${rr}h${-(w - 2 * rr)}` +
-        `a${rr} ${rr} 0 0 1 ${-rr} ${-rr}v${-(h - 2 * rr)}a${rr} ${rr} 0 0 1 ${rr} ${-rr}Z`
+        `M${x + tl} ${y}h${w - tl - tr}a${tr} ${tr} 0 0 1 ${tr} ${tr}` +
+        `v${h - tr - br}a${br} ${br} 0 0 1 ${-br} ${br}h${-(w - br - bl)}` +
+        `a${bl} ${bl} 0 0 1 ${-bl} ${-bl}v${-(h - bl - tl)}a${tl} ${tl} 0 0 1 ${tl} ${-tl}Z`
     );
 }
 
@@ -236,22 +250,33 @@ export function drawTextAbs(c: Ctx, text: string, x: number, y: number, s: DrawT
 export function emitRect(
     c: Ctx,
     box: { x: number; y: number; w: number; h: number },
-    fill: {
-        color?: string;
-        radius?: number;
-        border?: { color: string; width: number; style?: string };
-    },
+    fill: FillLeaf,
 ): void {
     const d = roundRectPath(box.x, box.y, box.w, box.h, fill.radius ?? 0);
     const style: DrawStyle = {};
     if (fill.color) style.fill = fill.color;
-    if (fill.border) {
-        style.stroke = fill.border.color;
-        style.width = fill.border.width;
-        if (fill.border.style === "dashed")
-            style.dash = [fill.border.width * 2.5, fill.border.width * 2];
+    const bd = fill.border;
+    const dash = bd?.style === "dashed" ? [bd.width * 2.5, bd.width * 2] : undefined;
+    if (bd && !bd.sides) {
+        style.stroke = bd.color;
+        style.width = bd.width;
+        if (dash) style.dash = dash;
     }
     if (style.fill || style.stroke) drawPathAbs(c, d, style);
+    if (bd?.sides) {
+        const at: Record<string, string> = {
+            top: `M${box.x} ${box.y}h${box.w}`,
+            right: `M${box.x + box.w} ${box.y}v${box.h}`,
+            bottom: `M${box.x} ${box.y + box.h}h${box.w}`,
+            left: `M${box.x} ${box.y}v${box.h}`,
+        };
+        for (const side of bd.sides)
+            drawPathAbs(c, at[side]!, {
+                stroke: bd.color,
+                width: bd.width,
+                ...(dash ? { dash } : {}),
+            });
+    }
 }
 
 // mirrors backends.drawRuns; the command's own lines, so breaks match screen

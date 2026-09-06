@@ -1,4 +1,9 @@
+import type { Gradient } from "@model/artifact";
+import { LINE_HEIGHT_FACTOR } from "@model/text";
 import type {
+    BorderSide,
+    Radius,
+    Shadow,
     DrawContext,
     DrawStyle,
     DrawTextStyle,
@@ -14,7 +19,6 @@ import { arcSegments, buildPathData, gradientDir, gradientUnitPoints } from "./s
 import {
     CODE_BG,
     MONO_FONT_STACK,
-    LINE_HEIGHT_FACTOR,
     layoutRuns,
     leafForRuns,
     measureText,
@@ -144,27 +148,53 @@ function pathBounds(build: (sink: PathSink) => void): Rect {
     return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
-// one linear-gradient builder for both fill shapes (FillLeaf and DrawStyle share the same object),
-// on the CSS angle semantics the DOM backend paints — so editor and canvas exports agree
-function canvasGradient(
-    cx: CanvasRenderingContext2D,
-    g: { from: string; to: string; angle?: number },
-    b: Rect,
-): CanvasGradient {
-    const [dx, dy] = gradientDir(g.angle);
-    const half = (Math.abs(dx) * b.w + Math.abs(dy) * b.h) / 2;
+/** The stop list every backend paints: explicit stops win, from/to are the two-stop sugar. */
+export const gradientStops = (g: Gradient): { at: number; color: string }[] =>
+    g.stops?.length
+        ? g.stops
+        : [
+              { at: 0, color: g.from },
+              { at: 1, color: g.to },
+          ];
+
+// one gradient builder for both fill shapes (FillLeaf and DrawStyle share the same object), on the
+// CSS semantics the DOM backend paints — so editor and canvas exports agree
+function canvasGradient(cx: CanvasRenderingContext2D, g: Gradient, b: Rect): CanvasGradient {
     const cxn = b.x + b.w / 2;
     const cyn = b.y + b.h / 2;
-    const grad = cx.createLinearGradient(
-        cxn - dx * half,
-        cyn - dy * half,
-        cxn + dx * half,
-        cyn + dy * half,
-    );
-    grad.addColorStop(0, g.from);
-    grad.addColorStop(1, g.to);
+    let grad: CanvasGradient;
+    if (g.kind === "radial") {
+        grad = cx.createRadialGradient(cxn, cyn, 0, cxn, cyn, Math.hypot(b.w, b.h) / 2);
+    } else {
+        const [dx, dy] = gradientDir(g.angle);
+        const half = (Math.abs(dx) * b.w + Math.abs(dy) * b.h) / 2;
+        grad = cx.createLinearGradient(
+            cxn - dx * half,
+            cyn - dy * half,
+            cxn + dx * half,
+            cyn + dy * half,
+        );
+    }
+    for (const st of gradientStops(g)) grad.addColorStop(Math.max(0, Math.min(1, st.at)), st.color);
     return grad;
 }
+
+const gradientCss = (g: Gradient): string => {
+    const stops = gradientStops(g)
+        .map((st) => `${st.color} ${Math.round(st.at * 100)}%`)
+        .join(", ");
+    return g.kind === "radial"
+        ? `radial-gradient(circle, ${stops})`
+        : `linear-gradient(${g.angle ?? 135}deg, ${stops})`;
+};
+
+const shadowCss = (sh: Shadow | string): string =>
+    typeof sh === "string"
+        ? sh
+        : `${sh.dx ?? 0}px ${sh.dy}px ${sh.blur}px ${sh.spread ?? 0}px ${sh.color}`;
+
+const radiusCss = (r: Radius): string =>
+    typeof r === "number" ? `${r}px` : r.map((v) => `${v}px`).join(" ");
 
 export function canvasDrawContext(cx: CanvasRenderingContext2D): DrawContext {
     const apply = (s: DrawStyle, bounds?: Rect): void => {
@@ -525,20 +555,25 @@ function applyCommand(el: HTMLElement, c: RenderCommand, assets: RenderAssets = 
             const left = Math.max(0, cl.x - b.x);
             const right = Math.max(0, b.x + b.w - (cl.x + cl.w));
             const bottom = Math.max(0, b.y + b.h - (cl.y + cl.h));
-            if (top || right || bottom || left)
+            if (c.clipShape === "ellipse")
+                el.style.clipPath = `ellipse(${cl.w / 2}px ${cl.h / 2}px at ${cl.x + cl.w / 2 - b.x}px ${cl.y + cl.h / 2 - b.y}px)`;
+            else if (top || right || bottom || left)
                 el.style.clipPath = `inset(${top}px ${right}px ${bottom}px ${left}px)`;
         }
     }
     if (c.kind === "rect") {
         const g = c.fill?.gradient;
-        if (g) el.style.background = `linear-gradient(${g.angle ?? 135}deg, ${g.from}, ${g.to})`;
+        if (g) el.style.background = gradientCss(g);
         else if (c.fill?.color) el.style.background = c.fill.color;
-        if (c.fill?.radius !== undefined) el.style.borderRadius = `${c.fill.radius}px`;
+        if (c.fill?.radius !== undefined) el.style.borderRadius = radiusCss(c.fill.radius);
         if (c.fill?.border) {
             const b = c.fill.border;
-            el.style.border = `${b.width}px ${b.style ?? "solid"} ${b.color}`;
+            const edge = `${b.width}px ${b.style ?? "solid"} ${b.color}`;
+            if (!b.sides) el.style.border = edge;
+            else for (const side of b.sides) el.style.setProperty(`border-${side}`, edge);
         }
-        if (c.fill?.shadow) el.style.boxShadow = c.fill.shadow;
+        if (c.fill?.shadow) el.style.boxShadow = shadowCss(c.fill.shadow);
+        if (c.fill?.backdropBlur) el.style.backdropFilter = `blur(${c.fill.backdropBlur}px)`;
     } else if (c.kind === "image") {
         const im = c.image;
         const src = imageSrc(im, assets);
@@ -646,10 +681,11 @@ function roundRectPath(
     y: number,
     w: number,
     h: number,
-    r: number,
+    r: Radius,
 ): void {
     cx.beginPath();
-    cx.roundRect(x, y, w, h, Math.max(0, Math.min(r, w / 2, h / 2)));
+    const cap = (v: number): number => Math.max(0, Math.min(v, w / 2, h / 2));
+    cx.roundRect(x, y, w, h, typeof r === "number" ? cap(r) : r.map(cap));
 }
 
 /**
@@ -771,7 +807,17 @@ function drawCommands(
         if (c.opacity !== undefined) cx.globalAlpha = c.opacity;
         if (c.clip) {
             cx.beginPath();
-            cx.rect(c.clip.x, c.clip.y, c.clip.w, c.clip.h);
+            if (c.clipShape === "ellipse")
+                cx.ellipse(
+                    c.clip.x + c.clip.w / 2,
+                    c.clip.y + c.clip.h / 2,
+                    c.clip.w / 2,
+                    c.clip.h / 2,
+                    0,
+                    0,
+                    Math.PI * 2,
+                );
+            else cx.rect(c.clip.x, c.clip.y, c.clip.w, c.clip.h);
             cx.clip();
         }
         // after the clip: the ancestor clip rect is stage-aligned, the spin is not
@@ -783,6 +829,15 @@ function drawCommands(
         if (c.kind === "rect") {
             const f = c.fill;
             roundRectPath(cx, b.x, b.y, b.w, b.h, f?.radius ?? 0);
+            const sh = f?.shadow;
+            const cast = sh && typeof sh !== "string";
+            if (cast) {
+                cx.save();
+                cx.shadowColor = sh.color;
+                cx.shadowBlur = sh.blur;
+                cx.shadowOffsetX = sh.dx ?? 0;
+                cx.shadowOffsetY = sh.dy;
+            }
             if (f?.gradient) {
                 cx.fillStyle = canvasGradient(cx, f.gradient, b);
                 cx.fill();
@@ -790,13 +845,29 @@ function drawCommands(
                 cx.fillStyle = f.color;
                 cx.fill();
             }
+            if (cast) cx.restore();
             if (f?.border) {
                 cx.strokeStyle = f.border.color;
                 cx.lineWidth = f.border.width;
                 cx.setLineDash(
                     f.border.style === "dashed" ? [f.border.width * 2.5, f.border.width * 2] : [],
                 );
-                cx.stroke();
+                if (!f.border.sides) cx.stroke();
+                else {
+                    const at: Record<BorderSide, [number, number, number, number]> = {
+                        top: [b.x, b.y, b.x + b.w, b.y],
+                        right: [b.x + b.w, b.y, b.x + b.w, b.y + b.h],
+                        bottom: [b.x, b.y + b.h, b.x + b.w, b.y + b.h],
+                        left: [b.x, b.y, b.x, b.y + b.h],
+                    };
+                    cx.beginPath();
+                    for (const side of f.border.sides) {
+                        const [x1, y1, x2, y2] = at[side];
+                        cx.moveTo(x1, y1);
+                        cx.lineTo(x2, y2);
+                    }
+                    cx.stroke();
+                }
                 cx.setLineDash([]);
             }
         } else if (c.kind === "image") {
@@ -927,7 +998,7 @@ export function backdropCss(bg: SectionBackground | undefined, tokens: Tokens): 
         return s ? `linear-gradient(rgba(0,0,0,${s}),rgba(0,0,0,${s})), ${url}` : url;
     }
     if (bg.kind === "gradient" && bg.gradient) {
-        return `linear-gradient(${bg.gradient.angle ?? 135}deg, ${bg.gradient.from}, ${bg.gradient.to})`;
+        return gradientCss(bg.gradient);
     }
     if (bg.kind === "color" && bg.color) return bg.color;
     return tokens.bg;

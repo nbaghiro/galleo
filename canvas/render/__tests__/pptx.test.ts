@@ -497,3 +497,36 @@ describe("respin", () => {
         expect(command.box).toEqual({ x: 80, y: 90, w: 40, h: 20 });
     });
 });
+
+// richer paint has no autoshape: it rides the raster path at canvas fidelity
+describe("classify — richer paint rasterizes", () => {
+    const box = { x: 0, y: 0, w: 10, h: 10 };
+    it("routes non-uniform corners, side borders, structured shadows and blur to raster", () => {
+        expect(classify({ kind: "rect", box, fill: { color: "#fff", radius: [4, 4, 0, 0] } })).toBe(
+            "raster",
+        );
+        expect(
+            classify({
+                kind: "rect",
+                box,
+                fill: { color: "#fff", border: { color: "#000", width: 2, sides: ["top"] } },
+            }),
+        ).toBe("raster");
+        expect(
+            classify({
+                kind: "rect",
+                box,
+                fill: { color: "#fff", shadow: { blur: 8, dy: 2, color: "#0003" } },
+            }),
+        ).toBe("raster");
+        expect(classify({ kind: "rect", box, fill: { color: "#fff", backdropBlur: 10 } })).toBe(
+            "raster",
+        );
+    });
+    it("keeps uniform corners and legacy string shadows as shapes", () => {
+        expect(classify({ kind: "rect", box, fill: { color: "#fff", radius: 8 } })).toBe("shape");
+        expect(
+            classify({ kind: "rect", box, fill: { color: "#fff", shadow: "0 1px 2px red" } }),
+        ).toBe("shape");
+    });
+});

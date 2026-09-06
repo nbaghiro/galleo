@@ -41,7 +41,7 @@ describe("backdropCss", () => {
     it("gradient → linear-gradient with a default angle", () => {
         expect(
             backdropCss({ kind: "gradient", gradient: { from: "#fff", to: "#000" } }, tokens),
-        ).toBe("linear-gradient(135deg, #fff, #000)");
+        ).toBe("linear-gradient(135deg, #fff 0%, #000 100%)");
     });
     it("image with scrim → layered gradient + url", () => {
         expect(backdropCss({ kind: "image", image: "p.png", scrim: 0.4 }, tokens)).toBe(

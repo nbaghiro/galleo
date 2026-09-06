@@ -184,3 +184,16 @@ describe("PDF link annotations", () => {
         expect(await linked(0, 0)).toBe(0);
     });
 });
+
+describe("per-corner radius paths", () => {
+    it("rounds only the corners asked for", () => {
+        const d = roundRectPath(0, 0, 100, 80, [10, 10, 0, 0]);
+        expect(d).toContain("a10 10");
+        expect(d).toContain("a0 0");
+    });
+    it("a uniform number stays the path it always was", () => {
+        expect(roundRectPath(0, 0, 100, 80, 10)).toBe(
+            roundRectPath(0, 0, 100, 80, [10, 10, 10, 10]),
+        );
+    });
+});

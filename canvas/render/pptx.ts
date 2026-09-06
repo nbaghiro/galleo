@@ -4,7 +4,8 @@ import type { TextLine } from "@engine/node";
 import type { Tokens } from "@themes";
 import type PptxGenJS from "pptxgenjs";
 import { pagedSize, profileFor, resolveProfile } from "@engine/profile";
-import { LINE_HEIGHT_FACTOR, layoutRuns, leafForRuns, sectionSlides } from "./commands";
+import { LINE_HEIGHT_FACTOR } from "@model/text";
+import { layoutRuns, leafForRuns, sectionSlides } from "./commands";
 import { applyFallbacks } from "@elements/ops";
 import { EXPORT_SCALE, renderToCanvas } from "./backends";
 import { svgStringContext } from "./svg-emit";
@@ -110,7 +111,12 @@ const placeRect = (r: Rect, t: Transform): Rect => ({
 
 const scaleFill = (f: FillLeaf, fit: number): FillLeaf => ({
     ...f,
-    radius: f.radius !== undefined ? f.radius * fit : undefined,
+    radius:
+        f.radius === undefined
+            ? undefined
+            : typeof f.radius === "number"
+              ? f.radius * fit
+              : (f.radius.map((r) => r * fit) as [number, number, number, number]),
     border: f.border ? { ...f.border, width: f.border.width * fit } : undefined,
 });
 
@@ -183,13 +189,23 @@ export function respin(c: RenderCommand): { command: RenderCommand; deg?: number
     return { command: { ...c, box, clip, rotate: undefined }, deg: r.deg };
 }
 
-// gradients/clips have no autoshape, and pptx can't express image crops or vector paths, so those rasterize.
-// box-shadow is deliberately not a trigger: the canvas backend paints none either.
+// Gradients, clips, and the richer paint (non-uniform corners, side-selective borders, structured
+// shadows, backdrop blur) have no autoshape, so those rasterize — the raster path is what keeps
+// this export at canvas fidelity. A legacy CSS-string shadow stays a non-trigger: no backend
+// paints it outside the DOM.
 export type Emit = "shape" | "text" | "raster";
+
+const richFill = (f: FillLeaf | undefined): boolean =>
+    !!f &&
+    (!!f.gradient ||
+        typeof f.radius === "object" ||
+        !!f.border?.sides ||
+        (typeof f.shadow === "object" && f.shadow !== null) ||
+        !!f.backdropBlur);
 
 export function classify(c: RenderCommand): Emit {
     if (c.kind === "text") return "text";
-    if (c.kind === "rect") return c.fill?.gradient || c.clip ? "raster" : "shape";
+    if (c.kind === "rect") return richFill(c.fill) || c.clip ? "raster" : "shape";
     return "raster";
 }
 
@@ -205,7 +221,8 @@ export function rectShapeSpec(c: RenderCommand): ShapeSpec | null {
     const fillC = f?.color && !f.gradient ? cssColor(f.color) : null;
     const border = f?.border;
     if (!fillC && !border) return null;
-    const radius = f?.radius ?? 0;
+    // classify routes non-uniform corners to raster, so a shape only ever sees a number
+    const radius = typeof f?.radius === "number" ? f.radius : 0;
     const options: PptxGenJS.ShapeProps = {
         x: inch(c.box.x),
         y: inch(c.box.y),

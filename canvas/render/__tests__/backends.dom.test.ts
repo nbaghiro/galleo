@@ -845,3 +845,79 @@ describe("paintSectionStack — pinned sections", () => {
         expect(cache.entries.get("nav")!.layer!.style.zIndex).toBe("");
     });
 });
+
+// The richer paint model (engine-gaps item 8): full CSS fidelity in the DOM backend.
+describe("richer paint", () => {
+    const one = (c: RenderCommand): HTMLElement => {
+        const host = document.createElement("div");
+        return paint([c], host)[0]!;
+    };
+    const box = { x: 0, y: 0, w: 100, h: 80 };
+
+    it("paints multi-stop and radial gradients", () => {
+        const linear = one({
+            kind: "rect",
+            box,
+            fill: {
+                gradient: {
+                    from: "#000",
+                    to: "#fff",
+                    stops: [
+                        { at: 0, color: "#111" },
+                        { at: 0.4, color: "#555" },
+                        { at: 1, color: "#eee" },
+                    ],
+                },
+            },
+        });
+        expect(linear.style.background).toContain("#555 40%");
+        const radial = one({
+            kind: "rect",
+            box,
+            fill: { gradient: { from: "#000", to: "#fff", kind: "radial" } },
+        });
+        expect(radial.style.background).toContain("radial-gradient");
+    });
+
+    it("paints per-corner radius and side-selective borders", () => {
+        const el = one({
+            kind: "rect",
+            box,
+            fill: {
+                color: "#eee",
+                radius: [8, 8, 0, 0],
+                border: { color: "#123", width: 3, sides: ["left"] },
+            },
+        });
+        expect(el.style.borderRadius).toBe("8px 8px 0px 0px");
+        expect(el.style.borderLeft).toContain("3px");
+        expect(el.style.borderTop).toBe("");
+    });
+
+    it("paints a structured shadow and backdrop blur, and keeps legacy string shadows", () => {
+        const el = one({
+            kind: "rect",
+            box,
+            fill: {
+                color: "#fff",
+                shadow: { blur: 24, dy: 8, color: "rgba(0,0,0,0.2)" },
+                backdropBlur: 14,
+            },
+        });
+        expect(el.style.boxShadow).toBe("0px 8px 24px 0px rgba(0,0,0,0.2)");
+        expect(el.style.backdropFilter).toBe("blur(14px)");
+        const legacy = one({ kind: "rect", box, fill: { color: "#fff", shadow: "0 1px 2px red" } });
+        expect(legacy.style.boxShadow).toBe("0 1px 2px red");
+    });
+
+    it("crops to an ellipse when the clip carries the shape", () => {
+        const el = one({
+            kind: "rect",
+            box,
+            fill: { color: "#eee" },
+            clip: { x: 0, y: 0, w: 100, h: 80 },
+            clipShape: "ellipse",
+        });
+        expect(el.style.clipPath).toBe("ellipse(50px 40px at 50px 40px)");
+    });
+});
