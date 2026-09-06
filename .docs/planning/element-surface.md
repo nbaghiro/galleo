@@ -5,7 +5,8 @@
 > control each option (the floating bar, the docked inspector, the canvas handles, the section
 > popup, the AI catalog). The atlas was read from the working tree on 2026-09-03 and every finding
 > below was re-verified on 2026-09-04; none had been fixed by the sibling work in flight (the media
-> merge, the focal point, the thumb assets). Status: designed, not started.
+> merge, the focal point, the thumb assets). Status: designed; phase A and the control half of
+> phase D landed 2026-09-06 with `control-distribution.md`, the rest is not started.
 
 Companion docs: `rendering.md` (the stated single reference for the element system, which this
 round brings back in line with the code), `ai.md` (the catalog and the tools that write content),
@@ -251,6 +252,11 @@ Size: S for C1, C3, C4; S+ for C2 and C5.
 ---
 
 ## Phase D: a control for every authored field
+
+Note (2026-09-05): the per-element decision on which controls sit on the bar, which in the panel
+and which go is now [`control-distribution.md`](control-distribution.md), written from a
+screenshot survey of every element. The generic rows and the section controls below stand; the
+per-element bar and panel lists there win where the two disagree.
 
 ### The finding
 

@@ -3,7 +3,7 @@ import type { DrawContext, EngineNode, Rect } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import type { FaqCollapse } from "@model/elements";
 import { getElement, register } from "@elements/spec";
-import { hitRegionId, parseTarget } from "@model/artifact";
+import { hitRegionId, parseTarget, withFreshElementIds } from "@model/artifact";
 import { FAQ_COLLAPSE } from "@model/elements";
 import { fit, fixed, grow } from "@model/geometry";
 import { t, at } from "@elements/composite/shared";
@@ -86,6 +86,19 @@ function arrangeFaq(d: FaqData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode 
     return { w: grow(), h: fit(), direction: "col", gap: 16, children: pairs };
 }
 
+// the question and its answer are one item: index either, and both go or both copy
+const pairStart = (i: number): number => i - (i % 2);
+function removePair(d: FaqData, i: number): FaqData {
+    const q = pairStart(i);
+    return { ...d, children: d.children.filter((_, k) => k !== q && k !== q + 1) };
+}
+function duplicatePair(d: FaqData, i: number): { data: FaqData; index: number } {
+    const q = pairStart(i);
+    const copy = d.children.slice(q, q + 2).map((c) => withFreshElementIds(structuredClone(c)));
+    const children = [...d.children.slice(0, q + 2), ...copy, ...d.children.slice(q + 2)];
+    return { data: { ...d, children }, index: q + 2 + (i % 2) };
+}
+
 const composeKids = (d: FaqData, ctx: LayoutCtx): EngineNode[] =>
     d.children.map((inst): EngineNode => {
         const spec = getElement(inst.type);
@@ -119,6 +132,8 @@ export const faqElement: ElementSpec<FaqData> = {
         withChildren: (d, children) => ({ ...d, children }),
         // a smart block is a unit: its children edit in place, and the block moves whole
         closed: true,
+        removeChild: removePair,
+        duplicateChild: duplicatePair,
     },
     bar: ["collapse"],
     controls: [

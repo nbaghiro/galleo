@@ -29,6 +29,7 @@ export const gradientElement: ElementSpec<GradientData> = {
         },
     }),
     resize: { height: { key: "height", min: 80, max: 480, step: 10 } },
+    bar: ["from", "to"],
     controls: [
         { key: "from", label: "From", control: "color" },
         { key: "to", label: "To", control: "color" },

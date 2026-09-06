@@ -1,14 +1,20 @@
-import type { ControlField } from "@elements/spec";
+import type { ControlField, ControlKind, ControlOption, ElementSpec } from "@elements/spec";
+import type { ElementAddress } from "@model/artifact";
 import type { MediaItem, MediaKind } from "@model/media";
 import type { Vector } from "@model/elements";
 import type { Component, JSX } from "solid-js";
+import { optionsOf, visibleControls } from "@elements/spec";
+import { updateDataAt } from "@elements/ops";
 import { parseSvg } from "@elements/media/vector";
-import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
-import { adoptLink, editorTokens } from "@editor/core/store";
+import { elementRegionId } from "@model/artifact";
+import { createEffect, createMemo, createSignal, For, Match, Show, Switch } from "solid-js";
+import { adoptLink, commit, editor, editorTokens } from "@editor/core/store";
 import { type Dims, dimsOf, pickMedia, pickIcon, probeImage } from "@editor/core/media";
+import { capture } from "@ui/analytics";
 import { Icon } from "@ui/icons";
-import { Button } from "@ui/button";
+import { Button, IconButton } from "@ui/button";
 import { ColorPopover, type ColorSwatch } from "@ui/color";
+import { FloatingPanel } from "@ui/overlay";
 import { SelectField } from "@ui/select";
 import {
     inputCls,
@@ -36,6 +42,42 @@ export {
     SliderRow,
     SelectField,
 };
+
+// a slider or a colour writes continuously and a text field writes per keystroke; either stream
+// folds into one undo step per key, closed by the store's idle window
+const COALESCED: ReadonlySet<ControlKind> = new Set<ControlKind>([
+    "slider",
+    "color",
+    "text",
+    "number",
+    "link",
+]);
+export const coalesceFor = (
+    control: ControlKind | undefined,
+    scope: "bar" | "panel",
+    address: ElementAddress,
+    key: string,
+): string | undefined =>
+    control && COALESCED.has(control) ? `${scope}:${elementRegionId(address)}:${key}` : undefined;
+
+// The one writer behind every schema control on the bar and in the panel, so coalescing and the
+// events a control emits cannot diverge between the two.
+export function writeElementData(
+    address: ElementAddress,
+    spec: ElementSpec | undefined,
+    data: Record<string, unknown>,
+    key: string,
+    value: unknown,
+    scope: "bar" | "panel",
+    kind?: ControlKind, // for a row the schema does not carry (the generic height slider)
+): void {
+    const control = kind ?? spec?.controls.find((c) => c.key === key)?.control;
+    commit(updateDataAt(editor.artifact, address, { ...data, [key]: value }), {
+        coalesce: coalesceFor(control, scope, address, key),
+    });
+    if ((key === "maxLines" || key === "clamp") && typeof value === "number" && value > 0)
+        capture("text_clamped", { element_type: spec?.type ?? "text", max_lines: value });
+}
 
 export const ColorField: Component<{
     value?: string;
@@ -281,17 +323,103 @@ export const VectorField: Component<{ value?: Vector; onChange: (v: Vector) => v
     );
 };
 
+const noBlur = (e: MouseEvent): void => e.preventDefault();
+
+// A URL. In the panel a plain field; on the bar an icon button opening the same small popover the
+// text link mark uses, which is why the mark bar renders this too.
+export const LinkField: Component<{
+    value?: string;
+    placeholder?: string;
+    compact?: boolean;
+    onChange: (url: string) => void;
+    onOpen?: () => void; // the mark bar captures its text range here, before focus moves
+}> = (props) => {
+    const [open, setOpen] = createSignal(false);
+    const [draft, setDraft] = createSignal("");
+    let field: HTMLInputElement | undefined;
+    const toggle = (): void => {
+        if (!open()) {
+            props.onOpen?.();
+            setDraft(props.value ?? "");
+        }
+        setOpen((o) => !o);
+    };
+    const apply = (): void => {
+        props.onChange(draft().trim());
+        setOpen(false);
+    };
+    createEffect(() => {
+        if (open()) queueMicrotask(() => field?.focus());
+    });
+    return (
+        <Show
+            when={props.compact}
+            fallback={
+                <TextField
+                    type="url"
+                    value={props.value ?? ""}
+                    placeholder={props.placeholder ?? "https://…"}
+                    onChange={props.onChange}
+                />
+            }
+        >
+            <div class="relative">
+                <IconButton
+                    auto
+                    size="md"
+                    rounded="md"
+                    tone="ink"
+                    active={!!props.value}
+                    title="Link"
+                    onMouseDown={noBlur}
+                    onClick={toggle}
+                >
+                    <Icon name="link" size={15} />
+                </IconButton>
+                <Show when={open()}>
+                    <FloatingPanel
+                        rounded="xl"
+                        pad="none"
+                        class="absolute left-1/2 top-full z-overlay mt-2 flex w-62 -translate-x-1/2 items-center gap-1.5 p-2"
+                    >
+                        <TextField
+                            ref={(el) => (field = el)}
+                            compact
+                            class="min-w-0 flex-1"
+                            placeholder={props.placeholder ?? "https://…"}
+                            value={draft()}
+                            onChange={setDraft}
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    apply();
+                                }
+                            }}
+                        />
+                        <Button variant="primary" size="sm" class="flex-none" onClick={apply}>
+                            {props.value ? "Save" : "Add"}
+                        </Button>
+                    </FloatingPanel>
+                </Show>
+            </div>
+        </Show>
+    );
+};
+
 export const Field: Component<{
     field: ControlField;
     value: unknown;
     onChange: (v: unknown) => void;
     onWrite?: (key: string, value: unknown) => void; // sibling-key writes (media posterKey)
+    data?: Record<string, unknown>; // the element's data, for options read off it and for actions
+    onAction?: (data: Record<string, unknown>) => void; // an action's rewritten data
     effective?: string; // color controls: what an unset value resolves to
     compact?: boolean;
 }> = (props) => {
     const f = (): ControlField => props.field;
     const num = (): number => Number(props.value ?? f().min ?? 0);
     const str = (): string => String(props.value ?? "");
+    const options = (): ControlOption[] => optionsOf(f(), props.data ?? {});
     // a thunk, not a shared element: reusing one node across branches drops the reactive content
     const control = (): JSX.Element => (
         <Switch
@@ -305,14 +433,15 @@ export const Field: Component<{
             <Match when={f().control === "select"}>
                 <SelectField
                     value={str()}
-                    options={f().options ?? []}
-                    onChange={props.onChange}
+                    options={options()}
+                    placeholder={f().placeholder}
+                    onChange={(v) => props.onChange(f().numeric ? Number(v) : v)}
                     compact={props.compact}
                     toolbar
                 />
             </Match>
             <Match when={f().control === "segmented"}>
-                <Segmented value={str()} options={f().options ?? []} onChange={props.onChange} />
+                <Segmented value={str()} options={options()} onChange={props.onChange} />
             </Match>
             <Match when={f().control === "align"}>
                 <AlignField value={str()} onChange={props.onChange} />
@@ -347,6 +476,14 @@ export const Field: Component<{
             </Match>
             <Match when={f().control === "toggle"}>
                 <ToggleSwitch value={!!props.value} onChange={props.onChange} />
+            </Match>
+            <Match when={f().control === "link"}>
+                <LinkField
+                    value={props.value as string | undefined}
+                    placeholder={f().placeholder}
+                    compact={props.compact}
+                    onChange={props.onChange}
+                />
             </Match>
             <Match when={f().control === "media"}>
                 <MediaField
@@ -402,6 +539,18 @@ export const Field: Component<{
             </Match>
         </Switch>
     );
+    if (f().control === "action")
+        return (
+            <div class="mb-3.5">
+                <Button
+                    variant="tool"
+                    size="sm"
+                    onClick={() => props.onAction?.(f().run!(props.data ?? {}))}
+                >
+                    {f().label}
+                </Button>
+            </div>
+        );
     if (!props.compact) return <FieldRow label={f().label}>{control()}</FieldRow>;
     return (
         <Show when={f().icon} fallback={control()}>
@@ -413,17 +562,33 @@ export const Field: Component<{
     );
 };
 
-// grouped off the stable control list, so editing a value doesn't re-render the panel and steal focus
+// Grouped off the visible-control KEYS, a string that only changes when a `visibleWhen` flips, so
+// editing a value never re-renders the panel and steals focus; a heading paints only over fields
+// that show. `data` is the element's whole bag for gating; an adapter that reads control keys only
+// (the section popup) leaves it out, and the snapshot of control values wins over it either way.
 export const SchemaFields: Component<{
     controls: ControlField[];
     read: (key: string) => unknown;
     write: (key: string, value: unknown) => void;
+    data?: () => Record<string, unknown>;
+    replace?: (data: Record<string, unknown>) => void; // what an action control writes
     effective?: (key: string) => string | undefined; // color controls: unset resolves to this
 }> = (props) => {
+    const snapshot = createMemo(() =>
+        Object.fromEntries(props.controls.map((c) => [c.key, props.read(c.key)])),
+    );
+    const bag = (): Record<string, unknown> => ({ ...(props.data?.() ?? {}), ...snapshot() });
+    const visibleKeys = createMemo(() =>
+        visibleControls(props.controls, bag())
+            .map((c) => c.key)
+            .join("\0"),
+    );
     const groups = createMemo(() => {
+        const shown = new Set(visibleKeys().split("\0"));
         const order: string[] = [];
         const byGroup = new Map<string, ControlField[]>();
         for (const c of props.controls) {
+            if (!shown.has(c.key)) continue;
             const g = c.group ?? "";
             if (!byGroup.has(g)) {
                 byGroup.set(g, []);
@@ -433,19 +598,16 @@ export const SchemaFields: Component<{
         }
         return order.map((g) => ({ name: g, fields: byGroup.get(g)! }));
     });
-    const snapshot = createMemo(() =>
-        Object.fromEntries(props.controls.map((c) => [c.key, props.read(c.key)])),
-    );
     const fieldFor = (c: ControlField): JSX.Element => (
-        <Show when={!c.visibleWhen || c.visibleWhen(snapshot())}>
-            <Field
-                field={c}
-                value={props.read(c.key)}
-                onChange={(v) => props.write(c.key, v)}
-                onWrite={props.write}
-                effective={props.effective?.(c.key)}
-            />
-        </Show>
+        <Field
+            field={c}
+            value={props.read(c.key)}
+            onChange={(v) => props.write(c.key, v)}
+            onWrite={props.write}
+            data={bag()}
+            onAction={props.replace}
+            effective={props.effective?.(c.key)}
+        />
     );
     return (
         <For each={groups()}>

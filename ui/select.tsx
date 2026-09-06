@@ -65,6 +65,8 @@ export const Dropdown: Component<{
 
     const currentOpt = createMemo(() => props.options.find((o) => o.value === props.value));
     const current = (): string => currentOpt()?.label ?? props.placeholder ?? props.value;
+    // an unset value reads its placeholder, quietly, rather than an empty trigger
+    const placeholding = (): boolean => !currentOpt() && !!props.placeholder;
     const fontStyle = (f?: string): { "font-family": string } | undefined =>
         f ? { "font-family": `'${f}'` } : undefined;
 
@@ -121,7 +123,7 @@ export const Dropdown: Component<{
                     {(svg) => thumb(svg(), "h-5 w-9.5")}
                 </Show>
                 <span
-                    class="min-w-0 flex-1 truncate text-left"
+                    class={`min-w-0 flex-1 truncate text-left ${placeholding() ? "text-muted" : ""}`}
                     style={fontStyle(currentOpt()?.font)}
                 >
                     {current()}
@@ -174,6 +176,7 @@ export const SelectField: Component<{
     value: string;
     options: DropdownOption[];
     onChange: (v: string) => void;
+    placeholder?: string;
     compact?: boolean;
     toolbar?: boolean; // keeps an inline text editor alive when used mid-edit
 }> = (props) => (
@@ -181,6 +184,7 @@ export const SelectField: Component<{
         value={props.value}
         options={props.options}
         onChange={props.onChange}
+        placeholder={props.placeholder}
         compact={props.compact}
         toolbar={props.toolbar}
     />

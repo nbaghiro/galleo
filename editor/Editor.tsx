@@ -76,6 +76,7 @@ import {
     selection,
     setLeftOpen,
     setMinimapWidth,
+    setRightInset,
     setRightTab,
     takeDropSelection,
     setSlideFrame,
@@ -692,8 +693,7 @@ const Minimap: Component = () => {
 // hidden from the palette: the layout container is scaffolding the layout actions create, not
 // something you add by hand, plus internals with no standalone meaning and the two storage elements
 // content is written as (`chart`/`diagram` with a `data.type`) — their variants are the tiles
-const HIDDEN = new Set(["container", "avatar", "chart", "diagram", "media"]);
-const CAT_ORDER = ["text", "media", "table", "composite", "chart", "diagram", "basic"];
+const CAT_ORDER = ["text", "media", "table", "composite", "chart", "diagram", "form", "basic"];
 const CAT_LABEL: Record<string, string> = {
     text: "Text",
     media: "Media",
@@ -701,6 +701,7 @@ const CAT_LABEL: Record<string, string> = {
     composite: "Composite",
     chart: "Charts",
     diagram: "Diagrams",
+    form: "Forms",
     basic: "Basic",
 };
 
@@ -798,12 +799,21 @@ function dismissFlyoutOnOutside(rail: () => HTMLElement | undefined, owner: stri
 
 const Panel: Component = () => {
     const [q, setQ] = createSignal("");
-    const all = listElements().filter((s) => !HIDDEN.has(s.type));
+    const all = listElements().filter((s) => !s.hidden);
     const cats = createMemo(() => CAT_ORDER.filter((c) => all.some((s) => s.category === c)));
     let rail: HTMLDivElement | undefined;
     const owner = newOwnerToken("flyout");
     useInspectorAutoOpen();
     dismissFlyoutOnOutside(() => rail, owner);
+    // the rail and its flyout sit over the stage's right edge; the bar keeps out from under them
+    onMount(() => {
+        const ro = new ResizeObserver(() => setRightInset((rail?.offsetWidth ?? 0) + 12));
+        if (rail) ro.observe(rail);
+        onCleanup(() => {
+            ro.disconnect();
+            setRightInset(0);
+        });
+    });
 
     const items = createMemo(() => {
         const query = q().trim().toLowerCase();
@@ -910,7 +920,7 @@ const Panel: Component = () => {
 // full-bleed canvas. Same stores, same tabs signal — only the housing differs.
 const PhoneChrome: Component = () => {
     const [q, setQ] = createSignal("");
-    const all = listElements().filter((s) => !HIDDEN.has(s.type));
+    const all = listElements().filter((s) => !s.hidden);
     useInspectorAutoOpen();
     const items = createMemo(() => {
         const query = q().trim().toLowerCase();

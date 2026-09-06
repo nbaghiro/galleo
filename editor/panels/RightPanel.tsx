@@ -2,15 +2,20 @@ import type { ElementAddress } from "@model/artifact";
 import type { Component } from "solid-js";
 import { createMemo, For, Show } from "solid-js";
 import { elementRegionId } from "@model/artifact";
-import { capture } from "@ui/analytics";
 import { getElementAt, setElementLayout, sharedParent, updateDataAt } from "@elements/ops";
-import { getElement, labelOf } from "@elements/spec";
+import { getElement, labelOf, resizeOf } from "@elements/spec";
 import { gridColumnsOf } from "@elements/composite/container";
 import { runCommand } from "@ui/keys";
 import { commit, editor, regions, selectedAddresses } from "@editor/core/store";
-import { deleteSelectedElements } from "@editor/core/commands";
 import { paintedLeafFor } from "@editor/core/leaf";
-import { FieldRow, PanelHeader, SchemaFields, SliderRow } from "./SharedControlFields";
+import {
+    FieldRow,
+    Group,
+    PanelHeader,
+    SchemaFields,
+    SliderRow,
+    writeElementData,
+} from "./SharedControlFields";
 import { TextField, Toggle } from "@ui/inputs";
 import {
     PIN_ANCHORS,
@@ -26,6 +31,8 @@ import { openDataEditor } from "./DataEditor";
 import { DataGrid } from "./DataEditor";
 import { Icon } from "@ui/icons";
 import { Button, IconButton } from "@ui/button";
+
+const DEFAULT_RADIUS = 12; // shown before layout.radius is explicitly set
 
 // Shared property editing across a set is v2; the count plus the shared actions is all this is.
 export const MultiSelectPanel: Component = () => {
@@ -62,32 +69,33 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
         const s = spec();
         return s ? dataShapeFor(s.category, String(data().type ?? "")) : undefined;
     });
+    // the panel is the remainder: what the bar shows is not shown again here
     const panelControls = createMemo(() => {
-        const all = spec()?.controls ?? [];
-        return editorShape() ? all.filter((c) => !DATA_KEYS.has(c.key)) : all;
+        const s = spec();
+        const bar = new Set(s?.bar ?? []);
+        const grid = editorShape();
+        return (s?.controls ?? []).filter(
+            (c) => !bar.has(c.key) && !(grid && DATA_KEYS.has(c.key)),
+        );
     });
     // re-key so the grid re-parses when the element or its type changes
     const gridKey = createMemo(
         () => `${elementRegionId(props.address)}:${String(data().type ?? "")}`,
     );
 
-    const set = (key: string, value: unknown): void => {
-        // slider/color drag continuously; coalesce the stream into one undo step
-        const control = spec()?.controls.find((c) => c.key === key)?.control;
-        const coalesce =
-            control === "slider" || control === "color"
-                ? `panel:${elementRegionId(props.address)}:${key}`
-                : undefined;
-        commit(updateDataAt(editor.artifact, props.address, { ...data(), [key]: value }), {
-            coalesce,
-        });
-        // the one inspector writer: every clamp control funnels through here
-        if ((key === "maxLines" || key === "clamp") && typeof value === "number" && value > 0)
-            capture("text_clamped", { element_type: inst()?.type ?? "text", max_lines: value });
-    };
-    const del = (): void => deleteSelectedElements();
+    const set = (key: string, value: unknown): void =>
+        writeElementData(props.address, spec(), data(), key, value, "panel");
+    // the bottom-edge handle's height, as a row: the phone has no handle, and a number reads better
+    // than a drag anyway; a spec that already exposes the key as a control keeps its own
+    const heightCfg = createMemo(() => {
+        const s = spec();
+        const i = inst();
+        const h = s && i ? resizeOf(s, i.data)?.height : undefined;
+        return h && !s!.controls.some((c) => c.key === h.key) ? h : undefined;
+    });
+    const setHeight = (n: number): void =>
+        writeElementData(props.address, spec(), data(), heightCfg()!.key, n, "panel", "slider");
 
-    const DEFAULT_RADIUS = 12; // shown before layout.radius is explicitly set
     const radius = createMemo((): number => {
         const set = inst()?.layout?.radius;
         if (set !== undefined) return set;
@@ -120,6 +128,16 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
     };
 
     const pin = createMemo((): Pin | undefined => inst()?.layout?.pin);
+    // section chrome: a direct child of the section root may hang from the band's top edge on a
+    // continuous format; offered wherever it is already set so an AI-written dock can be cleared
+    const dock = createMemo((): boolean => inst()?.layout?.dock === "top");
+    const dockable = createMemo((): boolean => props.address.path.length === 1 || dock());
+    const setDock = (on: boolean): void => {
+        const { dock: _dock, ...rest } = inst()?.layout ?? {};
+        commit(
+            setElementLayout(editor.artifact, props.address, on ? { ...rest, dock: "top" } : rest),
+        );
+    };
     const setPin = (key: "z" | "rotate" | "dx" | "dy", value: number): void => {
         const cur = inst();
         const p = cur?.layout?.pin;
@@ -156,18 +174,11 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
 
     return (
         <div>
-            <PanelHeader
-                title={(spec() && labelOf(spec()!, data())) ?? "Element"}
-                action={
-                    <Button variant="link" onClick={del}>
-                        Delete
-                    </Button>
-                }
-            />
+            <PanelHeader title={(spec() && labelOf(spec()!, data())) ?? "Element"} />
             <Show
                 when={panelControls().length > 0}
                 fallback={
-                    <Show when={!editorShape() && !spec()?.frame}>
+                    <Show when={!editorShape() && !spec()?.frame && !heightCfg()}>
                         <p class="text-[13px] text-muted">No editable properties.</p>
                     </Show>
                 }
@@ -176,6 +187,8 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                     controls={panelControls()}
                     read={(k) => data()[k]}
                     write={set}
+                    data={data}
+                    replace={(next) => commit(updateDataAt(editor.artifact, props.address, next))}
                     // an unset color override inherits the painted leaf's tone; show it as Auto
                     effective={(k) =>
                         k === "color" && spec()?.richText
@@ -183,6 +196,20 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                             : undefined
                     }
                 />
+            </Show>
+            <Show when={heightCfg()}>
+                {(h) => (
+                    <FieldRow label="Height">
+                        <SliderRow
+                            value={Number(data()[h().key] ?? h().min)}
+                            min={h().min}
+                            max={h().max}
+                            step={h().step ?? 1}
+                            unit="px"
+                            onChange={setHeight}
+                        />
+                    </FieldRow>
+                )}
             </Show>
             <Show when={spec()?.frame}>
                 <FieldRow label="Corner radius">
@@ -209,76 +236,92 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                     </FieldRow>
                 )}
             </Show>
-            <Show when={pinnable(editor.artifact, props.address)}>
-                <FieldRow label="Pin in place">
-                    <Toggle value={!!pin()} onChange={() => togglePin(props.address)} />
-                </FieldRow>
-                <Show when={pin()}>
-                    {(p) => (
-                        <>
-                            <FieldRow label="Anchor">
-                                <div class="grid w-fit grid-cols-3 gap-1">
-                                    <For
-                                        each={PIN_ANCHORS.flatMap((ay) =>
-                                            PIN_ANCHORS.map((ax) => [ax, ay] as const),
-                                        )}
-                                    >
-                                        {([ax, ay]) => (
-                                            <button
-                                                title={`${
-                                                    {
-                                                        start: "Top",
-                                                        center: "Middle",
-                                                        end: "Bottom",
-                                                    }[ay]
-                                                } ${{ start: "left", center: "center", end: "right" }[ax]}`}
-                                                onClick={() => reanchor(ax, ay)}
-                                                class={`size-4 rounded-sm border transition-colors ${
-                                                    p().x === ax && p().y === ay
-                                                        ? "border-accent bg-accent"
-                                                        : "border-line bg-panel hover:border-accent"
-                                                }`}
-                                            />
-                                        )}
-                                    </For>
-                                </div>
-                            </FieldRow>
-                            <FieldRow label="Offset">
-                                <div class="flex gap-1.5">
-                                    <TextField
-                                        type="number"
-                                        value={String(p().dx ?? 0)}
-                                        onChange={(v) => setPin("dx", Number(v) || 0)}
+            <Show when={pin() || dockable()}>
+                <Group label="Position" divider>
+                    <Show when={dockable()}>
+                        <FieldRow label="Dock to the section's top edge">
+                            <Toggle value={dock()} onChange={setDock} />
+                        </FieldRow>
+                    </Show>
+                    <Show when={!pin() && pinnable(editor.artifact, props.address)}>
+                        <FieldRow label="Pin in place">
+                            <Toggle value={false} onChange={() => togglePin(props.address)} />
+                        </FieldRow>
+                        {/* the controls exist behind Pin; a hunt for "rotate" has to land here */}
+                        <button
+                            class="w-full text-left text-[11px] text-muted transition-colors hover:text-accent"
+                            onClick={() => togglePin(props.address)}
+                        >
+                            Rotate, layer and offset unlock when the element is pinned. Pin it now.
+                        </button>
+                    </Show>
+                    <Show when={pin()}>
+                        {(p) => (
+                            <>
+                                <FieldRow label="Anchor">
+                                    <div class="grid w-fit grid-cols-3 gap-1">
+                                        <For
+                                            each={PIN_ANCHORS.flatMap((ay) =>
+                                                PIN_ANCHORS.map((ax) => [ax, ay] as const),
+                                            )}
+                                        >
+                                            {([ax, ay]) => (
+                                                <button
+                                                    title={`${
+                                                        {
+                                                            start: "Top",
+                                                            center: "Middle",
+                                                            end: "Bottom",
+                                                        }[ay]
+                                                    } ${{ start: "left", center: "center", end: "right" }[ax]}`}
+                                                    onClick={() => reanchor(ax, ay)}
+                                                    class={`size-4 rounded-sm border transition-colors ${
+                                                        p().x === ax && p().y === ay
+                                                            ? "border-accent bg-accent"
+                                                            : "border-line bg-panel hover:border-accent"
+                                                    }`}
+                                                />
+                                            )}
+                                        </For>
+                                    </div>
+                                </FieldRow>
+                                <FieldRow label="Offset">
+                                    <div class="flex gap-1.5">
+                                        <TextField
+                                            type="number"
+                                            value={String(p().dx ?? 0)}
+                                            onChange={(v) => setPin("dx", Number(v) || 0)}
+                                        />
+                                        <TextField
+                                            type="number"
+                                            value={String(p().dy ?? 0)}
+                                            onChange={(v) => setPin("dy", Number(v) || 0)}
+                                        />
+                                    </div>
+                                </FieldRow>
+                                <FieldRow label="Layer">
+                                    <SliderRow
+                                        value={p().z ?? 0}
+                                        min={-3}
+                                        max={3}
+                                        step={1}
+                                        onChange={(n) => setPin("z", n)}
                                     />
-                                    <TextField
-                                        type="number"
-                                        value={String(p().dy ?? 0)}
-                                        onChange={(v) => setPin("dy", Number(v) || 0)}
+                                </FieldRow>
+                                <FieldRow label="Rotation">
+                                    <SliderRow
+                                        value={p().rotate ?? 0}
+                                        min={-180}
+                                        max={180}
+                                        step={1}
+                                        unit="°"
+                                        onChange={(n) => setPin("rotate", n)}
                                     />
-                                </div>
-                            </FieldRow>
-                            <FieldRow label="Layer">
-                                <SliderRow
-                                    value={p().z ?? 0}
-                                    min={-3}
-                                    max={3}
-                                    step={1}
-                                    onChange={(n) => setPin("z", n)}
-                                />
-                            </FieldRow>
-                            <FieldRow label="Rotation">
-                                <SliderRow
-                                    value={p().rotate ?? 0}
-                                    min={-180}
-                                    max={180}
-                                    step={1}
-                                    unit="°"
-                                    onChange={(n) => setPin("rotate", n)}
-                                />
-                            </FieldRow>
-                        </>
-                    )}
-                </Show>
+                                </FieldRow>
+                            </>
+                        )}
+                    </Show>
+                </Group>
             </Show>
             <Show when={editorShape()}>
                 <div class="mb-2 mt-4 flex items-center justify-between">

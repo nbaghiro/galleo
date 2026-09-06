@@ -108,14 +108,13 @@ export const buttonElement: ElementSpec<ButtonData> = {
             children,
         };
     },
-    bar: ["variant"],
+    bar: ["variant", "size", "shape", "href", "icon"],
     inlineText: "label",
     controls: [
-        { key: "label", label: "Label", control: "text" },
         {
             key: "variant",
             label: "Style",
-            control: "segmented",
+            control: "select",
             options: BUTTON_VARIANTS.map((v) => ({ value: v, label: VARIANT_LABELS[v] })),
         },
         {
@@ -130,14 +129,8 @@ export const buttonElement: ElementSpec<ButtonData> = {
             control: "segmented",
             options: BUTTON_SHAPES.map((v) => ({ value: v, label: SHAPE_LABELS[v] })),
         },
-        {
-            key: "href",
-            label: "Link",
-            control: "text",
-            placeholder: "https://… or #section-id",
-            group: "Link",
-        },
-        { key: "icon", label: "Leading icon", control: "icon", group: "Icon" },
+        { key: "href", label: "Link", control: "link", placeholder: "https://… or #section-id" },
+        { key: "icon", label: "Leading icon", control: "icon" },
     ],
 };
 

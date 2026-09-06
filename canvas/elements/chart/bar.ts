@@ -162,6 +162,9 @@ function drawBar(chart: ResolvedChart, ctx: PlotCtx): void {
 registerChart({
     id: "bar",
     label: "Bar",
+    stacked: true,
+    values: true,
+    grid: true,
     render: drawBar,
     spans: (chart, ctx) => {
         const f = barFrame(chart, ctx);

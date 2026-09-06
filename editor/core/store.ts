@@ -10,7 +10,7 @@ import type {
     SectionOp,
     SectionSummary,
 } from "@model/artifact";
-import type { PlanId, PlanLimits } from "@model/billing";
+import type { Features, PlanId } from "@model/billing";
 import type { TurnEvent } from "@model/ai";
 import type { ToolId } from "@model/tools";
 import type { IconPick, MediaCredit, MediaItem, MediaKind } from "@model/media";
@@ -105,6 +105,9 @@ export { canvasContentWidth, setCanvasContentWidth };
 // so a handle may clamp against it to sit outside a full-bleed section. Written by each draw.
 const [boardGutterL, setBoardGutterL] = createSignal(28);
 export { boardGutterL, setBoardGutterL };
+// how far the right rail (and its open flyout) reach into the stage, so floating chrome clears it
+const [rightInset, setRightInset] = createSignal(0);
+export { rightInset, setRightInset };
 
 // The margin handles an element wears while the pointer is on it: the drag grip off its left edge,
 // the comment chip off its right. They are read as a pair, so the geometry is stated once here
@@ -242,10 +245,7 @@ export function selectedAddresses(): ElementAddress[] {
 export const multiSelected = (): boolean => extras().length > 0;
 
 // defaults are the most-restrictive Free set, so a studio with no host never leaks paid exports
-export type ExportFeatures = Pick<
-    PlanLimits,
-    "exportFormats" | "removeBranding" | "publicLinks"
-> & {
+export type ExportFeatures = Pick<Features, "exportFormats" | "removeBranding" | "publicLinks"> & {
     // the host's plan, so a wall can name the tier that lifts it (upgradeFor is in @model)
     planId: PlanId;
 };

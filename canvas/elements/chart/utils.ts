@@ -62,6 +62,12 @@ export interface ChartType {
     id: string;
     label: string;
     render: (chart: ResolvedChart, ctx: PlotCtx) => void;
+    // which options the renderer reads, so a toggle shows only where it does something and a
+    // stale value from another type never reaches a frame that would still honour it
+    stacked?: true;
+    smooth?: true;
+    values?: true;
+    grid?: true;
     // The same geometry `render` paints, reported rather than drawn. Absent = this type has no
     // addressable datums yet (heatmap cells, radar rings, the single-value gauges).
     spans?: (chart: ResolvedChart, ctx: PlotCtx) => DatumSpan[];
@@ -142,7 +148,7 @@ function splitList(s: string | undefined): string[] {
 
 // a single-line `values` parses to one series
 function parseSeries(values: string, names: string[]): Series[] {
-    return (values ?? "")
+    const rows = (values ?? "")
         .split("\n")
         .map((row) =>
             row
@@ -150,8 +156,14 @@ function parseSeries(values: string, names: string[]): Series[] {
                 .map((c) => parseFloat(c.trim()))
                 .filter((n) => Number.isFinite(n)),
         )
-        .filter((points) => points.length > 0)
-        .map((points, i) => ({ name: names[i] ?? `Series ${i + 1}`, points }));
+        .filter((points) => points.length > 0);
+    // A writer often puts one value per line when it means a single series across the categories,
+    // which otherwise reads as several empty one-point series (a documented authoring trap). With no
+    // series names to say two series were intended, fold the single values into one series.
+    if (rows.length >= 2 && rows.every((r) => r.length === 1) && names.length <= 1) {
+        return [{ name: names[0] ?? "Series 1", points: rows.map((r) => r[0]!) }];
+    }
+    return rows.map((points, i) => ({ name: names[i] ?? `Series ${i + 1}`, points }));
 }
 
 export function toChartData(raw: unknown): ChartData {
@@ -171,15 +183,16 @@ export function toChartData(raw: unknown): ChartData {
 
 export function normalize(d: ChartData): ResolvedChart {
     const type = d.type ?? "bar";
+    const can = getChart(type) ?? getChart("bar");
     return {
         type,
         series: parseSeries(d.values, splitList(d.seriesNames)),
         categories: splitList(d.categories),
         options: {
-            stacked: d.stacked ?? false,
-            smooth: d.smooth ?? false,
-            showValues: d.showValues ?? false,
-            showGrid: d.showGrid ?? true,
+            stacked: !!can?.stacked && (d.stacked ?? false),
+            smooth: !!can?.smooth && (d.smooth ?? false),
+            showValues: !!can?.values && (d.showValues ?? false),
+            showGrid: !!can?.grid && (d.showGrid ?? true),
         },
     };
 }

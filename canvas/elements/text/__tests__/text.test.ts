@@ -74,8 +74,10 @@ describe("callout", () => {
 describe("code", () => {
     it("splits into one mono line per row; an empty line keeps a space", () => {
         const n = spec("code").layout({ code: "a\n\nb" }, ctx);
-        expect(kids(n).map((l) => l.text?.text)).toEqual(["a", " ", "b"]);
-        expect(kids(n)[0]!.text?.size).toBe(13.5);
+        // the lines sit in one column the in-place editor overlays as a whole
+        const lines = kids(kids(n)[0]!);
+        expect(lines.map((l) => l.text?.text)).toEqual(["a", " ", "b"]);
+        expect(lines[0]!.text?.size).toBe(13.5);
     });
 });
 

@@ -17,6 +17,7 @@ export interface MediaData {
     // url-backed kinds
     src?: string;
     alt?: string;
+    href?: string; // the whole picture as a link
     dims?: { w: number; h: number }; // the picked source's pixel size, written by the media control
     thumbSrc?: string; // the picked source's small copy, written by the media control
     poster?: string; // video: still frame for every static paint (thumbs, previews, exports)
@@ -253,9 +254,15 @@ function pictureNode(d: MediaData, ctx: LayoutCtx, k: MediaElementKind): EngineN
 
 function mediaLayout(d: MediaData, ctx: LayoutCtx, k: MediaElementKind): EngineNode {
     const kind = kindOf(d, k);
-    if (isVectorKind(kind)) return vectorNode(d, ctx, k);
-    if (!d.src) return emptyFrame(d, ctx, k);
-    return kind === "video" ? videoNode(d, ctx, k) : pictureNode(d, ctx, k);
+    const node = isVectorKind(kind)
+        ? vectorNode(d, ctx, k)
+        : !d.src
+          ? emptyFrame(d, ctx, k)
+          : kind === "video"
+            ? videoNode(d, ctx, k)
+            : pictureNode(d, ctx, k);
+    const href = d.href?.trim();
+    return href ? { ...node, link: href } : node;
 }
 
 const KIND_LABEL: Record<MediaElementKind, string> = {
@@ -407,6 +414,14 @@ const CONTROLS: ControlField[] = [
         visibleWhen: (d) => d.kind === "video",
     },
     {
+        key: "href",
+        label: "Link",
+        control: "link",
+        placeholder: "https://… or #section-id",
+        group: "Link",
+        visibleWhen: (d) => !isVectorKind(d.kind),
+    },
+    {
         key: "alt",
         label: "Alt text",
         control: "text",
@@ -416,7 +431,7 @@ const CONTROLS: ControlField[] = [
     },
 ];
 
-const BAR_KEYS = ["src", "fit", "glyph", "color", "doc"];
+const BAR_KEYS = ["src", "fit", "shape", "glyph", "color"];
 
 const FRAME_RESIZE: ResizeSpec = { aspect: { min: 0.4, max: 2.6 } };
 const SIDE_RESIZE: ResizeSpec = {
@@ -465,8 +480,13 @@ const VARIANTS: { type: string; kind: MediaElementKind; preset?: Partial<MediaDa
     { type: "avatar", kind: "photo", preset: { shape: "circle", size: 72 } },
 ];
 
-VARIANTS.forEach((v) => register(mediaSpec(v.type, v.kind, v.preset)));
+VARIANTS.forEach((v) =>
+    register({
+        ...mediaSpec(v.type, v.kind, v.preset),
+        ...(v.type === "avatar" ? { hidden: true as const } : {}),
+    }),
+);
 
 // the stored element: the write path normalizes every variant to this, with data.kind picking the branch
-export const mediaElement = mediaSpec("media", "photo");
+export const mediaElement = { ...mediaSpec("media", "photo"), hidden: true as const };
 register(mediaElement);

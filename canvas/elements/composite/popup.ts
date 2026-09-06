@@ -103,6 +103,7 @@ function trigger(d: PopupData, ctx: LayoutCtx, open: boolean): EngineNode {
             {
                 w: fit(),
                 h: fit(),
+                ...(ctx.region ? { id: `label:${ctx.region}` } : {}),
                 text: {
                     text: d.label?.trim() || DEFAULT_LABEL,
                     fontId: fontStack("ui", ctx.theme),
@@ -187,18 +188,17 @@ export const popupElement: ElementSpec<PopupData> = {
         arrange: arrangePopup,
         withChildren: (d, children) => ({ ...d, children }),
     },
-    bar: ["label", "variant"],
+    // the trigger's label edits in place, and pressing the trigger opens the panel for editing
+    // (a reader always starts with it shut, and an export prints the trigger alone)
+    inlineText: "label",
+    bar: ["variant"],
     controls: [
-        { key: "label", label: "Trigger", control: "text", placeholder: DEFAULT_LABEL },
         {
             key: "variant",
             label: "Panel",
             control: "segmented",
             options: POPUP_VARIANTS.map((v) => ({ value: v, label: VARIANT_LABELS[v] })),
         },
-        // the panel floats over the canvas rather than in flow, so this opens it for editing; a
-        // reader always starts with it shut, and an export prints the trigger alone
-        { key: "open", label: "Show panel", control: "toggle" },
     ],
 };
 register(popupElement);

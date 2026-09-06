@@ -2,7 +2,7 @@ import "@elements/register";
 import { describe, expect, it } from "vitest";
 import { layoutCtx } from "@canvas/testkit";
 import type { EngineNode } from "@engine/node";
-import type { Section } from "@model/artifact";
+import type {} from "@model/artifact";
 import { fit, grow } from "@model/geometry";
 import {
     GHOST,
@@ -16,7 +16,10 @@ import {
     listElements,
     pill,
     skeletonize,
-    walkElements,
+    visibleControls,
+    barControls,
+    inlineTextOf,
+    optionsOf,
 } from "@elements/spec";
 
 const textLeaf = (text: string, size = 16): EngineNode => ({
@@ -38,36 +41,6 @@ describe("registry", () => {
     });
 });
 
-describe("walkElements", () => {
-    it("visits the root then its children depth-first", () => {
-        const section: Section = {
-            id: "s",
-            root: {
-                type: "container",
-                data: {
-                    children: [
-                        { type: "text", data: { text: "a" } },
-                        {
-                            type: "container",
-                            data: { children: [{ type: "text", data: { text: "b" } }] },
-                        },
-                    ],
-                },
-            },
-        };
-        const seen: string[] = [];
-        walkElements(section, (el) => seen.push(el.type));
-        expect(seen).toEqual(["container", "text", "container", "text"]);
-    });
-    it("ignores a non-array children field", () => {
-        const seen: string[] = [];
-        walkElements({ id: "s", root: { type: "x", data: { children: "nope" } } }, (el) =>
-            seen.push(el.type),
-        );
-        expect(seen).toEqual(["x"]);
-    });
-});
-
 describe("SECTION_CONTROLS visibleWhen", () => {
     const field = (key: string): (typeof SECTION_CONTROLS)[number] =>
         SECTION_CONTROLS.find((f) => f.key === key)!;
@@ -84,7 +57,7 @@ describe("SECTION_CONTROLS visibleWhen", () => {
         expect(field("bgFrom").visibleWhen?.({ bgKind: "none" })).toBe(false);
     });
     it("offers the three theme-relative tones beside the raw kinds", () => {
-        expect(field("bgKind").options?.map((o) => o.value)).toEqual([
+        expect(optionsOf(field("bgKind"), {}).map((o) => o.value)).toEqual([
             "none",
             "tint",
             "contrast",
@@ -189,5 +162,135 @@ describe("stored media keeps its per-kind chrome", () => {
     it("and its inspector title says Icon, not Image", () => {
         const spec = getElement("media")!;
         expect(spec.labelFor?.(iconData) ?? spec.label).toBe("Icon");
+    });
+});
+
+// item 8 consumers: the surface styles that now ride the richer paint instead of faking it
+describe("container surfaces on the richer paint", () => {
+    const surfaced = (data: Record<string, unknown>) => {
+        const spec = getElement("container")!;
+        return spec.layout(
+            { children: [{ type: "text", data: { text: "hi" } }], ...data },
+            layoutCtx(600),
+        );
+    };
+
+    it("sideline and topline are real side borders, not 3px filler bars", () => {
+        const side = surfaced({ surface: "sideline" });
+        expect(side.fill?.border?.sides).toEqual(["left"]);
+        expect(side.children?.some((c) => c.w.mode === "fixed" && c.w.value === 3)).toBe(false);
+        expect(surfaced({ surface: "topline" }).fill?.border?.sides).toEqual(["top"]);
+    });
+
+    it("glass is a translucent panel with a cast shadow and backdrop blur", () => {
+        const glass = surfaced({ surface: "glass" });
+        expect(glass.fill?.backdropBlur).toBeGreaterThan(0);
+        expect(typeof glass.fill?.shadow).toBe("object");
+    });
+
+    it("a circle panel crops its subtree to the ellipse", () => {
+        const circle = surfaced({ surface: "solid", shape: "circle" });
+        expect(circle.clip?.shape).toBe("ellipse");
+    });
+});
+
+describe("the open tab is tab-shaped", () => {
+    it("keeps square base corners on the active chip only", () => {
+        const spec = getElement("tabs")!;
+        const node = spec.layout(
+            {
+                labels: "One, Two",
+                active: 0,
+                children: [
+                    { type: "text", data: { text: "a" } },
+                    { type: "text", data: { text: "b" } },
+                ],
+            },
+            layoutCtx(600),
+        );
+        const chips: EngineNode[] = [];
+        const walk = (n: EngineNode): void => {
+            if (Array.isArray(n.fill?.radius) || typeof n.fill?.radius === "number") chips.push(n);
+            n.children?.forEach(walk);
+        };
+        walk(node);
+        const radii = chips.map((c) => c.fill!.radius);
+        expect(radii.some((r) => Array.isArray(r) && r[2] === 0 && r[3] === 0)).toBe(true);
+        expect(radii.some((r) => typeof r === "number")).toBe(true);
+    });
+});
+
+describe("the bar and the panel gate on the element's whole data", () => {
+    const spec = getElement("media")!;
+    const keys = (data: Record<string, unknown>): string[] =>
+        visibleControls(spec.controls, data).map((c) => c.key);
+
+    it("a video shows its player toggles and no fit, whatever surface asks", () => {
+        const video = keys({ kind: "video", src: "v.mp4" });
+        expect(video).toEqual(expect.arrayContaining(["controls", "autoplay", "loop", "muted"]));
+        expect(video).not.toContain("fit");
+        expect(video).not.toContain("glyph");
+    });
+
+    it("an icon shows its glyph and colour, never a source or alt text", () => {
+        const icon = keys({ kind: "icon" });
+        expect(icon).toEqual(["glyph", "color"]);
+    });
+
+    it("a graphic keeps its SVG import in the panel, off the bar", () => {
+        expect(keys({ kind: "graphic" })).toEqual(["doc", "adoptTheme"]);
+        expect(barControls(spec, { kind: "graphic" }).map((c) => c.key)).toEqual([]);
+    });
+
+    it("a photo can switch to a circle, which only the full bag can say", () => {
+        expect(keys({ kind: "photo", src: "p.png" })).toContain("shape");
+        expect(barControls(spec, { kind: "photo", src: "p.png" }).map((c) => c.key)).toEqual([
+            "src",
+            "fit",
+            "shape",
+        ]);
+    });
+});
+
+describe("in-place labels", () => {
+    it("name their key and whether they keep newlines", () => {
+        expect(inlineTextOf(getElement("button")!)).toEqual({ key: "label", multiline: false });
+        expect(inlineTextOf(getElement("badge")!)).toEqual({ key: "text", multiline: false });
+        expect(inlineTextOf(getElement("popup")!)).toEqual({ key: "label", multiline: false });
+        expect(inlineTextOf(getElement("code")!)).toEqual({ key: "code", multiline: true });
+        expect(inlineTextOf(getElement("field")!)).toEqual({ key: "label", multiline: false });
+        expect(inlineTextOf(getElement("contactForm")!)).toEqual({
+            key: "submitLabel",
+            multiline: false,
+        });
+        expect(inlineTextOf(getElement("text")!)).toBeNull();
+    });
+
+    it("stamp a label region the overlay can sit on", () => {
+        const ids = (type: string): string[] => {
+            const spec = getElement(type)!;
+            const node = spec.layout(spec.create(), { ...layoutCtx(800), region: "el:s:0" });
+            const out: string[] = [];
+            const walk = (n: typeof node): void => {
+                if (n.id) out.push(n.id);
+                n.children?.forEach(walk);
+            };
+            walk(node);
+            return out;
+        };
+        for (const type of ["badge", "popup", "code", "field"])
+            expect(ids(type), type).toContain("label:el:s:0");
+    });
+});
+
+describe("the text bar carries the clamp, since rich text never opens the panel", () => {
+    it("as a numeric select the layout reads as a number", () => {
+        const spec = getElement("text")!;
+        const lines = spec.controls.find((c) => c.key === "maxLines")!;
+        expect(spec.bar).toContain("maxLines");
+        expect(lines.control).toBe("select");
+        expect(lines.numeric).toBe(true);
+        const node = spec.layout({ text: "a", style: "body", maxLines: 2 }, layoutCtx(800));
+        expect(node.text?.maxLines).toBe(2);
     });
 });

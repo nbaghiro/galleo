@@ -46,6 +46,7 @@
         "eval:ci": "tsx scripts/eval-ci.ts",
         "onboarding:reset": "tsx scripts/onboarding-reset.ts",
         "eval:shots": "tsx scripts/eval-shots.ts",
+        "survey:controls": "tsx scripts/survey-controls.ts",
         "stripe:setup": "tsx scripts/stripe-setup.ts",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "drizzle-kit migrate",

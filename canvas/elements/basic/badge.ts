@@ -25,6 +25,7 @@ export const badgeElement: ElementSpec<BadgeData> = {
             {
                 w: fit(),
                 h: fit(),
+                ...(ctx.region ? { id: `label:${ctx.region}` } : {}),
                 text: {
                     text: d.text,
                     fontId: fontStack("mono", ctx.theme),
@@ -37,7 +38,8 @@ export const badgeElement: ElementSpec<BadgeData> = {
             },
         ],
     }),
-    controls: [{ key: "text", label: "Text", control: "text" }],
+    inlineText: "text",
+    controls: [],
 };
 
 register(badgeElement);

@@ -36,6 +36,8 @@ function drawLine(chart: ResolvedChart, ctx: PlotCtx): void {
 registerChart({
     id: "line",
     label: "Line",
+    smooth: true,
+    grid: true,
     render: drawLine,
     spans: (chart, ctx) => lineDots(chart, frameOf(chart, ctx)),
 });

@@ -37,6 +37,28 @@ function diagramWithChildren(d: DiagramData, kids: ElementInstance[]): DiagramDa
     return { ...d, items: formatItems(next) };
 }
 
+// Delete and Duplicate on a cell act on the item it shows: both children go or both copy, and
+// the item's positional meta travels with it.
+const itemOf = (childIndex: number): number => Math.floor(childIndex / 2);
+function removeItem(d: DiagramData, i: number): DiagramData {
+    const item = itemOf(i);
+    const items = resolved(d).items.filter((_, k) => k !== item);
+    const meta = toDiagramData(d).itemsMeta?.filter((_, k) => k !== item);
+    return { ...d, items: formatItems(items), ...(meta ? { itemsMeta: meta } : {}) };
+}
+function duplicateItem(d: DiagramData, i: number): { data: DiagramData; index: number } {
+    const item = itemOf(i);
+    const items = [...resolved(d).items];
+    items.splice(item + 1, 0, { ...items[item]! });
+    const source = toDiagramData(d).itemsMeta;
+    const meta = source ? [...source] : undefined;
+    meta?.splice(item + 1, 0, { ...(meta[item] ?? {}) });
+    return {
+        data: { ...d, items: formatItems(items), ...(meta ? { itemsMeta: meta } : {}) },
+        index: (item + 1) * 2 + (i % 2),
+    };
+}
+
 // drop the undefined/default noise so stored meta carries only what styles something
 const cleanMeta = (m: DiagItemMeta): DiagItemMeta => ({
     ...(m.color ? { color: m.color } : {}),
@@ -181,6 +203,8 @@ function diagramSpec(
             },
             withChildren: diagramWithChildren,
             closed: true,
+            removeChild: removeItem,
+            duplicateChild: duplicateItem,
             slots: (d) => {
                 const r = resolved(d);
                 if (!getDiagram(r.type)?.weights) return null;
@@ -335,8 +359,9 @@ const VARIANTS: {
 VARIANTS.forEach((v) => register(diagramSpec(v.key, v.label, v.type, v.preset)));
 
 // the stored element: templates + AI write this, with data.type picking the renderer
-register(
-    diagramSpec("diagram", "Diagram", "process", {
+register({
+    ...diagramSpec("diagram", "Diagram", "process", {
         items: "Research, Design, Build, Test, Launch",
     }),
-);
+    hidden: true,
+});

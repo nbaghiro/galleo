@@ -55,4 +55,4 @@ function drawHeatmap(chart: ResolvedChart, ctx: PlotCtx): void {
     });
 }
 
-registerChart({ id: "heatmap", label: "Heatmap", render: drawHeatmap });
+registerChart({ id: "heatmap", label: "Heatmap", values: true, render: drawHeatmap });

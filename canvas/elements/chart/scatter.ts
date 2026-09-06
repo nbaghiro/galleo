@@ -39,4 +39,10 @@ function drawScatter(chart: ResolvedChart, ctx: PlotCtx): void {
         g.circle(f.x(xs[i]!), f.y(ys[i]!), DOT_R, { fill: theme.surface, stroke: color, width: 2 });
 }
 
-registerChart({ id: "scatter", label: "Scatter", render: drawScatter, spans: scatterDots });
+registerChart({
+    id: "scatter",
+    label: "Scatter",
+    grid: true,
+    render: drawScatter,
+    spans: scatterDots,
+});

@@ -3,7 +3,7 @@ import type { EngineNode } from "@engine/node";
 import type { ElementInstance } from "@model/artifact";
 import { register, getElement } from "@elements/spec";
 import type { BoxInsets } from "@model/geometry";
-import { fit, fixed, grow } from "@model/geometry";
+import { fit, fixed, grow, percent } from "@model/geometry";
 import { hexA } from "@themes";
 
 type Lines = "rows" | "grid" | "none";
@@ -19,6 +19,7 @@ interface TableData {
     cells?: ElementInstance[];
     data?: string; // legacy: rows by newline, cells by comma
     clamp?: number;
+    widths?: number[]; // per column, percent of the table; absent = each column fits its content
 }
 
 const MAX_COLS = 8;
@@ -46,8 +47,15 @@ interface Grid {
     zebra: boolean;
     density: Density;
     clamp?: number; // clamp every text cell to N lines; 0/absent = unbounded
+    widths?: number[]; // exactly cols entries summing to 100, or absent
     cells: ElementInstance[]; // exactly rows * cols, row-major
 }
+
+// authored widths are kept only while they still describe this column count
+const widthsFor = (d: TableData, cols: number): number[] | undefined =>
+    Array.isArray(d.widths) && d.widths.length === cols && d.widths.every((w) => w > 0)
+        ? d.widths
+        : undefined;
 
 function grid(d: TableData): Grid {
     let cols: number;
@@ -70,12 +78,34 @@ function grid(d: TableData): Grid {
         cols,
         rows,
         cells,
-        header: !!d.header,
+        header: d.header !== false,
         lines: d.lines ?? "rows",
         zebra: !!d.zebra,
         density: d.density ?? "cozy",
         clamp: d.clamp,
+        widths: widthsFor(d, cols),
     };
+}
+
+// A divider drag between two columns re-splits their combined share; the rest keep theirs. The
+// starting shares are the authored ones, else an even split, so the first drag has a baseline.
+function resizeColumns(d: TableData, entries: { slot: number; pct: number }[]): TableData {
+    const g = grid(d);
+    const widths = (g.widths ?? Array.from({ length: g.cols }, () => 100 / g.cols)).map((w) =>
+        Math.round(w),
+    );
+    const touched = new Set<number>();
+    for (const e of entries)
+        if (e.slot >= 0 && e.slot < widths.length) {
+            widths[e.slot] = e.pct;
+            touched.add(e.slot);
+        }
+    // the pair's shares are conserved by the drag; whatever rounding leaves over lands on a column
+    // the drag did not touch, so the row still sums to the table
+    const rest = widths.map((_, i) => i).filter((i) => !touched.has(i));
+    const absorber = rest.length ? rest[rest.length - 1]! : widths.length - 1;
+    widths[absorber] = (widths[absorber] ?? 0) + 100 - widths.reduce((a, b) => a + b, 0);
+    return { ...d, widths };
 }
 
 const PAD: Record<Density, BoxInsets> = {
@@ -97,7 +127,9 @@ function arrangeTable(g: Grid, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
     const band = hexA(ctx.theme.ink, 0.05);
     // never floor a column above its even share, or a wide table overflows a phone instead of squeezing
     const minCol = Math.max(1, Math.min(MIN_COL, Math.floor(ctx.availWidth / g.cols)));
-    const cell = (k: EngineNode, row: number): EngineNode => {
+    const cell = (k: EngineNode, i: number): EngineNode => {
+        const row = Math.floor(i / g.cols);
+        const col = i % g.cols;
         // a text cell sizes its column; anything else takes whatever width the column gets
         k.w = k.text ? fit() : grow();
         k.h = fit(MIN_CELL_TEXT_H);
@@ -110,8 +142,9 @@ function arrangeTable(g: Grid, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
         }
         const zebra = g.zebra && row % 2 === 1;
         const inner: EngineNode = { w: k.w, h: fit(), padding: pad, children: [k] };
+        // an authored width pins the column's track; otherwise the column sizes to its content
         return {
-            w: grow(minCol),
+            w: g.widths ? percent(g.widths[col]! / 100) : grow(minCol),
             h: grow(), // every cell takes the row's height, so its band fills the row
             direction: "col",
             alignX: k.text?.align,
@@ -139,7 +172,7 @@ function arrangeTable(g: Grid, ctx: LayoutCtx, kids: EngineNode[]): EngineNode {
             radius: Math.round(ctx.theme.radius / 2),
             ...(g.lines === "none" ? {} : { border: { color: line, width: 1 } }),
         },
-        children: kids.map((k, i) => cell(k, Math.floor(i / g.cols))),
+        children: kids.map(cell),
     };
 }
 
@@ -194,10 +227,17 @@ export const tableElement: ElementSpec<TableData> = {
                 zebra: g.zebra,
                 density: g.density,
                 ...(g.clamp !== undefined ? { clamp: g.clamp } : {}),
+                ...(g.widths ? { widths: g.widths } : {}),
                 cells,
             };
         },
         closed: true,
+        // a column is a slot: its cells fold into one box, and the divider between two columns
+        // writes their widths
+        slots: (d) => ({
+            of: (i) => i % grid(d).cols,
+            resize: (entries) => resizeColumns(d, entries),
+        }),
     },
     controls: [
         { key: "rows", label: "Rows", control: "slider", min: 1, max: MAX_ROWS, step: 1 },

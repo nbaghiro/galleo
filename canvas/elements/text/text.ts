@@ -59,7 +59,7 @@ export const textElement: ElementSpec<TextData> = {
     tier: "primitive",
     create: () => ({ text: "New text", style: "body" }),
     richText: true,
-    bar: ["style", "align", "color"], // color = block-level override; per-range color comes from marks
+    bar: ["style", "align", "maxLines", "color"], // color = block-level override; per-range color comes from marks
     layout: (data: TextData, ctx: LayoutCtx): EngineNode => {
         const s = STYLE[data.style] ?? FALLBACK;
         const text: TextLeaf = {
@@ -89,7 +89,18 @@ export const textElement: ElementSpec<TextData> = {
             options: TEXT_STYLES.map((v) => ({ value: v, label: STYLE_LABELS[v] })),
         },
         { key: "align", label: "Align", control: "align" },
-        { key: "maxLines", label: "Max lines", control: "slider", min: 0, max: 6, step: 1 },
+        {
+            key: "maxLines",
+            label: "Lines",
+            control: "select",
+            numeric: true,
+            icon: "lines",
+            placeholder: "Auto",
+            options: [
+                { value: "0", label: "Auto" },
+                ...[1, 2, 3, 4, 6].map((n) => ({ value: String(n), label: `${n}` })),
+            ],
+        },
         { key: "color", label: "Color override", control: "color", group: "Appearance" },
     ],
 };

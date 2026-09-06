@@ -8,6 +8,9 @@ interface CodeData {
     code: string;
 }
 
+// One leaf per line with no gap between them, so the in-place editor's line pitch (the leaf's
+// line height) lands on the painted lines exactly; it edits the whole block as one field.
+
 export const codeElement: ElementSpec<CodeData> = {
     type: "code",
     label: "Code",
@@ -17,32 +20,37 @@ export const codeElement: ElementSpec<CodeData> = {
     layout: (d: CodeData, ctx: LayoutCtx): EngineNode => ({
         w: grow(),
         h: fit(),
-        direction: "col",
-        gap: 2,
         padding: { top: 16, bottom: 16, left: 18, right: 18 },
         fill: {
             color: ctx.theme.bg,
             radius: Math.round(ctx.theme.radius / 2),
             border: { color: ctx.theme.line, width: 1 },
         },
-        children: d.code.split("\n").map(
-            (line): EngineNode => ({
+        children: [
+            {
                 w: grow(),
                 h: fit(),
-                text: {
-                    text: line.length ? line : " ",
-                    fontId: fontStack("mono", ctx.theme),
-                    size: 13.5,
-                    color: ctx.theme.ink,
-                    align: "start",
-                    wrap: "words",
-                },
-            }),
-        ),
+                direction: "col",
+                ...(ctx.region ? { id: `label:${ctx.region}` } : {}),
+                children: d.code.split("\n").map(
+                    (line): EngineNode => ({
+                        w: grow(),
+                        h: fit(),
+                        text: {
+                            text: line.length ? line : " ",
+                            fontId: fontStack("mono", ctx.theme),
+                            size: 13.5,
+                            color: ctx.theme.ink,
+                            align: "start",
+                            wrap: "words",
+                        },
+                    }),
+                ),
+            },
+        ],
     }),
-    controls: [
-        { key: "code", label: "Code", control: "text", multiline: true, placeholder: "// code" },
-    ],
+    inlineText: { key: "code", multiline: true },
+    controls: [],
     frame: true,
 };
 

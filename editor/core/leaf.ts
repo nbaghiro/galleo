@@ -1,4 +1,5 @@
 import type { EngineNode, TextLeaf } from "@engine/node";
+import { LINE_HEIGHT_FACTOR } from "@model/text";
 import type { ArtifactContent, ElementAddress, Section } from "@model/artifact";
 import type { LayoutCtx } from "@elements/spec";
 import { composedNodeFor, firstTextLeaf, nodeById, sectionContentTokens } from "@elements/compose";
@@ -8,7 +9,7 @@ import { elementRegionId } from "@model/artifact";
 import { panelHugWidth, panelNode, panelWidth, popupData } from "@elements/composite/popup";
 import { profileFor } from "@engine/profile";
 import type { RunLayout } from "@canvas/render/commands";
-import { LINE_HEIGHT_FACTOR, ctxFor, measureText } from "@canvas/render/commands";
+import { ctxFor, measureText } from "@canvas/render/commands";
 import { sectionLayoutWidth } from "@canvas/render/backends";
 import { canvasContentWidth, editor, editorTokens, sectionFitScale } from "./store";
 
@@ -112,9 +113,13 @@ export function paintedLeafFor(address: ElementAddress): TextLeaf | null {
     const panelled = panelNodeFor(address)?.text;
     if (panelled) return panelled;
     const section = editor.artifact.sections.find((s) => s.id === address.section);
-    // an inline label is an anonymous child leaf, so its element's node descends to it
+    // an inline label is an anonymous child leaf: the one stamped `label:` where the arrange marks
+    // it (a form's submit button sits after its fields), else the first text down the subtree
+    const labelId = `label:${elementRegionId(address)}`;
     const leafOf = (node: EngineNode | null): TextLeaf | null =>
-        node && (node.text ?? (spec.inlineText ? firstTextLeaf(node) : null));
+        node &&
+        (node.text ??
+            (spec.inlineText ? (nodeById(node, labelId)?.text ?? firstTextLeaf(node)) : null));
     const composed = section
         ? leafOf(composedNodeFor(section, address, paintedCtx(section)))
         : null;

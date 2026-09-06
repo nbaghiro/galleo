@@ -1,21 +1,23 @@
 import type { Rect } from "@engine/node";
 import type { ControlField } from "@elements/spec";
 import type { Component } from "solid-js";
-import { createEffect, createMemo, For, Show, createSignal } from "solid-js";
+import { createEffect, createMemo, For, onCleanup, Show, createSignal } from "solid-js";
 import type { ElementAddress } from "@model/artifact";
 import { elementRegionId, parentTarget } from "@model/artifact";
 import { profileFor } from "@engine/profile";
 import { measureText } from "@canvas/render/commands";
 import { isPhone } from "@ui/viewport";
 import { runCommand } from "@ui/keys";
-import { getElementAt, setElementLayout, sharedParent, updateDataAt } from "@elements/ops";
-import { getElement } from "@elements/spec";
+import { duplicableAt, getElementAt, setElementLayout, sharedParent } from "@elements/ops";
+import { barControls, getElement } from "@elements/spec";
 import {
+    boardGutterL,
     commit,
     editing,
     editor,
     multiSelected,
     regions,
+    rightInset,
     selectedAddresses,
     selection,
     stageEl,
@@ -36,13 +38,13 @@ import {
     runTranslate,
     textAssist,
 } from "@editor/core/ai";
-import { Field } from "./SharedControlFields";
+import { Field, LinkField, writeElementData } from "./SharedControlFields";
 import { Icon } from "@ui/icons";
 import type { MarkType } from "@model/text";
 import { ColorPicker, highlightSwatches, textColorSwatches } from "@ui/color";
-import { Button, Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
+import { Chip, Eyebrow, IconButton, Spinner } from "@ui/button";
 import { FloatingBar, FloatingPanel } from "@ui/overlay";
-import { Separator, TextField } from "@ui/inputs";
+import { Separator } from "@ui/inputs";
 import {
     activeMarks,
     activeValues,
@@ -53,6 +55,8 @@ import {
 } from "@editor/core/text";
 
 const BAR_GAP = 10;
+const BAR_H = 42;
+const EDGE = 8; // breathing room between the bar and whatever bounds it
 
 export const ContextBar: Component = () => {
     const addr = createMemo(() => {
@@ -72,11 +76,7 @@ export const ContextBar: Component = () => {
     const data = createMemo(() => (inst()?.data ?? {}) as Record<string, unknown>);
     const barFields = createMemo((): ControlField[] => {
         const s = spec();
-        if (!s?.bar) return [];
-        const d = data();
-        return s.bar
-            .map((k) => s.controls.find((c) => c.key === k))
-            .filter((c): c is ControlField => !!c && (!c.visibleWhen || c.visibleWhen(d)));
+        return s ? barControls(s, data()) : [];
     });
     const boxOf = (a: ElementAddress): Rect | null =>
         regions().find((r) => r.id === elementRegionId(a))?.box ?? null;
@@ -89,12 +89,28 @@ export const ContextBar: Component = () => {
         const a = addr();
         return a ? boxOf(a) : null;
     });
+    // The bar's own width, measured, so the clamp below keeps the whole of it clear of the rails:
+    // the sections rail on the left and the palette rail (plus its flyout) on the right both sit
+    // over the stage, and a bar centred on a small element near either edge would slide under them.
+    const [barW, setBarW] = createSignal(260);
+    let ro: ResizeObserver | undefined;
+    const measureBar = (el: HTMLDivElement): void => {
+        ro?.disconnect();
+        ro = new ResizeObserver(() => setBarW(el.offsetWidth));
+        ro.observe(el);
+        setBarW(el.offsetWidth);
+    };
+    onCleanup(() => ro?.disconnect());
     const pos = createMemo((): { left: number; top: number } | null => {
         const b = box();
         if (!b || drag()) return null;
         const w = stageEl()?.clientWidth ?? 960;
-        const left = Math.min(Math.max(b.x + b.w / 2, 130), w - 130);
-        const above = b.y - 42 - BAR_GAP;
+        const half = barW() / 2 + EDGE;
+        const lo = boardGutterL() + half;
+        const hi = w - rightInset() - half;
+        const centre = b.x + b.w / 2;
+        const left = lo <= hi ? Math.min(Math.max(centre, lo), hi) : centre;
+        const above = b.y - BAR_H - BAR_GAP;
         return { left, top: above >= 0 ? above : b.y + b.h + BAR_GAP };
     });
 
@@ -106,14 +122,7 @@ export const ContextBar: Component = () => {
     };
     const setData = (key: string, value: unknown): void => {
         const a = addr();
-        if (!a) return;
-        // slider/color drag continuously; coalesce the stream into one undo step
-        const control = barFields().find((c) => c.key === key)?.control;
-        const coalesce =
-            control === "slider" || control === "color"
-                ? `bar:${elementRegionId(a)}:${key}`
-                : undefined;
-        commit(updateDataAt(editor.artifact, a, { ...data(), [key]: value }), { coalesce });
+        if (a) writeElementData(a, spec(), data(), key, value, "bar");
     };
     const align = createMemo((): string => inst()?.layout?.align ?? "start");
     // `layout.align` is alignSelf: it only moves a column child with horizontal slack (in a row it
@@ -158,14 +167,19 @@ export const ContextBar: Component = () => {
         const a = addr();
         return a ? canRegenerate(a) : false;
     });
-    const structural = createMemo((): boolean => {
+    // Delete and Duplicate reach every element; a sealed container's child gets what its container
+    // defines for them (see `deleteElement`), and Duplicate hides only where it defines nothing
+    const canDuplicate = createMemo((): boolean => {
         const many = set();
-        if (many) return many.every((a) => movable(editor.artifact, a));
+        if (many) return many.every((a) => duplicableAt(editor.artifact, a));
         const a = addr();
-        return a ? movable(editor.artifact, a) : false;
+        return a ? duplicableAt(editor.artifact, a) : false;
     });
     const groupable = createMemo(
-        (): boolean => !!set() && !!sharedParent(set() ?? []) && structural(),
+        (): boolean =>
+            !!set() &&
+            !!sharedParent(set() ?? []) &&
+            (set() ?? []).every((a) => movable(editor.artifact, a)),
     );
     const ungroupable = createMemo((): boolean => {
         const a = addr();
@@ -196,10 +210,11 @@ export const ContextBar: Component = () => {
                     // Content coords on purpose: when the keyboard opens the browser scrolls the
                     // focused element into view and the bar rides along, whereas a `fixed` strip
                     // attaches to the layout viewport and the keyboard's pan can strand it.
+                    ref={measureBar}
                     class={
                         isPhone()
                             ? "absolute left-1/2 z-chrome max-w-[calc(100%-16px)] -translate-x-1/2 overflow-x-auto"
-                            : "absolute z-chrome -translate-x-1/2"
+                            : "absolute z-chrome w-max -translate-x-1/2"
                     }
                     style={
                         isPhone()
@@ -214,6 +229,7 @@ export const ContextBar: Component = () => {
                                 <Field
                                     compact
                                     field={c}
+                                    data={data()}
                                     value={data()[c.key]}
                                     onChange={(v) => setData(c.key, v)}
                                     onWrite={(k, v) => setData(k, v)}
@@ -308,8 +324,7 @@ export const ContextBar: Component = () => {
                             <Icon name="pin" size={15} />
                         </IconButton>
                     </Show>
-                    {/* a closed container's child edits in place: it has no life of its own to duplicate or delete */}
-                    <Show when={structural()}>
+                    <Show when={canDuplicate()}>
                         <IconButton
                             size="md"
                             rounded="md"
@@ -319,17 +334,17 @@ export const ContextBar: Component = () => {
                         >
                             <Icon name="duplicate" size={15} />
                         </IconButton>
-                        <IconButton
-                            size="md"
-                            rounded="md"
-                            tone="ink"
-                            class="hover:text-accent"
-                            title="Delete"
-                            onClick={del}
-                        >
-                            <Icon name="trash" size={15} />
-                        </IconButton>
                     </Show>
+                    <IconButton
+                        size="md"
+                        rounded="md"
+                        tone="ink"
+                        class="hover:text-accent"
+                        title="Delete"
+                        onClick={del}
+                    >
+                        <Icon name="trash" size={15} />
+                    </IconButton>
                 </FloatingBar>
             )}
         </Show>
@@ -347,8 +362,7 @@ const noBlur = (e: MouseEvent): void => e.preventDefault();
 const popCls = "absolute left-1/2 top-full z-overlay mt-2 w-60 -translate-x-1/2 p-2.5";
 
 export const MarkControls: Component = () => {
-    const [pop, setPop] = createSignal<null | "color" | "hl" | "link">(null);
-    const [linkUrl, setLinkUrl] = createSignal("");
+    const [pop, setPop] = createSignal<null | "color" | "hl">(null);
     let linkRange: { from: number; to: number } | null = null;
     // captured at popover open, since the native color well steals focus and loses the selection
     let markRange: { from: number; to: number } | null = null;
@@ -367,16 +381,10 @@ export const MarkControls: Component = () => {
         else clearTextMark(type, markRange ?? undefined);
     };
 
-    const openLink = (): void => {
-        linkRange = textSelection();
-        setLinkUrl(activeValues().link ?? "");
-        setPop((p) => (p === "link" ? null : "link"));
-    };
-    const applyLink = (): void => {
-        const url = linkUrl().trim();
+    // captured at popover open, since the URL field takes the focus and with it the selection
+    const applyLink = (url: string): void => {
         if (url) setTextMark("link", url, linkRange ?? undefined);
         else clearTextMark("link", linkRange ?? undefined);
-        setPop(null);
     };
 
     return (
@@ -479,44 +487,12 @@ export const MarkControls: Component = () => {
                 </Show>
             </div>
 
-            <div class="relative">
-                <IconButton
-                    auto
-                    size="md"
-                    rounded="md"
-                    tone="ink"
-                    active={is("link")}
-                    title="Link"
-                    onMouseDown={noBlur}
-                    onClick={openLink}
-                >
-                    <Icon name="link" size={15} />
-                </IconButton>
-                <Show when={pop() === "link"}>
-                    <FloatingPanel
-                        rounded="xl"
-                        pad="none"
-                        class="absolute left-1/2 top-full z-overlay mt-2 flex w-62 -translate-x-1/2 items-center gap-1.5 p-2"
-                    >
-                        <TextField
-                            compact
-                            class="min-w-0 flex-1"
-                            placeholder="https://…"
-                            value={linkUrl()}
-                            onChange={setLinkUrl}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                    e.preventDefault();
-                                    applyLink();
-                                }
-                            }}
-                        />
-                        <Button variant="primary" size="sm" class="flex-none" onClick={applyLink}>
-                            {activeValues().link ? "Save" : "Add"}
-                        </Button>
-                    </FloatingPanel>
-                </Show>
-            </div>
+            <LinkField
+                compact
+                value={activeValues().link}
+                onOpen={() => (linkRange = textSelection())}
+                onChange={applyLink}
+            />
         </>
     );
 };

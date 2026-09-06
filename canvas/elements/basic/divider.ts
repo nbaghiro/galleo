@@ -22,17 +22,17 @@ export const dividerElement: ElementSpec<DividerData> = {
             fill: { color: d.color ?? ctx.theme.line, radius: Math.max(0.5, th / 2) },
         };
     },
+    bar: ["thickness", "color"],
     controls: [
         {
             key: "thickness",
             label: "Thickness",
-            control: "slider",
-            min: 1,
-            max: 10,
-            step: 1,
-            unit: "px",
+            control: "select",
+            numeric: true,
+            icon: "minus",
+            options: [1, 2, 3, 4, 6, 8].map((n) => ({ value: String(n), label: `${n}px` })),
         },
-        { key: "color", label: "Color override", control: "color", group: "Appearance" },
+        { key: "color", label: "Color override", control: "color" },
     ],
 };
 

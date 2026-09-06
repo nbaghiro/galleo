@@ -304,14 +304,16 @@ engine changes**.
 
 **Studio-only spec fields** (optional, read solely by the editor — inert for layout/present/export):
 
-| Field             | Drives                                                                                                                                                                                                                      |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `richText?`       | primary text takes inline marks → the contenteditable overlay + the inline mark bar (only `text`)                                                                                                                           |
-| `bar?: string[]`  | which `controls` keys appear on the floating format bar                                                                                                                                                                     |
-| `frame?: boolean` | element has a visible frame → the corner-radius slider in the docked inspector (and forces it open)                                                                                                                         |
-| `resize?`         | bottom-edge canvas handle: `height` (a data key) / `aspect` (`data.aspect`); width is the divider system                                                                                                                    |
-| `container?`      | `{children, arrange, withChildren}` — recursion + generic insert/remove; `closed` seals it (children edit in place, never move/insert/delete — the diagram); `slots` opts a closed container into the divider gesture (§6④) |
-| `fallback?`       | interactive → static substitution for paged/export                                                                                                                                                                          |
+| Field                | Drives                                                                                                                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `richText?`          | primary text takes inline marks → the contenteditable overlay + the inline mark bar (only `text`)                                                                                                                                                                                                                   |
+| `inlineText?`        | a plain string edited in place through a `label:` region the arrange stamps (button, badge, popup trigger, field caption, form submit); `{ key, multiline: true }` keeps newlines (code)                                                                                                                            |
+| `bar?: string[]`     | which `controls` keys appear on the floating format bar; only `BAR_KINDS` may go there (no text, slider or SVG box), at most `BAR_WIDE_BUDGET` wide widgets, both enforced by `check:elements`                                                                                                                      |
+| `frame?: boolean`    | element has a visible frame → the corner-radius slider in the docked inspector (and forces it open)                                                                                                                                                                                                                 |
+| `resize?`            | bottom-edge canvas handle: `height` (a data key, also a generic Height row in the panel) / `aspect` (`data.aspect`); width is the divider system                                                                                                                                                                    |
+| `labelFor?`, `live?` | the panel title by data (media's Icon vs Image); whether playback mounts a live overlay                                                                                                                                                                                                                             |
+| `container?`         | `{children, arrange, withChildren}` — recursion + generic insert/remove; `closed` seals it against drag-out and drops; `slots` opts it into the divider gesture (§6④); `removeChild`/`duplicateChild` say what Delete and Duplicate mean for its children (an FAQ pair, a diagram item, a tab), else a slot empties |
+| `fallback?`          | interactive → static substitution for paged/export                                                                                                                                                                                                                                                                  |
 
 `ControlField[]` is the schema the generic inspector + format bar both render (control kinds: `select`,
 `segmented`, `align`, `slider`, `toggle`, `color`, `number`, `text`, `media`, `icon`, `iconColor`,
@@ -368,11 +370,26 @@ side-effect-imports every element file at startup (that's when each `register(sp
 
 ### 5.2 The catalog
 
-**65 registered types, 61 palette-visible.** Hidden from the palette (`HIDDEN` in `editor/Editor.tsx`):
+**72 registered types, 67 palette-visible** (`ElementSpec.hidden` is the one flag both the palette and the `check:elements` tally filter by). Hidden from the palette (each spec's own `hidden: true`):
 `container`, `avatar`, and the `chart`/`diagram` elements themselves — content stores one of
 those with a `data.type`, while the per-type entries are the palette tiles (`group`/`card` are legacy
 aliases `getElement` resolves onto `container`, not registered types). Palette rail order + labels
 (`CAT_ORDER` / `CAT_LABEL`, same file):
+
+The **paint vocabulary** (item 8, closed): gradients are multi-stop and radial through one
+shared `Gradient` in `@model/artifact`; fills take per-corner radius, side-selective borders, a
+structured shadow, and `backdropBlur`; a node's clip can be an ellipse. DOM and the 2D canvas
+paint all of it; PDF flattens gradients and drops shadows by stated decision while drawing real
+per-corner paths and side borders; PPTX rasterizes anything richer than an autoshape
+(`classify` in `pptx.ts`). Glass and circle container surfaces, tab-shaped tabs, and radial
+section backdrops are the built-in consumers.
+
+The **form family** (`canvas/elements/form/element.ts`) is the one palette category whose elements
+are interactive on a published page: `field` paints one input's resting look per kind, the five
+form variants are an open container that paints its own submit button, and the paint mints
+`input:` regions so the live overlay (`ui/live.tsx`) mounts real controls over exactly those
+rectangles on publish. Editor, Present and every export show the resting paint; submissions land
+in `form_submissions` through `POST /p/:slug/submit`.
 
 | Rail (label)  | `category`  | Elements (tier)                                                                                                                                                                                                                                                                   |
 | ------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -425,13 +442,18 @@ A single `selection()` signal in `editor/core/store.ts` (`{kind:"element", addre
 (the box of each id'd node), so the UI can never drift from what's painted.
 
 **① Floating format bar** — `editor/panels/ControlBars.tsx` (`ContextBar`). Renders for a selected element,
-anchored just above its region box (flips below if it would clip; hidden mid-drag). Contents, in order:
-the spec's `bar` keys resolved to their `ControlField`s and rendered **compact** (same `Field` dispatcher as
-the panel, labels dropped) → **rich-text marks** (`MarkControls`, only while editing a `richText` element) →
-**align** (only when the element has horizontal slack in its parent — decided by probing the spec's natural
-width) → one **AI ✨** (text rewrite/translate intake while inline-editing rich text, whole-element
-regenerate otherwise) → **duplicate** → **delete**. Continuous slider/color drags coalesce into a single
-undo step.
+anchored just above its region box (flips below if it would clip; hidden mid-drag), its centre clamped
+against its own measured width so it never slides under the sections rail or the palette rail
+(`boardGutterL` / `rightInset`). Contents, in order: the spec's `bar` keys through `barControls` (one
+gating predicate with the panel, `visibleControls`, fed the element's whole data) rendered **compact**
+(same `Field` dispatcher as the panel, labels dropped) → **rich-text marks** (`MarkControls`, only while
+editing a `richText` element; its link popover is the shared `LinkField`) → **align** (only when the
+element has horizontal slack in its parent — decided by probing the spec's natural width) → one **AI ✨**
+(text rewrite/translate intake while inline-editing rich text, whole-element regenerate otherwise) →
+group / ungroup → pin → **duplicate** (where the parent defines a copy) → **delete** (always: a sealed
+container's child is removed the way its container says, or emptied). The text bar is the ceiling: one
+select, one align, a swatch, eight marks and the actions. Continuous slider/color drags coalesce into a
+single undo step through `writeElementData`, the one writer the bar and the panel share.
 
 **② Docked right panel** — `Panel` in `editor/Editor.tsx`: a vertical icon rail + a flyout that shows either
 the **palette** (tiles grouped by `category`, or a search) or the **inspector**. The routing hinges on
@@ -446,18 +468,24 @@ return spec.controls.every((c) => bar.includes(c.key)); // vacuously true for ze
 
 i.e. rich-text, or any element whose every control already lives on the bar (zero-control containers
 included) — but a framed element always opens the panel. Otherwise a `createEffect` auto-opens the
-inspector for the selection.
+inspector for the selection. Bar-only today: text, bullets, quote, stat, the six positional composites,
+faq, popup, button, badge, divider; everything else opens the panel for what the bar cannot hold.
 
 **③ Inspector + control kit** — `editor/panels/RightPanel.tsx` (`ElementInspector`) over the `Field` /
 `SchemaFields` dispatchers in `editor/panels/SharedControlFields.tsx` (which re-export the shared `@ui`
 input primitives):
 
-- **ElementInspector** renders `spec.controls` through `SchemaFields` — grouped by each field's `group`,
-  each gated by `visibleWhen`, dispatched by control kind to the shared primitives (`Segmented`,
-  `SliderRow`, `ColorField`, `MediaField`, `IconField`, `VectorField`, …). It deliberately omits spatial
-  props (width/height/align/gap/padding) — those are canvas handles. When `spec.frame`, it appends the
-  universal **corner-radius** slider (written to `ElementLayout.radius`, not element data; unset, it shows
-  the painted region's radius so the slider reads true). **Charts/diagrams are special**: `dataShapeFor()`
+- **ElementInspector** is the remainder: it renders the `spec.controls` the bar does not show through
+  `SchemaFields` — grouped by each field's `group` over the visible fields only (a heading never paints
+  alone), each gated by `visibleWhen` over the element's whole data, dispatched by control kind to the
+  shared primitives (`Segmented`, `SliderRow`, `ColorField`, `MediaField`, `IconField`, `VectorField`,
+  `LinkField`, an `action` button whose `run` rewrites the data whole, …). It deliberately omits width and
+  alignment — those are canvas handles and the bar. Then the generic rows the schema cannot express: the
+  **corner-radius** slider when `spec.frame` (written to `ElementLayout.radius`, not element data; unset,
+  it shows the painted region's radius so the slider reads true), a **Height** slider from `resize.height`
+  when the spec exposes no control of that key (the phone has no handle), **Column span** under a grid
+  parent, and a **Position** block (dock to the section's top edge for a root child; the pin's anchor grid,
+  offset, layer and rotation while pinned). **Charts/diagrams are special**: `dataShapeFor()`
   (`editor/core/infographic.ts`) returns a structured shape, so the inspector hides the raw data keys
   (`DATA_KEYS`) and renders an inline **`DataGrid`** (`editor/panels/DataEditor.tsx` — a spreadsheet-style
   editor, expandable to a full-screen modal) instead. A diagram's `list` shape edits as Item · Detail
@@ -473,17 +501,24 @@ signal (the canvas reflows per frame, commits on release):
 
 - **DragHandle** — a grip left of the hovered/selected element or section; a press becomes a move only
   after a 5px threshold, so a plain click on the grip selects. It never renders for a **closed**
-  container's children: `movable` (`core/dnd.ts`) gates every structural gesture — move, delete,
-  duplicate, cut — and paste re-anchors beside the container (`movableAncestor`), so a diagram label
-  offers only in-place editing.
+  container's children: `movable` (`core/dnd.ts`) gates the structural gestures that would tear a child
+  out — move, cut, group, pin — and paste re-anchors beside the container (`movableAncestor`). Delete and
+  Duplicate are not gated: they reach every element, and a sealed child gets what its container's
+  `removeChild`/`duplicateChild` define (`deleteElement`, `duplicateElement` in `@elements/ops`).
+- **Affordance presses** — a press on a `hit:` region (a tab chip, a popup trigger, an FAQ row, a
+  checkbox) runs the affordance and also selects what it landed on, so the element's bar and panel
+  follow; it never opens an inline edit. A second press on the selected element's own `label:`
+  region edits it instead (a popup's trigger), and an in-place label in general edits only on a press
+  that lands on its painted words, so a form's gap or a code block's padding selects.
 - **ResizeHandles** — a single **bottom-edge** strip (corner/width handles were removed) → `resize.height`
   (a data key) or `resize.aspect` (`data.aspect`).
 - **RegionDividers** — the **primary width affordance**, ONE mechanism at every depth: thin `col-resize`
   bars between any two side-by-side siblings — the section's columns (the root row's children) or a nested
   row — each writing both neighbours' `ElementLayout.width.pct` (a `siblings` live edit). Inside a
   **closed** container the same bars act through the spec's `slots` facet instead: child regions fold into
-  slot unions (a diagram cell's label + detail are one slot) and the drag writes the container's own data
-  (per-item `weight`, a `slots` live edit); a closed container without `slots` shows no dividers at all.
+  slot unions (a diagram cell's label + detail are one slot; a table column's cells are one slot) and the
+  drag writes the container's own data (per-item `weight`, the table's `widths`, a `slots` live edit); a
+  closed container without `slots` shows no dividers at all.
 
 Net: an element's entire editing surface is assembled from its `ElementSpec` — `bar` picks the quick
 controls, `controls` fills the panel, `frame`/`resize`/`container` light up the radius slider and canvas

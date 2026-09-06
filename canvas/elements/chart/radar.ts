@@ -64,4 +64,4 @@ function drawRadar(chart: ResolvedChart, ctx: PlotCtx): void {
     }
 }
 
-registerChart({ id: "radar", label: "Radar", render: drawRadar });
+registerChart({ id: "radar", label: "Radar", grid: true, render: drawRadar });

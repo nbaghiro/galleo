@@ -66,4 +66,4 @@ function drawBubble(chart: ResolvedChart, ctx: PlotCtx): void {
         });
 }
 
-registerChart({ id: "bubble", label: "Bubble", render: drawBubble, spans: bubbleDots });
+registerChart({ id: "bubble", label: "Bubble", grid: true, render: drawBubble, spans: bubbleDots });

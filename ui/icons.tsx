@@ -100,6 +100,14 @@ const PATHS: Record<string, () => JSX.Element> = {
             />
         </>
     ),
+    form: () => (
+        <>
+            <rect x="3.5" y="4.5" width="17" height="6.5" rx="1.4" />
+            <path d="M6.5 7.75h5" />
+            <rect x="3.5" y="14.5" width="5" height="5" rx="1.2" />
+            <path d="M4.9 17l1.2 1.2 2-2.4M11.5 17h9" />
+        </>
+    ),
     diagram: () => (
         <>
             <rect x="3.5" y="9" width="6" height="6" rx="1.4" />
@@ -184,6 +192,16 @@ const PATHS: Record<string, () => JSX.Element> = {
         </>
     ),
     row: () => <path d="M7 5v14M12 5v14M17 5v14" />,
+    alignBaseline: () => (
+        <>
+            <path d="M4 17h16" />
+            <path d="M8 17V9M12 17V5M16 17V11" />
+        </>
+    ),
+    lines: () => <path d="M4 7h16M4 12h16M4 17h9" />,
+    curve: () => <path d="M4 17c5 0 5-10 10-10s4 10 6 10" />,
+    values: () => <path d="M9 4L7 20M17 4l-2 16M4 9h16M4 15h16" />,
+    required: () => <path d="M12 5v14M6.8 8.5l10.4 7M17.2 8.5l-10.4 7" />,
     alignItemsStart: () => (
         <>
             <path d="M4.5 4v16" />

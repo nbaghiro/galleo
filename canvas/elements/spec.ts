@@ -1,5 +1,5 @@
 import type { EngineNode, MeasureText, Rect } from "@engine/node";
-import type { ElementInstance, Section } from "@model/artifact";
+import type { ElementInstance } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
 import { fit, fixed, grow, percent } from "@model/geometry";
@@ -15,7 +15,7 @@ export function register<Data>(spec: ElementSpec<Data>): void {
 // the old names whatever the prompt says, and an unresolved type paints the pink unknown-element box
 // in a customer's deck. Two entries are far cheaper than that.
 // Renamed or merged element types, so a row written before the change still resolves. The media
-// merge also needs `data.kind`, which the write path fills in (`withMediaKinds`); this keeps the
+// merge also needs `data.kind`, which the write path fills in (`withCanonicalTypes`); this keeps the
 // registry lookup alive in between.
 const LEGACY_TYPES: Record<string, string> = {
     group: "container",
@@ -29,6 +29,9 @@ const LEGACY_TYPES: Record<string, string> = {
     icon: "media",
     graphic: "media",
 };
+
+/** The registered name behind a stored one: `group`/`card` answer as `container`. */
+export const canonicalType = (type: string): string => LEGACY_TYPES[type] ?? type;
 
 export function getElement(type: string): ElementSpec | undefined {
     return registry.get(type) ?? registry.get(LEGACY_TYPES[type] ?? "");
@@ -49,16 +52,6 @@ export const isLiveData = (spec: ElementSpec, data: unknown): boolean =>
 
 export function listElements(): ElementSpec[] {
     return [...registry.values()];
-}
-
-export function walkElements(section: Section, visit: (el: ElementInstance) => void): void {
-    const recurse = (el?: ElementInstance): void => {
-        if (!el) return;
-        visit(el);
-        const kids = (el.data as { children?: ElementInstance[] }).children;
-        if (Array.isArray(kids)) kids.forEach(recurse);
-    };
-    recurse(section.root);
 }
 
 export interface LayoutCtx {
@@ -87,32 +80,95 @@ export type ControlKind =
     | "color"
     | "number"
     | "text"
+    | "link" // a URL: a field in the panel, an icon button with a popover on the bar
+    | "action" // a button in the panel whose `run` rewrites the data whole (add a tab, add a field)
     | "media"
     | "icon" // icon glyph picker (Iconify) → nested { id, body, vb }
     | "iconColor" // theme-role color swatches for a themed icon
-    | "vector" // paste-SVG import → a parsed Vector (graphic element)
-    | "custom";
+    | "vector"; // paste-SVG import → a parsed Vector (graphic element)
+
+// What the floating bar can draw compactly. A text input, a slider or the SVG import box has no
+// compact form, so a `bar` naming one fails `check:elements` rather than rendering the panel widget
+// over the canvas. `WIDE_BAR_KINDS` are the ones that take real width; a bar shows at most
+// BAR_WIDE_BUDGET of them, the density the text bar sets.
+export const BAR_KINDS: ReadonlySet<ControlKind> = new Set<ControlKind>([
+    "select",
+    "segmented",
+    "align",
+    "color",
+    "toggle",
+    "link",
+    "media",
+    "icon",
+    "iconColor",
+]);
+export const WIDE_BAR_KINDS: ReadonlySet<ControlKind> = new Set<ControlKind>([
+    "select",
+    "segmented",
+    "align",
+]);
+export const BAR_WIDE_BUDGET = 4;
+
+export interface ControlOption {
+    label: string;
+    value: string;
+    icon?: string;
+    preview?: string;
+}
 
 export interface ControlField {
     key: string;
     label: string;
     control: ControlKind;
-    // select / segmented; `icon` shows on the bar, `preview` is inline art for the dropdown row
-    options?: { label: string; value: string; icon?: string; preview?: string }[];
+    // select / segmented; `icon` shows on the bar, `preview` is inline art for the dropdown row.
+    // A function reads the options off the data (a tabs element's own labels).
+    options?: ControlOption[] | ((data: Record<string, unknown>) => ControlOption[]);
+    run?: (data: Record<string, unknown>) => Record<string, unknown>; // action controls
+    numeric?: boolean; // select: option values are numbers and are written back as numbers
     min?: number;
     max?: number;
     step?: number;
     unit?: string; // suffix on slider values; the number field renders none
     multiline?: boolean; // text → textarea
-    placeholder?: string;
+    placeholder?: string; // text/link: the empty field; select: what an unset value reads as
     icon?: string; // leading glyph on the compact format bar (which drops labels)
     mediaKind?: string; // for `media` controls: the kind the picker opens (photo · gif · …)
     posterKey?: string; // for `media` controls: sibling data key that receives the picked item's still frame
     dimsKey?: string; // for `media` controls: sibling data key that receives the source's { w, h }
     thumbKey?: string; // for `media` controls: sibling data key that receives the source's small copy
     group?: string; // optional inspector section heading
+    // receives the element's full data, control keys and all: a media control gates on `kind`,
+    // which is not itself a control
     visibleWhen?: (data: Record<string, unknown>) => boolean;
 }
+
+/** A control's options for this data, static or read off the data. */
+export const optionsOf = (field: ControlField, data: Record<string, unknown>): ControlOption[] =>
+    typeof field.options === "function" ? field.options(data) : (field.options ?? []);
+
+/** The controls a surface shows for this data: the one predicate the bar and the panel share. */
+export const visibleControls = (
+    controls: readonly ControlField[],
+    data: Record<string, unknown>,
+): ControlField[] => controls.filter((c) => !c.visibleWhen || c.visibleWhen(data));
+
+/** Every control the spec puts on the bar, resolved and gated for this data, in bar order. */
+export const barControls = (spec: ElementSpec, data: Record<string, unknown>): ControlField[] =>
+    visibleControls(
+        (spec.bar ?? [])
+            .map((k) => spec.controls.find((c) => c.key === k))
+            .filter((c): c is ControlField => !!c),
+        data,
+    );
+
+// An in-place plain label: which data key it edits, and whether it keeps its newlines
+export type InlineText = string | { key: string; multiline: true };
+export const inlineTextOf = (spec: ElementSpec): { key: string; multiline: boolean } | null =>
+    spec.inlineText === undefined
+        ? null
+        : typeof spec.inlineText === "string"
+          ? { key: spec.inlineText, multiline: false }
+          : { key: spec.inlineText.key, multiline: true };
 
 export type ElementTier = "primitive" | "unit" | "container" | "interactive";
 
@@ -134,9 +190,13 @@ export interface ElementSpec<Data = unknown> {
     richText?: boolean; // primary text supports inline marks → marks-aware editor + mark bar
     // the data key of a plain-string label editable in place (no marks); the arrange publishes the
     // leaf's geometry as a `label:` region so the overlay can sit exactly over the painted text
-    inlineText?: string;
+    inlineText?: InlineText;
     bar?: string[]; // control keys to surface in the on-canvas format bar
     frame?: boolean; // has a visible frame (fill/image) → corner-radius slider in the inspector
+    // Registered but not offered on the palette: a storage type behind per-kind tiles (chart,
+    // diagram, media, avatar) or a base other entries resolve onto (container). The ONE flag both
+    // the editor palette and check:elements filter by, so the two can never disagree again.
+    hidden?: true;
 
     // canvas resize handles: width → a universal ElementLayout %; height/aspect → an explicit data field
     // A function when one element covers shapes that resize differently: media frames a picture by
@@ -164,6 +224,12 @@ export interface ElementSpec<Data = unknown> {
             of: (childIndex: number) => number;
             resize: (entries: { slot: number; pct: number }[]) => Data;
         } | null;
+        // What Delete and Duplicate mean for a closed container's child, since a plain splice would
+        // break its shape: an FAQ removes the pair, a diagram the item, tabs the tab with its label.
+        // Absent `removeChild` clears the child instead; absent `duplicateChild` hides Duplicate.
+        // `index` is where the copy landed, so the editor can select it.
+        removeChild?: (data: Data, index: number) => Data;
+        duplicateChild?: (data: Data, index: number) => { data: Data; index: number };
     };
 }
 

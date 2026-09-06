@@ -9,8 +9,14 @@ import type {
     ArtifactMusic,
 } from "@model/artifact";
 import type { ElementLayout } from "@model/geometry";
+import type { Mark } from "@model/text";
+import { normalizeMarks, spliceText } from "@model/text";
 import type { Region } from "@engine/node";
-import { isLiveData, getElement } from "@elements/spec";
+import { inRegion } from "@engine/node";
+import type { ElementSpec } from "@elements/spec";
+import { canonicalType, isLiveData, getElement } from "@elements/spec";
+import { normalize as normalizeChart, toChartData } from "@elements/chart/utils";
+import { normalizeDiagram, toDiagramData } from "@elements/diagram/utils";
 import {
     LAYOUT_PRESETS,
     addressesEqual,
@@ -19,6 +25,7 @@ import {
     contentWithElementIds,
     elementRegionId,
     emptyRegion,
+    parseDatumRegion,
     parseHitRegion,
     parseTarget,
     rowGroup,
@@ -63,10 +70,12 @@ const isEmptyContainer = (inst: ElementInstance): boolean => {
 };
 
 const isRow = (inst: ElementInstance): boolean =>
-    inst.type === "container" && (inst.data as { direction?: string }).direction === "row";
+    canonicalType(inst.type) === "container" &&
+    (inst.data as { direction?: string }).direction === "row";
 
 const isGrid = (inst: ElementInstance): boolean =>
-    inst.type === "container" && (inst.data as { direction?: string }).direction === "grid";
+    canonicalType(inst.type) === "container" &&
+    (inst.data as { direction?: string }).direction === "grid";
 
 const widthPct = (inst: ElementInstance): number | undefined => {
     const w = inst.layout?.width;
@@ -231,9 +240,47 @@ export function collapseSection(
     });
 }
 
-// user-facing delete: remove, then collapse the emptied column/region
+const parentAddr = (addr: ElementAddress): ElementAddress | null =>
+    addr.path.length ? { section: addr.section, path: addr.path.slice(0, -1) } : null;
+
+type Facet = NonNullable<ElementSpec["container"]>;
+
+// the sealed container this address is a slot of, if any: its children edit in place, so a
+// structural action on one goes through the container's own hooks rather than a splice
+function sealedParent(
+    art: ArtifactContent,
+    addr: ElementAddress,
+): { address: ElementAddress; facet: Facet } | null {
+    const address = parentAddr(addr);
+    const inst = address && getElementAt(art, address);
+    const facet = inst && getElement(inst.type)?.container;
+    return address && facet?.closed ? { address, facet } : null;
+}
+
+const lastIndex = (addr: ElementAddress): number => addr.path[addr.path.length - 1]!;
+
+// a slot that cannot go empties instead: a text loses its words, anything else returns to its default
+const cleared = (inst: ElementInstance): ElementInstance =>
+    inst.type === "text"
+        ? { ...inst, data: { ...asData(inst), text: "", marks: undefined } }
+        : { ...inst, data: getElement(inst.type)?.create() ?? inst.data };
+
+/** Whether Duplicate means anything here; a sealed container's child needs its parent to say so. */
+export function duplicableAt(art: ArtifactContent, addr: ElementAddress): boolean {
+    const sealed = sealedParent(art, addr);
+    return !sealed || !!sealed.facet.duplicateChild;
+}
+
+// user-facing delete: remove, then collapse the emptied column/region. A sealed container's
+// child is removed the way its container says (an FAQ drops the pair), or emptied where it cannot go.
 export function deleteElement(art: ArtifactContent, addr: ElementAddress): ArtifactContent {
-    return collapseSection(removeAt(art, addr), addr.section, addr.path.slice(0, -1));
+    const sealed = sealedParent(art, addr);
+    if (!sealed) return collapseSection(removeAt(art, addr), addr.section, addr.path.slice(0, -1));
+    const hook = sealed.facet.removeChild;
+    if (!hook) return updateElementAt(art, addr, cleared);
+    const i = lastIndex(addr);
+    const next = updateElementAt(art, sealed.address, (p) => ({ ...p, data: hook(p.data, i) }));
+    return collapseSection(next, addr.section, sealed.address.path);
 }
 
 export function insertChild(
@@ -311,6 +358,100 @@ export function duplicatedAddr(addr: ElementAddress): ElementAddress {
     return { section: addr.section, path };
 }
 
+/** Duplicate for any element, with where the copy landed; a sealed container places its own. */
+export function duplicateElement(
+    art: ArtifactContent,
+    addr: ElementAddress,
+): { content: ArtifactContent; at: ElementAddress | null } {
+    const sealed = sealedParent(art, addr);
+    if (!sealed) return { content: duplicateAt(art, addr), at: duplicatedAddr(addr) };
+    const hook = sealed.facet.duplicateChild;
+    if (!hook) return { content: art, at: null };
+    let index = lastIndex(addr);
+    const content = updateElementAt(art, sealed.address, (p) => {
+        const r = hook(p.data, index);
+        index = r.index;
+        return { ...p, data: r.data };
+    });
+    return { content, at: { section: addr.section, path: [...sealed.address.path, index] } };
+}
+
+// A unit's items split and merge from the keyboard (Enter/Backspace inside bullets and kin). The
+// item must carry its text directly; the sibling copy keeps the item's own shape, so a styled
+// marker rides along. Callers gate with unitItem; the parent check here keeps the op honest.
+
+const unitItemText = (
+    art: ArtifactContent,
+    addr: ElementAddress,
+): { item: ElementInstance; data: { text: string; marks?: Mark[] } } | null => {
+    if (addr.path.length === 0) return null;
+    const parent = getElementAt(art, { section: addr.section, path: addr.path.slice(0, -1) });
+    const spec = parent && getElement(parent.type);
+    if (spec?.tier !== "unit" || !spec.container || spec.container.closed) return null;
+    const item = getElementAt(art, addr);
+    const data = item?.data as { text?: unknown; marks?: Mark[] } | undefined;
+    if (!item || typeof data?.text !== "string") return null;
+    return { item, data: data as { text: string; marks?: Mark[] } };
+};
+
+export function splitUnitItem(
+    art: ArtifactContent,
+    addr: ElementAddress,
+    offset: number,
+): { content: ArtifactContent; address: ElementAddress } | null {
+    const hit = unitItemText(art, addr);
+    if (!hit) return null;
+    const { text, marks = [] } = hit.data;
+    const at = clamp(offset, text.length);
+    const head = spliceText(text, marks, at, text.length, "");
+    const tail = spliceText(text, marks, 0, at, "");
+    const idx = addr.path[addr.path.length - 1]!;
+    const sibling = withFreshElementIds({
+        ...structuredClone(hit.item),
+        data: { ...(structuredClone(hit.data) as object), text: tail.text, marks: tail.marks },
+    });
+    const next = insertChild(
+        setElementAt(art, addr, {
+            ...hit.item,
+            data: { ...hit.data, text: head.text, marks: head.marks },
+        }),
+        { section: addr.section, path: addr.path.slice(0, -1) },
+        idx + 1,
+        sibling,
+    );
+    return {
+        content: next,
+        address: { section: addr.section, path: [...addr.path.slice(0, -1), idx + 1] },
+    };
+}
+
+export function mergeUnitItem(
+    art: ArtifactContent,
+    addr: ElementAddress,
+): { content: ArtifactContent; address: ElementAddress; offset: number } | null {
+    const idx = addr.path[addr.path.length - 1]!;
+    if (idx === 0) return null;
+    const prevAddr = { section: addr.section, path: [...addr.path.slice(0, -1), idx - 1] };
+    const hit = unitItemText(art, addr);
+    const prev = unitItemText(art, prevAddr);
+    if (!hit || !prev) return null;
+    const offset = prev.data.text.length;
+    const shifted = (hit.data.marks ?? []).map((m) => ({
+        ...m,
+        from: m.from + offset,
+        to: m.to + offset,
+    }));
+    const merged = setElementAt(art, prevAddr, {
+        ...prev.item,
+        data: {
+            ...prev.data,
+            text: prev.data.text + hit.data.text,
+            marks: normalizeMarks([...(prev.data.marks ?? []), ...shifted]),
+        },
+    });
+    return { content: removeAt(merged, addr), address: prevAddr, offset };
+}
+
 // Batch ops over a selection set. The subtle part is index-path invalidation between steps: a
 // removal sorts descending so nothing pending shifts, and anything that also inserts re-resolves
 // its remaining work through element ids instead of doing its own arithmetic.
@@ -321,7 +462,18 @@ const byPathDesc = (a: ElementAddress, b: ElementAddress): number =>
 export function removeMany(art: ArtifactContent, addrs: ElementAddress[]): ArtifactContent {
     const targets = [...addrs].sort(byPathDesc);
     let out = art;
-    for (const a of targets) out = removeAt(out, a);
+    for (const a of targets) {
+        const sealed = sealedParent(out, a);
+        if (!sealed) {
+            out = removeAt(out, a);
+            continue;
+        }
+        const hook = sealed.facet.removeChild;
+        const i = lastIndex(a);
+        out = hook
+            ? updateElementAt(out, sealed.address, (p) => ({ ...p, data: hook(p.data, i) }))
+            : updateElementAt(out, a, cleared);
+    }
     const seen = new Set<string>();
     const parents: ElementAddress[] = [];
     for (const a of targets) {
@@ -342,26 +494,27 @@ export function duplicateMany(
     addrs: ElementAddress[],
 ): { content: ArtifactContent; addresses: ElementAddress[] } {
     let out = contentWithElementIds(art);
-    const sources = addrs
-        .map((a) => getElementAt(out, a)?.id)
-        .filter((id): id is Id => id !== undefined);
+    // a derived child (a diagram's label) carries no id, so it is placed by address instead;
+    // descending order keeps the addresses still to come valid, since a copy lands after its source
+    const sources = [...addrs].sort(byPathDesc).map((a) => ({ a, id: getElementAt(out, a)?.id }));
     const copies: Id[] = [];
-    for (const id of sources) {
-        const at = elementIdMap(out).get(id);
+    const placed: ElementAddress[] = [];
+    for (const { a, id } of sources) {
+        const at = id === undefined ? a : elementIdMap(out).get(id);
         if (!at) continue;
-        const next = duplicateAt(out, at);
-        if (next === out) continue;
+        const { content: next, at: copyAt } = duplicateElement(out, at);
+        if (next === out || !copyAt) continue;
         out = next;
-        const copy = getElementAt(out, duplicatedAddr(at))?.id;
+        const copy = getElementAt(out, copyAt)?.id;
         if (copy) copies.push(copy);
+        else placed.push(copyAt);
     }
     const map = elementIdMap(out);
-    return {
-        content: out,
-        addresses: copies
-            .map((id) => map.get(id))
-            .filter((a): a is ElementAddress => a !== undefined),
-    };
+    const addresses = [
+        ...copies.map((id) => map.get(id)).filter((a): a is ElementAddress => a !== undefined),
+        ...placed,
+    ];
+    return { content: out, addresses: addresses.sort((a, b) => -byPathDesc(a, b)) };
 }
 
 /** null when the set does not sit under one parent, which grouping and multi-drag both require. */
@@ -716,13 +869,59 @@ export function viewerToggleAt(
         const region = regions[i]!;
         const hit = parseHitRegion(region.id);
         if (!hit) continue;
-        const b = region.box;
         const y = point.y - (shiftFor?.(hit.address.section) ?? 0);
-        if (point.x < b.x || point.x > b.x + b.w || y < b.y || y > b.y + b.h) continue;
+        // shape-aware: a rotated affordance presses on its turned polygon, not its bounding box
+        if (!inRegion(region, point.x, y)) continue;
         const inst = getElementAt(art, hit.address);
         if (inst && isLive(inst)) return null;
         const edit = affordanceEdit(art, hit.action, hit.address);
         return edit ? { key: elementRegionId(edit.address), patch: edit.patch } : null;
+    }
+    return null;
+}
+
+/** The mark under a viewer's pointer: the topmost datum region containing the point. */
+export function viewerDatumAt(
+    regions: readonly Region[],
+    point: { x: number; y: number },
+    shiftFor?: (sectionId: string) => number,
+): { address: ElementAddress; index: number } | null {
+    for (let i = regions.length - 1; i >= 0; i--) {
+        const region = regions[i]!;
+        const d = parseDatumRegion(region.id);
+        if (!d) continue;
+        const t = parseTarget(d.element);
+        if (t?.kind !== "element") continue;
+        const y = point.y - (shiftFor?.(t.address.section) ?? 0);
+        if (!inRegion(region, point.x, y)) continue;
+        return { address: t.address, index: d.index };
+    }
+    return null;
+}
+
+/** What a hovered mark says: the row's label with its values, from the data the paint resolved. */
+export function datumLabel(
+    art: ArtifactContent,
+    address: ElementAddress,
+    index: number,
+): string | null {
+    const inst = getElementAt(art, address);
+    const spec = inst && getElement(inst.type);
+    if (!inst || !spec) return null;
+    if (spec.category === "chart") {
+        const chart = normalizeChart(toChartData(inst.data));
+        const label = chart.categories[index] ?? "";
+        const values = chart.series
+            .map((s) => s.points[index])
+            .filter((v): v is number => v !== undefined);
+        const text = [label, values.join(" · ")].filter(Boolean).join(" · ");
+        return text || null;
+    }
+    if (spec.category === "diagram") {
+        const item = normalizeDiagram(toDiagramData(inst.data)).items[index];
+        if (!item) return null;
+        const detail = item.value !== undefined ? String(item.value) : item.body;
+        return [item.label, detail].filter((s): s is string => !!s).join(" · ") || null;
     }
     return null;
 }

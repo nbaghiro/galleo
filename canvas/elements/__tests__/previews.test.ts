@@ -1,12 +1,12 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
-import { getElement } from "@elements/spec";
+import { getElement, optionsOf } from "@elements/spec";
 import { previewSvg } from "@elements/previews";
 
 const blank = previewSvg("__no-such-element__");
 
 const typeOptions = (element: string): { label: string; value: string; preview?: string }[] =>
-    getElement(element)!.controls.find((c) => c.key === "type")!.options ?? [];
+    optionsOf(getElement(element)!.controls.find((c) => c.key === "type")!, {});
 
 describe("type-switcher previews", () => {
     // The dropdown row art is the variant's own palette tile, found by the `<type>Chart` /

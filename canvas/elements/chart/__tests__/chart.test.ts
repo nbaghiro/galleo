@@ -46,6 +46,17 @@ describe("normalize", () => {
             { name: "Series 1", points: [1, 3] },
         ]);
     });
+    it("folds unnamed one-value-per-line into a single series (the transpose trap)", () => {
+        expect(normalize({ values: "11871\n3124\n121\n15\n0" }).series).toEqual([
+            { name: "Series 1", points: [11871, 3124, 121, 15, 0] },
+        ]);
+    });
+    it("keeps two single-point series when both are named", () => {
+        expect(normalize({ values: "10\n20", seriesNames: "A, B" }).series).toEqual([
+            { name: "A", points: [10] },
+            { name: "B", points: [20] },
+        ]);
+    });
     it("resolves the type, defaulting to bar", () => {
         expect(normalize({ values: "1", type: "line" }).type).toBe("line");
         expect(normalize({ values: "1" }).type).toBe("bar");
@@ -263,5 +274,18 @@ describe("chartSpans", () => {
         expect(spans(data).map((s) => s.box)).toEqual(
             rects.map((r) => ({ x: r.x, y: r.y, w: r.w, h: r.h })),
         );
+    });
+});
+
+describe("capability flags", () => {
+    it("every registered type declares what its controls may show", () => {
+        const flags = (id: string) => {
+            const t = getChart(id)!;
+            return [t.stacked, t.smooth, t.values, t.grid].map((f) => !!f);
+        };
+        expect(flags("bar")).toEqual([true, false, true, true]);
+        expect(flags("line")).toEqual([false, true, false, true]);
+        expect(flags("area")).toEqual([true, true, false, true]);
+        expect(flags("pie")).toEqual([false, false, false, false]);
     });
 });

@@ -30,4 +30,11 @@ function drawArea(chart: ResolvedChart, ctx: PlotCtx): void {
     });
 }
 
-registerChart({ id: "area", label: "Area", render: drawArea });
+registerChart({
+    id: "area",
+    label: "Area",
+    stacked: true,
+    smooth: true,
+    grid: true,
+    render: drawArea,
+});

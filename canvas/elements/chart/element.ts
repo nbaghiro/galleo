@@ -5,24 +5,14 @@ import { datumRegionId } from "@model/artifact";
 import { grow } from "@model/geometry";
 import { previewSvg } from "@elements/previews";
 import { chartSpans, renderChart } from "./render";
-import { chartTypeOptions } from "./utils";
-import type { ChartData } from "./utils";
+import { chartTypeOptions, getChart } from "./utils";
+import type { ChartData, ChartType } from "./utils";
 
-// which types actually read each option (directly or via cartesianFrame/numericAxes), so a toggle
-// never shows on a type whose renderer ignores it
-const STACKED_TYPES = new Set<string>(["bar", "column", "area"]);
-const SMOOTH_TYPES = new Set<string>(["line", "area"]);
-const VALUES_TYPES = new Set<string>(["bar", "column", "heatmap", "waterfall"]);
-const GRID_TYPES = new Set<string>([
-    "bar",
-    "column",
-    "line",
-    "area",
-    "radar",
-    "scatter",
-    "bubble",
-    "waterfall",
-]);
+// a toggle shows only on a type whose renderer reads it; the type entry says which
+const honours =
+    (flag: keyof Pick<ChartType, "stacked" | "smooth" | "values" | "grid">) =>
+    (d: Record<string, unknown>): boolean =>
+        !!getChart(typeof d.type === "string" ? d.type : "bar")?.[flag];
 
 export const CHART_CONTROLS: ControlField[] = [
     // getter: a frozen array would capture an empty registry on hot re-exec
@@ -55,25 +45,29 @@ export const CHART_CONTROLS: ControlField[] = [
         key: "stacked",
         label: "Stacked",
         control: "toggle",
-        visibleWhen: (d) => STACKED_TYPES.has(String(d.type)),
+        icon: "stack",
+        visibleWhen: honours("stacked"),
     },
     {
         key: "smooth",
         label: "Smooth",
         control: "toggle",
-        visibleWhen: (d) => SMOOTH_TYPES.has(String(d.type)),
+        icon: "curve",
+        visibleWhen: honours("smooth"),
     },
     {
         key: "showValues",
         label: "Value labels",
         control: "toggle",
-        visibleWhen: (d) => VALUES_TYPES.has(String(d.type)),
+        icon: "values",
+        visibleWhen: honours("values"),
     },
     {
         key: "showGrid",
         label: "Gridlines",
         control: "toggle",
-        visibleWhen: (d) => GRID_TYPES.has(String(d.type)),
+        icon: "grid",
+        visibleWhen: honours("grid"),
     },
 ];
 
@@ -121,7 +115,7 @@ function chartSpec(
             },
         }),
         resize: { height: { key: "height", min: 160, max: 460, step: 10 } },
-        bar: ["type"],
+        bar: ["type", "stacked", "smooth", "showValues", "showGrid"],
         controls: CHART_CONTROLS,
     };
 }
@@ -259,6 +253,10 @@ const VARIANTS: {
 VARIANTS.forEach((v) => register(chartSpec(v.key, v.label, v.type, v.preset)));
 
 // the stored element: templates + AI write this, with data.type picking the renderer
-register(
-    chartSpec("chart", "Chart", "bar", { values: "48, 62, 55, 71", categories: "Q1, Q2, Q3, Q4" }),
-);
+register({
+    ...chartSpec("chart", "Chart", "bar", {
+        values: "48, 62, 55, 71",
+        categories: "Q1, Q2, Q3, Q4",
+    }),
+    hidden: true,
+});

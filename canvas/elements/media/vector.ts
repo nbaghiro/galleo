@@ -898,7 +898,7 @@ register(
                 theme,
             ),
         resize: { height: { key: "height", min: 24, max: 600, step: 8 } },
-        bar: ["kind", "fill"],
+        bar: ["kind", "fill", "stroke"],
         controls: [
             { key: "kind", label: "Shape", control: "select", options: SHAPE_OPTIONS },
             { key: "fill", label: "Fill", control: "color" },

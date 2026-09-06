@@ -75,4 +75,10 @@ function drawWaterfall(chart: ResolvedChart, ctx: PlotCtx): void {
     });
 }
 
-registerChart({ id: "waterfall", label: "Waterfall", render: drawWaterfall });
+registerChart({
+    id: "waterfall",
+    label: "Waterfall",
+    values: true,
+    grid: true,
+    render: drawWaterfall,
+});

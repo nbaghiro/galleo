@@ -69,6 +69,9 @@ function drawColumn(chart: ResolvedChart, ctx: PlotCtx): void {
 registerChart({
     id: "column",
     label: "Column",
+    stacked: true,
+    values: true,
+    grid: true,
     render: drawColumn,
     spans: (chart, ctx) => columnBoxes(chart, frameOf(chart, ctx), ctx.opts.stacked),
 });

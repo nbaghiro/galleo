@@ -66,6 +66,7 @@ export const embedElement: ElementSpec<EmbedData> = {
     create: () => ({ title: "Embedded link", url: "https://galleo.app" }),
     layout: (d: EmbedData, ctx: LayoutCtx): EngineNode =>
         isEmbedVideoUrl(d.url ?? "") ? playerFrame(d, ctx) : linkCard(d, ctx),
+    resize: (d) => (isEmbedVideoUrl(d.url ?? "") ? { aspect: { min: 0.75, max: 2.6 } } : undefined),
     controls: [
         { key: "title", label: "Title", control: "text" },
         { key: "url", label: "URL", control: "text", placeholder: "https://…" },
