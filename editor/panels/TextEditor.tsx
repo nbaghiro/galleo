@@ -1,8 +1,8 @@
-import type { ElementAddress } from "@model/artifact";
+import type { ArtifactContent, ElementAddress } from "@model/artifact";
 import type { Component, JSX } from "solid-js";
 import { createMemo, onCleanup, onMount, Show } from "solid-js";
-import { getElementAt, updateDataAt } from "@elements/ops";
-import { getElement } from "@elements/spec";
+import { getElementAt, mergeUnitItem, splitUnitItem, updateDataAt } from "@elements/ops";
+import { getElement, inlineTextOf } from "@elements/spec";
 import { elementRegionId } from "@model/artifact";
 import type { Mark, MarkType } from "@model/text";
 import {
@@ -23,9 +23,12 @@ import {
     regions,
     remountEditing,
     setArtifactLive,
+    setSelection,
+    startEditing,
     stopEditing,
 } from "@editor/core/store";
 import { paintedLeafFor } from "@editor/core/leaf";
+import { unitItem } from "@editor/core/dnd";
 import { flatBox, paintSpin } from "@editor/core/pin";
 import {
     registerTextField,
@@ -68,8 +71,13 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         return i ? getElement(i.type) : undefined;
     });
     const fields = (): TextFields => (inst()?.data ?? {}) as TextFields;
-    // a plain inline label (a button's) edits data[key] with no marks and no mark bar
-    const plainKey = createMemo(() => (spec()?.richText ? null : (spec()?.inlineText ?? null)));
+    // a plain inline label (a button's) edits data[key] with no marks and no mark bar; a multiline
+    // one (a code block) keeps its line breaks and takes Enter as a newline
+    const plain = createMemo(() => {
+        const s = spec();
+        return s && !s.richText ? inlineTextOf(s) : null;
+    });
+    const plainKey = (): string | null => plain()?.key ?? null;
     const plainText = (): string =>
         String((fields() as Record<string, unknown>)[plainKey()!] ?? "");
     const leaf = createMemo(() => {
@@ -190,7 +198,8 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         const data = fields();
         const key = plainKey();
         if (key) {
-            const label = readMarks(el).text.replaceAll("\n", " ");
+            const raw = readMarks(el).text;
+            const label = plain()?.multiline ? raw : raw.replaceAll("\n", " ");
             setArtifactLive(
                 updateDataAt(editor.artifact, props.address, { ...data, [key]: label }),
             );
@@ -210,11 +219,59 @@ const EditingField: Component<{ address: ElementAddress }> = (props) => {
         );
     };
 
+    // a hard break as our own <br>, which read-back turns into \n; the browser's Enter would
+    // wrap the rest of the field in a block the read-back does not know
+    const insertBreak = (): void => {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0) return;
+        const r = sel.getRangeAt(0);
+        r.deleteContents();
+        const br = document.createElement("br");
+        r.insertNode(br);
+        r.setStartAfter(br);
+        r.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(r);
+        onInput();
+    };
+
+    // the edited element itself as an open unit's item (a bullet), where Enter and Backspace
+    // split and merge instead of ending the session
+    const asUnitItem = (): ElementAddress | null => {
+        if (plain()) return null;
+        const u = unitItem(editor.artifact, props.address);
+        return u && u.path.length === props.address.path.length ? u : null;
+    };
+    // ends this session (recording it as one edit) and re-enters on the landed item
+    const handoff = (content: ArtifactContent, addr: ElementAddress, caret: number): void => {
+        setArtifactLive(content);
+        stopEditing();
+        setSelection({ kind: "element", address: addr });
+        pendingSel = { from: caret, to: caret };
+        startEditing(addr);
+    };
+
     const onKeyDown = (e: KeyboardEvent): void => {
         // mark shortcuts (⌘B/I/U) are handled globally; no execCommand here
-        if (e.key === "Escape" || (e.key === "Enter" && !e.shiftKey)) {
+        if (e.key === "Escape") {
             e.preventDefault();
             stopEditing();
+        } else if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            const u = asUnitItem();
+            const off = u ? getOffsets(el) : null;
+            const res = u && off ? splitUnitItem(editor.artifact, u, off.from) : null;
+            if (res) handoff(res.content, res.address, 0);
+            else if (plain()?.multiline) insertBreak();
+            else stopEditing();
+        } else if (e.key === "Backspace") {
+            const off = getOffsets(el);
+            if (!off || off.from !== 0 || off.to !== 0) return;
+            const u = asUnitItem();
+            const res = u ? mergeUnitItem(editor.artifact, u) : null;
+            if (!res) return;
+            e.preventDefault();
+            handoff(res.content, res.address, res.offset);
         }
     };
 

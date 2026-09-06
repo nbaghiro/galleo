@@ -1,7 +1,8 @@
 import "@elements/register";
 import { describe, expect, it } from "vitest";
 import type { ArtifactContent, ElementInstance } from "@model/artifact";
-import { childrenRaw, colGroup, rowGroup, withWidth } from "@model/artifact";
+import type { Mark } from "@model/text";
+import { childrenRaw, colGroup, contentWithElementIds, rowGroup, withWidth } from "@model/artifact";
 import {
     addColumn,
     affordanceEdit,
@@ -31,7 +32,9 @@ import {
     setElementLayout,
     setSectionBackground,
     setSectionBleed,
+    mergeUnitItem,
     splitSection,
+    splitUnitItem,
     stripWidth,
     updateDataAt,
     withViewerPatches,
@@ -494,5 +497,81 @@ describe("table cell edits", () => {
         const art = updateDataAt(artOf(table), at([2]), { text: "edited" });
         const d = rootOf(art).data as { clamp?: number };
         expect(d.clamp).toBe(1);
+    });
+});
+
+describe("splitUnitItem / mergeUnitItem", () => {
+    const item = (text: string, marks?: Mark[]): ElementInstance => ({
+        type: "text",
+        data: marks ? { text, marks } : { text },
+    });
+    const listArt = (...items: ElementInstance[]): ArtifactContent =>
+        artifactOf([sectionOf({ type: "bullets", data: { children: [...items] } })]);
+    const itemsOf = (art: ArtifactContent): ElementInstance[] =>
+        (getElementAt(art, { section: "s1", path: [] })!.data as { children: ElementInstance[] })
+            .children;
+
+    it("splits at mid-text, the remainder riding a new sibling", () => {
+        const art = listArt(item("alpha beta"), item("tail"));
+        const res = splitUnitItem(art, { section: "s1", path: [0] }, 5)!;
+        expect(res.address).toEqual({ section: "s1", path: [1] });
+        expect(itemsOf(res.content).map((i) => (i.data as { text: string }).text)).toEqual([
+            "alpha",
+            " beta",
+            "tail",
+        ]);
+    });
+
+    it("split at start and end yields an empty head or tail", () => {
+        const a = splitUnitItem(listArt(item("ab")), { section: "s1", path: [0] }, 0)!;
+        expect(itemsOf(a.content).map((i) => (i.data as { text: string }).text)).toEqual([
+            "",
+            "ab",
+        ]);
+        const b = splitUnitItem(listArt(item("ab")), { section: "s1", path: [0] }, 2)!;
+        expect(itemsOf(b.content).map((i) => (i.data as { text: string }).text)).toEqual([
+            "ab",
+            "",
+        ]);
+    });
+
+    it("marks survive the seam on both sides", () => {
+        const art = listArt(item("bold plain", [{ from: 0, to: 10, type: "b" }]));
+        const res = splitUnitItem(art, { section: "s1", path: [0] }, 4)!;
+        const [head, tail] = itemsOf(res.content) as [ElementInstance, ElementInstance];
+        expect((head.data as { marks: Mark[] }).marks).toEqual([{ from: 0, to: 4, type: "b" }]);
+        expect((tail.data as { marks: Mark[] }).marks).toEqual([{ from: 0, to: 6, type: "b" }]);
+    });
+
+    it("the split ids are distinct, so both halves answer selection", () => {
+        const art = contentWithElementIds(listArt(item("ab cd")));
+        const res = splitUnitItem(art, { section: "s1", path: [0] }, 2)!;
+        const [head, tail] = itemsOf(res.content) as [ElementInstance, ElementInstance];
+        expect(tail.id).toBeDefined();
+        expect(tail.id).not.toBe(head.id);
+    });
+
+    it("refuses a non-unit parent", () => {
+        const art = artifactOf([sectionOf(colGroup([item("a"), item("b")]))]);
+        expect(splitUnitItem(art, { section: "s1", path: [0] }, 1)).toBeNull();
+    });
+
+    it("merges into the previous item at the join offset", () => {
+        const art = listArt(item("one", [{ from: 0, to: 3, type: "b" }]), item("two"));
+        const res = mergeUnitItem(art, { section: "s1", path: [1] })!;
+        expect(res.offset).toBe(3);
+        expect(res.address).toEqual({ section: "s1", path: [0] });
+        const items = itemsOf(res.content);
+        expect(items).toHaveLength(1);
+        expect((items[0]!.data as { text: string }).text).toBe("onetwo");
+        expect((items[0]!.data as { marks: Mark[] }).marks).toEqual([
+            { from: 0, to: 3, type: "b" },
+        ]);
+    });
+
+    it("merge at index 0 no-ops", () => {
+        expect(mergeUnitItem(listArt(item("a"), item("b")), { section: "s1", path: [0] })).toBe(
+            null,
+        );
     });
 });

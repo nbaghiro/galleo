@@ -9,6 +9,7 @@ import {
     activeSlot,
     applyDrop,
     computeDropSlots,
+    marqueeTargets,
     movable,
     movableAncestor,
     moveManyPayload,
@@ -169,6 +170,78 @@ describe("slot resolution — leaf inside a container", () => {
         for (let px = 25; px < 375; px += 25)
             for (let py = 25; py < 115; py += 25)
                 expect(activeSlot(slots, px, py, null), `${px},${py}`).not.toBeNull();
+    });
+});
+
+describe("slot resolution — the padding ring", () => {
+    it("the ring between the card and a row root maps to the root's own gaps", () => {
+        // rowRegions: card 0,0,400x200; root content 20,20,360x160 — (200,10) is in the top ring
+        const t = targetAt(rowArt(), rowRegions(), 200, 10);
+        expect(t).toEqual({
+            section: "s1",
+            op: "insert",
+            path: [],
+            index: 1,
+            before: false,
+            direction: "row",
+        });
+        // the bottom ring appends past the last child
+        expect(targetAt(rowArt(), rowRegions(), 350, 195)?.index).toBe(2);
+    });
+
+    it("a col root's first and last gaps reach the card's edges", () => {
+        const art = artifactOf([sectionOf(colGroup([txt("a"), txt("b")]))]);
+        const regions = [
+            reg("section:s1", 0, 0, 400, 300),
+            reg("el:s1", 20, 20, 360, 260),
+            reg("el:s1:0", 20, 20, 360, 120),
+            reg("el:s1:1", 20, 160, 360, 120),
+        ];
+        expect(targetAt(art, regions, 200, 10)?.index).toBe(0);
+        expect(targetAt(art, regions, 200, 292)?.index).toBe(2);
+    });
+
+    it("the ring around a leaf root resolves to a wrap edge", () => {
+        // leafRegions: card 0,0,400x200; the leaf at 40,40,320x120
+        expect(targetAt(leafArt(), leafRegions(), 200, 10)?.op).toBe("wrap");
+    });
+
+    it("a point outside the section card still resolves to nothing", () => {
+        const slots = computeDropSlots(rowArt(), rowRegions(), NEW);
+        expect(activeSlot(slots, 200, -60, null)).toBeNull();
+        expect(activeSlot(slots, 460, 100, null)).toBeNull();
+    });
+});
+
+describe("marqueeTargets — sweep resolution", () => {
+    it("selects the root's direct children the rectangle crosses", () => {
+        const hits = marqueeTargets(rowArt(), rowRegions(), { x: 10, y: 10, w: 380, h: 180 });
+        expect(hits).toEqual([
+            { section: "s1", path: [0] },
+            { section: "s1", path: [1] },
+        ]);
+        const one = marqueeTargets(rowArt(), rowRegions(), { x: 10, y: 10, w: 100, h: 100 });
+        expect(one).toEqual([{ section: "s1", path: [0] }]);
+    });
+
+    it("a swept branch answers as its depth-one ancestor, whole", () => {
+        // nestedArt: colGroup root over row([a, b]) — crossing both leaves lands on the row
+        const hits = marqueeTargets(nestedArt(), nestedRegions(), { x: 30, y: 30, w: 300, h: 60 });
+        expect(hits).toEqual([{ section: "s1", path: [0] }]);
+    });
+
+    it("a leaf root answers as itself; a container root never does", () => {
+        expect(marqueeTargets(leafArt(), leafRegions(), { x: 50, y: 50, w: 100, h: 60 })).toEqual([
+            { section: "s1", path: [] },
+        ]);
+        // the ring between the card and the children belongs to no one
+        expect(marqueeTargets(rowArt(), rowRegions(), { x: 2, y: 2, w: 10, h: 10 })).toEqual([]);
+    });
+
+    it("a rectangle crossing nothing selects nothing", () => {
+        expect(marqueeTargets(rowArt(), rowRegions(), { x: 500, y: 500, w: 50, h: 50 })).toEqual(
+            [],
+        );
     });
 });
 
@@ -336,6 +409,99 @@ describe("section drags — reorder through the same gap slots", () => {
         );
         expect(content).toBe(art);
         expect(address).toBeNull();
+    });
+});
+
+describe("slot resolution — distance beats class", () => {
+    // two root columns; the first is a nested row whose last gap sits just inside the column
+    // boundary's 24px band, so the class veto used to eat a drop visibly aimed at the gap
+    const art = (): ArtifactContent =>
+        artifactOf([sectionOf(rowGroup([rowGroup([txt("a"), txt("b")]), txt("c")]))]);
+    const regions = (): Region[] => [
+        reg("section:s1", 0, 0, 400, 200),
+        reg("el:s1", 20, 20, 360, 160),
+        reg("el:s1:0", 20, 20, 170, 160),
+        reg("el:s1:0.0", 20, 20, 70, 160),
+        reg("el:s1:0.1", 100, 20, 85, 160),
+        reg("el:s1:1", 210, 20, 170, 160),
+    ];
+
+    it("a drop nearer a nested gap goes to the gap, not the column band", () => {
+        // nested append line ~x=191, column boundary line x=200: at x=185 the gap is nearer
+        expect(targetAt(art(), regions(), 185, 100)).toEqual({
+            section: "s1",
+            op: "insert",
+            path: [0],
+            index: 2,
+            before: false,
+            direction: "row",
+        });
+    });
+
+    it("at the boundary itself, the near-tie still falls to the column class", () => {
+        expect(targetAt(art(), regions(), 198, 100)?.op).toBe("column");
+    });
+});
+
+describe("slot resolution — wrap beside a nested col member", () => {
+    // a two-column root; the first column stacks a and b, so each member's vertical edges take a
+    // beside-drop that wraps member and payload into a row
+    const art = (): ArtifactContent =>
+        artifactOf([sectionOf(rowGroup([colGroup([txt("a"), txt("b")]), txt("c")]))]);
+    const regions = (): Region[] => [
+        reg("section:s1", 0, 0, 400, 200),
+        reg("el:s1", 20, 20, 360, 160),
+        reg("el:s1:0", 20, 20, 170, 160),
+        reg("el:s1:0.0", 20, 20, 170, 70),
+        reg("el:s1:0.1", 20, 110, 170, 70),
+        reg("el:s1:1", 210, 20, 170, 160),
+    ];
+
+    it("a beside-drop on a nested member resolves to its wrap strip", () => {
+        expect(targetAt(art(), regions(), 188, 50)).toEqual({
+            section: "s1",
+            op: "wrap",
+            path: [0, 0],
+            index: 0,
+            before: false,
+            direction: "row",
+        });
+    });
+
+    it("the drop makes the row, member first, payload beside it", () => {
+        const t = targetAt(art(), regions(), 188, 50)!;
+        const res = applyDrop(art(), t, NEW);
+        const wrapped = getElementAt(res.content, { section: "s1", path: [0, 0] })!;
+        expect(collectTexts(wrapped)).toEqual(["a", "New text"]);
+        expect(res.address).toEqual({ section: "s1", path: [0, 0, 1] });
+    });
+
+    it("at the column boundary itself the column class still takes it", () => {
+        // member a's left edge x=20 IS the root's first column boundary
+        expect(targetAt(art(), regions(), 22, 50)?.op).toBe("column");
+    });
+
+    it("a unit's items never grow wrap strips; the unit itself does", () => {
+        const withList = artifactOf([
+            sectionOf(
+                rowGroup([
+                    colGroup([
+                        { type: "bullets", data: { children: [txt("one"), txt("two")] } },
+                        txt("b"),
+                    ]),
+                    txt("c"),
+                ]),
+            ),
+        ]);
+        const listRegions = [
+            ...regions(),
+            reg("el:s1:0.0.0", 24, 24, 160, 30),
+            reg("el:s1:0.0.1", 24, 58, 160, 30),
+        ];
+        const slots = computeDropSlots(withList, listRegions, NEW);
+        const wraps = slots.filter((s) => s.target.op === "wrap");
+        expect(wraps.some((s) => s.target.path.length > 2)).toBe(false);
+        expect(wraps.some((s) => s.target.path.length === 2)).toBe(true);
     });
 });
 

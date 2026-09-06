@@ -51,6 +51,7 @@ import {
     drag,
     dragSlots,
     endDrag,
+    marqueeTargets,
     movableAncestor,
     setDrag,
     setDragSlots,
@@ -529,7 +530,24 @@ export const Canvas: Component = () => {
         if (next !== editor.artifact) commit(next);
     };
 
+    // An in-place label edits on a press that lands on the painted words, not anywhere on the
+    // element: a form's gap, a code block's padding or a popup's chevron select instead. An element
+    // that stamps no `label:` region (rich text is its own leaf) edits on any press.
+    const onLabel = (t: Target | null, px: number, py: number): boolean => {
+        if (t?.kind !== "element") return false;
+        const el = getElementAt(editor.artifact, t.address);
+        const spec = el && getElement(el.type);
+        if (!spec || !(spec.richText || spec.inlineText)) return false;
+        const label = regions().find((r) => r.id === `label:${elementRegionId(t.address)}`);
+        return !label || inRegion(label, px, py);
+    };
+
     const BODY_DRAG_THRESHOLD = 5; // px of travel before a press becomes a move, not a click
+
+    // a press on nothing (gutter or a section's empty ground) sweeps a marquee; stage coords
+    const [marquee, setMarquee] = createSignal<Rect | null>(null);
+    const sweepable = (t: Target | null): boolean =>
+        !isCoarsePointer() && (t === null || t.kind === "section");
 
     const onPointerDown = (e: PointerEvent): void => {
         // a pointerdown reaching here while editing is an outside click; in-editor ones are stopped
@@ -538,11 +556,7 @@ export const Canvas: Component = () => {
         // from the overlay caret to the click point, smearing highlight across painted spans
         if (e.shiftKey && !isPhone()) e.preventDefault();
         pendingAffordance = affordanceAt(...point(e));
-        if (pendingAffordance) {
-            pending = null;
-            return;
-        }
-        pendingDatum = datumAt(...point(e));
+        pendingDatum = pendingAffordance ? null : datumAt(...point(e));
         pending = { target: hitTest(...point(e)), x: e.clientX, y: e.clientY };
     };
 
@@ -588,6 +602,22 @@ export const Canvas: Component = () => {
                 return;
             }
         }
+        if (pending && e.buttons && sweepable(pending.target)) {
+            const moved =
+                Math.abs(e.clientX - pending.x) + Math.abs(e.clientY - pending.y) >=
+                BODY_DRAG_THRESHOLD;
+            if (moved || marquee()) {
+                const [ox, oy] = point({ clientX: pending.x, clientY: pending.y });
+                const [cx, cy] = point(e);
+                setMarquee({
+                    x: Math.min(ox, cx),
+                    y: Math.min(oy, cy),
+                    w: Math.abs(cx - ox),
+                    h: Math.abs(cy - oy),
+                });
+                return;
+            }
+        }
         const [hx, hy] = point(e);
         const over = hitTest(hx, hy);
         setHover(over);
@@ -608,10 +638,37 @@ export const Canvas: Component = () => {
     };
 
     const onPointerUp = (e: PointerEvent): void => {
+        const sweep = marquee();
+        if (sweep) {
+            setMarquee(null);
+            pending = null;
+            pendingAffordance = null;
+            pendingDatum = null;
+            document.getSelection()?.removeAllRanges();
+            if (editing()) stopEditing();
+            const hits = marqueeTargets(editor.artifact, regions(), sweep);
+            if (hits.length) selectMany(hits);
+            else setSelection(null);
+            return;
+        }
         if (pendingAffordance) {
             const a = pendingAffordance;
             pendingAffordance = null;
-            if (!drag() && !liveEdit()) runAffordance(a);
+            const t = pending?.target ?? null;
+            const caret = pending ? { x: pending.x, y: pending.y } : undefined;
+            pending = null;
+            if (drag() || liveEdit()) return;
+            const [px, py] = point(e);
+            // a second press on the selected element's own label edits it (a popup's trigger);
+            // otherwise the press runs the affordance and selects what it landed on (the tabs,
+            // the popup, the list) without opening an inline edit
+            if (t?.kind === "element" && targetsEqual(t, selection()) && onLabel(t, px, py)) {
+                startEditing(t.address, caret);
+                return;
+            }
+            runAffordance(a);
+            if (editing()) stopEditing();
+            setSelection(t);
             return;
         }
         if (drag() || liveEdit() || !pending) {
@@ -646,12 +703,8 @@ export const Canvas: Component = () => {
             openDataEditor(owner);
             return;
         }
-        if (t?.kind === "element") {
-            const el = getElementAt(editor.artifact, t.address);
-            const spec = el && getElement(el.type);
-            if (spec && (spec.richText || spec.inlineText) && (!isPhone() || already))
-                startEditing(t.address, caret);
-        }
+        if (t?.kind === "element" && (!isPhone() || already) && onLabel(t, ...point(e)))
+            startEditing(t.address, caret);
     };
 
     // the live overlay only turns interactive for the element the author has selected
@@ -1007,6 +1060,21 @@ export const Canvas: Component = () => {
                         <ResizeHandles />
                         <RegionDividers />
                         <SectionActions />
+                    </Show>
+                    <Show when={marquee()} keyed>
+                        {(m) => (
+                            <div
+                                class="pointer-events-none absolute border"
+                                style={{
+                                    left: `${m.x}px`,
+                                    top: `${m.y}px`,
+                                    width: `${m.w}px`,
+                                    height: `${m.h}px`,
+                                    "border-color": editorTokens().accent,
+                                    background: `color-mix(in srgb, ${editorTokens().accent} 10%, transparent)`,
+                                }}
+                            />
+                        )}
                     </Show>
                     <SectionGenStage />
                     <SectionGenPopup />

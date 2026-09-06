@@ -14,7 +14,7 @@ import {
     sharedParent,
     wrapWith,
 } from "@elements/ops";
-import { addressesEqual } from "@model/artifact";
+import { addressesEqual, elementRegionId, parseTarget } from "@model/artifact";
 import { getElement } from "@elements/spec";
 import { gridColumnsOf as gridColumns } from "@elements/composite/container";
 import { setRightTab } from "./store";
@@ -130,6 +130,36 @@ export function movableAncestor(art: ArtifactContent, addr: ElementAddress): Ele
     let out = addr;
     while (out.path.length > 0 && !movable(art, out))
         out = { section: out.section, path: out.path.slice(0, -1) };
+    return out;
+}
+
+// The sweep counterpart of the grip helpers: everything a marquee rectangle crosses, resolved to
+// what a drag would grab. A container root never answers (it would make every sweep select the
+// whole section); a swept branch answers as its depth-one ancestor, so a card is taken whole.
+export function marqueeTargets(
+    art: ArtifactContent,
+    regions: Region[],
+    box: Rect,
+): ElementAddress[] {
+    const crosses = (b: Rect): boolean =>
+        b.x < box.x + box.w && b.x + b.w > box.x && b.y < box.y + box.h && b.y + b.h > box.y;
+    const out: ElementAddress[] = [];
+    const seen = new Set<string>();
+    for (const r of regions) {
+        const t = parseTarget(r.id);
+        if (t?.kind !== "element" || !crosses(r.box)) continue;
+        const root = getElementAt(art, { section: t.address.section, path: [] });
+        const openRoot = getElement(root?.type ?? "")?.tier === "container";
+        if (openRoot && t.address.path.length === 0) continue;
+        const rep = movableAncestor(art, {
+            section: t.address.section,
+            path: t.address.path.slice(0, openRoot ? 1 : 0),
+        });
+        const key = elementRegionId(rep);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(rep);
+    }
     return out;
 }
 
@@ -329,13 +359,15 @@ function gapSlot(
     kids: { index: number; box: Rect }[],
     container: Rect,
     end: number, // the append index: the parent's full child count, pinned siblings included
+    reach: Rect = container, // hitboxes tile this; U4: a root's ring belongs to its own gaps
 ): DropSlot {
     const main = (b: Rect): [number, number] =>
         axis === "row" ? [b.x, b.x + b.w] : [b.y, b.y + b.h];
     const mid = (b: Rect): number => (axis === "row" ? b.x + b.w / 2 : b.y + b.h / 2);
     const [c0, c1] = main(container);
-    const lo = k === 0 ? c0 : mid(kids[k - 1]!.box);
-    const hi = k === kids.length ? c1 : mid(kids[k]!.box);
+    const [r0, r1] = main(reach);
+    const lo = k === 0 ? r0 : mid(kids[k - 1]!.box);
+    const hi = k === kids.length ? r1 : mid(kids[k]!.box);
     const linePos =
         k === 0
             ? main(kids[0]!.box)[0] - 6
@@ -359,8 +391,8 @@ function gapSlot(
                 : hLine(cross.start, pos, Math.max(0, cross.len)),
         hitbox:
             axis === "row"
-                ? { x: lo, y: container.y, w: hi - lo, h: container.h }
-                : { x: container.x, y: lo, w: container.w, h: hi - lo },
+                ? { x: lo, y: reach.y, w: hi - lo, h: reach.h }
+                : { x: reach.x, y: lo, w: reach.w, h: hi - lo },
     };
 }
 
@@ -376,6 +408,7 @@ function gridGapSlots(
     container: Rect,
     end: number,
     skip: (gap: number) => boolean,
+    reach: Rect = container,
 ): DropSlot[] {
     const rows: { index: number; box: Rect }[][] = [];
     for (let r = 0; r * cols < flow.length; r++) rows.push(flow.slice(r * cols, (r + 1) * cols));
@@ -388,11 +421,14 @@ function gridGapSlots(
         const hi =
             r === rows.length - 1 ? container.y + container.h : (bottoms[r]! + tops[r + 1]!) / 2;
         const band = { x: container.x, y: lo, w: container.w, h: hi - lo };
+        const rLo = r === 0 ? reach.y : lo;
+        const rHi = r === rows.length - 1 ? reach.y + reach.h : hi;
+        const reachBand = { x: reach.x, y: rLo, w: reach.w, h: rHi - rLo };
         // appending past this row inserts before the next row's first cell
         const rowEnd = rows[r + 1] ? rows[r + 1]![0]!.index : end;
         for (let k = 0; k <= rows[r]!.length; k++) {
             if (skip(r * cols + k)) continue;
-            out.push(gapSlot(sid, path, "row", k, rows[r]!, band, rowEnd));
+            out.push(gapSlot(sid, path, "row", k, rows[r]!, band, rowEnd, reachBand));
         }
     }
     return out;
@@ -400,12 +436,12 @@ function gridGapSlots(
 
 // a leaf that is the section root wraps into a new row/col; four edge slots share the leaf's box
 // and the nearest indicator wins, reproducing the old axis-from-cursor-offset behavior
-function wrapSlots(sid: string, box: Rect): DropSlot[] {
+function wrapSlots(sid: string, box: Rect, reach: Rect = box): DropSlot[] {
     const mk = (direction: "row" | "col", before: boolean, indicator: SlotIndicator): DropSlot => ({
         target: { section: sid, op: "wrap", path: [], index: 0, before, direction },
         priority: 0,
         indicator,
-        hitbox: box,
+        hitbox: reach,
     });
     const h = Math.max(0, box.h - LINE_INSET * 2);
     const w = Math.max(0, box.w - LINE_INSET * 2);
@@ -415,6 +451,17 @@ function wrapSlots(sid: string, box: Rect): DropSlot[] {
         mk("col", true, hLine(box.x + LINE_INSET, box.y + 2, w)),
         mk("col", false, hLine(box.x + LINE_INSET, box.y + box.h - 2, w)),
     ];
+}
+
+// the narrow vertical strips on a col member's edges: resolving one wraps it into a row
+function besideSlots(sid: string, path: number[], b: Rect): DropSlot[] {
+    const h = Math.max(0, b.h - LINE_INSET * 2);
+    return [true, false].map((before) => ({
+        target: { section: sid, op: "wrap", path, index: 0, before, direction: "row" },
+        priority: 0,
+        indicator: vLine(before ? b.x + 2 : b.x + b.w - 2, b.y + LINE_INSET, h),
+        hitbox: { x: (before ? b.x : b.x + b.w) - EDGE, y: b.y, w: EDGE * 2, h: b.h },
+    }));
 }
 
 // walk the tree of every section, emitting element-level slots from the frozen regions
@@ -437,9 +484,14 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
             const open = spec?.tier === "container";
             const box = regionBox(regions, sid, path);
             if (!box) return;
+            // the padding ring between the painted card and the content box is droppable too
+            const reach =
+                path.length === 0
+                    ? (regions.find((r) => r.id === `section:${sid}`)?.box ?? box)
+                    : box;
 
             if (!open) {
-                if (path.length === 0) out.push(...wrapSlots(sid, box));
+                if (path.length === 0) out.push(...wrapSlots(sid, box, reach));
                 return; // leaves are covered by their parent's gap slots; closed stay sealed
             }
 
@@ -495,12 +547,20 @@ function elementSlots(art: ArtifactContent, regions: Region[], payload: DragPayl
                 const noop = (k: number): boolean =>
                     srcPos >= 0 && (k === srcPos || k === srcPos + 1);
                 if (cols !== null) {
-                    out.push(...gridGapSlots(sid, path, flow, cols, box, kids.length, noop));
+                    out.push(...gridGapSlots(sid, path, flow, cols, box, kids.length, noop, reach));
                 } else {
                     for (let k = 0; k <= flow.length; k++) {
                         if (noop(k)) continue;
-                        out.push(gapSlot(sid, path, axis, k, flow, box, kids.length));
+                        out.push(gapSlot(sid, path, axis, k, flow, box, kids.length, reach));
                     }
+                    // a nested col member also takes a drop beside it, wrapping member and payload
+                    // into a row; at the root its children's edges are column boundaries already
+                    if (axis === "col" && path.length > 0)
+                        for (const kb of flow) {
+                            const childPath = [...path, kb.index];
+                            if (inSrcSubtree(childPath)) continue;
+                            out.push(...besideSlots(sid, childPath, kb.box));
+                        }
                 }
             }
             for (const kb of boxes) visit([...path, kb.index]);
@@ -606,44 +666,57 @@ const expand = (b: Rect, m: number): Rect => ({
     h: b.h + m * 2,
 });
 
-// Highest priority class containing the pointer wins; within it the deepest container is the most
-// specific claim, ties by nearest indicator (that's how wrap's four edge slots share one hitbox).
-// The current target holds while the pointer stays within HYST of its hitbox, so neither tile
+// Element gaps resolve by depth first: their hitboxes are tiled claims (hovering a child means
+// its nearest gap), so the deepest container is the most specific one, ties by nearest indicator
+// (wrap's four edge slots share one hitbox). Across classes the tile is not the aim: the band
+// (column, new-section) takes the drop only when its line is the nearest, with the class breaking
+// near-ties within TIE, so a wide band never vetoes a gap the pointer is visibly closer to. The
+// current target holds while the pointer stays within HYST of its hitbox, so neither tile
 // boundaries nor the outer edge flap under a wobbling pointer.
+const TIE = 4;
 export function activeSlot(
     slots: DropSlot[],
     px: number,
     py: number,
     current: DropTarget | null,
 ): DropSlot | null {
-    let priority = -1;
-    for (const s of slots) if (inside(s.hitbox, px, py)) priority = Math.max(priority, s.priority);
+    const cands = slots.filter((s) => inside(s.hitbox, px, py));
     if (current) {
         const held = slots.find((s) => sameTarget(s.target, current));
         if (
             held &&
-            held.priority >= priority &&
+            cands.every((c) => held.priority >= c.priority) &&
             !inside(held.hitbox, px, py) &&
             inside(expand(held.hitbox, HYST), px, py)
         )
             return held;
     }
-    if (priority < 0) return null;
-    let best: DropSlot | null = null;
-    let bestDepth = -1;
-    let bestD = Infinity;
-    for (const s of slots) {
-        if (s.priority !== priority || !inside(s.hitbox, px, py)) continue;
-        const depth = s.target.path.length;
-        let d = indicatorDistance(s.indicator, px, py);
-        if (current && sameTarget(s.target, current)) d -= HYST;
-        if (depth > bestDepth || (depth === bestDepth && d < bestD)) {
-            bestDepth = depth;
-            bestD = d;
-            best = s;
+    const score = (s: DropSlot): number => {
+        const d = indicatorDistance(s.indicator, px, py);
+        return current && sameTarget(s.target, current) ? d - HYST : d;
+    };
+    let el: DropSlot | null = null;
+    let elD = Infinity;
+    let elDepth = -1;
+    let band: DropSlot | null = null;
+    let bandD = Infinity;
+    for (const s of cands) {
+        const d = score(s);
+        if (s.priority === 0) {
+            const depth = s.target.path.length;
+            if (depth > elDepth || (depth === elDepth && d < elD)) {
+                el = s;
+                elD = d;
+                elDepth = depth;
+            }
+        } else if (d < bandD || (d === bandD && s.priority > (band?.priority ?? -1))) {
+            band = s;
+            bandD = d;
         }
     }
-    return best;
+    if (!el) return band;
+    if (!band) return el;
+    return bandD <= elD + TIE ? band : el;
 }
 
 const result = (

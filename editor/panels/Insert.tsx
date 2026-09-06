@@ -20,11 +20,17 @@ import {
     selection,
     setSelection,
 } from "@editor/core/store";
-import { deleteSelectedElements, duplicateSelectedElements } from "@editor/core/commands";
+import {
+    deleteSelectedElements,
+    duplicateSelectedElements,
+    insertFromPalette,
+} from "@editor/core/commands";
 import { Icon } from "@ui/icons";
+import { TextField } from "@ui/inputs";
+import { rankItems } from "@ui/fuzzy";
 import { FloatingPanel, Popover } from "@ui/overlay";
 import { PRESETS } from "@elements/compose";
-import { getElement } from "@elements/spec";
+import { getElement, listElements } from "@elements/spec";
 import { previewSvg } from "@elements/previews";
 import { startDrag, drag } from "@editor/core/dnd";
 import { pinnable } from "@editor/core/pin";
@@ -90,20 +96,6 @@ export const EmptyRegionAdd: Component = () => {
     );
 };
 
-// shared by the empty-cell add and the add-beside gap
-const QUICK = [
-    "text",
-    "image",
-    "bullets",
-    "stat",
-    "quote",
-    "callout",
-    "button",
-    "divider",
-    "barChart",
-    "table",
-];
-
 const tile = (label: string, preview: string, onClick: () => void): JSX.Element => (
     <button class="flex select-none flex-col gap-1.5" onClick={onClick}>
         <div
@@ -114,34 +106,69 @@ const tile = (label: string, preview: string, onClick: () => void): JSX.Element 
     </button>
 );
 
-const ElementPicker: Component<{ onInsert: (inst: ElementInstance) => void }> = (props) => (
-    <div class="grid grid-cols-2 gap-2">
-        <For each={PRESETS}>
-            {(p) => tile(p.label, previewSvg(p.previewType), () => props.onInsert(p.build()))}
-        </For>
-        <For each={QUICK}>
-            {(type) =>
-                tile(getElement(type)?.label ?? type, previewSvg(type), () =>
-                    props.onInsert({ type, data: getElement(type)!.create() }),
-                )
-            }
-        </For>
-    </div>
-);
+// the whole registry, searched the way the palette searches it; presets lead an empty query
+const ElementPicker: Component<{ onInsert: (inst: ElementInstance) => void }> = (props) => {
+    const [q, setQ] = createSignal("");
+    const specs = createMemo(() => {
+        const all = listElements().filter((sp) => !sp.hidden);
+        const query = q().trim();
+        return query ? rankItems(query, all, (sp) => `${sp.label} ${sp.type}`) : all;
+    });
+    return (
+        <div class="flex max-h-80 w-62 flex-col gap-2">
+            <TextField
+                value={q()}
+                onChange={setQ}
+                placeholder="Find an element"
+                compact
+                autofocus
+            />
+            <div class="grid grid-cols-2 gap-2 overflow-y-auto">
+                <Show when={!q().trim()}>
+                    <For each={PRESETS}>
+                        {(p) =>
+                            tile(p.label, previewSvg(p.previewType), () =>
+                                props.onInsert(p.build()),
+                            )
+                        }
+                    </For>
+                </Show>
+                <For each={specs()}>
+                    {(sp) =>
+                        tile(sp.label, previewSvg(sp.type), () =>
+                            props.onInsert({ type: sp.type, data: sp.create() }),
+                        )
+                    }
+                </For>
+            </div>
+        </div>
+    );
+};
+
+const CLICK_SLOP = 4; // px of travel below which a tile press is an insert, not a drag
 
 export const PaletteItem: Component<{ type: string }> = (props) => {
     const spec = getElement(props.type);
+    let down: { x: number; y: number } | null = null;
     return (
         <div
             class="flex cursor-grab select-none flex-col gap-1.5"
             onPointerDown={(e) => {
                 e.preventDefault();
+                down = { x: e.clientX, y: e.clientY };
                 startDrag(
                     { kind: "new", type: props.type },
                     e.clientX,
                     e.clientY,
                     spec?.label ?? props.type,
                 );
+            }}
+            onPointerUp={(e) => {
+                const d = down;
+                down = null;
+                if (!d || !spec) return;
+                if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > CLICK_SLOP) return;
+                insertFromPalette({ type: props.type, data: spec.create() });
             }}
         >
             <div

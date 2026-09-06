@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@elements/register"; // the predicate reads element specs, so the registry has to be up
-import "@editor/core/commands"; // side-effect: register editor commands + keymap
+import { insertFromPalette } from "@editor/core/commands"; // also registers commands + keymap
 import { getElementAt } from "@elements/ops";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
@@ -348,5 +348,152 @@ describe("pin commands", () => {
         setSelection({ kind: "element", address: { section: "s1", path: [1] } });
         await runCommand("pin.toggle");
         expect(pinOf().x).toBeUndefined();
+    });
+});
+
+describe("delete and duplicate reach a unit's children", () => {
+    const doc = (): ArtifactContent => ({
+        format: "deck",
+        theme: "studio",
+        sections: [
+            {
+                id: "s1",
+                root: {
+                    type: "bullets",
+                    data: {
+                        marker: "dot",
+                        children: ["a", "b", "c"].map((text) => ({
+                            type: "text",
+                            data: { text, style: "body" },
+                        })),
+                    },
+                },
+            },
+        ],
+    });
+    const addr = (path: number[]): ElementAddress => ({ section: "s1", path });
+    const items = (): string[] =>
+        (
+            (getElementAt(editor.artifact, addr([]))?.data as { children: ElementInstance[] })
+                .children ?? []
+        ).map((c) => (c.data as { text: string }).text);
+
+    beforeEach(() => {
+        loadArtifactContent("unit-items", doc());
+    });
+
+    it("Delete on a bullet item removes that item", () => {
+        setSelection({ kind: "element", address: addr([1]) });
+        runCommand("edit.delete");
+        expect(items()).toEqual(["a", "c"]);
+        undo();
+        expect(items()).toEqual(["a", "b", "c"]);
+    });
+
+    it("⌘D on a bullet item adds one below it and selects the copy", () => {
+        setSelection({ kind: "element", address: addr([0]) });
+        runCommand("edit.duplicate");
+        expect(items()).toEqual(["a", "a", "b", "c"]);
+        expect(selectedAddresses()).toEqual([addr([1])]);
+    });
+});
+
+// U10: cut reaches everything copy does — a sealed child cuts through its container's own rule
+describe("cut on a sealed child", () => {
+    const doc = (): ArtifactContent => ({
+        format: "deck",
+        theme: "studio",
+        sections: [
+            {
+                id: "s1",
+                root: {
+                    type: "container",
+                    data: {
+                        direction: "col",
+                        children: [
+                            {
+                                type: "bullets",
+                                data: {
+                                    children: [
+                                        { type: "text", data: { text: "one" } },
+                                        { type: "text", data: { text: "two" } },
+                                    ],
+                                },
+                            },
+                            { type: "text", data: { text: "after" } },
+                        ],
+                    },
+                },
+            },
+        ],
+    });
+
+    it("copies the item to the clipboard and removes it in place", () => {
+        loadArtifactContent("cmd-cut", doc());
+        setSelection({ kind: "element", address: { section: "s1", path: [0, 0] } });
+        runCommand("edit.cut");
+        const list = getElementAt(editor.artifact, { section: "s1", path: [0] })!;
+        expect((list.data as { children: ElementInstance[] }).children).toHaveLength(1);
+        expect(clipboardEl().map((e) => (e.data as { text?: string }).text)).toEqual(["one"]);
+    });
+});
+
+describe("insertFromPalette", () => {
+    const doc = (): ArtifactContent => ({
+        format: "deck",
+        theme: "studio",
+        sections: [
+            {
+                id: "s1",
+                root: {
+                    type: "container",
+                    data: {
+                        direction: "col",
+                        children: [
+                            {
+                                type: "bullets",
+                                data: {
+                                    children: [
+                                        { type: "text", data: { text: "one" } },
+                                        { type: "text", data: { text: "two" } },
+                                    ],
+                                },
+                            },
+                            { type: "text", data: { text: "after" } },
+                        ],
+                    },
+                },
+            },
+        ],
+    });
+    const rootChildren = (): ElementInstance[] =>
+        (
+            getElementAt(editor.artifact, { section: "s1", path: [] })!.data as {
+                children: ElementInstance[];
+            }
+        ).children;
+
+    it("inserts beside the selected element", () => {
+        loadArtifactContent("palette-beside", doc());
+        setSelection({ kind: "element", address: { section: "s1", path: [1] } });
+        expect(insertFromPalette({ type: "divider", data: {} })).toBe(true);
+        expect(rootChildren().map((e) => e.type)).toEqual(["bullets", "text", "divider"]);
+        expect(selection()?.kind).toBe("element");
+    });
+
+    it("a selection inside a seal inserts beside the unit, never into it", () => {
+        loadArtifactContent("palette-seal", doc());
+        setSelection({ kind: "element", address: { section: "s1", path: [0, 0] } });
+        expect(insertFromPalette({ type: "divider", data: {} })).toBe(true);
+        expect(rootChildren().map((e) => e.type)).toEqual(["bullets", "divider", "text"]);
+        const list = getElementAt(editor.artifact, { section: "s1", path: [0] })!;
+        expect((list.data as { children: ElementInstance[] }).children).toHaveLength(2);
+    });
+
+    it("no selection lands at the end of the last section", () => {
+        loadArtifactContent("palette-end", doc());
+        setSelection(null);
+        expect(insertFromPalette({ type: "divider", data: {} })).toBe(true);
+        expect(rootChildren().at(-1)?.type).toBe("divider");
     });
 });

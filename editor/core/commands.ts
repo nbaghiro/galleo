@@ -2,6 +2,7 @@ import { createEffect, createRoot } from "solid-js";
 import { registerBindings, registerCommands, setContext, type KeyCtx } from "@ui/keys";
 import { FORMATS } from "@ui/formats";
 import {
+    duplicableAt,
     duplicateMany,
     getElementAt,
     groupSelection,
@@ -100,18 +101,6 @@ function currentSectionId(): string | null {
     return s.kind === "section" ? s.section : s.address.section;
 }
 
-// A closed container's child has no independent existence, so one such member disqualifies the
-// whole gesture rather than half of it.
-function actionableSet(): ElementAddress[] | null {
-    const set = selectedAddresses();
-    if (!set.length) return null;
-    if (set.some((a) => !movable(editor.artifact, a))) {
-        say("This is part of its element; edit it in place");
-        return null;
-    }
-    return set;
-}
-
 // Courtesy only: the server never refuses a structural op for lease reasons, so a deletion still
 // wins if it happens anyway. This just stops the obvious accident.
 function heldByOther(set: ElementAddress[]): boolean {
@@ -132,21 +121,48 @@ const selectedElements = (): ElementInstance[] =>
 
 // The one element-delete and element-duplicate, shared by the keyboard, the context bar, the
 // inspector, and the context menu, so gating, collapse, and analytics cannot diverge per surface.
+// Both reach every element: a sealed container's child is removed or copied the way its container
+// says (see `deleteElement`), so only the drag-out seal stays with `movable`.
 export function deleteSelectedElements(): void {
-    const set = actionableSet();
-    if (!set || heldByOther(set)) return;
+    const set = selectedAddresses();
+    if (!set.length || heldByOther(set)) return;
     noteElementRemoved(getElementAt(editor.artifact, set[0]!)?.type ?? "", set.length);
     commit(removeMany(editor.artifact, set));
     setSelection(null);
 }
 
 export function duplicateSelectedElements(): void {
-    const set = actionableSet();
-    if (!set) return;
+    const set = selectedAddresses().filter((a) => duplicableAt(editor.artifact, a));
+    if (!set.length) {
+        say("This is part of its element and has no copy of its own");
+        return;
+    }
     const res = duplicateMany(editor.artifact, set);
     commit(res.content);
-    selectMany(res.addresses);
+    if (res.addresses.length) selectMany(res.addresses);
 }
+
+// A palette CLICK inserts where a paste would: beside the selection (outside a seal), into the
+// selected section, else at the end of the last section. Drag keeps choosing its own slot.
+export function insertFromPalette(inst: ElementInstance): boolean {
+    const s = selection();
+    const anchor: Target | null =
+        s?.kind === "element"
+            ? { kind: "element", address: movableAncestor(editor.artifact, s.address) }
+            : (s ?? sectionEnd());
+    if (!anchor) return false;
+    const res = pasteElements(editor.artifact, [inst], anchor);
+    if (!res.addresses.length) return false;
+    commit(res.content);
+    noteElementAdded(inst.type, "palette");
+    selectMany(res.addresses);
+    return true;
+}
+
+const sectionEnd = (): Target | null => {
+    const last = editor.artifact.sections.at(-1);
+    return last ? { kind: "section", section: last.id } : null;
+};
 
 const canGroup = (): boolean => {
     const set = selectedAddresses();
@@ -227,14 +243,12 @@ registerCommands([
         group: "edit",
         icon: "trash",
         when: (c) => inEditor(c) && c.has("editor.element") && notTyping(c),
+        // literally copy + the child-aware delete, so cut reaches everything copy does
         run: () => {
-            const set = actionableSet();
             const els = selectedElements();
-            if (!set || !els.length) return;
+            if (!els.length) return;
             copyToClipboard(els);
-            noteElementRemoved(els[0]!.type, set.length);
-            commit(removeMany(editor.artifact, set));
-            setSelection(null);
+            deleteSelectedElements();
         },
     },
     {
