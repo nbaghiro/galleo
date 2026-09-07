@@ -5,7 +5,7 @@
 > construction, and the reachability gaps of the enumerated vocabulary (no stacking beside a row
 > member, no wrap in a grid cell, exclusions stated as special cases) stop being possible. The
 > Figma model adapted to Galleo's flow-first inversion, the same adaptation
-> [`freeform-move.md`](freeform-move.md) made for the gesture layer.
+> [`freeform-move.md`](../executed/freeform-move.md) made for the gesture layer.
 > Status: built 2026-09-06, all four phases, pending the user's manual QA pass. Deviations from
 > the plan as written, each argued below where it bit: (a) the classifier shares ONE generator
 > with the retiring engine via an `at` gate rather than landing beside it — the letter of the
@@ -22,8 +22,8 @@
 > recorded in `live-reflow.md` too.
 
 Companion docs: [`live-reflow.md`](live-reflow.md) (the parting preview this classifier feeds),
-[`interaction-round.md`](interaction-round.md) (U4/U5/U6, the rounds that built the enumeration
-this replaces), [`freeform-move.md`](freeform-move.md) (the gesture layer and its reserved
+[`interaction-round.md`](../executed/interaction-round.md) (U4/U5/U6, the rounds that built the
+enumeration this replaces), [`freeform-move.md`](../executed/freeform-move.md) (the gesture layer and its reserved
 modifier space), `engine-audit.md` (the U series), `.docs/rendering.md` (regions), `testing.md`
 (the region-fixture contract the dnd suite uses).
 
@@ -155,7 +155,8 @@ no-flap pins.
 
 `classifyDrop` takes an options bag from day one with exactly one documented future key:
 `ascend?: number`, lifting the resolved claim N container levels — the mid-drag modifier for
-ancestor targeting whose gesture space `freeform-move.md` reserved. Not built this round.
+ancestor targeting whose gesture space `../executed/freeform-move.md` reserved. Not built this
+round.
 
 ### Performance
 

@@ -1,15 +1,29 @@
 # Planning — generation performance: where the seconds go, and the plan for each
 
-> The performance half of [`generation-quality.md`](generation-quality.md), grown into its own
-> round after the streamed outline (item 8) shipped. Everything here is measured against the tree
-> rather than assumed; the numbers below are from probes run 2026-08-29. Status: executed
-> 2026-08-29, all phases. Deviations: P3's live preview lands in the single-section turns (the
-> studio's per-beat builds and the chat section turn), while the pipelined write-all keeps its
-> skeleton, since a background write cannot also yield into the parent stream without an event
-> pump that was not worth its complexity; and the preview scanner rides `streamText` + a pure
-> incremental child extractor (`sectionPreview`) rather than `streamObject`, because the tool
-> deliberately uses free-text JSON and constrained decoding would have changed generation
-> behaviour, not just its latency.
+> The performance half of [`generation-quality.md`](../executed/generation-quality.md), grown into
+> its own round after the streamed outline (item 8) shipped. Everything here is measured against
+> the tree rather than assumed; the numbers below are from probes run 2026-08-29. Status,
+> re-verified against the tree 2026-09-07: P1, P2 and P4 are built, P5 half built, and **P3 is the
+> one remaining planned item.** An earlier status here claimed P3 had landed via a `sectionPreview`
+> extractor; no such symbol exists in the tree or in git history, and the claim was wrong. The
+> true state:
+>
+> - P1 built: the brevity caps live as field descriptions in `services/core/ai/schema.ts` ("under
+>   eight words", "one clause", "at most three concrete moves... each a short phrase"), and
+>   `OUTLINE_JOB` (`services/core/ai/prompts/generate.ts`) carries the skeleton line.
+> - P2 built, relocated: `runGenerate` no longer exists, and the generate loop is the write-beats
+>   tool (`writeBeatsTool` in `services/core/ai/tools/generation.ts`), whose one-slot pipeline
+>   starts beat i+1's model call while beat i's images resolve, landing beats in order.
+> - P3 not built: `writeSectionTool` (`services/core/ai/tools/plan.ts`) is a non-streamed
+>   `generateText` plus an `extractJson` retry loop, typed `AsyncGenerator<never, Section>`, so it
+>   yields nothing while decoding. The `section.partial` event is the whole text-only section
+>   emitted once, after the full decode and before image resolution, not a streamed partial.
+> - P4 built: the staggered race (`PROVIDER_STAGGER_MS = 350`) and the per-run phrase memo (a
+>   `Map` passed per run) in `services/core/ai/images.ts`.
+> - P5 half built: `generation_section_built.images_ms` is real, and both `ms` and `images_ms` are
+>   now emitted server-side as a beat lands (`services/core/ai/tools/generation.ts`), not client
+>   captures. There is no `outline_ms` property; `generation_planned` carries a plain server-side
+>   `ms` instead.
 
 ## Measured current state
 

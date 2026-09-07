@@ -166,7 +166,7 @@ pdf-draw.ts        the pdf-lib drawer the paged exporters paint through
 fonts.ts           face loading + the wawoff2 decompress that embeds a family into PDF/PPTX
 fit.ts · fit-checks.ts   autofit: shrink-to-fit passes and the invariants a fitted section must hold
 window.ts          paint windowing for the section stack (see loading.md)
-connect.ts         connectors between two elements: the anchor math, the routed path, and the arrowheads the backends draw (see planning/cross-node-refs.md)
+connect.ts         connectors between two elements: the anchor math, the routed path, and the arrowheads the backends draw (see executed/cross-node-refs.md)
 placeholder.ts · archetype.ts · svg-emit.ts · diagnose.ts   streaming placeholders, section archetypes, SVG emission, and the layout diagnostics the eval harness reads
 ```
 

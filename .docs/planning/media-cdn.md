@@ -12,9 +12,15 @@
 > opposite case: it forbids permanent hotlinking and its URLs expire after 24 hours, so ingest fixes a
 > compliance problem and a correctness bug at the same time.
 >
-> Status: researched and designed, not started. Supersedes `media-storage.md`, which is kept as prior
-> art: its target shape (bytes in R2, variants, a CDN) is right, but it treats sourced media as
-> "nothing here needs changing", and that assumption is what the outage falsified.
+> Status: researched and designed; the core (the R2 bucket, `storage_key`, ingest, the media
+> hostname, the publish edge) is not started: as of 2026-09-07 there is no `services/core/storage.ts`,
+> no `storage_key` column, no `aws4fetch`, no `scripts/ingest-media.ts`, no R2 or `MEDIA_CDN_URL`
+> env, and no `services/core/edge.ts`. What has landed ahead of it: the recuration off picsum
+> (section 15.1), the Pexels-first `PROVIDER_ORDER` (section 13), and cached redirect TTLs on the
+> asset route (section 17.2, gap 1). The picker still hotlinks providers (section 1's `thumbUrl`
+> finding stands), so the P1 checklist items remain open. Supersedes `media-storage.md`, which is
+> kept as prior art: its target shape (bytes in R2, variants, a CDN) is right, but it treats sourced
+> media as "nothing here needs changing", and that assumption is what the outage falsified.
 
 Companion docs: `architecture.md` (the asset invariant, the `assets` table, the reserved object-storage
 ports), `hosting.md` (Render + Neon, the single-origin rule this plan deliberately does not break, the
@@ -705,11 +711,11 @@ outage this plan exists to prevent would still take most of it out.
 
 The resolution is to decide by **role**, not by provider:
 
-| Role                                | Where the bytes come from                                    | Why                                                                                                                                                         |
-| ----------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Template, seed and demo imagery** | Galleo-owned objects at stable R2 keys                       | This is what makes the product look broken when a provider dies, and it is the one class we can own outright. No provider, no terms, no outage.             |
-| **AI-sourced imagery**              | Ingestable providers first (Pexels, then Pixabay, Openverse) | A generated deck should still render in a year. `PROVIDER_ORDER` in `services/core/ai/images.ts` currently leads with Unsplash and should lead with Pexels. |
-| **User-picked from the picker**     | Whatever they picked; ingested where terms allow             | An explicit choice is theirs to make. Unsplash stays hotlinked and carries its provider's uptime, which is a risk the user opted into.                      |
+| Role                                | Where the bytes come from                                    | Why                                                                                                                                                                  |
+| ----------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Template, seed and demo imagery** | Galleo-owned objects at stable R2 keys                       | This is what makes the product look broken when a provider dies, and it is the one class we can own outright. No provider, no terms, no outage.                      |
+| **AI-sourced imagery**              | Ingestable providers first (Pexels, then Pixabay, Openverse) | A generated deck should still render in a year. Done: `PROVIDER_ORDER` in `services/core/ai/images.ts` now leads with Pexels (pexels, pixabay, unsplash, openverse). |
+| **User-picked from the picker**     | Whatever they picked; ingested where terms allow             | An explicit choice is theirs to make. Unsplash stays hotlinked and carries its provider's uptime, which is a risk the user opted into.                               |
 
 | Decision                   | Settled                                                    | Note                                                                                                                                                                              |
 | -------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1013,6 +1019,14 @@ paints the same `/api/media/asset/:id` URLs as every other surface, plus three a
       exists in one place.
       This is an origin-prep item: it pays today, before any Cloudflare work, since current origins are
       stable Pexels URLs.
+      **Done, with one deviation from the design above.** `redirectTtl(origin)` in
+      `services/core/media.ts` is a standalone function rather than a policy-table column (the table
+      does not exist yet), and the 302 branch in `services/api/media.ts` sets
+      `cache-control: public, max-age=<redirectTtl>`: 1 hour for Pixabay, 24 hours for everything
+      else. Deliberately short for every origin rather than immutable, because `origin` is repointed
+      in place (recuration, and later ingest flips the target to our own host), so a cached redirect
+      is staleness we cannot bust. The immutable `storage_key` branch waits on the storage work
+      itself.
 2. **Library covers load full-size.** `ArtifactThumb` (`app/components/previews.tsx:206`) paints
    `digest.cover.image` raw, roughly 1700x1100 into a card a few hundred pixels wide. Extend P4's
    `?w=` adoption beyond `toItem`: covers request `?w=400`, and the editor's display paint may take

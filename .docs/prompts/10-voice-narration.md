@@ -5,8 +5,8 @@
 You are working in **Galleo**, a TypeScript AI content tool where one engine renders the same block
 tree as a **deck, document, or website**. Read `AGENTS.md` first, then `.docs/architecture.md`.
 The design rationale for this feature, including the alternatives that were rejected and why, is
-`.docs/planning/voice-narration.md`. That document is the reference; this one is the build order.
-Where the two disagree, this one is stale and the planning doc wins.
+`.docs/executed/voice-narration.md`. That document is the reference; this one is the build order.
+Where the two disagree, this one is stale and that document wins.
 
 Other docs you will need: `.docs/ai.md` (the turn protocol, the tool catalog and its pricing, the
 credit gate, the existing dictation route), `.docs/rendering.md` (the engine and the present
@@ -196,7 +196,7 @@ Auth is the `xi-api-key` header on the existing `ELEVENLABS_API_KEY`. No new env
 
 ## Design decisions (already made; implement, do not relitigate)
 
-Rationale for each is in `.docs/planning/voice-narration.md` section 3.
+Rationale for each is in `.docs/executed/voice-narration.md` section 3.
 
 1. **Notes are `{ spoken, cues[] }`.** The voice reads `spoken` and only `spoken`. Cues are presenter
    reminders and never leave the editor.
@@ -411,7 +411,7 @@ End to end (`e2e/present/`):
 
 ## Done means
 
-Every gate passes. All nine phases are committed separately. `.docs/planning/voice-narration.md` is
+Every gate passes. All nine phases are committed separately. `.docs/executed/voice-narration.md` is
 folded into the current-state docs it now belongs to (`ai.md` for the two tools and the routes,
 `rendering.md` for the present convergence and the step model, `workspaces.md` for the entitlements
 and the shelf, `analytics.md` for the new events, `hosting.md` for the widened env note), and the

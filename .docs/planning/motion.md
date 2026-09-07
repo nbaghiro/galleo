@@ -6,13 +6,15 @@
 > finished layout** and never an input to layout, and that the default motion is **derived from
 > structure and the theme** rather than authored per element.
 >
-> Status: designed. The executable plan for options A, B and E is
-> [`motion-build.md`](motion-build.md); this document is the rationale behind it, including the
+> Status: designed, and since built: options A, B and E shipped through
+> [`motion-build.md`](../executed/motion-build.md), covering phases A through D of section 8
+> (morph, phase E, deliberately remains unbuilt: no `correspond()` exists anywhere in the tree).
+> This document is the rationale behind the build, including the
 > options that were rejected. Where the two disagree, the build plan wins. Expands item 1 of
 > [`engine-gaps.md`](engine-gaps.md), which was wrong about the cost; the correction is in section 3.
 
-Companion docs: `rendering.md` (the engine and the paint backends), `.docs/planning/voice-narration.md`
-(the Step model's rationale, though its status line is stale: narration is built), `frontend.md`
+Companion docs: `rendering.md` (the engine and the paint backends), `../executed/voice-narration.md`
+(the Step model's rationale), `frontend.md`
 (where a shared reduced-motion helper belongs), `collab.md` (the write path any stored config has to
 survive).
 
@@ -40,8 +42,7 @@ Established by tracing the code, not assumed.
 
 **All four present surfaces are one implementation.** `editor/Present.tsx` (81 lines),
 `app/views/PresentView.tsx` (42 lines) and `publish/PublicView.tsx`'s `Surface` are thin wrappers over
-`PresentSurface` in `ui/present.tsx`. A transition layer has one home, not four. The convergence that
-`voice-narration.md` lists as future work has already happened.
+`PresentSurface` in `ui/present.tsx`. A transition layer has one home, not four.
 
 **There is a single choke point for paged advancement.** Arrow keys, clicks, narration
 `goToSection`, overview jumps and resize all funnel through `renderPaged`
@@ -304,12 +305,15 @@ silently, so phase D is a phase that needs its own tests before its own feature.
 
 - [ ] Authored per-element motion (option D). Revisit once phases A through C are shipped and we can
       see what people ask for that the derived default cannot express.
-- [x] Chart and diagram draw-on. Built 2026-09-06 ([`draw-on.md`](draw-on.md)) once item 16
+- [x] Chart and diagram draw-on. Built 2026-09-06 ([`draw-on.md`](../executed/draw-on.md)) once item 16
       unblocked it: the motion layer punches a static evenodd veil over the datums and reveals
       each as a clipped clone with the theme's own build frames, so no renderer changed and the
       invariant holds.
-- [ ] Live reflow during a drag. Wants incremental layout (item 15) and is an editor concern rather
-      than a playback one.
+- [x] Live reflow during a drag. Built 2026-09-06 without incremental layout, which
+      [`live-reflow.md`](live-reflow.md) measured out of its critical path, then mostly superseded
+      by the controlled-canvas round (`dnd-ux.md` §10): the parting machinery is gone, and what
+      survives in the product is `PART_FEEL` plus the one-shot commit FLIP through
+      `paintReconcile`.
 
 ## 9. Still open
 
@@ -322,8 +326,6 @@ silently, so phase D is a phase that needs its own tests before its own feature.
 - Whether a `lineage` id preserved by `duplicateSection` is a cheaper route to morph than content
   matching. It would make the duplicate-and-edit gesture work exactly, at the cost of a stored field
   and everything section 7 lists.
-- What `stepIndexOf` (`canvas/render/present.ts:82-85`) is for. It is exported, tested, and has no
-  production caller. Either the narration player should use it or it should go.
-- `.docs/planning/voice-narration.md:7` says "design settled, not built" and lists the present-surface
-  convergence as future work. Both are stale. Worth fixing separately, since that doc is the only
-  written statement of the Step model's intent.
+- What `stepIndexOf` (`canvas/render/present.ts:102`) is for. It is exported, tested, and still
+  has no production caller (re-checked 2026-09-07). Either the narration player should use it or
+  it should go.

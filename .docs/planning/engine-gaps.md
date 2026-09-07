@@ -5,12 +5,14 @@
 > nothing here is designed, sized properly, or scheduled. Every claim is anchored to the file and
 > line that shows it, so an entry that has quietly been fixed is cheap to disprove.
 
-Status: inventory, re-verified against the tree on 2026-08-24. Since first written, three
+Status: inventory, re-verified against the tree on 2026-08-24; per-item status updates were added
+as later rounds closed items (most of tiers 1 and 2 are now built), and the closing sections were
+re-verified against the tree on 2026-09-07. Since first written, three
 initiatives landed on top of the engine without changing its mechanics: motion
-([`motion-build.md`](motion-build.md), item 1 built), interactivity
-([`interactivity.md`](interactivity.md): `link`/`level`/`alt` on the command, the `hit:` affordance
+([`motion-build.md`](../executed/motion-build.md), item 1 built), interactivity
+([`interactivity.md`](../executed/interactivity.md): `link`/`level`/`alt` on the command, the `hit:` affordance
 system generalized, live overlays, viewer patches), and editor multi-select
-([`multi-select.md`](multi-select.md)). The engine's public surface grew — painters return their
+([`multi-select.md`](../executed/multi-select.md)). The engine's public surface grew — painters return their
 nodes, `paintSectionStack` returns `SectionLayer[]`, commands carry semantic fields — but the
 solver, the measurement path and every gap below are exactly as they were. Items 17 and 18 were
 discovered during the interactivity investigation and added after the fact.
@@ -66,7 +68,7 @@ of them is not ready to be designed.
    it is built, and no layout change lands without a before and after run.
 7. **The repo rules still apply**: no suppressions, no `any`, one file per concept, and the
    `model ← canvas ← ui ← editor ← app` boundary. Several items below want a new shared concept, and
-   `model/` is at eighteen files with an explicit instruction to resist a nineteenth. That tension is
+   `model/` is at nineteen files with an explicit instruction to resist a twentieth. That tension is
    an open question, not an oversight.
 
 ---
@@ -76,12 +78,15 @@ of them is not ready to be designed.
 ## 1. Layout diffing and tweening
 
 **Built** (transitions, structural build-in, theme motion, continuous reveals; chart/diagram
-draw-on landed 2026-09-06, [`draw-on.md`](draw-on.md) — per-datum reveals choreographed by the
+draw-on landed 2026-09-06, [`draw-on.md`](../executed/draw-on.md) — per-datum reveals choreographed by the
 motion layer over item 16's datum regions, zero renderer changes). What remains of this item:
-cross-slide morph (content-based correspondence, deliberately unscheduled); live drag reflow
-landed 2026-09-06 ([`live-reflow.md`](live-reflow.md)) — frozen aiming kept, parting previewed
-through the drop's own pure ops and FLIP-animated at the paint layer, without item 15. See
-[`motion-build.md`](motion-build.md); the rest of this entry is the original summary.\*\*
+cross-slide morph (content-based correspondence, deliberately unscheduled). Live drag reflow
+was built 2026-09-06 ([`live-reflow.md`](live-reflow.md)) and then superseded twice by UX
+verdicts, landing 2026-09-07 on the controlled-canvas model ([`dnd-ux.md`](dnd-ux.md) §10):
+scoped slides with discrete slot hops, no in-layout preview while aiming, one commit FLIP per
+landing — the FLIP capability in `paintReconcile` is the piece of the reflow round that survives
+in the product. See [`motion-build.md`](../executed/motion-build.md); the rest of this entry is the original
+summary.\*\*
 
 Missing: nothing in `canvas/` refers to animation, tween, keyframes or easing. `layout()` emits a
 static `RenderCommand[]` and there is no mechanism to interpolate between two of them. Present's
@@ -112,7 +117,7 @@ content-based correspondence, not an id lookup. `motion.md` works through the co
 ## 2. Line boxes as an engine output
 
 Status update: built 2026-08-27 (the typography round, `5d3992f`; the plan is
-[`typography.md`](typography.md), whose header predates the build). `Measured.lines` carries
+[`typography.md`](../executed/typography.md)). `Measured.lines` carries
 per-line geometry (`TextLine` in `@engine/node`), text commands carry `lines`, `fragment` breaks
 at line boundaries with a keep-lines guard (`layout.ts`), the backends read command lines instead
 of re-deriving (`c.lines ?? layoutRuns(...)` fallback in `backends.ts`), and the comment chrome's
@@ -144,7 +149,7 @@ line metadata attached, which is cheaper but leaves two representations.
 
 ## 3. Autofit as a layout mode
 
-**Built except phase D: [`autofit.md`](autofit.md) phases A–C shipped (workstream W-C of the
+**Built except phase D: [`autofit.md`](../executed/autofit.md) phases A–C shipped (workstream W-C of the
 engine round) — the bounded tokenScale search, the media unblock, the "Fitted N%" indicator.
 Phase D stays deferred by decision: per-element shrink priorities on `ElementSpec`, and the
 generation prompts' content-volume guidance revisit. This entry is the original summary.**
@@ -180,8 +185,8 @@ per-section property, a format property, or always on.
 
 ## 4. Grid and shared track sizing
 
-Status update: closed — the solver half landed with [`engine-round.md`](engine-round.md), and the
-authorable half is built, all three phases of [`grid.md`](grid.md): the container speaks grid
+Status update: closed — the solver half landed with [`engine-round.md`](../executed/engine-round.md), and the
+authorable half is built, all three phases of [`grid.md`](../executed/grid.md): the container speaks grid
 (`direction: "grid"` + the columns control), the editor drops into one (`gridGapSlots`), the AI
 catalog teaches when to reach for it, and a cell can span (`ElementLayout.span`,
 `model/geometry.ts`). The entry below is the original inventory.
@@ -251,7 +256,7 @@ layout; whether this changes the placeholder and skeleton geometry (`elements/sp
 
 **Built (Aug 2026): `ElementLayout.pin` (anchor + offset + z + rotate) compiles onto `float` at
 `applyLayout`; rotation rides every backend; the editor pins, drags with nine-anchor snapping,
-layers and rotates from the inspector. See `positioning.md` and `.docs/rendering.md`.**
+layers and rotates from the inspector. See `../executed/positioning.md` and `.docs/rendering.md`.**
 
 Missing (as written before the round): `ElementLayout` (`model/geometry.ts`) is `width | height | align | radius`. No offset, no
 rotation, no z, no explicit pixel size. `RenderCommand` has no transform field at all
@@ -282,7 +287,7 @@ drag layer treats it as a separate priority class in `computeDropSlots`.
 
 ## 7. Cross-node references
 
-Status update: built 2026-09-06 ([`cross-node-refs.md`](cross-node-refs.md)). Connections live on
+Status update: built 2026-09-06 ([`cross-node-refs.md`](../executed/cross-node-refs.md)). Connections live on
 `ArtifactShell` (stable element ids + optional datum index, synced by the existing shell op,
 pruned on write), resolved entirely above the engine by `canvas/render/connect.ts` against the
 regions every surface already holds, and painted as ordinary surface commands through the
@@ -317,7 +322,7 @@ does not); how a reference survives the referenced element being deleted or move
 
 ## 8. A richer paint model
 
-Status update: built, closed 2026-09-06 ([`paint-model.md`](paint-model.md)). One shared
+Status update: built, closed 2026-09-06 ([`paint-model.md`](../executed/paint-model.md)). One shared
 `Gradient` (multi-stop, radial) declared beside `SectionBackground`; per-corner radius; side-
 selective borders; one structured shadow across fills and surfaces; `backdropBlur` degrading to
 its own translucent fill; and an ellipse clip threaded through emit. Per-backend contract: DOM and
@@ -453,7 +458,7 @@ the segments we are likely to enter first).
 Status update: built 2026-08-27 (the typography round, `5d3992f`). `Measured.ascent/descent`
 populate from `fontBoundingBoxAscent/Descent` (`commands.ts`), and rows align on a shared first
 baseline (`alignY: "baseline"`, stated on the node contract). Deferred, recorded in
-[`typography.md`](typography.md): exact PDF baselines, tight display leading from cap metrics,
+[`typography.md`](../executed/typography.md): exact PDF baselines, tight display leading from cap metrics,
 optical icon alignment. The entry below is the original inventory.
 
 Missing: `Measured` is `{ width, height }` (`canvas/engine/node.ts:80`, unchanged). The `baseline` field on
@@ -535,7 +540,7 @@ covers the common editing case; what the real ceiling is today, which nobody has
 
 ## 16. Non-rectangular hit geometry
 
-Status update: built, closed 2026-09-05 ([`hit-geometry.md`](hit-geometry.md)). The mechanism had
+Status update: built, closed 2026-09-05 ([`hit-geometry.md`](../executed/hit-geometry.md)). The mechanism had
 landed earlier without this entry noticing (`Region.shape` polygons, `inRegion`, `rotateRegion`,
 the `SurfaceLeaf.regions` callback, chart datum regions with editor hover); the closing round made
 diagrams report their item shapes (venn circles, target rings, funnel/pyramid bands, matrix/cycle/
@@ -568,12 +573,14 @@ responsibility) or whether the engine derives them, which it cannot do for arbit
 
 ## 17. Viewport-anchored (sticky) positioning
 
-Status update: the section half is built — a pinned section rides `position: sticky` in the DOM
-backend (`backends.ts`, the pin branch of the section layer), and `layout.dock: "top"` lifts a
-row out of flow to the top of its section band (the docked-nav idiom the templates and the site
-prompt both use). The remainder is element-level sticky: nothing can stick WITHIN a scrolling
-section (a long doc's table header, a persistent aside), which is the part that bends the
-absolute-command invariant and still wants its own decision.
+Status update: closed 2026-09-07 ([`element-sticky.md`](element-sticky.md)). The section half was
+already built (`Section.pinned` + `layout.dock`); the element half landed as
+`ElementLayout.stick: "top" | "page"` — layout never changes, emit marks the subtree's commands,
+and continuous DOM playback builds a sticky proxy carrier per marked element (a sibling of the
+section layers, pixel-identical over the hidden original, CSS containment ending the stick at the
+section or the stack). Every other backend paints in place, the way PNG ignores a link.
+`stickyShift`/`stickyCarry` generalize `pinnedShift` for overlay carriage. The entry below is the
+original inventory.
 
 Found during the interactivity investigation; recorded here because it is a layout-contract gap,
 not an element.
@@ -656,36 +663,22 @@ solver would give, and should stay bounded.
 
 # Sequencing
 
-Re-ranked 2026-08-24, with item 1 built.
+Re-ranked 2026-09-07. Most of the list is closed: items 1 through 10, 13, 14, 16 and 18 are built
+(each carries its status update above), so what remains is short.
 
-1. **Item 3, autofit.** Fully designed ([`autofit.md`](autofit.md)) and waiting; still the largest
-   visible quality gap in generated decks.
-2. **Item 16, hit geometry.** Promoted: three initiatives now queue behind it (chart/diagram
-   draw-on, per-datum affordances, item 6's rotation), and the interactivity work built the
-   consumer side it used to lack.
-3. **Item 5, image intrinsics** and **item 10, distribution modes.** Small, independent, worth
-   slotting beside anything.
-4. **Item 18, reading order.** Cheap, and it completes what the semantics work started: a published
-   page that is labeled but reads in the wrong order is half-finished accessibility.
-5. **Item 17, sticky positioning.** The gating gap for real website furniture now that popups and
-   menus exist.
-6. **Item 4, grid.** Still the largest structural change; everything above sharpens its payoff.
+1. **Item 17's element half.** Section-level sticky and `layout.dock` shipped; sticking within a
+   scrolling section (a long doc's table header, a persistent aside) is still the gap, and it is
+   the part that bends the absolute-command invariant, so it wants its own decision before code.
+2. **Item 3, phase D.** Per-element shrink priorities on `ElementSpec` plus the generation
+   prompts' content-volume revisit, deferred by decision when phases A through C shipped. This is
+   also the answer to item 14's deferred per-node shrink: one mechanism, two entries.
+3. **Item 15, incremental layout.** Parked by measurement (worst corpus solve 0.94ms); revisit
+   only when document scale demands it.
+4. **Item 1's morph remainder.** Cross-slide correspondence, deliberately unscheduled
+   (`motion.md` phase E).
 
-Items 11 and 12 jump to the front the moment a non-Latin market is real. Item 2 becomes urgent if
-long-form documents or text-range collaboration become a priority, since three subsystems are
-currently paying for its absence. Items 8 and 9 are the ones to reach for if the complaint is that
-output looks generic rather than that it lays out wrong.
-
-Dependencies worth knowing:
-
-- Item 14 (truncation) and item 3 (autofit) are plausibly one mechanism at two scales. Settle that
-  before building either.
-- Item 2 (line boxes) is a prerequisite for anything better than a crude clip in item 14, and for
-  line-level builds in item 1.
-- Item 16 (hit geometry) becomes a prerequisite of item 6 (rotation), not an independent choice.
-- Item 13 (font metrics) makes item 4 (grid) typographically meaningful; a grid without a baseline is
-  half the value.
-- Item 15 (incremental layout) makes items 3 and 4 cheaper but blocks neither.
+Items 11 and 12 jump to the front the moment a non-Latin market is real; nothing on this list
+outranks them when that happens.
 
 ---
 
@@ -695,29 +688,35 @@ These affect several items and are worth settling once rather than per item.
 
 Where new shared concepts live: answered in practice. Motion tokens went into `model/theme.ts` as
 part of the theme contract, viewer-state machinery into `canvas/elements/ops.ts` beside its
-siblings, and no nineteenth `model/` file was needed across three initiatives. The working rule:
+siblings, and no new `model/` file was needed across three initiatives. The working rule:
 extend the concept that owns the contract, and treat a new file as evidence the concept analysis is
 wrong. A focal point (item 9) belongs to `media`, a direction (item 12) to `geometry` or
 `artifact`; neither needs a new file either.
 
-How we re-baseline the corpus. Items 3, 11 and 13 each move every number in `pnpm eval:shots` at
-once. Three shipped initiatives leaned on "corpus unchanged" as their proof, which worked precisely
-because none touched geometry; autofit is the first that cannot make that claim, so this process is
-now the blocking prerequisite for the top item in the sequence, not a background question.
+How we re-baseline the corpus. Answered in practice by the rounds that moved geometry: item 13 and
+then item 3's phases A through C both landed as eval-graded layout changes, with the checks
+extended alongside the change (autofit grew `diagnoseSection`) rather than frozen. Item 11 is the
+remaining entry that moves every number at once.
 
 What the PPTX and PDF paths are allowed to lose: a working precedent now exists. The semantics
 work honored `link` as real PDF annotations and PPTX hyperlinks while PNG ignores it by decision,
 and motion exports the animation's end state. The pattern (shared field, per-backend
-interpretation, explicit ignore where meaningless) is what items 6 and 8 should follow.
+interpretation, explicit ignore where meaningless) is what items 6 and 8 followed when they
+shipped: rotation rides every backend, and the paint model's PPTX path rasterizes what it cannot
+express through one `classify` clause.
 
-Whether any of this changes the AI element catalog. Items 4, 6 and 8 add authoring surface, and every
-one of them is something the model will use badly by default. The catalog and prompts
-(`services/core/ai/prompts/`) should be part of each item's scope rather than a follow-up.
+Whether any of this changes the AI element catalog. Settled per item as each shipped: grid taught
+the catalog when to reach for it, cross-node refs added the `setConnections` op and its catalog
+paragraph, and the focal point stayed deliberately untaught because the model cannot see the
+picture. The rule stands for whatever comes next: the catalog and prompts
+(`services/core/ai/prompts/`) are part of an item's scope rather than a follow-up.
 
 ---
 
 # Next
 
-Item 3 is designed: [`autofit.md`](autofit.md). Everything else here is inventory. The next step is
-to pick one, write a planning doc for it in this directory in the shape of `container-merge.md` (why,
-options with their objections, the design, an execution checklist), and only then touch code.
+Item 3 shipped through [`autofit.md`](../executed/autofit.md), phases A through C; only phase D
+remains of it. Everything still open here is inventory. The next step for any of it is to write a
+planning doc in this directory in the shape of
+[`container-merge.md`](../executed/container-merge.md) (why, options with their objections, the
+design, an execution checklist), and only then touch code.

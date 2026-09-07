@@ -12,7 +12,7 @@ stale.
 | `06-public-api.md`      | Public API + API keys           | `apiAccess`                     | built as part of the MCP work, not from this prompt; see `../mcp.md`    |
 | `07-sso.md`             | Workspace SSO                   | `sso`                           | partially built (Google OIDC sign-in ships)                             |
 | `08-object-storage.md`  | Source files to R2 + MinIO      | (infra)                         | not started                                                             |
-| `10-voice-narration.md` | Speaker notes + voice narration | `voiceNarration`, `voiceDesign` | built, pending manual QA; rationale in `../planning/voice-narration.md` |
+| `10-voice-narration.md` | Speaker notes + voice narration | `voiceNarration`, `voiceDesign` | built, pending manual QA; rationale in `../executed/voice-narration.md` |
 
 Each prompt tells its session to build the feature, gate it through the resolver in `model/billing.ts`,
 and flip `FEATURES["<flag>"].status` from `"planned"` to `"live"` once it is verified end to end. The plan

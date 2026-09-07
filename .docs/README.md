@@ -29,5 +29,7 @@ in [workspaces.md](workspaces.md), the events in [analytics.md](analytics.md), a
 [hosting.md](hosting.md).
 
 Feature backlog and the specs they implement against live in [prompts/](prompts/).
-Design options still being decided live in [planning/](planning/); once a decision ships, it
-moves into the doc that owns the area.
+Design options still being decided live in [planning/](planning/); once a decision ships, its
+current-state summary moves into the doc that owns the area, and the plan itself is rewritten as a
+final-state record in [executed/](executed/) — present tense, no phase or progress framing, keeping
+the decisions, the rejected options, the invariants, and the measurements that justified them.

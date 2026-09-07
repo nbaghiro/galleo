@@ -1,6 +1,6 @@
 // Screenshot every element's selection bar and docked panel against a running dev server, so a
 // distribution decision (what sits on the bar, what in the panel) is made on pixels rather than on
-// the schema. Not a CI job: a tool for the next round of `.docs/planning/control-distribution.md`.
+// the schema. Not a CI job: a tool for the next round of `.docs/executed/control-distribution.md`.
 //
 //   pnpm survey:controls                 writes to .local/survey-controls
 //   pnpm survey:controls --out DIR       somewhere else

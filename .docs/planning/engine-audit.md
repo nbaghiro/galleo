@@ -9,8 +9,8 @@
 > a bug proven by an executed failing test rather than by reading. Status: inventory, nothing here
 > is scheduled.
 
-Companion docs: `rendering.md` (stale in places — see E2), `engine-gaps.md`, `loading.md`,
-`container-merge.md`.
+Companion docs: `rendering.md` (its §5.1-5.2 staleness, L2 below, has since been fixed),
+`engine-gaps.md`, `loading.md`, `../executed/container-merge.md`.
 
 Note on the working tree: the media merge (eight picture elements folded into one `media` type) is
 in flight in a sibling session. Findings marked **[media-merge]** land on that work and should be
@@ -26,7 +26,7 @@ section. "Direction" is one sentence, not a design.
 # Verified bugs
 
 The correctness list: each of these misbehaved on a shipped path when audited. **All eleven fixed
-2026-09-02 — the round is recorded in [`engine-bugs.md`](engine-bugs.md), each fix pinned by a
+2026-09-02 — the round is recorded in [`engine-bugs.md`](../executed/engine-bugs.md), each fix pinned by a
 test that was run red first.**
 
 **B1 ✔ The measure cache poisons paint-only run attributes.** `measureKey`
@@ -340,7 +340,7 @@ _wrong_ fallback-metric layouts all session, a correctness item). P3/P6/P8 and t
 demoted to hygiene — worth doing only when touching those files. The entries below keep the
 original evidence.
 
-**All eight fixed 2026-09-03**, in the round recorded in [`perf-round.md`](perf-round.md), which
+**All eight fixed 2026-09-03**, in the round recorded in [`perf-round.md`](../executed/perf-round.md), which
 also carries what each phase deviated from as planned. Two pieces are deliberately left: the inline
 editor's third compose under P1, and the AI adopt path under P7.
 
@@ -349,42 +349,42 @@ stack repaints once (per-section cache holds), but the minimap Thumb re-lays-out
 (`Canvas.tsx:1057-1086`), and the inline editor overlay re-composes a third time
 (`leaf.ts:101-118`); slide mode adds natural/collapsed probes even under `fitFreeze`. Direction:
 reconcile or debounce the Thumb while editing; memo the composed node per (section, width, theme).
-Size: S. **Fixed** (`perf-round.md` B1): the minimap repaints through the exported `paintReconcile`
+Size: S. **Fixed** (`../executed/perf-round.md` B1): the minimap repaints through the exported `paintReconcile`
 instead of tearing its subtree down. The overlay's third compose is untouched.
 
 **P2 ✔ The minimap paints everything it has seen, forever.** Thumbs latch `seen` and never evict
 (`Canvas.tsx:1040-1055`): a 200-section doc accumulates a second full DOM copy of itself in the
-rail. Direction: window the rail like the stack. Size: M. **Fixed** (`perf-round.md` B2): the rail
+rail. Direction: window the rail like the stack. Size: M. **Fixed** (`../executed/perf-round.md` B2): the rail
 windows on two IntersectionObservers, painting in at 300px and releasing the subtree at 1500px.
 
 **P3 ✔ Placeholder ghosts lay out on every stack repaint, cache hit or not.**
 `opts.placeholder?.(section, layoutW)` runs before the reuse check (`backends.ts:1050`) — one
 discarded engine layout per pending section per scroll repaint. Direction: cheap boolean for the
-key, lay out on miss. Size: S. **Fixed** (`perf-round.md` E): a `pending` predicate keys the cache
+key, lay out on miss. Size: S. **Fixed** (`../executed/perf-round.md` E): a `pending` predicate keys the cache
 and the ghost lays out only on a miss.
 
 **P4 ✔ pdf-lib (~512KB pre-gzip) rides the main app bundle eagerly.** `export.ts:4-15` imports it
 statically, ExportModal statically imported by Editor; pptxgenjs/jszip/wawoff2/fontkit are already
 dynamic. Direction: `await import("pdf-lib")` in the export entries, matching the other four.
-Size: S. **Fixed** (`perf-round.md` A): `loadPdfLib()` in `pdf-draw.ts`; the app entry dropped
+Size: S. **Fixed** (`../executed/perf-round.md` A): `loadPdfLib()` in `pdf-draw.ts`; the app entry dropped
 420 KB (175 KB gzip).
 
 **P5 ✔ Non-editor surfaces keep fallback-font layouts for the session.** Only the measure cache and
 the editor/ThemeEditor stacks invalidate on `fonts.loadingdone`; publish, present, previews,
 tiles, minimap keep stale wrap solved against fallback metrics — on publish this is first-load
 wrap drift. Direction: a shared fonts-settled generation folded into the stack cache key. Size: S.
-**Fixed** (`perf-round.md` C): `ui/fonts.ts` carries the settled generation, and each of those
+**Fixed** (`../executed/perf-round.md` C): `ui/fonts.ts` carries the settled generation, and each of those
 surfaces reads it inside the paint effect it already owns.
 
 **P6 ✔ Present costs that stack up.** Advancing slides recounts every prior section from scratch
 (O(N²) over a run-through, `ui/present.tsx:147-154,577`); the overview lays out every section
 eagerly on open; ExportModal lays out the whole deck to count pages. Direction: per-section count
-memo keyed on identity. Size: S. **Fixed** (`perf-round.md` E): `sectionSlideCount` memoizes on
+memo keyed on identity. Size: S. **Fixed** (`../executed/perf-round.md` E): `sectionSlideCount` memoizes on
 section, tokens and profile identity, and all three consumers read the one memo.
 
 **P7 ✔ (picked media) Scaled surfaces fetch the full-size asset.** `thumbUrl` never reaches a
 RenderCommand; a 176px library tile decodes the same photo the editor does. Direction: carry
-`thumbUrl` in media data and pick by painted scale. Size: M. **Fixed** (`perf-round.md` D):
+`thumbUrl` in media data and pick by painted scale. Size: M. **Fixed** (`../executed/perf-round.md` D):
 `MediaData.thumbSrc` reaches `ImageLeaf.thumb` and a small surface paints with `assets: "thumb"`.
 The AI adopt path is deferred there, so an AI-sourced picture still paints its full asset.
 
@@ -392,7 +392,7 @@ The AI adopt path is deferred there, so an AI-sourced picture still paints its f
 `getElementAt` before its early return (`Canvas.tsx:205-207`); `paintSectionStack` ends in
 `host.replaceChildren` even when membership didn't change (`backends.ts:1153`); measure-cache
 eviction is FIFO not LRU, so a multi-width session can evict hot editor entries in a burst.
-Size: XS-S each. **Fixed** (`perf-round.md` B3 + E): all three, as a memoized `openPopups`, a
+Size: XS-S each. **Fixed** (`../executed/perf-round.md` B3 + E): all three, as a memoized `openPopups`, a
 skipped `replaceChildren` when membership and order hold, and LRU eviction.
 
 ---
@@ -406,9 +406,10 @@ Load-bearing designs every fix above must survive, merged from all four sweeps:
 2. **Section-identity caches over immutable ops** — one keystroke re-lays-out one section;
    anything that clones untouched sections on write breaks paint, autosave, and undo at once.
 3. **The frozen-document drag** — slots enumerated once from captured regions, one mutation at
-   drop with path re-aiming. Since 2026-09-06 the PICTURE parts mid-gesture (live-reflow: a
-   preview solve per slot change, FLIP at the paint layer, aim compensated back to frozen
-   coordinates), but the aiming authority stays exactly this invariant.
+   drop with path re-aiming. The live-reflow round (2026-09-06) briefly made the picture part
+   mid-gesture; the controlled-canvas round (2026-09-07, `dnd-ux.md` §10) removed that again, and
+   what survives is the one-shot commit FLIP through `paintReconcile`. The aiming authority stays
+   exactly this invariant.
 4. **The `movable`/`unitItem`/`movableAncestor` seal and the tier/closed contract triangle** — one
    predicate gates drag, delete, duplicate, cut, paste anchoring, and the grip's aim.
 5. **The region-id join** — every overlay positions purely from engine Regions keyed by path ids;

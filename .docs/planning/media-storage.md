@@ -6,8 +6,10 @@
 > origin, and generates display and thumbnail variants on write. Sourced media (stock and link) is
 > already served by the provider and is not affected.
 >
-> Status: designed, not started. Nothing depends on it, and it can ship in stages that each stand
-> alone.
+> Status: superseded by `media-cdn.md`, which is the plan of record and keeps this doc as prior art.
+> The target shape here (bytes in R2, variants, a CDN) carried over, but this plan treats sourced
+> media as needing no change ("nothing here needs changing", section 1), and the picsum outage of
+> 2026-08-29 falsified exactly that assumption. Nothing here was built; read `media-cdn.md` instead.
 
 Companion docs: `architecture.md` (the asset invariant, the `assets` table, the ports table),
 `hosting.md` (Render + Neon, the deploy pipeline, the scale path this expands on items 2 and 3 of),

@@ -1,6 +1,9 @@
 # Plan: stop the inspector covering the canvas (slide-first docking)
 
-Status: designed, not started. Execute when picked up; nothing depends on it.
+Status: designed, not started; every code reference below was re-verified against the working
+tree on 2026-09-07 (no dock/slide mechanism exists anywhere, the panel still floats at
+`absolute right-3 top-1/2`, `useInspectorAutoOpen` still auto-opens, and the canvas reserves only
+the 64px rail via `RAIL_R`/`padR`). Execute when picked up; nothing depends on it.
 
 ## The problem
 
@@ -35,10 +38,15 @@ both sides — and the panel is welcome to cover GUTTER; occlusion only means co
 Mechanics, and why it is seamless in this codebase:
 
 - One CSS transform on the stage container (`translateX(-dx)`, ~180ms ease-out,
-  compositor-only). Every overlay — rings, bars, drop indicators, the inline text editor — is
-  an absolutely-positioned CHILD of the stage, so all of it rides the transform for free.
-  Pointer math goes through `getBoundingClientRect`, which reflects transforms, so hit-testing
-  stays correct even mid-animation. Nothing re-wraps, nothing resizes.
+  compositor-only). The stage already carries `transform: scale(zoom())` (`editor/Canvas.tsx`),
+  so the slide composes into that transform rather than adding a first one; put the translation
+  before the scale so `dx` is viewport px. Every overlay — rings, bars, drop indicators, the
+  inline text editor — is an absolutely-positioned CHILD of the stage, so all of it rides the
+  transform for free (the stage's own comment already states this invariant for zoom). The two
+  deliberate exceptions, `CollabViewportChrome` and `ContextMenu`, are viewport-fixed outside
+  the stage and stay put. Pointer math goes through `getBoundingClientRect`, which reflects
+  transforms, so hit-testing stays correct even mid-animation. Nothing re-wraps, nothing
+  resizes.
 - `dx_needed = max(0, cardRight − panelLeft + gap)`;
   `dx_available = cardLeft − minLeftGutter` (plus the left panel's width where auto-collapsing
   it is acceptable). Apply `min(needed, available)`.
@@ -58,9 +66,11 @@ and reflow is paid only below the width where geometry forces it, and only for t
 - [ ] `dockShift` derivation in the editor store: panel width (240/284 by breakpoint) + card
       geometry (`sectionLayoutWidth`, `fullW`, centring) → `{slide, shrink}` per viewport;
       recompute on resize and on `rightTab` changes.
-- [ ] Stage transform: apply `translateX(-slide)` with the transition on the stage container;
-      confirm every overlay rides it (rings, ContextBar, DropIndicators, TextEditor,
-      EmptyRegionAdd, video embeds).
+- [ ] Stage transform: compose `translateX(-slide)` into the stage's existing `scale(zoom())`
+      with the transition; confirm every overlay rides it (rings, ContextBar, DropIndicators,
+      TextEditor, EmptyRegionAdd, video embeds — all stage children today; the viewport-fixed
+      `CollabViewportChrome` and `ContextMenu` sit outside the stage on purpose and need no
+      slide).
 - [ ] Tier 2: thread `shrink` into the canvas `padR`; extend `anchorScroll` to anchor the
       selected element's top through the reflow.
 - [ ] Sticky/undock: slide on first open per selection session; grace period on deselect

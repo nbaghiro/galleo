@@ -5,12 +5,13 @@
 > is nowhere close." This doc is the honest walkthrough of how the gesture works today, a
 > measured audit of why it feels wrong, the Figma reference model, and the redesign plan. License
 > granted to change the base level. Status: built 2026-09-07, all four phases; deviations below.
-> Verified against the tree 2026-09-07 (HEAD f30f725).
+> Verified against the tree 2026-09-07 (HEAD f30f725; section 10's controlled-canvas build has
+> since been committed as 7a41406, and this doc re-verified against that tree the same day).
 
 Companion docs: `drop-classifier.md` (the geometric classifier this plan reshapes),
-`live-reflow.md` (the parting machinery, which survives whole), `freeform-move.md` (the Space
-handoff and the body-is-a-handle rule, both kept), `engine-audit.md` (U-series history),
-`.docs/rendering.md`.
+`live-reflow.md` (the parting machinery, which survived until section 10 removed it),
+`../executed/freeform-move.md` (the Space handoff and the body-is-a-handle rule, both kept),
+`engine-audit.md` (U-series history), `.docs/rendering.md`.
 
 ## 1. How it works today, end to end
 
@@ -610,3 +611,17 @@ Deviations from the plan as written:
 - Deleted outright (about 950 lines with their pins): `classifyDrop`, every claim family,
   arbitration and its constants, `containedShifts`/`holdShifts`, `part`/`compensatePoint`, the
   cursor ghost, the zone-map acceptance tables. 24 retired describes each carry a one-line why.
+- One wrap affordance survived beyond the gutter pills, amending "the one structural
+  affordance" above: a leaf or sealed member under the pointer gets a two-slot wrap scope
+  (`wrapMemberAt`/`wrapSlide` in dnd.ts: the full column strip of a row member, the side bands
+  of a col member, the whole cell in a grid), so a plain drop can still pair it with the
+  payload perpendicular to the parent's axis; the receiver dashes as implicit. Pills own
+  column creation, the wrap scope owns the pair.
+- The C-3 "Move to" popover was not built; no such surface exists in `editor/`.
+  Cross-container moves are the promoted slide, the keyboard layer, and cut/paste. Open item.
+- Reduced motion, as built: the drag chrome's glides (the `SlotCard` hop, the pills, the
+  receiver highlight) honor `prefers-reduced-motion` through `motion-reduce:transition-none`,
+  but the commit FLIP does not (`playFlip` in `canvas/render/backends.ts` animates
+  unconditionally, and nothing in the editor drag path reads `prefersReducedMotion`), so the
+  non-animated cut section 9 promised is not in the tree; coarse pointers get no
+  drag-specific degrade either. Open item.

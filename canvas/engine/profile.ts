@@ -8,7 +8,7 @@ import type { Id, PageSize, Section, SectionBackground } from "@model/artifact";
 // width. The 0.7 floor keeps the type hierarchy legible instead of shrinking to parity.
 const TYPE_RAMP = { reference: 640, min: 0.7 };
 
-// Autofit's two floors (see `.docs/planning/autofit.md`). A section that overflows its frame is
+// Autofit's two floors (see `.docs/executed/autofit.md`). A section that overflows its frame is
 // re-composed smaller rather than scaled as pixels, and this is how far that may go: `FIT_FLOOR`
 // matches `TYPE_RAMP.min` so the two floors in the codebase agree, and `MIN_TEXT_PX` is the real
 // bound, since a section's SMALLEST type is what becomes illegible first (a 13px label at 0.7 is

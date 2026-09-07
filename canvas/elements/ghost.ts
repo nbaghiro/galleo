@@ -5,8 +5,9 @@ import { mix } from "@themes";
 
 // The one grey stand-in vocabulary: the colors a placeholder or a skeleton paints in, the bar and
 // box primitives, and a per-kind body silhouette so a stat reads as a stat and a chart as bars
-// rather than a run of generic bars. The windowed-loading placeholder uses it today; the outline
-// ghost (skeletonize) and the palette tiles migrate onto it next (see ghost-stand-in.md).
+// rather than a run of generic bars. The loading placeholder and the streamed outline draw from it;
+// `skeletonize` shares the colors but keeps its own builders, and the palette tiles deliberately
+// stay on their own art (see `.docs/executed/ghost-stand-in.md`).
 
 export interface GhostColors {
     bar: string; // text and leaf placeholders
