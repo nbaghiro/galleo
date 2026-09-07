@@ -110,7 +110,7 @@ export const zBeat = z.object({
         .array(z.string())
         .optional()
         .describe(
-            "the block leading each column, in order — each one of: text, bullets, image, stat, chart, diagram, table, quote, cards. Length = the layout's column count.",
+            "the block leading each column, in order, each one of: text, bullets, image, stat, chart, diagram, table, quote, cards. Length = the layout's column count. A group block (cards, or three stats or quotes) must lead a full-width or three-up column, never the narrow 40 percent side of a split, where the group collapses into a cramped vertical stack.",
         ),
     brief: z
         .string()
