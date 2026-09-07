@@ -309,9 +309,19 @@ describe("POST /billing/topup", () => {
         expect(args.line_items).toEqual([{ price: PRICE.credit, quantity: 2000 }]);
     });
 
-    it("rejects a quantity that is not a preset before reaching Stripe", async () => {
+    it("opens a payment checkout for any whole quantity within the bounds", async () => {
         const { userId } = await seedUser({ plan: "pro" });
-        for (const credits of [1500, 10.5, 0, 5_000_000]) {
+        stripeMock.customers.create.mockResolvedValue({ id: "cus_topup" });
+        stripeMock.checkout.sessions.create.mockResolvedValue({ url: "https://pay/x" });
+        const res = await authed(userId, "/billing/topup", jsonInit("POST", { credits: 1250 }));
+        expect(res.status).toBe(200);
+        const args = stripeMock.checkout.sessions.create.mock.calls.at(-1)![0];
+        expect(args.line_items).toEqual([{ price: PRICE.credit, quantity: 1250 }]);
+    });
+
+    it("rejects a quantity outside the bounds, or not a whole number, before Stripe", async () => {
+        const { userId } = await seedUser({ plan: "pro" });
+        for (const credits of [50, 10.5, 0, 5_000_000]) {
             const res = await authed(userId, "/billing/topup", jsonInit("POST", { credits }));
             expect(res.status).toBe(400);
         }
@@ -869,12 +879,19 @@ describe("webhook hardening", () => {
         expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10 + 500);
     });
 
-    it("refuses a quantity that is not a preset we sell", async () => {
+    it("credits any whole quantity within the bounds, not only a preset", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setWs(workspaceId, { aiCreditsBalance: 10 });
-        // a session made outside our API, where the route's preset check never ran
+        await postWebhook(creditPurchase(workspaceId, 1250, { id: "cs_custom" }));
+        expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10 + 1250);
+    });
+
+    it("refuses a quantity outside the bounds we sell", async () => {
+        const { workspaceId } = await seedUser({ plan: "pro" });
+        await setWs(workspaceId, { aiCreditsBalance: 10 });
+        // a session made outside our API, where the route's bounds check never ran
         await postWebhook(creditPurchase(workspaceId, 5_000_000, { id: "cs_huge" }));
-        await postWebhook(creditPurchase(workspaceId, 1500, { id: "cs_odd" }));
+        await postWebhook(creditPurchase(workspaceId, 50, { id: "cs_tiny" }));
         expect((await getWs(workspaceId)).aiCreditsBalance).toBe(10);
     });
 

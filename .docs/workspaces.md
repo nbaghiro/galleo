@@ -245,12 +245,12 @@ back, grant claim included, so Stripe's retry re-runs it. That is at-least-once 
 exactly-once effects. Network calls happen before the transaction on purpose, so no database
 connection is held across a round trip to Stripe.
 
-| Event                                       | What it does                                                                                                                                                                                                                                                                                          |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `checkout.session.completed` (subscription) | Locks the row and runs `applySubscription` with the session id as the grant key: writes the customer id, and syncs and grants as below.                                                                                                                                                               |
-| `checkout.session.completed` (payment)      | A credit purchase: reads the quantity off the credit line item Stripe charged for, refuses anything that is not a preset, adds it to the balance and to `purchased_credits`, and writes a `topup` row keyed on the session. An unpaid session (a delayed method) waits for `async_payment_succeeded`. |
-| `customer.subscription.updated`             | `applySubscription` keyed on the event id. When the sub has no workspace, it may adopt one via `metadata.workspaceId`, but only if that workspace has **no** current subscription, so a stale event cannot hijack a newer one.                                                                        |
-| `customer.subscription.deleted`             | Back to Free: `plan: "free"`, `planInterval: null`, `stripeSubscriptionId: null`, `planPeriodEnd: null`, the cancel flag cleared. Banked credits are untouched.                                                                                                                                       |
+| Event                                       | What it does                                                                                                                                                                                                                                                                                               |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checkout.session.completed` (subscription) | Locks the row and runs `applySubscription` with the session id as the grant key: writes the customer id, and syncs and grants as below.                                                                                                                                                                    |
+| `checkout.session.completed` (payment)      | A credit purchase: reads the quantity off the credit line item Stripe charged for, refuses a quantity outside `CREDIT_BOUNDS`, adds it to the balance and to `purchased_credits`, and writes a `topup` row keyed on the session. An unpaid session (a delayed method) waits for `async_payment_succeeded`. |
+| `customer.subscription.updated`             | `applySubscription` keyed on the event id. When the sub has no workspace, it may adopt one via `metadata.workspaceId`, but only if that workspace has **no** current subscription, so a stale event cannot hijack a newer one.                                                                             |
+| `customer.subscription.deleted`             | Back to Free: `plan: "free"`, `planInterval: null`, `stripeSubscriptionId: null`, `planPeriodEnd: null`, the cancel flag cleared. Banked credits are untouched.                                                                                                                                            |
 
 `applySubscription` is the one sync. It reads the live subscription's plan and interval, and when
 the subscription now grants more than the row did (a checkout, a tier rise) it
@@ -329,11 +329,12 @@ first read would roll it", because a fixture that rolls itself on first page loa
 
 ### Bought credits
 
-A purchase is `POST /billing/topup` for one of `CREDIT_PRESETS` (500, 2,000 or 5,000), at
-`CREDIT_PRICE_USD` (two cents) each, through a payment-mode Checkout whose line is one credit at
-that quantity. The webhook re-derives the grant from the line item rather than trusting a count in
-metadata, refuses a quantity that is not a preset, and adds it to the balance in a ledger row keyed
-on the session id, so a redelivery cannot grant twice. Bought credits never expire, since the
+A purchase is `POST /billing/topup` for any whole quantity within `CREDIT_BOUNDS` (100 to 25,000;
+`CREDIT_PRESETS` are only the panel's quick picks), at `CREDIT_PRICE_USD` (two cents) each, through
+a payment-mode Checkout whose line is one credit at that quantity, so no amount needs a Stripe
+product of its own. The webhook re-derives the grant from the line item rather than trusting a
+count in metadata, refuses a quantity outside the bounds, and adds it to the balance in a ledger
+row keyed on the session id, so a redelivery cannot grant twice. Bought credits never expire, since the
 rollover clip shields them, and are not refundable.
 
 The rate sits above every plan's own per-credit rate, so buying capacity outright never beats
@@ -360,7 +361,12 @@ The part that surprises people reading the `credits` table: a settle **rewrites 
 appending a correction. One action is one line of history, so the ledger reads as a list of things the
 user did rather than a list of accounting steps we took. A row's `delta` is the final cost, its
 `usage` is what was asked for, and `balance_after` is recomputed at settle time, so under interleaving
-it is not a strict point-in-time running balance for rows written after the charge.
+it is not a strict point-in-time running balance for rows written after the charge. A charge that
+settles to nothing, a cache hit or a run refunded in full, is deleted rather than kept at zero: the
+trace still records the call, and the ledger keeps to what moved the balance. The prepare pass on
+open goes one step further and never asks for what a piece already has: `unrecorded` in
+`core/narration.ts` and `bedFor` in `core/soundtrack.ts` decide before the executor, so a prepared
+piece reaches neither the ledger nor the traces.
 
 The reserve/settle protocol itself is `reserve()` in `services/core/spend.ts`: hold
 `estimateCost(tool, size, prices)` up front, run the work under a token meter, and reconcile in a
@@ -737,7 +743,7 @@ may not import `app/`; it receives an `onUpgrade` callback from `EditorView` ins
 | Plan catalog + resolver         | `model/__tests__/billing.test.ts`           | plan fallback, the member cap per plan, overrides widening and narrowing, `withinLimit` against `-1`, `grantFor` and its override, the margin floor, the rate band, the bought-credit invariants, the rollover clip, `upgradeFor` per feature kind, and the card copy                                                                                                   |
 | Cost units + the gate           | `model/__tests__/credits.test.ts`           | `usdOfUsage`, the one-credit floor, `creditsForUsd`, `unitPricesFrom`, `estimateCost` scaling by length and section count, the doorway gate on `start-generation`, free tools reserving 0, and the priced-tool list                                                                                                                                                     |
 | 402 guards                      | `services/utils/__tests__/http.test.ts`     | `requireFeature`, `checkLimit` at and below a cap, unlimited, the message builder                                                                                                                                                                                                                                                                                       |
-| Ledger mechanics                | `services/core/__tests__/ledger.itest.ts`   | refusing a charge the balance cannot cover, spending straight off the balance, a settle rewriting one row in place, a settle beyond the reserve flooring at zero, `rollIfLapsed` rolling once under concurrency with a keyed row, a subscribed workspace rolling the same way, and the rollover clip with the purchased shield                                          |
+| Ledger mechanics                | `services/core/__tests__/ledger.itest.ts`   | refusing a charge the balance cannot cover, spending straight off the balance, a settle rewriting one row in place, a settle to nothing leaving no row, a settle beyond the reserve flooring at zero, `rollIfLapsed` rolling once under concurrency with a keyed row, a subscribed workspace rolling the same way, and the rollover clip with the purchased shield      |
 | Spend policy                    | `services/core/__tests__/spend.test.ts`     | what a run owes: nothing for nothing, provider list price, the credit floor, assets on top, cached input, call-site spend folded into one sum                                                                                                                                                                                                                           |
 | Stripe wiring                   | `services/core/__tests__/stripe.test.ts`    | `stripeReady`, `priceIdFor`, price-to-plan and price-to-interval round trips                                                                                                                                                                                                                                                                                            |
 | Billing routes + webhook        | `services/api/__tests__/billing.itest.ts`   | checkout (interval, 503, free rejected), presets, portal, change-plan (immediate upgrade and downgrade, cancel-to-free, interval switch), resume, the doorway gate, webhook idempotency and rollback, subscription adoption and hijack refusal, the grant on any subscription increase, the roll on read for every plan, purchases, owner-only mutations, ledger paging |

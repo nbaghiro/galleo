@@ -11,12 +11,8 @@ const GRANT_REASONS = new Set(["monthly-grant", "renewal-grant", "upgrade-grant"
 const isGrant = (reason: string): boolean =>
     GRANT_REASONS.has(reason) || reason.startsWith("topup:");
 
-// a spend that settled to zero: a cache hit, or a run refunded in full
-const isCached = (e: LedgerEntry): boolean => e.delta === 0 && !isGrant(e.reason);
-
-/** The preview's head rows: real spend and grants, without the zero-cost cache-hit noise. */
 export const previewEntries = (entries: LedgerEntry[]): LedgerEntry[] =>
-    entries.filter((e) => !isCached(e)).slice(0, ACTIVITY_PREVIEW_ROWS);
+    entries.slice(0, ACTIVITY_PREVIEW_ROWS);
 
 // The one rendering of the credit ledger, shared by the pricing and settings previews and the full
 // activity page, so the three surfaces cannot drift apart. Renders its own framed list; callers
@@ -45,11 +41,6 @@ export const CreditActivity: Component<{
                         <div class="min-w-0 flex-1">
                             <div class="truncate font-medium capitalize text-ink">
                                 {ledgerReasonLabel(e.reason)}
-                                <Show when={isCached(e)}>
-                                    <span class="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
-                                        cached
-                                    </span>
-                                </Show>
                                 <Show when={e.delta === 0 && isGrant(e.reason)}>
                                     <span class="ml-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
                                         at the cap

@@ -4,11 +4,12 @@ import type { ChangeEffect, Interval, PlanId } from "@model/billing";
 import {
     canTopUp,
     clipGrant,
+    CREDIT_BOUNDS,
     CREDIT_PRESETS,
     CREDIT_PRICE_USD,
     featuresFor,
     grantFor,
-    isCreditPreset,
+    isCreditQuantity,
     PLAN_ORDER,
     PLANS,
     planFor,
@@ -176,7 +177,7 @@ export async function billingSummary(ws: WorkspaceRow) {
         // cannot buy them or the price is not configured
         creditSale:
             canTopUp(ws.plan) && creditPriceId()
-                ? { usdPerCredit: CREDIT_PRICE_USD, presets: CREDIT_PRESETS }
+                ? { usdPerCredit: CREDIT_PRICE_USD, presets: CREDIT_PRESETS, ...CREDIT_BOUNDS }
                 : null,
         stripeReady: stripeReady(),
         // a churned workspace keeps its customer, and with it the portal's invoice history
@@ -249,7 +250,7 @@ export async function topupUrl(
     email: string,
     credits: number | undefined,
 ): Promise<TopupResult> {
-    if (credits === undefined || !isCreditPreset(credits)) return { error: "invalid-quantity" };
+    if (credits === undefined || !isCreditQuantity(credits)) return { error: "invalid-quantity" };
     const price = creditPriceId();
     if (!price) return { error: "not-configured" };
     const customerId = await ensureCustomer(ws, email);
@@ -565,9 +566,9 @@ async function handleEvent(
             // async_payment_succeeded, so the money has to have landed before the credits do. Both
             // events carry the same session id, and grantOnce keys on it, so only one can grant.
             if (boughtCredits <= 0 || s.payment_status !== "paid") return;
-            // the session was created by our API, which offers the presets, but a session made any
+            // the session was created by our API, which checks the bounds, but a session made any
             // other way reaches here too: re-check rather than grant an amount we would never sell
-            if (!isCreditPreset(boughtCredits)) {
+            if (!isCreditQuantity(boughtCredits)) {
                 warn(`[billing] refusing off-catalog credit purchase ${boughtCredits} on ${s.id}`);
                 return;
             }
@@ -583,6 +584,7 @@ async function handleEvent(
             capture(payer(ws), "topup_purchased", {
                 credits: boughtCredits,
                 usd: (s.amount_total ?? 0) / 100,
+                preset: CREDIT_PRESETS.includes(boughtCredits),
             });
             return;
         }

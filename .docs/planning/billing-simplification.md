@@ -359,6 +359,9 @@ the phases above describe an intermediate state. What shipped instead:
   four consumed events, plus `--live --project` for the CLI's live profile and a guard that
   refuses a live key without `--live`. The Dashboard side (activation, failed-payment
   cancellation, customer emails, a restricted key) is the runbook in `hosting.md`.
+- 2026-09-07: bought credits are any whole quantity within `CREDIT_BOUNDS` again, typed beside
+  the presets, since the single one-credit price already charges by quantity; the presets stay as
+  quick picks. The bounds check replaces the preset check on the route, the webhook and the seed.
 
 Still open from the sandbox run: a tier upgrade grants the whole new allowance in a fresh window
 rather than the difference, which is generous by up to one month's grant and bounded by the

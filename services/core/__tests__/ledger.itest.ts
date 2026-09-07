@@ -71,7 +71,9 @@ describe("chargeCredits", () => {
         expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(0);
     });
 
-    it("a settled charge stays one ledger row, rewritten in place", async () => {
+    // a cache hit or a full refund: the balance is whole again and the ledger shows nothing, since a
+    // call that cost nothing is not credit activity and hundreds of them would bury the calls that are
+    it("a charge that settles to nothing leaves no row behind", async () => {
         const { workspaceId } = await seedUser({ plan: "pro" });
         await setBalance(workspaceId, 40);
 
@@ -79,11 +81,8 @@ describe("chargeCredits", () => {
         expect((await ledgerOf(workspaceId))[0]!.balanceAfter).toBe(0);
 
         await settleCredits(await wsRow(workspaceId), spend.entryId!, -40);
-        const rows = await ledgerOf(workspaceId);
-        expect(rows).toHaveLength(1);
-        expect(rows[0]!.id).toBe(spend.entryId);
-        expect(rows[0]!.delta).toBe(0); // charged 40, owed 0
-        expect(rows[0]!.balanceAfter).toBe(40);
+        expect(await ledgerOf(workspaceId)).toHaveLength(0);
+        expect((await wsRow(workspaceId)).aiCreditsBalance).toBe(40);
     });
 
     it("records what the charge bought, so history reads as work not just a tool name", async () => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CREDIT_USD } from "@model/credits";
 import type { PlanId } from "@model/billing";
 import {
+    CREDIT_BOUNDS,
     CREDIT_PRESETS,
     CREDIT_PRICE_USD,
     PLANS,
@@ -13,7 +14,7 @@ import {
     clipGrant,
     featuresFor,
     grantFor,
-    isCreditPreset,
+    isCreditQuantity,
     limit,
     planFor,
     planRank,
@@ -134,10 +135,15 @@ describe("bought credits", () => {
         }
     });
 
-    it("offers presets and nothing else", () => {
-        for (const n of CREDIT_PRESETS) expect(isCreditPreset(n)).toBe(true);
-        expect(isCreditPreset(CREDIT_PRESETS[0]! + 1)).toBe(false);
-        expect(isCreditPreset(Number.NaN)).toBe(false);
+    it("sells any whole quantity within the bounds, the presets among them", () => {
+        for (const n of CREDIT_PRESETS) expect(isCreditQuantity(n)).toBe(true);
+        expect(isCreditQuantity(1250)).toBe(true);
+        expect(isCreditQuantity(CREDIT_BOUNDS.min)).toBe(true);
+        expect(isCreditQuantity(CREDIT_BOUNDS.max)).toBe(true);
+        expect(isCreditQuantity(CREDIT_BOUNDS.min - 1)).toBe(false);
+        expect(isCreditQuantity(CREDIT_BOUNDS.max + 1)).toBe(false);
+        expect(isCreditQuantity(10.5)).toBe(false);
+        expect(isCreditQuantity(Number.NaN)).toBe(false);
     });
 });
 

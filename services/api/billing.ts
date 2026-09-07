@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Context } from "hono";
 import { z } from "zod";
 import { BAD_BODY, readJson } from "@services/utils/http";
-import { canTopUp, CREDIT_PRESETS } from "@model/billing";
+import { canTopUp, CREDIT_BOUNDS } from "@model/billing";
 import {
     billingSummary,
     changePlan,
@@ -34,10 +34,7 @@ const zWanted = z.object({
 
 // only a preset is buyable, so an off-catalog quantity is a 400 before it reaches Stripe
 const zTopup = z.object({
-    credits: z
-        .number()
-        .int()
-        .refine((n) => CREDIT_PRESETS.includes(n)),
+    credits: z.number().int().min(CREDIT_BOUNDS.min).max(CREDIT_BOUNDS.max),
 });
 
 plan.get("/billing", requireWorkspace, async (c) => c.json(await billingSummary(c.get("ws"))));

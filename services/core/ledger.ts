@@ -150,10 +150,15 @@ export async function settleCredits(
             .set({ aiCreditsBalance: balance })
             .where(eq(schema.workspaces.id, ws.id));
         // the charge row already carries the reason, the usage, and who ran it
-        await tx
+        const [entry] = await tx
             .update(schema.credits)
             .set({ delta: sql`${schema.credits.delta} - ${delta}`, balanceAfter: balance })
-            .where(eq(schema.credits.id, entryId));
+            .where(eq(schema.credits.id, entryId))
+            .returning({ delta: schema.credits.delta });
+        // a call that ended up costing nothing (a cache hit, a run refunded in full) is not credit
+        // activity: the trace keeps the call, and the ledger keeps to what moved the balance
+        if (entry?.delta === 0)
+            await tx.delete(schema.credits).where(eq(schema.credits.id, entryId));
     });
 }
 

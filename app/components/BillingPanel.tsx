@@ -1,7 +1,9 @@
 import type { Component } from "solid-js";
-import { For, Show } from "solid-js";
+import { createSignal, For, Show } from "solid-js";
 import { useNavigate } from "@solidjs/router";
 import { Button, Eyebrow, Spinner } from "@ui/button";
+import { TextField } from "@ui/inputs";
+import { Modal } from "@ui/overlay";
 import { canTopUp, PLAN_ORDER, PLANS } from "@model/billing";
 import { CreditActivity, previewEntries } from "./CreditActivity";
 import { PaymentReturnNotice, PolicyRow, SettingsSection as Section } from "./settings";
@@ -18,6 +20,7 @@ import {
     startTopUp,
 } from "@app/stores/billing";
 import { canManageBilling, workspaceState } from "@app/stores/workspace";
+import { overlayThemeVars } from "@app/stores/theme";
 
 // The Billing tab of workspace settings: where money moves. Payment method and invoices, credit
 // top-ups, and the ledger. What the workspace is subscribed to is the sibling Plan tab, PlanPanel.tsx.
@@ -25,6 +28,17 @@ import { canManageBilling, workspaceState } from "@app/stores/workspace";
 
 export const BillingPanel: Component = () => {
     const navigate = useNavigate();
+    // a pack tile confirms the amount here before it leaves for Stripe checkout, so a click never
+    // sends the reader out of the app unexpectedly
+    const [pending, setPending] = createSignal<{ credits: number; usd: number } | null>(null);
+    // the typed amount beside the presets; a whole number inside the sale's bounds is buyable
+    const [custom, setCustom] = createSignal("");
+    const customCredits = (bounds: { min: number; max: number }): number | null => {
+        const n = Number(custom().replace(/[,\s]/g, ""));
+        return custom().trim() && Number.isInteger(n) && n >= bounds.min && n <= bounds.max
+            ? n
+            : null;
+    };
     // the sellers are read off the catalog, not written into copy
     const packSellers = (): string =>
         PLAN_ORDER.filter(canTopUp)
@@ -124,9 +138,10 @@ export const BillingPanel: Component = () => {
                                                         disabled={anyBusy() || !canManage()}
                                                         loading={busy(`credits:${n}`)}
                                                         onClick={() =>
-                                                            void run(`credits:${n}`, () =>
-                                                                startTopUp(n),
-                                                            )
+                                                            setPending({
+                                                                credits: n,
+                                                                usd: n * sale().usdPerCredit,
+                                                            })
                                                         }
                                                     >
                                                         +{n.toLocaleString()} · $
@@ -135,9 +150,57 @@ export const BillingPanel: Component = () => {
                                                 )}
                                             </For>
                                         </div>
+                                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                                            <div class="w-40">
+                                                <TextField
+                                                    compact
+                                                    type="number"
+                                                    inputmode="numeric"
+                                                    min={sale().min}
+                                                    max={sale().max}
+                                                    step={1}
+                                                    placeholder={`${sale().min} to ${sale().max.toLocaleString()}`}
+                                                    aria-label="Credits to buy"
+                                                    value={custom()}
+                                                    onChange={setCustom}
+                                                    disabled={anyBusy() || !canManage()}
+                                                />
+                                            </div>
+                                            <Button
+                                                variant="tool"
+                                                size="sm"
+                                                disabled={
+                                                    customCredits(sale()) === null ||
+                                                    anyBusy() ||
+                                                    !canManage()
+                                                }
+                                                onClick={() => {
+                                                    const n = customCredits(sale());
+                                                    if (n !== null)
+                                                        setPending({
+                                                            credits: n,
+                                                            usd: n * sale().usdPerCredit,
+                                                        });
+                                                }}
+                                            >
+                                                <Show
+                                                    when={customCredits(sale())}
+                                                    fallback={<>Any amount</>}
+                                                >
+                                                    {(n) => (
+                                                        <>
+                                                            +{n().toLocaleString()} · $
+                                                            {(n() * sale().usdPerCredit).toFixed(2)}
+                                                        </>
+                                                    )}
+                                                </Show>
+                                            </Button>
+                                        </div>
                                         <div class="mt-1.5 text-[11px] text-muted">
-                                            ${sale().usdPerCredit.toFixed(2)} a credit. Bought
-                                            credits never expire and are not refundable.
+                                            ${sale().usdPerCredit.toFixed(2)} a credit, any amount
+                                            from {sale().min.toLocaleString()} to{" "}
+                                            {sale().max.toLocaleString()}. Bought credits never
+                                            expire and are not refundable.
                                         </div>
                                     </div>
                                 )}
@@ -170,6 +233,44 @@ export const BillingPanel: Component = () => {
                     </button>
                 </Show>
             </Section>
+
+            <Show when={pending()}>
+                {(p) => (
+                    <Modal
+                        size="sm"
+                        scrim="blur"
+                        vars={overlayThemeVars()}
+                        class="p-5"
+                        onClose={() => setPending(null)}
+                    >
+                        <h2 class="text-[15px] font-semibold text-ink">Buy credits</h2>
+                        <p class="mt-1.5 text-[12.5px] leading-relaxed text-soft">
+                            {p().credits.toLocaleString()} credits for ${p().usd.toFixed(2)}.
+                            Payment is on the next screen. Bought credits never expire and are not
+                            refundable.
+                        </p>
+                        <div class="mt-4 flex items-center justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setPending(null)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="primary"
+                                size="sm"
+                                loading={busy(`credits:${p().credits}`)}
+                                onClick={() => {
+                                    const n = p().credits;
+                                    void run(`credits:${n}`, () => startTopUp(n)).finally(() => {
+                                        setPending(null);
+                                        setCustom("");
+                                    });
+                                }}
+                            >
+                                Go to checkout
+                            </Button>
+                        </div>
+                    </Modal>
+                )}
+            </Show>
         </>
     );
 };

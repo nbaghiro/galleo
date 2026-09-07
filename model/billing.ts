@@ -59,16 +59,23 @@ const CREDITS: Record<PlanId, number> = { free: 300, pro: 1_200, premium: 5_000 
 const credits = (n: number): string => n.toLocaleString("en-US");
 
 /**
- * Bought credits: any preset quantity, one flat rate, no volume break. They share the single
- * balance because unspent credits roll over (see rollIfLapsed), and `purchased_credits` keeps them
- * out of the rollover clip so a bought credit never expires. The rate sits above CREDIT_USD and
- * above EVERY plan's own per-credit rate, so buying outright never undercuts subscribing.
+ * Bought credits: any whole quantity within the bounds, one flat rate, no volume break. They share
+ * the single balance because unspent credits roll over (see rollIfLapsed), and `purchased_credits`
+ * keeps them out of the rollover clip so a bought credit never expires. The rate sits above
+ * CREDIT_USD and above EVERY plan's own per-credit rate, so buying outright never undercuts
+ * subscribing. One Stripe price stands for one credit and is charged by quantity, so no amount
+ * needs a product of its own.
  */
 export const CREDIT_PRICE_USD = 0.02;
 
+// the quick picks on the billing panel; anything inside CREDIT_BOUNDS is buyable
 export const CREDIT_PRESETS: readonly number[] = [500, 2000, 5000];
 
-export const isCreditPreset = (n: number): boolean => CREDIT_PRESETS.includes(n);
+// a floor well above Stripe's minimum charge, and a ceiling that keeps a typo from becoming an order
+export const CREDIT_BOUNDS = { min: 100, max: 25_000 } as const;
+
+export const isCreditQuantity = (n: number): boolean =>
+    Number.isInteger(n) && n >= CREDIT_BOUNDS.min && n <= CREDIT_BOUNDS.max;
 
 export const PLANS: Record<PlanId, Plan> = {
     free: {

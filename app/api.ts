@@ -83,7 +83,8 @@ export interface BillingState {
     catalog: Plan[];
     // one-off credit purchases: the flat rate and the quantities offered as buttons, or null when
     // the plan cannot buy them or no price is configured
-    creditSale: { usdPerCredit: number; presets: number[] } | null;
+    // the presets are the quick picks; any whole quantity from min to max is buyable
+    creditSale: { usdPerCredit: number; presets: number[]; min: number; max: number } | null;
     stripeReady: boolean;
     hasCustomer: boolean; // a Stripe customer exists, so the portal has history to show
 }

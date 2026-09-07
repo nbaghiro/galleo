@@ -399,7 +399,7 @@ export interface Events {
     };
     // `count` is present only on the batch form, so a single removal reads exactly as it always did
     element_removed: { element_type: string; category: ElementCategory; count?: number };
-    element_moved: { element_type: string; same_section: boolean };
+    element_moved: { element_type: string; same_section: boolean; source: "drag" | "keys" };
     elements_grouped: { count: number };
     element_resized: { element_type: string; kind: "height" | "aspect" };
     element_revised_with_ai: { element_type: string; credits_charged: number };
@@ -557,7 +557,7 @@ export interface Events {
     };
     downgrade_cancelled: { plan_id: PlanId };
     plan_cancelled: { plan_id: PlanId; days_active: number; artifacts_created: number };
-    topup_purchased: { credits: number; usd: number };
+    topup_purchased: { credits: number; usd: number; preset: boolean };
     billing_portal_opened: { from: string };
     credit_activity_viewed: { plan_id: PlanId };
 

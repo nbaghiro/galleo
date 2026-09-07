@@ -2,7 +2,7 @@ import "dotenv/config";
 import { createHash } from "node:crypto";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import type { ArtifactContent, GenMeta } from "@model/artifact";
-import { grantFor, isCreditPreset } from "@model/billing";
+import { grantFor, isCreditQuantity } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { THEMES } from "@themes";
 import { assertDatabaseUrl, db } from "./client";
@@ -427,7 +427,7 @@ async function seedLedger(
                 createdAt,
             });
         } else if (c.kind === "topup") {
-            if (!isCreditPreset(c.credits))
+            if (!isCreditQuantity(c.credits))
                 throw new Error(`"${spec.slug}": ${c.credits} is not a buyable credit quantity`);
             balance += c.credits;
             bought += c.credits;
