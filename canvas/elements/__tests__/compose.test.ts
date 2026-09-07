@@ -300,9 +300,12 @@ describe("composedLeafFor", () => {
         const label = composedLeafFor(s, { section: "s1", path: [0] }, deckCtx)!;
         const detail = composedLeafFor(s, { section: "s1", path: [1] }, deckCtx)!;
         expect(label.text).toBe("Plan");
-        expect(label.size).toBe(12); // NODE_TEXT, the size the cell paints
+        // the cell's own size, which scales with the node it is in, and the cell's own weight:
+        // what matters is that the container restyled the leaf, not the text spec's body size
+        expect(label.size).toBeGreaterThanOrEqual(12);
         expect(label.weight).toBe(600);
-        expect(detail.size).toBe(11);
+        expect(detail.size).toBeGreaterThanOrEqual(11);
+        expect(detail.size).toBeLessThan(label.size);
     });
     it("returns the table-restyled leaf for a cell (header weight/ink, body soft)", () => {
         const s = sectionOf(inst("table", { cols: 2, rows: 2, header: true, data: "A, B\nc, d" }), {

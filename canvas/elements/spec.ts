@@ -213,6 +213,11 @@ export interface ElementSpec<Data = unknown> {
         children: (data: Data) => ElementInstance[];
         arrange: (data: Data, ctx: LayoutCtx, children: EngineNode[]) => EngineNode;
         withChildren: (data: Data, children: ElementInstance[]) => Data;
+        // The width this container's children actually get, once it has taken its own padding and
+        // its cross-axis gaps. Compose splits `availWidth` before any arrange runs, so an element
+        // that decides layout at compose time (a diagram's wrap, a pictogram's marks) otherwise
+        // sizes against a box wider than it gets and paints past its own edge. Absent = the whole.
+        innerWidth?: (data: Data, availWidth: number, children: number) => number;
         // children exist to be selected and edited, not rearranged: the element owns its own slots, so
         // it is a leaf to drag-and-drop and never shows the empty-cell placeholder
         closed?: boolean;

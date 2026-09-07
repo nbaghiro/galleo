@@ -192,6 +192,20 @@ const surfaced = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineN
 const arrangeContainer = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineNode =>
     d.surface ? surfaced(d, ctx, kids) : bare(d, ctx, kids);
 
+// the same padding and gaps the two arranges above apply, so compose's estimate and the real box
+// agree; only gaps that run across the width count, which is a row's every gap and a grid's tracks
+const innerWidth = (d: ContainerData, avail: number, children: number): number => {
+    const dir = d.direction ?? "col";
+    const gap = d.gap ?? (d.surface ? 12 : 14);
+    const cols = dir === "grid" ? gridCols(d) : 1;
+    const across = dir === "row" ? Math.max(0, children - 1) : cols - 1;
+    // A row's children divide this by their own share, so it stays whole. A grid's tracks are
+    // sized from their own members (trackMembers in the solver), so no caller can know a track's
+    // width here: an even split is the floor, and sizing a child for less than it gets wastes a
+    // little space where sizing it for more paints past the edge.
+    return Math.max(1, (avail - (d.surface ? 48 : 0) - gap * across) / cols);
+};
+
 export const containerElement: ElementSpec<ContainerData> = {
     type: "container",
     label: "Container",
@@ -212,6 +226,7 @@ export const containerElement: ElementSpec<ContainerData> = {
         children: (d) => d.children,
         arrange: arrangeContainer,
         withChildren: (d, children) => ({ ...d, children }),
+        innerWidth,
     },
     bar: ["direction", "columns", "align", "surface"],
     frame: true,

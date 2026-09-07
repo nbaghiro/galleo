@@ -274,10 +274,22 @@ export function composeElement(
             // a child of a row only gets its share of the width; elements that must decide layout at
             // compose time (a diagram's wrap) would otherwise size against the whole section
             const share = rowShares(inst, childInstances);
+            // the gaps and padding come off before the share, or every child is sized for a box a
+            // little wider than it gets; a pinned child sits outside the flow and still sizes
+            // against the whole row
+            const inner =
+                spec.container.innerWidth?.(
+                    inst.data,
+                    ctx.availWidth,
+                    childInstances.filter((k) => !k.layout?.pin).length,
+                ) ?? ctx.availWidth;
             const kids = childInstances.map((child, i) =>
                 composeElement(
                     child,
-                    share ? { ...ctx, availWidth: ctx.availWidth * share[i]! } : ctx,
+                    {
+                        ...ctx,
+                        availWidth: child.layout?.pin ? ctx.availWidth : inner * (share?.[i] ?? 1),
+                    },
                     { section: addr.section, path: [...addr.path, i] },
                 ),
             );
