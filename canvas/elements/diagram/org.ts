@@ -31,7 +31,7 @@ function arrange(
 ): EngineNode {
     const data = buildTree(diagram);
     if (!data) return { w: grow(), h: fixed(height) };
-    const cols = itemColors(diagram.items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const ms = markScale(height);
     const byLabel = new Map(diagram.items.map((it, i) => [it.label, i] as const));
     const leaves = Math.max(1, treeLeaves(data));
@@ -115,4 +115,4 @@ function arrange(
     };
 }
 
-registerDiagram({ id: "org", label: "Org chart", arrange });
+registerDiagram({ id: "org", label: "Org chart", arrange, fill: "ground" });

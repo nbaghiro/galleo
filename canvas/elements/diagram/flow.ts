@@ -128,7 +128,7 @@ function arrange(
     const items = diagram.items;
     const n = items.length;
     if (n === 0) return { w: grow(), h: fixed(height) };
-    const cols = itemColors(items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const ids = items.map((i) => i.label);
     const index = new Map(ids.map((id, i) => [id, i] as const));
     // an unlinked list still reads as a flow: chain it in authored order
@@ -277,4 +277,4 @@ function arrange(
     };
 }
 
-registerDiagram({ id: "flow", label: "Flowchart", arrange });
+registerDiagram({ id: "flow", label: "Flowchart", arrange, fill: "ground" });

@@ -62,7 +62,7 @@ function arrange(
     const items = diagram.items;
     if (items.length === 0) return { w: grow(), h: fixed(height) };
     const sets = clamp(items.length, 1, 3);
-    const cols = itemColors(items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const W = ctx.availWidth;
     const geo = geometry(sets, W, height);
 

@@ -1,5 +1,6 @@
 import type { EngineNode } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
+import { mix } from "@themes";
 import { fixed, grow } from "@model/geometry";
 import {
     BADGE_R,
@@ -33,7 +34,7 @@ function arrange(
 ): EngineNode {
     const [centre, ...spokes] = diagram.items;
     const n = spokes.length;
-    const cols = itemColors(diagram.items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const W = ctx.availWidth;
     const ms = markScale(height);
     const cellH = clamp(BASE_H * ms, BASE_H, Math.max(BASE_H, height * 0.19));
@@ -95,14 +96,10 @@ function arrange(
                 (g) => {
                     const cx = W / 2;
                     const cy = height / 2;
-                    // spokes run edge to edge: from the hub pill's boundary to the spoke cell's,
-                    // so they never poke through an outline or angled cell behind the label
-                    const hubRect = {
-                        x: cx - hubW / 2,
-                        y: cy - hubH / 2,
-                        w: hubW,
-                        h: hubH,
-                    };
+                    // A spoke radiates from the centre and the hub paints over it (z 2 against the
+                    // decorate's -1), so the hub end needs no geometry at all. Exiting the hub's
+                    // bounding rect instead left a diagonal spoke starting in a corner the pill's
+                    // rounded end had already cut away, which read as a disconnected line.
                     spokes.forEach((item, s) => {
                         const [x, y] = at(angle(s));
                         const cell = { x: x - cellW / 2, y: y - cellH / 2, w: cellW, h: cellH };
@@ -116,19 +113,11 @@ function arrange(
                                 dy !== 0 ? ((dy > 0 ? r.y : r.y + r.h) - cy) / dy : -Infinity;
                             return Math.max(txe, tye);
                         };
-                        const exit = (r: typeof cell): number => {
-                            const txx =
-                                dx !== 0 ? ((dx > 0 ? r.x + r.w : r.x) - cx) / dx : Infinity;
-                            const tyx =
-                                dy !== 0 ? ((dy > 0 ? r.y + r.h : r.y) - cy) / dy : Infinity;
-                            return Math.min(txx, tyx);
-                        };
-                        const t0 = Math.max(0, Math.min(1, exit(hubRect)));
-                        const t1 = Math.max(t0, Math.min(1, entry(cell)));
-                        if (t1 - t0 < 0.05) return;
-                        g.line(cx + dx * t0, cy + dy * t0, cx + dx * t1, cy + dy * t1, {
-                            stroke: ctx.theme.line,
-                            width: 2 * ms,
+                        const t1 = Math.min(1, entry(cell));
+                        if (t1 < 0.05) return;
+                        g.line(cx, cy, cx + dx * t1, cy + dy * t1, {
+                            stroke: mix(cols[s + 1]!, ctx.theme.ink, 0.15),
+                            width: 2.2 * ms,
                         });
                     });
                     spokes.forEach((item, s) => {
@@ -169,4 +158,4 @@ function arrange(
     };
 }
 
-registerDiagram({ id: "hub", label: "Hub & spoke", arrange });
+registerDiagram({ id: "hub", label: "Hub & spoke", arrange, fill: "ground" });

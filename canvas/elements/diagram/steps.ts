@@ -26,7 +26,7 @@ function arrange(
     height: number,
 ): EngineNode {
     const n = diagram.items.length;
-    const cols = itemColors(diagram.items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const span = height - PAD * 2 - MIN_H;
     const stepH = (i: number): number => MIN_H + Math.max(0, span) * ((i + 1) / n);
     // treads vary in height, which degenerates every silhouette (see NodeShapeDef.maxAspect):
@@ -50,6 +50,7 @@ function arrange(
                     }),
                     {
                         badged,
+                        cellH: stepH(i),
                         icon: item.icon,
                         iconY: "start",
                         // the label rides the tread, so captions line up with the climb
@@ -61,6 +62,9 @@ function arrange(
                 return cell;
             }),
             decorate((g, box) => {
+                // the treads are bottom-aligned against nothing; a baseline is what makes a
+                // staircase read as a climb rather than as bars of assorted heights
+                g.line(0, box.h - 1, box.w, box.h - 1, { stroke: ctx.theme.ink, width: 2 });
                 if (diagram.options.numbers === "none") return;
                 const stepW = (box.w - GAP * (n - 1)) / n;
                 diagram.items.forEach((item, i) => {

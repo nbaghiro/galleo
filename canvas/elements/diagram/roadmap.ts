@@ -51,7 +51,7 @@ function arrange(
     const n = items.length;
     if (n === 0) return { w: grow(), h: fixed(height) };
     const cols = Math.max(1, diagram.axes.length || DEFAULT_COLS);
-    const colors = itemColors(items, ctx.theme);
+    const colors = itemColors(diagram, ctx.theme);
     const spans = items.map((i) => clamp(Math.round(i.value ?? 1), 1, cols));
     const placed = lanes(spans, cols);
     const rows = Math.max(...placed.map((l) => l.row)) + 1;
@@ -95,7 +95,7 @@ function arrange(
                     style: diagram.options.style,
                     emphasis: items[i]?.emphasis,
                 }),
-                { icon: items[i]?.icon },
+                { cellH: laneH - GAP, icon: items[i]?.icon },
             );
             kidsOut.push({
                 w: percent(l.span / cols),

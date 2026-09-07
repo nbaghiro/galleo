@@ -7,6 +7,7 @@ import { fit, grow } from "@model/geometry";
 import { THEME_LIST, contrastRatio, pageMix, resolveTheme } from "@themes";
 import {
     BADGE_R,
+    ICON_TOP,
     diagramColors,
     getDiagram,
     getNodeShape,
@@ -22,7 +23,8 @@ import { tokens } from "@canvas/testkit";
 //   1. clip safety — nothing a decorate surface paints may leave its box (a badge disc half
 //      outside the surface renders clipped in the app);
 //   2. chrome/cell alignment — connectors live in the gaps: no link endpoint inside a cell fill
-//      (the wrapped-row process bug painted arrows inside the stretched last-row cells);
+//      that paints before it, and so cannot hide it (the wrapped-row process bug painted arrows
+//      inside the stretched last-row cells);
 //   3. badge attachment — every numbering disc hugs some cell's leading edge;
 //   4. badge/label separation — discs never overlap label text;
 //   5. shape proportion — a silhouette or pill never paints beyond its declared max aspect
@@ -135,12 +137,15 @@ function geometryRecorder(): { ctx: Record<string, unknown>; ops: Op[] } {
 }
 
 const measure = (
-    leaf: { text: string; size: number },
+    leaf: { text: string; size: number; maxLines?: number },
     maxWidth: number,
 ): { width: number; height: number } => {
     const w = leaf.text.length * 8;
-    const lines = Math.max(1, Math.ceil(w / Math.max(1, maxWidth)));
-    return { width: Math.min(w, maxWidth), height: lines * leaf.size * 1.35 };
+    const wrapped = Math.max(1, Math.ceil(w / Math.max(1, maxWidth)));
+    // the real measurer truncates to maxLines and reports the clamped height (see `truncate` in
+    // render/commands): a model that ignores the cap reports spills the engine never paints
+    const cap = leaf.maxLines && leaf.maxLines > 0 ? leaf.maxLines : Infinity;
+    return { width: Math.min(w, maxWidth), height: Math.min(wrapped, cap) * leaf.size * 1.35 };
 };
 
 const kidsFor = (diagram: ResolvedDiagram): EngineNode[] =>
@@ -153,7 +158,8 @@ interface Audit {
     commands: RenderCommand[];
     cellFills: Rect[];
     labelTexts: Rect[]; // engine text command boxes
-    chrome: { surface: Rect; ops: Op[] }[];
+    cellFillAt: number[]; // paint order of each cell fill, so "under or over" is answerable
+    chrome: { at: number; surface: Rect; ops: Op[] }[];
     fills: Extract<RenderCommand, { kind: "rect" }>[];
     texts: Extract<RenderCommand, { kind: "text" }>[];
 }
@@ -184,6 +190,7 @@ function audit(data: Record<string, unknown>, w: number, h: number, theme = toke
             c.kind === "rect" && !!c.fill && !!(c.fill.color || c.fill.gradient),
     );
     const cellFills = fills.map((c) => c.box);
+    const cellFillAt = fills.map((c) => commands.indexOf(c));
     const texts = commands.filter(
         (c): c is Extract<RenderCommand, { kind: "text" }> => c.kind === "text",
     );
@@ -191,6 +198,7 @@ function audit(data: Record<string, unknown>, w: number, h: number, theme = toke
     const chrome = commands
         .filter((c) => c.kind === "surface")
         .map((c) => {
+            const at = commands.indexOf(c);
             const rec = geometryRecorder();
             (c as { paint: (g: unknown, b: unknown) => void }).paint(rec.ctx, {
                 x: 0,
@@ -200,6 +208,7 @@ function audit(data: Record<string, unknown>, w: number, h: number, theme = toke
             });
             // ops are surface-local; shift into command space for comparisons against cells
             return {
+                at,
                 surface: c.box,
                 ops: rec.ops.map((o) => ({
                     ...o,
@@ -210,7 +219,7 @@ function audit(data: Record<string, unknown>, w: number, h: number, theme = toke
                 })),
             };
         });
-    return { commands, cellFills, labelTexts, chrome, fills, texts };
+    return { commands, cellFills, cellFillAt, labelTexts, chrome, fills, texts };
 }
 
 const EPS = 1;
@@ -385,16 +394,27 @@ describe.each(THEME_CASES)("visual invariants (%s)", (_themeName, themeTokens) =
                     }
                 }
 
-                // 9. a label block is top-anchored or centered in its cell, never adrift
+                // 9. a label block is top-anchored or centered in its cell, never adrift. What is
+                // centred is the cell's content, so a leading icon row pushes the text below the
+                // middle by half its height, which is the arrangement rather than a drift.
+                const iconRow = a.chrome
+                    .map((c) => c.surface)
+                    .filter((b) => Math.abs(b.w - ICON_TOP) < 1 && Math.abs(b.h - ICON_TOP) < 1);
                 for (const cell of a.cellFills) {
                     const inCell = a.texts.filter((t) =>
                         inside([t.box.x + t.box.w / 2, t.box.y + t.box.h / 2], cell),
                     );
                     if (!inCell.length) continue;
+                    const stacked = iconRow.some(
+                        (b) =>
+                            inside([b.x + b.w / 2, b.y + b.h / 2], cell) &&
+                            b.y + b.h <= Math.min(...inCell.map((t) => t.box.y)) + 2,
+                    );
                     const top = Math.min(...inCell.map((t) => t.box.y));
                     const bottom = Math.max(...inCell.map((t) => t.box.y + t.box.h));
-                    const drift = Math.abs((top + bottom) / 2 - (cell.y + cell.h / 2));
-                    const topAnchored = top - cell.y <= 16;
+                    const drift =
+                        Math.abs((top + bottom) / 2 - (cell.y + cell.h / 2)) - (stacked ? 14 : 0);
+                    const topAnchored = top - cell.y <= 16 + (stacked ? ICON_TOP + 2 : 0);
                     expect(
                         topAnchored || drift <= 5,
                         `label block adrift in cell: drift ${drift.toFixed(1)} (${JSON.stringify(cell)})`,
@@ -427,7 +447,7 @@ describe.each(THEME_CASES)("visual invariants (%s)", (_themeName, themeTokens) =
                         ).toBeGreaterThanOrEqual(3);
                 }
 
-                for (const { surface, ops } of a.chrome) {
+                for (const { surface, ops, at } of a.chrome) {
                     // a surface wholly inside a cell is in-cell content (an icon glyph), not
                     // connector chrome — its strokes belong there
                     const inCell = a.cellFills.some((f) => within(surface, f, 2));
@@ -438,18 +458,22 @@ describe.each(THEME_CASES)("visual invariants (%s)", (_themeName, themeTokens) =
                             `clipped ${op.kind} at ${JSON.stringify(op.box)} outside surface ${JSON.stringify(surface)}`,
                         ).toBe(true);
 
-                        // 2. connectors live in the gaps, never inside a cell fill
+                        // 2. connectors live in the gaps, never inside a cell fill the reader can
+                        // see them in. A cell painted after the connector covers it, which is how a
+                        // hub spoke may start at the centre and still never show inside the hub.
                         if (
                             !inCell &&
                             (op.kind === "line" || op.kind === "polyline") &&
                             op.endpoints
                         ) {
                             for (const p of op.endpoints)
-                                for (const cell of a.cellFills)
+                                a.cellFills.forEach((cell, ci) => {
+                                    if (a.cellFillAt[ci]! > at) return;
                                     expect(
                                         inside(p, cell, 2),
                                         `connector endpoint ${p} inside cell ${JSON.stringify(cell)}`,
                                     ).toBe(false);
+                                });
                         }
 
                         if (op.kind === "circle" && Math.round(op.box.w / 2) === BADGE_R) {

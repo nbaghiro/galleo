@@ -149,7 +149,7 @@ function arrange(
     height: number,
 ): EngineNode {
     const n = diagram.items.length;
-    const cols = itemColors(diagram.items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const nodeShape = diagram.options.shape ?? "rounded";
     const painted = !getNodeShape(nodeShape).engineRadius;
     // a chevron band is its own arrow: cells butt together and the connectors go

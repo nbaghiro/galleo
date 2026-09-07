@@ -7,6 +7,7 @@ import { diagramTypeOptions } from "@elements/diagram/render";
 import { DIAGRAM_SHAPES } from "@model/elements";
 import {
     ICON_S,
+    ICON_TOP,
     badgeText,
     buildTree,
     diagramSupportsIcons,
@@ -435,18 +436,26 @@ describe("cell icons", () => {
         expect(solid.iconInk).toBe(solid.ink);
     });
 
-    it("an iconed cell floats a leading glyph surface, inset before the label", () => {
+    it("an iconed cell shows one glyph, clear of its label", () => {
         const commands = composed({
             type: "process",
             items: "Alpha, Beta",
             itemsMeta: [{ icon: "rocket" }, {}],
         });
+        // square, and no bigger than the stacked size: the two placements the cell chooses between
         const icons = commands.filter(
-            (c) => c.kind === "surface" && c.box.w === ICON_S && c.box.h === ICON_S,
+            (c) =>
+                c.kind === "surface" &&
+                Math.abs(c.box.w - c.box.h) < 1 &&
+                c.box.w >= ICON_S &&
+                c.box.w <= ICON_TOP,
         );
         expect(icons.length).toBe(1);
         const alpha = commands.find((c) => c.kind === "text" && c.text.text === "Alpha")!;
-        expect(icons[0]!.box.x + ICON_S).toBeLessThanOrEqual(alpha.box.x + 1);
+        const g = icons[0]!.box;
+        const besideIt = g.x + g.w <= alpha.box.x + 1;
+        const aboveIt = g.y + g.h <= alpha.box.y + 1;
+        expect(besideIt || aboveIt).toBe(true);
     });
 
     it("an item's icon replaces its number badge; the rest keep theirs", () => {
@@ -804,8 +813,12 @@ describe("item hit regions", () => {
         // the polygon answers, not the box: the outer ring's box corner misses the circle
         const outer = target[0]!;
         expect(inRegion(outer, outer.box.x + 1, outer.box.y + 1)).toBe(false);
-        // last-wins order: the centre sits inside every ring, and the innermost is emitted last
-        const hit = [...target].reverse().find((r) => inRegion(r, 320, 130));
+        // last-wins order: the centre sits inside every ring, and the innermost is emitted last.
+        // Read the centre off the outer ring rather than assuming one: given the width for a label
+        // column the rings sit left of it, not in the middle of the box.
+        const cx = outer.box.x + outer.box.w / 2;
+        const cy = outer.box.y + outer.box.h / 2;
+        const hit = [...target].reverse().find((r) => inRegion(r, cx, cy));
         expect(parseDatumRegion(hit!.id)?.index).toBe(2);
     });
 

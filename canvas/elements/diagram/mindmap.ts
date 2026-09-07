@@ -47,7 +47,7 @@ function arrange(
 ): EngineNode {
     const data = buildTree(diagram);
     if (!data) return { w: grow(), h: fixed(height) };
-    const cols = itemColors(diagram.items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const byLabel = new Map(diagram.items.map((it, i) => [it.label, i] as const));
     const W = ctx.availWidth;
     const ms = markScale(height);
@@ -146,4 +146,4 @@ function arrange(
     };
 }
 
-registerDiagram({ id: "mindmap", label: "Mind map", arrange });
+registerDiagram({ id: "mindmap", label: "Mind map", arrange, fill: "ground" });

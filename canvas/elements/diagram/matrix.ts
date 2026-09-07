@@ -44,7 +44,7 @@ function arrange(
     height: number,
 ): EngineNode {
     const n = diagram.items.length;
-    const cols = itemColors(diagram.items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const ncol = Math.max(1, Math.ceil(Math.sqrt(n)));
     const nrow = Math.ceil(n / ncol);
     const colHeaders = diagram.axes.slice(0, ncol);
@@ -159,4 +159,4 @@ function arrange(
     };
 }
 
-registerDiagram({ id: "matrix", label: "Matrix", arrange });
+registerDiagram({ id: "matrix", label: "Matrix", arrange, fill: "ground" });

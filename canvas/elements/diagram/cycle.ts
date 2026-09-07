@@ -1,5 +1,6 @@
 import type { EngineNode } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
+import { mix } from "@themes";
 import { fixed, grow } from "@model/geometry";
 import {
     BADGE_R,
@@ -31,7 +32,7 @@ function arrange(
     height: number,
 ): EngineNode {
     const n = diagram.items.length;
-    const cols = itemColors(diagram.items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const W = ctx.availWidth;
     const ms = markScale(height);
     const cellH = clamp(BASE_H * ms, BASE_H, Math.max(BASE_H, height * 0.22));
@@ -103,9 +104,11 @@ function arrange(
                             if (!insideRect(p, a) && !insideRect(p, b)) pts.push(p);
                         }
                         if (pts.length >= 3)
+                            // the arc belongs to the step it leaves, so the ring reads as flow
+                            // rather than as four boxes joined by the same grey wire
                             drawLink(g, pts, ctx.theme, {
-                                color: ctx.theme.muted,
-                                width: 2 * ms,
+                                color: mix(cols[i]!, ctx.theme.ink, 0.2),
+                                width: 2.4 * ms,
                             });
                     }
                     diagram.items.forEach((item, i) => {

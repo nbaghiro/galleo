@@ -91,6 +91,10 @@ export interface DiagramType {
     label: string;
     // per-item icons render in this type's cells; false where the geometry has no room (bands)
     icons?: false;
+    // "ground" for a type whose items carry no order. The accent ramp is a quantitative encoding,
+    // and stepping a SWOT or a hub through it invents a ranking the content does not have, which
+    // is what made half the catalogue read as a chart wearing a diagram's shape.
+    fill?: "ground";
     // this type distributes row width by item weight, so the divider gesture can resize its cells
     weights?: true;
     arrange: (
@@ -237,16 +241,18 @@ export function maxLabelWidth(ctx: LayoutCtx, items: DiagItem[]): number {
 // Diagram fills: the shared page-aware opaque ramp (charts use the same one via seriesColors),
 // held back where it has receded so far it stops reading as a shape. A chart can afford the pale
 // tail because its marks sit adjacent on an axis and are told apart from each other; a diagram node
-// is an island of fill in a field of page, so each one has to hold on its own. Unheld, step 5 is
-// 1.33:1 against the page on studio and steps 6+ sit at 1.26:1, which is a node you cannot see.
-const FILL_FLOOR = 1.5;
+// is an island of fill in a field of page, so each one has to hold on its own.
+//
+// Held against the surface the node is painted on, not against the white the ramp recedes toward:
+// those differ on any theme whose paper is off-white, and measuring the easier one let a step pass
+// the floor at 1.50 and land at 1.48 in front of the reader. 1.8 is where the tail stops
+// disappearing while the six steps stay distinct from each other; 2.0 starts collapsing them.
+const FILL_FLOOR = 1.8;
 export function diagramColors(theme: Tokens, n: number): string[] {
-    // where the ramp recedes to, which is what a receded step has to stay distinct from
-    const page = pageMix(theme.accent, theme, 1);
     return accentRamp(theme, Math.max(1, n)).map((c) => {
-        for (let f = 0; f < 1; f += 0.1) {
+        for (let f = 0; f < 1; f += 0.05) {
             const held = mix(c, theme.accent, f);
-            if (contrastRatio(held, page) >= FILL_FLOOR) return held;
+            if (contrastRatio(held, theme.surface) >= FILL_FLOOR) return held;
         }
         return theme.accent;
     });
@@ -261,6 +267,11 @@ export interface NodePaint {
     ink: string; // label color that reads on the resolved fill
     dim: string; // supporting-text color on the same fill
     iconInk: string; // icon stroke: the item color where the fill leaves room, else the label ink
+    // The theme's material and voices, carried here because the cell that paints them has the
+    // paint and not the theme. Absent on the literal paints the chrome-only cells build.
+    radius?: number;
+    labelFont?: string;
+    detailFont?: string;
 }
 
 export interface NodePaintOpts extends Partial<
@@ -272,6 +283,13 @@ export interface NodePaintOpts extends Partial<
 
 // a hex fill takes the depth-gradient / wash math; a non-hex (rgba on a dark section) stays flat
 const isHexColor = (c: string): boolean => /^#[0-9a-fA-F]{6}$/.test(c);
+
+// The edge and the lift a theme already states for its cards, at a node's scale. A theme that
+// draws hard bordered cards should draw hard bordered nodes; one that floats them should float
+// these too. `card` keeps its own hairline, which is what that treatment is.
+const themeEdge = (t: Tokens): { color: string; width: number } | undefined =>
+    t.border ? { color: t.line, width: t.border } : undefined;
+const LIFT = { blur: 10, dy: 2, color: "rgba(15,18,20,0.12)" } as const;
 
 // The four node treatments. `solid` is the chart-mark look with a slight downward gradient for
 // depth; `tinted` is an opaque wash of the node color; `card` is paper + hairline + soft shadow
@@ -285,11 +303,15 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
         const ink = over?.ink ?? inkOn(fill, theme);
         return {
             fill,
-            stroke: over?.stroke,
-            width: over?.width,
+            stroke: over?.stroke ?? themeEdge(theme)?.color,
+            width: over?.width ?? themeEdge(theme)?.width,
+            shadow: theme.shadow ? LIFT : undefined,
             ink,
             dim: dimFor(ink, fill, theme),
             iconInk: color,
+            radius: nodeRadius(theme),
+            labelFont: fontStack("display", theme),
+            detailFont: fontStack("mono", theme),
         };
     }
     if (!over?.fill && style === "card") {
@@ -301,6 +323,9 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
             ink: over?.ink ?? theme.ink,
             dim: theme.muted,
             iconInk: color,
+            radius: nodeRadius(theme),
+            labelFont: fontStack("display", theme),
+            detailFont: fontStack("mono", theme),
         };
     }
     if (!over?.fill && style === "outline") {
@@ -311,14 +336,18 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
             ink: over?.ink ?? theme.ink,
             dim: theme.muted,
             iconInk: color,
+            radius: nodeRadius(theme),
+            labelFont: fontStack("display", theme),
+            detailFont: fontStack("mono", theme),
         };
     }
     const fill = over?.fill ?? color;
     const ink = over?.ink ?? inkOn(fill, theme);
     return {
         fill,
-        stroke: over?.stroke,
-        width: over?.width,
+        stroke: over?.stroke ?? themeEdge(theme)?.color,
+        width: over?.width ?? themeEdge(theme)?.width,
+        shadow: theme.shadow ? LIFT : undefined,
         // depth: a slight darkening toward the bottom edge; flat when the fill isn't plain hex
         gradient: isHexColor(fill)
             ? { from: fill, to: mix(fill, "#000000", 0.1), angle: 180 }
@@ -327,6 +356,9 @@ export function nodePaint(color: string, theme: Tokens, over?: NodePaintOpts): N
         dim: dimFor(ink, fill, theme),
         // the fill is the item color itself, so the icon differentiates by ink like the label
         iconInk: ink,
+        radius: nodeRadius(theme),
+        labelFont: fontStack("display", theme),
+        detailFont: fontStack("mono", theme),
     };
 }
 
@@ -356,8 +388,16 @@ export const frame = (W: number, H: number, pad = PAD): Rect => ({
 const REF_H = 260;
 export const markScale = (h: number): number => clamp(h / REF_H, 0.9, 1.9);
 
-export const NODE_RADIUS = 6; // charts round marks 2-3px; nodes are bigger, so a touch more
+export const NODE_RADIUS = 6; // the silhouette registry's fallback, for shapes built without a box
+
+// A node is a card at a node's scale, so it takes the theme's corner rather than a constant of its
+// own: a brutalist theme rounded its diagrams to 6px like every other theme, which is most of why
+// one artifact's diagram looked like any other artifact's. Clamped the way the button clamps it,
+// and never past a half-height, which would read as a pill.
+export const nodeRadius = (t: Tokens): number =>
+    Math.max(0, Math.min(Math.round(t.radius * 0.55), 16));
 export const NODE_TEXT = 12;
+const DETAIL_TEXT = 11;
 
 // A silhouette is box-parametric (a chevron's notch derives from the node's height), so shapes are
 // registered as PathSink builders rather than fixed-viewBox vectors — the same sink the Vector IR,
@@ -650,10 +690,18 @@ export function drawLink(
     headAt(g, x1, y1, x2, y2, color, HEAD_SIZE);
 }
 
-// per-item fills: the opaque ramp punctured by itemsMeta color overrides
-export function itemColors(items: DiagItem[], theme: Tokens): string[] {
-    return diagramColors(theme, items.length).map(
-        (c, i) => resolveItemColor(items[i]?.color, theme) ?? c,
+// per-item fills: the ramp where the items are ordered, one ground tone where they are not, both
+// punctured by itemsMeta color overrides. An unordered type still leads with its first item, which
+// is the focal one everywhere it matters: the hub's centre, the tree's root, the flow's entry.
+export function itemColors(diagram: ResolvedDiagram, theme: Tokens): string[] {
+    const { items } = diagram;
+    const tones = diagramColors(theme, 3);
+    const ramp =
+        getDiagram(diagram.type)?.fill === "ground"
+            ? items.map((_, i) => (i === 0 ? tones[0]! : tones[1]!))
+            : diagramColors(theme, items.length);
+    return ramp.map(
+        (c, i) => resolveItemColor(items[i]?.color, theme) ?? (items[i]?.emphasis ? tones[0]! : c),
     );
 }
 
@@ -671,9 +719,13 @@ export interface CellOpts {
     badged?: boolean; // a numbering disc sits inside the leading edge; keep the label clear of it
     icon?: string; // ICON_LIBRARY key: a leading glyph in paint.iconInk; replaces the number badge
     iconY?: "center" | "start"; // top-anchored cells (a steps tread) keep the icon with the label
+    // Node text is centred in its silhouette; a cell that has left the shape (a target callout in
+    // its own column) reads as ragged unless it sets against the edge the leader arrives at.
+    align?: "start" | "center";
 }
 
-export const ICON_S = 16;
+export const ICON_S = 16; // beside the text, where width is the scarce axis
+export const ICON_TOP = 22; // above it, where the cell can spend height instead
 const ICON_GAP = 6;
 
 const CELL_PAD: BoxInsets = { top: 8, bottom: 8, left: 10, right: 10 };
@@ -702,10 +754,20 @@ export function diagramCell(
         }
     }
     const glyph = o.icon ? ICON_LIBRARY[o.icon] : undefined;
+    // An icon beside the text spends a column of a cell that is usually short of width and long on
+    // height, which is what squeezed a hexagon's detail down to "map soil densit…". Where the cell
+    // states a height and can afford a row for it, the icon sits above the label instead: bigger,
+    // and the text keeps the full column. Content-sized cells keep the inline slot, since their
+    // width was measured against it.
+    const padBase = pad ?? CELL_PAD;
+    const stackIcon =
+        glyph !== undefined &&
+        o.cellH !== undefined &&
+        o.cellH - (padBase.top + padBase.bottom) - (ICON_TOP + ICON_GAP) >=
+            NODE_TEXT * 1.35 + DETAIL_TEXT * 1.35 + CELL_LINE_GAP;
     if (glyph) {
         // the icon takes the badge's leading slot, so the two never stack up an inset
-        const base = pad ?? CELL_PAD;
-        pad = { ...base, left: base.left + ICON_S + ICON_GAP };
+        if (!stackIcon) pad = { ...padBase, left: padBase.left + ICON_S + ICON_GAP };
     } else if (o.badged) {
         const base = pad ?? CELL_PAD;
         pad = { ...base, left: base.left + BADGE_R * 2 + 2 };
@@ -715,20 +777,28 @@ export function diagramCell(
     // engine clipping either mid-word. Types that size their own cells pass no cellH and are
     // unaffected.
     const LABEL_LH = NODE_TEXT * 1.35;
-    const DETAIL_LH = 11 * 1.35;
-    const avail = o.cellH ? o.cellH - CELL_PAD_Y : Number.POSITIVE_INFINITY;
+    const DETAIL_LH = DETAIL_TEXT * 1.35;
+    // the cell's own padding, not the default: a steps tread pads 12/8, so budgeting against 16
+    // granted a line the tread did not have
+    const padY = (pad?.top ?? CELL_PAD.top) + (pad?.bottom ?? CELL_PAD.bottom);
+    const avail =
+        (o.cellH ? o.cellH - padY : Number.POSITIVE_INFINITY) -
+        (stackIcon ? ICON_TOP + ICON_GAP : 0);
     // the label is capped at two lines but budgeted as one, the common case, so a normal node keeps
     // its detail; only a genuinely short cell drops it
     const labelLines = o.cellH ? clamp(Math.floor(avail / LABEL_LH), 1, 2) : 0;
+    // against what the label was actually granted, not against one line of it: budgeting the
+    // detail as if a two-line label were one line let both be granted and the pair overflow
     const detailLines = o.cellH
-        ? Math.floor((avail - LABEL_LH - CELL_LINE_GAP) / DETAIL_LH)
+        ? Math.floor((avail - labelLines * LABEL_LH - CELL_LINE_GAP) / DETAIL_LH)
         : Infinity;
     const kids: EngineNode[] = [];
     if (label?.text) {
         label.text.size = NODE_TEXT;
+        if (paint.labelFont) label.text.fontId = paint.labelFont;
         label.text.weight = 600;
         label.text.color = paint.ink;
-        label.text.align = "center";
+        label.text.align = o.align ?? "center";
         if (o.cellH) label.text.maxLines = labelLines;
         label.w = grow();
         label.h = fit(14);
@@ -737,24 +807,35 @@ export function diagramCell(
     // an empty detail slot must not reserve a text row: the label would sit above center; a detail
     // the fixed cell has no room for stands down rather than clipping
     if (detail?.text && detail.text.text.trim() !== "" && detailLines >= 1) {
-        detail.text.size = 11;
+        detail.text.size = DETAIL_TEXT;
+        if (paint.detailFont) detail.text.fontId = paint.detailFont;
         detail.text.weight = 500;
         detail.text.color = paint.dim;
-        detail.text.align = "center";
-        if (o.cellH) detail.text.maxLines = Math.min(detailLines, 3);
+        detail.text.align = o.align ?? "center";
+        // the room the cell actually has, which already accounts for the label's own allowance.
+        // A flat cap of three ellipsized a detail in a tread with room for fourteen lines.
+        if (o.cellH) detail.text.maxLines = detailLines;
         detail.w = grow();
         detail.h = fit(14);
         kids.push(detail);
     }
     if (glyph) {
         const ink = paint.iconInk;
+        if (stackIcon)
+            kids.unshift({
+                w: fixed(ICON_TOP),
+                h: fixed(ICON_TOP),
+                alignSelf: o.align === "start" ? "start" : "center",
+                surface: { paint: (g) => drawIcon(g, glyph, 0, 0, ICON_TOP, ink) },
+            });
         // floated into the padding band the inset reserved, vertically centred with the text
-        kids.push({
-            w: fixed(ICON_S),
-            h: fixed(ICON_S),
-            float: { x: "start", y: o.iconY ?? "center", dx: -(ICON_S + ICON_GAP) },
-            surface: { paint: (g) => drawIcon(g, glyph, 0, 0, ICON_S, ink) },
-        });
+        else
+            kids.push({
+                w: fixed(ICON_S),
+                h: fixed(ICON_S),
+                float: { x: "start", y: o.iconY ?? "center", dx: -(ICON_S + ICON_GAP) },
+                surface: { paint: (g) => drawIcon(g, glyph, 0, 0, ICON_S, ink) },
+            });
     }
     const node: EngineNode = {
         w: grow(),
@@ -776,7 +857,7 @@ export function diagramCell(
             shadow: paint.shadow
                 ? `0 ${paint.shadow.dy}px ${paint.shadow.blur}px ${paint.shadow.color}`
                 : undefined,
-            radius: radius ?? NODE_RADIUS,
+            radius: radius ?? Math.min(paint.radius ?? NODE_RADIUS, (o.cellH ?? 46) / 2),
         };
     }
     return node;
@@ -932,7 +1013,7 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
     return (diagram, ctx, kids, height) => {
         const items = diagram.items;
         const n = items.length;
-        const cols = itemColors(items, ctx.theme);
+        const cols = itemColors(diagram, ctx.theme);
         const contentW = Math.max(1, ctx.availWidth - 32);
         // label floors are absolute px, so the same array serves arrange and the decorate repaint
         const minHalf = items.map((i) => (labelWidth(ctx, i.label) + 24) / 2);

@@ -27,7 +27,7 @@ function arrange(
     height: number,
 ): EngineNode {
     const n = diagram.items.length;
-    const cols = itemColors(diagram.items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const s = markScale(height);
     const colW = (ctx.availWidth - PAD * 2 - GAP * (n - 1)) / Math.max(1, n);
     const innerW = Math.max(24, colW - CELL_PAD * 2);

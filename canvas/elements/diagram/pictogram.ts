@@ -25,16 +25,18 @@ function arrange(
     const items = diagram.items;
     const n = items.length;
     if (n === 0) return { w: grow(), h: fixed(height) };
-    const cols = itemColors(items, ctx.theme);
+    const cols = itemColors(diagram, ctx.theme);
     const counts = items.map((i) => clamp(Math.round(i.value ?? 1), 0, MAX_SLOTS));
     const slots = Math.max(1, ...counts);
     const rowH = Math.max(16, (height - PAD * 2 - GAP * (n - 1)) / n);
     const labelW = clamp(maxLabelWidth(ctx, items) + 20, 60, ctx.availWidth * 0.42);
-    const stripW = Math.max(1, ctx.availWidth - PAD * 2 - labelW - GAP);
-    // capped by the row it sits in, not by a constant: a 28px mark in an 84px row was a pictogram
-    // drawn at thumbnail size, and the step below then left a third of the strip empty
-    const size = clamp(Math.min(rowH * 0.72, (stripW / slots) * 0.86), 7, 44);
-    const step = slots > 1 ? Math.min(size * 1.3, (stripW - size) / (slots - 1)) : 0;
+    // Measured against the strip's own box, never against ctx.availWidth: that is compose's
+    // estimate and can run wide, and a row laid out to a wider strip than it gets clips its last
+    // mark. The mark is capped by the row it sits in rather than by a constant.
+    const marks = (boxW: number, boxH: number): { size: number; step: number } => {
+        const size = clamp(Math.min(boxH * 0.72, (boxW / slots) * 0.86), 7, 44);
+        return { size, step: slots > 1 ? Math.min(size * 1.3, (boxW - size) / (slots - 1)) : 0 };
+    };
 
     return {
         w: grow(),
@@ -66,6 +68,7 @@ function arrange(
                         h: fixed(rowH),
                         surface: {
                             paint: (g, box) => {
+                                const { size, step } = marks(box.w, box.h);
                                 const y = (box.h - size) / 2;
                                 for (let k = 0; k < slots; k++)
                                     drawIcon(
@@ -76,6 +79,13 @@ function arrange(
                                         size,
                                         k < filled ? cols[i]! : ctx.theme.line,
                                     );
+                                // the marks are counted against each other, so they need a shared
+                                // line to be counted from
+                                const base = Math.min(box.h - 1, y + size + 5);
+                                g.line(0, base, step * (slots - 1) + size, base, {
+                                    stroke: ctx.theme.line,
+                                    width: 1,
+                                });
                             },
                         },
                     },
@@ -85,4 +95,4 @@ function arrange(
     };
 }
 
-registerDiagram({ id: "pictogram", label: "Pictogram", arrange });
+registerDiagram({ id: "pictogram", label: "Pictogram", arrange, fill: "ground" });

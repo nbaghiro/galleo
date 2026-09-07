@@ -126,16 +126,7 @@ exports[`composed diagrams > flow keeps a stable command profile 1`] = `
         "h": 16,
         "w": 71,
         "x": 284,
-        "y": 22,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 30,
-        "w": 71,
-        "x": 284,
-        "y": 40,
+        "y": 38,
       },
       "kind": "text",
     },
@@ -153,16 +144,7 @@ exports[`composed diagrams > flow keeps a stable command profile 1`] = `
         "h": 16,
         "w": 70,
         "x": 285,
-        "y": 106,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 30,
-        "w": 70,
-        "x": 285,
-        "y": 124,
+        "y": 122,
       },
       "kind": "text",
     },
@@ -180,16 +162,7 @@ exports[`composed diagrams > flow keeps a stable command profile 1`] = `
         "h": 16,
         "w": 87,
         "x": 276,
-        "y": 198,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 15,
-        "w": 87,
-        "x": 276,
-        "y": 216,
+        "y": 206,
       },
       "kind": "text",
     },
@@ -895,6 +868,7 @@ exports[`composed diagrams > pictogram keeps a stable command profile 1`] = `
       "path",
       "moveTo",
       "bezierCurveTo",
+      "line",
     ],
     [
       "path",
@@ -1101,6 +1075,7 @@ exports[`composed diagrams > pictogram keeps a stable command profile 1`] = `
       "path",
       "moveTo",
       "bezierCurveTo",
+      "line",
     ],
     [
       "path",
@@ -1307,6 +1282,7 @@ exports[`composed diagrams > pictogram keeps a stable command profile 1`] = `
       "path",
       "moveTo",
       "bezierCurveTo",
+      "line",
     ],
   ],
   "profile": [
@@ -1621,8 +1597,24 @@ exports[`composed diagrams > pyramid keeps a stable command profile 1`] = `
 
 exports[`composed diagrams > quadrant keeps a stable command profile 1`] = `
 {
-  "chrome": [],
+  "chrome": [
+    [
+      "line",
+      "polyline",
+      "line",
+      "polyline",
+    ],
+  ],
   "profile": [
+    {
+      "box": {
+        "h": 232,
+        "w": 612,
+        "x": 14,
+        "y": 14,
+      },
+      "kind": "surface",
+    },
     {
       "box": {
         "h": 18,
@@ -1815,16 +1807,7 @@ exports[`composed diagrams > roadmap keeps a stable command profile 1`] = `
         "h": 16,
         "w": 584,
         "x": 28,
-        "y": 53,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 15,
-        "w": 584,
-        "x": 28,
-        "y": 71,
+        "y": 61,
       },
       "kind": "text",
     },
@@ -1842,16 +1825,7 @@ exports[`composed diagrams > roadmap keeps a stable command profile 1`] = `
         "h": 16,
         "w": 584,
         "x": 28,
-        "y": 123,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 15,
-        "w": 584,
-        "x": 28,
-        "y": 142,
+        "y": 132,
       },
       "kind": "text",
     },
@@ -1869,16 +1843,7 @@ exports[`composed diagrams > roadmap keeps a stable command profile 1`] = `
         "h": 16,
         "w": 584,
         "x": 28,
-        "y": 194,
-      },
-      "kind": "text",
-    },
-    {
-      "box": {
-        "h": 15,
-        "w": 584,
-        "x": 28,
-        "y": 212,
+        "y": 203,
       },
       "kind": "text",
     },
@@ -1889,7 +1854,9 @@ exports[`composed diagrams > roadmap keeps a stable command profile 1`] = `
 exports[`composed diagrams > steps keeps a stable command profile 1`] = `
 {
   "chrome": [
-    [],
+    [
+      "line",
+    ],
   ],
   "profile": [
     {
@@ -1993,6 +1960,36 @@ exports[`composed diagrams > target keeps a stable command profile 1`] = `
       "circle",
       "circle",
       "circle",
+      "path",
+      "moveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
+      "path",
+      "moveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
+      "path",
+      "moveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
+      "path",
+      "moveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
+      "path",
+      "moveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
+      "path",
+      "moveTo",
+      "lineTo",
+      "quadraticCurveTo",
+      "lineTo",
     ],
   ],
   "profile": [
@@ -2008,27 +2005,54 @@ exports[`composed diagrams > target keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 103,
-        "x": 268,
-        "y": 25,
+        "w": 316,
+        "x": 304,
+        "y": 9,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 316,
+        "x": 304,
+        "y": 27,
       },
       "kind": "text",
     },
     {
       "box": {
         "h": 16,
-        "w": 80,
-        "x": 280,
-        "y": 64,
+        "w": 316,
+        "x": 304,
+        "y": 113,
       },
       "kind": "text",
     },
     {
       "box": {
-        "h": 32,
-        "w": 58,
-        "x": 291,
-        "y": 114,
+        "h": 15,
+        "w": 316,
+        "x": 304,
+        "y": 132,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 16,
+        "w": 316,
+        "x": 304,
+        "y": 218,
+      },
+      "kind": "text",
+    },
+    {
+      "box": {
+        "h": 15,
+        "w": 316,
+        "x": 304,
+        "y": 237,
       },
       "kind": "text",
     },
