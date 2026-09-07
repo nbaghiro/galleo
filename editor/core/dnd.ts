@@ -660,6 +660,38 @@ function elementSlots(
                     }
                 }
             }
+            // a row (or grid) root's vertical ring stacks a full-width band over the columns —
+            // the one structure the member strips cannot express; a col root's row-wrap is
+            // already the column op, so it mints nothing here
+            if (path.length === 0 && near && (axis === "row" || cols !== null)) {
+                const band = wrapBand(box.h);
+                const w = Math.max(0, box.w - LINE_INSET * 2);
+                for (const before of [true, false])
+                    out.push({
+                        target: {
+                            section: sid,
+                            op: "wrap",
+                            path,
+                            index: 0,
+                            before,
+                            direction: "col",
+                        },
+                        priority: 0,
+                        indicator: hLine(
+                            box.x + LINE_INSET,
+                            before ? box.y + 2 : box.y + box.h - 2,
+                            w,
+                        ),
+                        hitbox: before
+                            ? { x: box.x, y: reach.y, w: box.w, h: box.y - reach.y + band }
+                            : {
+                                  x: box.x,
+                                  y: box.y + box.h - band,
+                                  w: box.w,
+                                  h: reach.y + reach.h - (box.y + box.h) + band,
+                              },
+                    });
+            }
             for (const kb of boxes) {
                 const childPath = [...path, kb.index];
                 // gate on the child's own painted box (content-aware: a popup's panel floats

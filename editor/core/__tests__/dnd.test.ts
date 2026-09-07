@@ -263,19 +263,36 @@ describe("slot resolution — a col root grows no phantom column bands", () => {
 });
 
 describe("slot resolution — the padding ring", () => {
-    it("the ring between the card and a row root maps to the root's own gaps", () => {
+    // flipped by design (2026-09-06): a row root's vertical ring means "stack a full-width row
+    // above/below the columns" (the last unreachable structure); the side ring keeps the gaps
+    it("a row root's top and bottom rings stack a full-width band over the columns", () => {
         // rowRegions: card 0,0,400x200; root content 20,20,360x160 — (200,10) is in the top ring
-        const t = targetAt(rowArt(), rowRegions(), 200, 10);
-        expect(t).toEqual({
+        expect(targetAt(rowArt(), rowRegions(), 200, 10)).toEqual({
             section: "s1",
-            op: "insert",
+            op: "wrap",
             path: [],
-            index: 1,
-            before: false,
-            direction: "row",
+            index: 0,
+            before: true,
+            direction: "col",
         });
-        // the bottom ring appends past the last child
-        expect(targetAt(rowArt(), rowRegions(), 350, 195)?.index).toBe(2);
+        expect(targetAt(rowArt(), rowRegions(), 350, 195)).toMatchObject({
+            op: "wrap",
+            path: [],
+            before: false,
+            direction: "col",
+        });
+        // the drop makes the stack: payload above, the old row whole beneath it
+        const t = targetAt(rowArt(), rowRegions(), 200, 10)!;
+        const res = applyDrop(rowArt(), t, NEW);
+        const root = getElementAt(res.content, { section: "s1", path: [] })!;
+        expect(collectTexts(root)).toEqual(["New text", "a", "b"]);
+        expect(res.address).toEqual({ section: "s1", path: [0] });
+    });
+
+    it("the side ring still makes a leading column (band or gap, same landing)", () => {
+        const t = targetAt(rowArt(), rowRegions(), 8, 100);
+        expect(["insert", "column"]).toContain(t?.op);
+        expect(t?.index).toBe(0);
     });
 
     it("a col root's first and last gaps reach the card's edges", () => {
