@@ -300,11 +300,28 @@ const Frame: Component<{
                       points: b.points ?? [],
                   })
                 : null;
+        // while the plan streams, a beat can arrive with its heading before its lead and points; those
+        // still-empty fields ghost to bars rather than showing the editable placeholder copy, which
+        // only belongs in the finished, clickable outline
+        const draftFields = new Set<string>();
+        if (outline && gen.planning && b)
+            for (const [id, f] of Object.entries(outline.fields)) {
+                if (f.kind === "lead" && !b.takeaway?.trim()) draftFields.add(id);
+                else if (f.kind === "point" && !b.points?.[f.index]?.trim()) draftFields.add(id);
+            }
         // a ghost's shape is its own inputs; a landed section's is the section object itself
         const ghost = sec
             ? ""
             : outline
-              ? JSON.stringify([b?.label, b?.takeaway, b?.points, layout(), image(), blocks()])
+              ? JSON.stringify([
+                    b?.label,
+                    b?.takeaway,
+                    b?.points,
+                    layout(),
+                    image(),
+                    blocks(),
+                    gen.planning,
+                ])
               : `${layout()}|${image()}|${blocks().join(",")}`;
         if (
             painted &&
@@ -343,6 +360,7 @@ const Frame: Component<{
                     tk,
                     profile,
                     outline.ghosts,
+                    draftFields,
                 )
               : null;
         const skel = placeholderSection({
@@ -359,7 +377,7 @@ const Frame: Component<{
         // beat filling in never moves the beats under it
         setDim({ w, h: out.height });
         // a still-empty slot breathes so it reads as a beat being planned, not a dead grey box
-        el.classList.toggle("animate-pulse", !sec && !outline && !reduced());
+        el.classList.toggle("gen-ghost", !sec && !outline && !reduced());
         // the words settle into the frame that was already holding their place
         if (arriving && !reduced()) {
             // dissolve the whole card in over the placeholder it replaces, then let the words settle

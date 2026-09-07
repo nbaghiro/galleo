@@ -26,6 +26,7 @@ import {
     startBuild,
     startPlan,
     stopHere,
+    writeInFlight,
     type Surface,
 } from "@app/stores/generate";
 import { BriefBar } from "./panels";
@@ -258,7 +259,7 @@ export const Studio: Component = () => {
                             <Button
                                 variant="primary"
                                 size="sm"
-                                disabled={!planned()}
+                                disabled={!planned() || writeInFlight()}
                                 onClick={() => void startBuild()}
                             >
                                 ▶ Write all {gen.beats.length} · ~
@@ -270,7 +271,7 @@ export const Studio: Component = () => {
                                     <IconButton
                                         size="md"
                                         tone="muted"
-                                        disabled={gen.planning}
+                                        disabled={gen.planning || writeInFlight()}
                                         title="Plan a different arc from the same brief"
                                         onClick={() => void startPlan()}
                                     >
@@ -283,7 +284,7 @@ export const Studio: Component = () => {
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    disabled={gen.planning}
+                                    disabled={gen.planning || writeInFlight()}
                                     title="Plan a different arc from the same brief"
                                     onClick={() => void startPlan()}
                                 >
@@ -319,7 +320,7 @@ export const Studio: Component = () => {
                                     <Button
                                         variant="primary"
                                         size="sm"
-                                        disabled={gen.writing}
+                                        disabled={writeInFlight()}
                                         onClick={resumeBuild}
                                     >
                                         ▶ Write the rest

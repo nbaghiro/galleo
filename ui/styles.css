@@ -270,6 +270,25 @@ select:-webkit-autofill {
     }
 }
 
+/* An outline beat still being planned breathes so it reads as work in progress, not a dead box. */
+@keyframes gen-ghost {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.55;
+    }
+}
+.gen-ghost {
+    animation: gen-ghost 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+    .gen-ghost {
+        animation: none;
+    }
+}
+
 /* Applied to the sanitized HTML `marked` emits; see @ui/markdown. */
 .md {
     color: var(--color-ink);

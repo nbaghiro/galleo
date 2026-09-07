@@ -296,6 +296,12 @@ const slotIndex = (id: string): number => gen.slots.findIndex((s) => s.id === id
 
 const LIVE: readonly SlotStatus[] = ["active", "writing", "image"];
 
+// A write is streaming, whether the board or the chat dock started it. `gen.writing` only tracks a
+// board-started run; a chat-started write comes through the same call but never flips it, so a live
+// slot is the source-agnostic signal the write-trigger buttons gate on.
+export const writeInFlight = (): boolean =>
+    gen.writing || gen.slots.some((s) => s.working || LIVE.includes(s.status));
+
 // what the row says about a beat, folded with what the stream is saying about it right now
 function slotFor(beat: Beat, g: Generation, live: SectionSlot | undefined): SectionSlot {
     const state = g.beats[beat.id];

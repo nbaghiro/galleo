@@ -94,6 +94,7 @@ function layoutGhosts(
     colors: GhostColors,
     ghosts: Record<string, string>,
     copyId?: string,
+    draftFields: ReadonlySet<string> = new Set(),
 ): { commands: RenderCommand[]; regions: Region[] } {
     const heights = Object.keys(ghosts).length
         ? new Map(
@@ -110,16 +111,29 @@ function layoutGhosts(
             span: n.span,
             direction: "col",
             gap: 12,
+            // a hair of horizontal inset so a row of tiles never reaches the column edge the section
+            // x-clip trims, the way a real element's own padding keeps its content off the edge
+            padding: { top: 0, bottom: 0, left: 8, right: 8 },
             children: ghostBody(kind, colors, h),
         };
     };
     const isCopy = (n: EngineNode): boolean => copyId !== undefined && n.id === copyId;
+    // a field still streaming in (an empty lead or point during planning) greys to bars in place, so
+    // the copy column keeps its real heading while the body reads as loading, not as filler copy
+    const draftWalk = (n: EngineNode): EngineNode =>
+        n.id && draftFields.has(n.id)
+            ? skeletonize(n, colors)
+            : n.children
+              ? { ...n, children: n.children.map(draftWalk) }
+              : n;
     // a container on the path to a kept or ghosted column recurses; anything else greys wholesale
     const marks = (n: EngineNode): boolean =>
         isCopy(n) || (!!n.id && !!ghosts[n.id]) || (n.children?.some(marks) ?? false);
     const walk = (n: EngineNode): EngineNode =>
         isCopy(n)
-            ? n
+            ? draftFields.size
+                ? draftWalk(n)
+                : n
             : n.id && ghosts[n.id]
               ? silhouette(n, ghosts[n.id]!)
               : n.children?.some(marks)
@@ -138,9 +152,10 @@ export function layoutOutline(
     theme: Tokens = DEFAULT_THEME.tokens,
     format: FormatDescriptor = DEFAULT_PROFILE,
     ghosts: Record<string, string> = {},
+    draftFields: ReadonlySet<string> = new Set(),
 ): { commands: RenderCommand[]; regions: Region[]; height: number } {
     const node = composeSection(section, ctxFor(width, theme, format, false, measure));
-    const out = layoutGhosts(node, width, measure, ghostColors(theme), ghosts, copyId);
+    const out = layoutGhosts(node, width, measure, ghostColors(theme), ghosts, copyId, draftFields);
     return { ...out, height: bottom(out.commands) };
 }
 

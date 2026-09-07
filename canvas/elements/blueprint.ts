@@ -118,7 +118,9 @@ export function placeholderBlock(kind: string): ElementInstance {
 // column kinds in order, and which one copy belongs in (the first that isn't media)
 function columnPlan(plan: SectionBlueprint): { kinds: string[]; copyAt: number } {
     const fractions = LAYOUT_PRESETS[plan.layout ?? "full"] ?? [1];
-    const n = plan.blocks?.length ?? fractions.length;
+    // an empty blocks array means "unspecified", so fall back to the layout's column count (|| not
+    // ?? so length 0 falls through); otherwise a beat mid-plan skeletonizes to a single blank blob
+    const n = plan.blocks?.length || fractions.length;
     const kinds = Array.from(
         { length: n },
         (_, i) => plan.blocks?.[i] ?? (plan.image && n > 1 && i === n - 1 ? "image" : "text"),
