@@ -24,6 +24,7 @@ import {
     editor,
     loadArtifactContent,
     selectedAddresses,
+    selectMany,
     selection,
     setSelection,
     selectedConnection,
@@ -569,5 +570,179 @@ describe("connections", () => {
         setConnectionStyle(id, { dashed: true });
         setConnectionStyle(id, { tone: "accent" });
         expect(editor.artifact.connections![0]!.style).toEqual({ dashed: true, tone: "accent" });
+    });
+});
+
+describe("arrange.step — the keyboard is micro-drags", () => {
+    const doc = (): ArtifactContent => ({
+        format: "deck",
+        theme: "studio",
+        sections: [
+            {
+                id: "s1",
+                root: {
+                    type: "container",
+                    data: {
+                        direction: "col",
+                        children: [
+                            { type: "text", data: { text: "a" } },
+                            { type: "text", data: { text: "b" } },
+                            {
+                                type: "container",
+                                data: {
+                                    direction: "row",
+                                    children: [
+                                        { type: "text", data: { text: "c" } },
+                                        { type: "text", data: { text: "d" } },
+                                    ],
+                                },
+                            },
+                            { type: "text", data: { text: "e" } },
+                        ],
+                    },
+                },
+            },
+        ],
+    });
+    const texts = (): string[] => {
+        const out: string[] = [];
+        const walk = (el: ElementInstance): void => {
+            const t = (el.data as { text?: string }).text;
+            if (typeof t === "string") out.push(t);
+            ((el.data as { children?: ElementInstance[] }).children ?? []).forEach(walk);
+        };
+        walk(editor.artifact.sections[0]!.root);
+        return out;
+    };
+    const sel = (path: number[]): void =>
+        setSelection({ kind: "element", address: { section: "s1", path } });
+
+    it("alt toward a leaf neighbor wraps with it, payload leading", () => {
+        loadArtifactContent("kbd-wrap", doc());
+        sel([0]); // "a", neighbor below is the leaf "b"
+        runCommand("arrange.intoDown");
+        // a and b joined side by side (perpendicular of the col), a leading
+        const joined = getElementAt(editor.artifact, { section: "s1", path: [0] })!;
+        expect(joined.type).toBe("container");
+        expect((joined.data as { direction?: string }).direction).toBe("row");
+        expect(texts()).toEqual(["a", "b", "c", "d", "e"]);
+    });
+
+    it("swaps with the neighbor along the parent's axis", () => {
+        loadArtifactContent("arr-swap", doc());
+        sel([1]);
+        runCommand("arrange.stepDown");
+        expect(texts()).toEqual(["a", "c", "d", "b", "e"]);
+        expect(selection()).toMatchObject({ address: { path: [2] } });
+        runCommand("arrange.stepUp");
+        expect(texts()).toEqual(["a", "b", "c", "d", "e"]);
+    });
+
+    it("the root member at its edge stays put", () => {
+        loadArtifactContent("arr-edge", doc());
+        sel([0]);
+        runCommand("arrange.stepUp");
+        expect(texts()).toEqual(["a", "b", "c", "d", "e"]);
+    });
+
+    it("a nested member at the perpendicular steps out beside its parent", () => {
+        loadArtifactContent("arr-out", doc());
+        sel([2, 0]);
+        runCommand("arrange.stepDown");
+        // c leaves the row and lands after it in the root col
+        expect(texts()).toEqual(["a", "b", "d", "c", "e"]);
+    });
+
+    it("swaps inside the nested row along its own axis", () => {
+        loadArtifactContent("arr-row", doc());
+        sel([2, 0]);
+        runCommand("arrange.stepRight");
+        expect(texts()).toEqual(["a", "b", "d", "c", "e"]);
+        expect(
+            (
+                getElementAt(editor.artifact, { section: "s1", path: [2] })!.data as {
+                    children: ElementInstance[];
+                }
+            ).children,
+        ).toHaveLength(2);
+    });
+
+    it("alt steps into the adjacent open container", () => {
+        loadArtifactContent("arr-into", doc());
+        sel([1]);
+        runCommand("arrange.intoDown");
+        expect(texts()).toEqual(["a", "b", "c", "d", "e"]);
+        const row = getElementAt(editor.artifact, { section: "s1", path: [1] })!;
+        expect((row.data as { children: ElementInstance[] }).children).toHaveLength(3);
+    });
+
+    it("a block steps as one, keeping the set", () => {
+        loadArtifactContent("arr-block", doc());
+        selectMany([
+            { section: "s1", path: [0] },
+            { section: "s1", path: [1] },
+        ]);
+        runCommand("arrange.stepDown");
+        expect(texts()).toEqual(["c", "d", "a", "b", "e"]);
+        expect(selectedAddresses()).toHaveLength(2);
+    });
+
+    it("a burst is one undo entry", () => {
+        loadArtifactContent("arr-undo", doc());
+        sel([0]);
+        runCommand("arrange.stepDown");
+        runCommand("arrange.stepDown");
+        expect(texts()).toEqual(["b", "c", "d", "a", "e"]);
+        undo();
+        expect(texts()).toEqual(["a", "b", "c", "d", "e"]);
+        expect(canUndo()).toBe(false);
+    });
+
+    it("a unit's item swaps inside but never steps out", () => {
+        loadArtifactContent("arr-unit", {
+            format: "deck",
+            theme: "studio",
+            sections: [
+                {
+                    id: "s1",
+                    root: {
+                        type: "container",
+                        data: {
+                            direction: "col",
+                            children: [
+                                {
+                                    type: "bullets",
+                                    data: {
+                                        children: [
+                                            { type: "text", data: { text: "one" } },
+                                            { type: "text", data: { text: "two" } },
+                                        ],
+                                    },
+                                },
+                                { type: "text", data: { text: "after" } },
+                            ],
+                        },
+                    },
+                },
+            ],
+        });
+        sel([0, 0]);
+        runCommand("arrange.stepDown");
+        const items = (
+            getElementAt(editor.artifact, { section: "s1", path: [0] })!.data as {
+                children: ElementInstance[];
+            }
+        ).children;
+        expect(items.map((i) => (i.data as { text: string }).text)).toEqual(["two", "one"]);
+        sel([0, 1]);
+        runCommand("arrange.stepDown");
+        expect(items === undefined ? 2 : 2).toBe(2);
+        expect(
+            (
+                getElementAt(editor.artifact, { section: "s1", path: [0] })!.data as {
+                    children: ElementInstance[];
+                }
+            ).children,
+        ).toHaveLength(2);
     });
 });

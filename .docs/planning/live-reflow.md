@@ -1,4 +1,9 @@
-# Planning — live drag reflow: the canvas parts to make room
+# Planning — live drag reflow
+
+> Superseded in part (2026-09-07): manual QA found the per-slot honest preview makes the whole
+> document breathe while aiming, and the dnd-ux motion round replaces it with contained parting
+> (fixed-gap transforms inside the receiver only) plus one commit FLIP. The FLIP capability,
+> compensation shape, and degrade tiers this doc built carry forward. See dnd-ux.md section 9, then section 10: the controlled-canvas round later removed the parting machinery entirely; the FLIP capability survives as the commit animation.: the canvas parts to make room
 
 > The editor's drag today freezes the document and marks slots with indicator lines; the drop is
 > committed sight-unseen. This plan brings back what the codebase already tried once and removed,

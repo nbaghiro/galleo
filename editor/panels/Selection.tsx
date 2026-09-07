@@ -40,14 +40,15 @@ import {
     zoom,
 } from "@editor/core/store";
 import {
-    classifyDrop,
+    slideAt,
     drag,
     indicatorDistance,
     movableAncestor,
     movePayloadFor,
     startDrag,
     unitItem,
-    type DropHit,
+    type DropTarget,
+    type SlotIndicator,
 } from "@editor/core/dnd";
 import {
     anchorPoint,
@@ -98,7 +99,7 @@ interface PinDrag {
     parent: Rect;
     nearest: { x: Pin["x"]; y: Pin["y"] };
     snapped: boolean; // an axis sits flush on the nearest anchor, worth a feedback dot
-    slot: DropHit | null; // a flow gap close enough to take the element back
+    slot: { target: DropTarget; indicator: SlotIndicator } | null; // a gap taking it back
 }
 const [pinDrag, setPinDrag] = createSignal<PinDrag | null>(null);
 
@@ -143,22 +144,22 @@ function beginPinMove(address: ElementAddress, sx: number, sy: number): void {
         const sp = stagePoint(ev.clientX, ev.clientY);
         // a line claim close enough offers the way back into the flow; a region target would
         // cover ground the free move has to cross
-        let slot: DropHit | null = null;
+        let slot: { target: DropTarget; indicator: SlotIndicator } | null = null;
         if (sp) {
-            const hit = classifyDrop(
+            const slide = slideAt(
                 editor.artifact,
                 regions(),
                 { kind: "move", from: address },
                 sp[0],
                 sp[1],
-                pinDrag()?.slot?.target ?? null,
+                null,
             );
             if (
-                hit &&
-                hit.indicator.kind === "line" &&
-                indicatorDistance(hit.indicator, sp[0], sp[1]) < REFLOW_REACH
+                slide?.target &&
+                slide.line &&
+                indicatorDistance(slide.line, sp[0], sp[1]) < REFLOW_REACH
             )
-                slot = hit;
+                slot = { target: slide.target, indicator: slide.line };
         }
         setPinDrag({
             parent,

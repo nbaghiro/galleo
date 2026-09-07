@@ -271,7 +271,9 @@ gap hitboxes to the card, as the empty case already does. Size: S.
 (indicators stay on the content box); the root passes the painted card, so the whole ring lands in
 the nearest edge slot. Pinned in `dnd.test.ts` ("the padding ring"), outside-the-card still null.
 
-**U5 ✔ Wrap-beside exists only at the section root.** "Place this beside that" for a nested leaf is
+**U5 ✔ Wrap-beside exists only at the section root.**
+(2026-09-07: strips retired entirely that evening with the controlled-canvas model — side-by-side
+is the gutter pill or a command now. See `dnd-ux.md` section 10.) "Place this beside that" for a nested leaf is
 group-then-flip-direction, two non-obvious steps, though `wrapWith` already takes any path
 (`ops.ts:389-390`). Direction: edge wrap slots on non-root leaves. Size: M.
 **Fixed 2026-09-06**: `besideSlots` in `dnd.ts` — narrow ±EDGE strips on every nested col member's
@@ -281,7 +283,10 @@ path). Root children skip them (their edges are column boundaries); unit interio
 Superseded same day by the classifier round ([`drop-classifier.md`](drop-classifier.md)):
 `edgeStrips` generalizes the rule to every movable member's cross-axis edges, grid cells included.
 
-**U6 ✔ Column boundary bands outrank every nested gap within 24px** (`dnd.ts:315,620`) — honest
+**U6 ✔ Column boundary bands outrank every nested gap within 24px**
+(2026-09-07: superseded again by the dnd-ux round, and that evening by the controlled-canvas
+model — zone classification is gone entirely; `slideAt` scopes by containment. See `dnd-ux.md`
+section 10.) (`dnd.ts:315,620`) — honest
 indicator, grabby feel. Direction: shrink `EDGE` when a deeper slot's hitbox overlaps. Size: S.
 **Fixed 2026-09-06**, differently than the direction suggested (and folded same day into
 `classifyDrop`, the per-move geometric classifier of [`drop-classifier.md`](drop-classifier.md),

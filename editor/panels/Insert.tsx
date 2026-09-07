@@ -268,10 +268,9 @@ export const ContextMenu: Component = () => (
     </Show>
 );
 
-// always mounted; only visibility toggles. A move drag carries no painted cursor ghost: the
-// parting preview already shows the element in the slot, so the cursor keeps only the label pill
+// always mounted; only visibility toggles. Under the constrained slide the element lives at its
+// slot (the SlotCard), so the cursor carries only a section drag's label pill and the pin hint.
 export const DragGhost: Component = () => {
-    // a new-element drag carries its palette tile along; moves and sections keep the label pill
     const newType = (): string | null => {
         const p = drag()?.payload;
         return p?.kind === "new" ? p.type : null;
@@ -280,13 +279,14 @@ export const DragGhost: Component = () => {
         const p = drag()?.payload;
         return p?.kind === "move" && pinnable(editor.artifact, p.from);
     };
+    const pill = (): boolean => drag()?.payload.kind === "section";
     return (
         <>
             <div
                 data-testid="drag-ghost"
                 class="pointer-events-none fixed z-overlay flex items-center gap-2 rounded-full border border-line bg-panel/95 px-3 py-1.5 text-[12px] font-semibold text-ink shadow-lg backdrop-blur-md"
                 style={{
-                    display: drag() ? "flex" : "none",
+                    display: drag() && pill() ? "flex" : "none",
                     left: `${(drag()?.x ?? 0) + 14}px`,
                     top: `${(drag()?.y ?? 0) + 14}px`,
                 }}

@@ -305,7 +305,8 @@ export function insertChild(
     });
 }
 
-// used when dropping beside a leaf, where there is no container yet
+// used when dropping beside a leaf, where there is no container yet; both members enter
+// width-less, so a payload's stale column share cannot pin the fresh group's split
 export function wrapWith(
     art: ArtifactContent,
     addr: ElementAddress,
@@ -314,7 +315,8 @@ export function wrapWith(
     direction: "row" | "col",
 ): ArtifactContent {
     return updateElementAt(art, addr, (inst) => {
-        const children = before ? [element, stripWidth(inst)] : [stripWidth(inst), element];
+        const el = stripWidth(element);
+        const children = before ? [el, stripWidth(inst)] : [stripWidth(inst), el];
         return direction === "row" ? rowGroup(children) : colGroup(children);
     });
 }

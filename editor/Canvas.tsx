@@ -49,18 +49,17 @@ import { openPopups, panelFor } from "./core/leaf";
 import { openDataEditor } from "./panels/DataEditor";
 import {
     applyDrop,
-    classifyDrop,
+    gutterPills,
+    requestCommitFlip,
+    sectionCard,
+    slideAt,
+    takeCommitFlip,
     drag,
     endDrag,
     marqueeTargets,
     movableAncestor,
-    compensatePoint,
-    part,
-    partingHere,
     PART_FEEL,
-    previewFor,
     setDrag,
-    setPart,
 } from "./core/dnd";
 import { completeConnect } from "./core/commands";
 import { applyLiveEdit, liveEdit } from "./panels/Selection";
@@ -109,7 +108,7 @@ import {
     zoom,
 } from "./core/store";
 import { EmptyRegionAdd, ContextMenu, openContextMenu } from "./panels/Insert";
-import { DropIndicators, GhostVeil, LiftVeil } from "./panels/DropIndicators";
+import { DropIndicators, GutterPills, LiftVeil, SlotCard } from "./panels/DropIndicators";
 import {
     beginElementMove,
     DragHandle,
@@ -317,10 +316,10 @@ export const Canvas: Component = () => {
         preview?: Section[] | null,
         track = false,
         dimId?: string | null,
-        ghost?: ElementAddress | null, // set (even null) = a parting preview paint
+        commitFlip = false, // one-shot: a drop or keyboard step animates its true landing once
     ): void => {
         if (!paintHost) return;
-        const flip = ghost !== undefined;
+        const flip = commitFlip;
         const profile = profileFor(editor.artifact);
         // a bleeding format (site) covers the backdrop entirely on phone; others keep the sliver
         const phonePad = profile.bleedSections ? 0 : PHONE_PAD;
@@ -390,15 +389,7 @@ export const Canvas: Component = () => {
                 where: presenting() ? "present" : "editor",
             });
         setStackHeight(height);
-        setPart(
-            flip
-                ? {
-                      ghost:
-                          (ghost && regions.find((r) => r.id === elementRegionId(ghost))) || null,
-                      shifts,
-                  }
-                : null,
-        );
+        void shifts;
         const drawn = preview ?? editor.artifact.sections;
         // arrows resolve against the stage regions this frame produced, so they follow every move
         const conn = connectionCommands(
@@ -494,21 +485,22 @@ export const Canvas: Component = () => {
         sections: Section[] | null;
         track: boolean;
         dimId?: string | null;
-        ghost?: ElementAddress | null;
+        commitFlip?: boolean;
     } | null = null;
     const scheduleDraw = (
         sections: Section[] | null,
         track: boolean,
         dimId?: string | null,
-        ghost?: ElementAddress | null,
+        commitFlip?: boolean,
     ): void => {
-        queued = { sections, track, dimId, ghost };
+        // a queued one-shot flip survives a coalesced frame rather than being overwritten
+        queued = { sections, track, dimId, commitFlip: commitFlip || queued?.commitFlip };
         if (rafId) return;
         rafId = requestAnimationFrame(() => {
             rafId = 0;
             const q = queued;
             queued = null;
-            if (q) draw(q.sections, q.track, q.dimId, q.ghost);
+            if (q) draw(q.sections, q.track, q.dimId, q.commitFlip);
         });
     };
 
@@ -862,24 +854,13 @@ export const Canvas: Component = () => {
         });
     });
 
-    // Aiming stays frozen during a drag (slots, regions, hitboxes), but the PICTURE parts: with a
-    // slot active, the drop's own pure path paints the post-drop tree, FLIP-animated, and the drag
-    // aims through it via compensatePoint. A foreign edit mid-drag (AI stream, collab) stands the
-    // parting down for the gesture rather than animating across an edit nobody made here.
-    const [dragBase, setDragBase] = createSignal<typeof editor.artifact | null>(null);
     const preview = createMemo<{
         sections: Section[];
         track: boolean;
         dimId?: string;
-        ghost?: ElementAddress | null;
     } | null>(() => {
         const edit = liveEdit();
         if (edit) return { sections: applyLiveEdit(editor.artifact, edit).sections, track: true };
-        const d = drag();
-        if (d?.target && partingHere() && editor.artifact === dragBase()) {
-            const p = previewFor(editor.artifact, d.target, d.payload);
-            if (p) return { sections: p.sections, track: false, ghost: p.at };
-        }
         return null;
     });
 
@@ -894,7 +875,7 @@ export const Canvas: Component = () => {
         editorTokens();
         slideFrame();
         const p = preview();
-        scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null, p?.ghost);
+        scheduleDraw(p?.sections ?? null, p?.track ?? false, p?.dimId ?? null, takeCommitFlip());
     });
 
     /**
@@ -925,22 +906,53 @@ export const Canvas: Component = () => {
     const isDragging = createMemo(() => drag() !== null);
     createEffect(() => {
         if (!isDragging()) return;
-        setDragBase(editor.artifact);
-        onCleanup(() => setDragBase(null));
         let clientX = drag()?.x ?? 0;
         let clientY = drag()?.y ?? 0;
         const retarget = (): void => {
-            const [vx, vy] = point({ clientX, clientY });
-            const [px, py] = compensatePoint(vx, vy, part()?.shifts ?? []);
+            const [px, py] = point({ clientX, clientY });
             setDrag((d) => {
                 if (!d) return d;
-                const hit = classifyDrop(editor.artifact, regions(), d.payload, px, py, d.target);
+                // a gutter pill under the pointer overrides the slide: the one structural drop
+                if (d.payload.kind !== "section") {
+                    const sid = editor.artifact.sections.find((sec) => {
+                        const b = sectionCard(regions(), sec.id);
+                        return b && px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
+                    })?.id;
+                    const pill = sid
+                        ? gutterPills(editor.artifact, regions(), sid, d.payload).find(
+                              (g) =>
+                                  px >= g.box.x &&
+                                  px <= g.box.x + g.box.w &&
+                                  py >= g.box.y &&
+                                  py <= g.box.y + g.box.h,
+                          )
+                        : undefined;
+                    if (pill)
+                        return {
+                            ...d,
+                            x: clientX,
+                            y: clientY,
+                            px,
+                            py,
+                            slide: null,
+                            target: pill.target,
+                            indicator: pill.line,
+                            receiver: sid ? (sectionCard(regions(), sid) ?? null) : null,
+                            implicit: true,
+                        };
+                }
+                const slide = slideAt(editor.artifact, regions(), d.payload, px, py, d.slide);
                 return {
                     ...d,
                     x: clientX,
                     y: clientY,
-                    target: hit?.target ?? null,
-                    indicator: hit?.indicator ?? null,
+                    px,
+                    py,
+                    slide,
+                    target: slide?.target ?? null,
+                    indicator: slide?.line ?? null,
+                    receiver: slide?.receiver ?? null,
+                    implicit: slide?.implicit ?? false,
                 };
             });
         };
@@ -988,10 +1000,11 @@ export const Canvas: Component = () => {
                 const moving = source ? getElementAt(before, source)?.type : undefined;
                 const res = applyDrop(before, d.target, d.payload);
                 if (res.content !== before) {
+                    requestCommitFlip();
                     commit(res.content);
                     if (d.payload.kind === "new") noteElementAdded(d.payload.type, "drag");
                     else if (moving !== undefined)
-                        noteElementMoved(moving, source?.section === d.target.section);
+                        noteElementMoved(moving, source?.section === d.target.section, "drag");
                 }
                 noteDropSelection(); // the flyout must not open over what was just dropped
                 const landed = res.address;
@@ -1146,8 +1159,9 @@ export const Canvas: Component = () => {
                     />
                     <Overlay />
                     <LiftVeil />
-                    <GhostVeil />
                     <DropIndicators />
+                    <GutterPills />
+                    <SlotCard />
                     {/* precision-pointer affordances; at phone width the reflowed layout no longer
                         matches the geometry they edit, so the section sheet + presets stand in */}
                     <Show when={!isPhone()}>

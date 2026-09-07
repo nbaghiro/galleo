@@ -43,6 +43,7 @@ import {
     redo,
     removeSectionAt,
     requestShare,
+    noteElementMoved,
     selectedAddresses,
     selectMany,
     setConnectFrom,
@@ -55,7 +56,16 @@ import {
     undo,
 } from "./store";
 import { leaseHolder, say } from "./collab";
-import { movable, movableAncestor } from "./dnd";
+import {
+    applyDrop,
+    groupAxis,
+    movable,
+    movableAncestor,
+    movePayloadFor,
+    requestCommitFlip,
+    unitItem,
+    type DropTarget,
+} from "./dnd";
 import { pinnable, togglePin } from "./pin";
 import { clipboardEl, copyToClipboard, hasClipboard, pasteElements } from "./clipboard";
 import { canRegenerate, regenerateElement } from "./ai";
@@ -76,6 +86,167 @@ const NUDGES = [
     { id: "nudgeDown", dx: 0, dy: 1 },
 ];
 // arrows move a pinned element by composed px; a burst of taps folds into one undo step
+// The keyboard is micro-drags: each step builds the drag's own DropTarget and lands through
+// applyDrop, so the semantics can never diverge from a drop. Along the parent's axis a step
+// swaps with the neighbor; at the edge (or across the axis) it steps OUT beside the parent; a
+// unit's item swaps inside its unit and never leaves it. `into` (alt) descends instead: the
+// adjacent open container takes the element at its near end.
+const STEP_AXIS = { up: "col", down: "col", left: "row", right: "row" } as const;
+const STEP_FWD = { up: false, down: true, left: false, right: true } as const;
+type StepDir = keyof typeof STEP_AXIS;
+
+const openKids = (inst: ElementInstance | undefined): number | null => {
+    const c = inst && getElement(inst.type)?.container;
+    return c && !c.closed ? c.children(inst.data).length : null;
+};
+
+function arrangeStep(dir: StepDir, into: boolean): void {
+    const s = selection();
+    if (s?.kind !== "element") return;
+    const art = editor.artifact;
+    const { payload } = movePayloadFor(art, s.address, selectedAddresses());
+    if (payload.kind !== "move" && payload.kind !== "moveMany") return;
+    const section = s.address.section;
+    const indices = payload.kind === "moveMany" ? [...payload.indices].sort((a, b) => a - b) : null;
+    const anchorPath =
+        payload.kind === "move" ? payload.from.path : [...payload.parent.path, indices![0]!];
+    if (anchorPath.length === 0) return; // a whole root moves with its section
+    const parentPath = anchorPath.slice(0, -1);
+    const parent = getElementAt(art, { section, path: parentPath });
+    const axis = groupAxis(parent);
+    const dirAxis = STEP_AXIS[dir];
+    const fwd = STEP_FWD[dir];
+    const sealed = payload.kind === "move" && unitItem(art, payload.from) !== null;
+    const kidCount = openKids(parent) ?? 0;
+    const lo = indices ? indices[0]! : anchorPath.at(-1)!;
+    const hi = indices ? indices[indices.length - 1]! : anchorPath.at(-1)!;
+    let target: DropTarget | null = null;
+    if (into) {
+        if (dirAxis !== axis || sealed) return;
+        const nIdx = fwd ? hi + 1 : lo - 1;
+        const sib = getElementAt(art, { section, path: [...parentPath, nIdx] });
+        if (!sib) return;
+        const end = openKids(sib);
+        if (end === null || getElement(sib.type)?.tier !== "container") {
+            // a leaf or sealed neighbor wraps instead: joined perpendicular, payload leading
+            target = {
+                section,
+                op: "wrap",
+                path: [...parentPath, nIdx],
+                index: 0,
+                before: true,
+                direction: axis === "row" ? "col" : "row",
+            };
+        } else
+            target = {
+                section,
+                op: "insert",
+                path: [...parentPath, nIdx],
+                index: fwd ? 0 : end,
+                before: false,
+                direction: groupAxis(sib),
+            };
+    } else if (dirAxis === axis) {
+        if (!fwd && lo > 0)
+            target = {
+                section,
+                op: "insert",
+                path: parentPath,
+                index: lo - 1,
+                before: false,
+                direction: axis,
+            };
+        else if (fwd && hi < kidCount - 1)
+            target = {
+                section,
+                op: "insert",
+                path: parentPath,
+                index: hi + 2,
+                before: false,
+                direction: axis,
+            };
+        else if (!sealed && parentPath.length > 0) {
+            const gpPath = parentPath.slice(0, -1);
+            const gp = getElementAt(art, { section, path: gpPath });
+            target = {
+                section,
+                op: "insert",
+                path: gpPath,
+                index: parentPath.at(-1)! + (fwd ? 1 : 0),
+                before: false,
+                direction: groupAxis(gp),
+            };
+        }
+    } else if (!sealed) {
+        if (parentPath.length === 0) {
+            target = { section, op: "wrap", path: [], index: 0, before: !fwd, direction: dirAxis };
+        } else {
+            const gpPath = parentPath.slice(0, -1);
+            const gp = getElementAt(art, { section, path: gpPath });
+            target =
+                groupAxis(gp) === dirAxis
+                    ? {
+                          section,
+                          op: "insert",
+                          path: gpPath,
+                          index: parentPath.at(-1)! + (fwd ? 1 : 0),
+                          before: false,
+                          direction: dirAxis,
+                      }
+                    : {
+                          section,
+                          op: "wrap",
+                          path: parentPath,
+                          index: 0,
+                          before: !fwd,
+                          direction: dirAxis,
+                      };
+        }
+    }
+    if (!target) return;
+    const before = art;
+    const moved = getElementAt(before, { section, path: anchorPath });
+    const res = applyDrop(before, target, payload);
+    if (res.content === before || !res.address) return;
+    requestCommitFlip();
+    commit(res.content, { coalesce: `arrange:${moved?.id ?? section}` });
+    if (indices) {
+        const head = res.address.path.at(-1) ?? 0;
+        selectMany(
+            target.op === "insert"
+                ? indices.map((_, i) => ({
+                      section: res.address!.section,
+                      path: [...res.address!.path.slice(0, -1), head + i],
+                  }))
+                : indices.map((_, i) => ({
+                      section: res.address!.section,
+                      path: [...res.address!.path, i],
+                  })),
+        );
+    } else setSelection({ kind: "element", address: res.address });
+    if (moved) noteElementMoved(moved.type, res.address.section === section, "keys");
+}
+
+const flowStep = (c: KeyCtx): boolean =>
+    inEditor(c) && notTyping(c) && c.has("editor.hasSelection") && !pinnedTarget();
+
+const ARRANGE_STEPS = (["up", "down", "left", "right"] as StepDir[]).flatMap((dir) => [
+    {
+        id: `arrange.step${dir[0]!.toUpperCase()}${dir.slice(1)}`,
+        title: `Move ${dir}`,
+        group: "arrange" as const,
+        when: flowStep,
+        run: () => arrangeStep(dir, false),
+    },
+    {
+        id: `arrange.into${dir[0]!.toUpperCase()}${dir.slice(1)}`,
+        title: `Move into the container ${dir === "up" ? "above" : dir === "down" ? "below" : `to the ${dir}`}`,
+        group: "arrange" as const,
+        when: flowStep,
+        run: () => arrangeStep(dir, true),
+    },
+]);
+
 function nudgePin(dx: number, dy: number): void {
     const a = pinnedTarget();
     if (!a) return;
@@ -460,6 +631,7 @@ registerCommands([
         run: () => openSectionPrompt(currentSectionId()),
     },
 
+    ...ARRANGE_STEPS,
     {
         id: "arrange.moveSectionUp",
         title: "Move section up",
@@ -606,6 +778,14 @@ registerBindings([
     { chord: ["delete", "backspace"], command: "edit.delete", when: "editor" },
     { chord: "mod+d", command: "edit.duplicate", when: "editor" },
     { chord: "escape", command: "select.up", when: "editor" },
+    { chord: "left", command: "arrange.stepLeft", when: "editor" },
+    { chord: "right", command: "arrange.stepRight", when: "editor" },
+    { chord: "up", command: "arrange.stepUp", when: "editor" },
+    { chord: "down", command: "arrange.stepDown", when: "editor" },
+    { chord: "alt+left", command: "arrange.intoLeft", when: "editor" },
+    { chord: "alt+right", command: "arrange.intoRight", when: "editor" },
+    { chord: "alt+up", command: "arrange.intoUp", when: "editor" },
+    { chord: "alt+down", command: "arrange.intoDown", when: "editor" },
     { chord: "left", command: "pin.nudgeLeft", when: "editor" },
     { chord: "right", command: "pin.nudgeRight", when: "editor" },
     { chord: "up", command: "pin.nudgeUp", when: "editor" },

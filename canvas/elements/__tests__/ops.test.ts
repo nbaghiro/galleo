@@ -500,6 +500,17 @@ describe("table cell edits", () => {
     });
 });
 
+describe("wrapWith strips both members' widths", () => {
+    it("a payload carrying a stale column share enters the group width-less", () => {
+        const art = artifactOf([sectionOf(colGroup([inst("text", { text: "cap" })]))]);
+        const payload = withWidth(inst("text", { text: "chart" }), 0.25);
+        const next = wrapWith(art, { section: "s1", path: [0] }, payload, false, "col");
+        const group = getElementAt(next, { section: "s1", path: [0] })!;
+        const kids = (group.data as { children: ElementInstance[] }).children;
+        expect(kids.map((k) => k.layout?.width)).toEqual([undefined, undefined]);
+    });
+});
+
 describe("splitUnitItem / mergeUnitItem", () => {
     const item = (text: string, marks?: Mark[]): ElementInstance => ({
         type: "text",

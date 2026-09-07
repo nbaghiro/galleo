@@ -1347,8 +1347,12 @@ export function noteElementResized(type: string, kind: "height" | "aspect"): voi
 }
 
 /** `same_section` separates rearranging one section from moving work between them. */
-export function noteElementMoved(type: string, sameSection: boolean): void {
-    capture("element_moved", { element_type: type, same_section: sameSection });
+export function noteElementMoved(
+    type: string,
+    sameSection: boolean,
+    source: "drag" | "keys",
+): void {
+    capture("element_moved", { element_type: type, same_section: sameSection, source });
 }
 
 /** `count` rides along only for a batch, so a single removal keeps the shape it always had. */

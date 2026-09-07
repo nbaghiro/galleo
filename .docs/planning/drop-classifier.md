@@ -366,6 +366,20 @@ Gates per phase: `tsc` clean, lint, full vitest, `check:elements`, `check:suppre
 any paint path, so any corpus movement is a bug. Pointer feel is manual QA at the end, per the
 established deviation.
 
+## Superseded entirely (2026-09-07, evening)
+
+The controlled-canvas round (dnd-ux.md section 10) replaced classification with the constrained
+slide: `classifyDrop` and every claim family are deleted; `slideAt` scopes by containment and
+quantizes one axis. This doc stays as the record of the geometric-classifier era.
+
+## Superseded in part (2026-09-07, morning)
+
+The dnd-ux round reshaped the claim families this doc built: escalation slivers and the
+perpendicular wrap strips on row/grid members are gone, row-root column bands folded into the
+root's own gaps, suppressed flanks classify as home, and every hit now carries its receiver for
+the destination highlight. `classifyDrop`'s shape, arbitration and all consumers stand. See
+[`dnd-ux.md`](dnd-ux.md).
+
 ## Post-build fixes (2026-09-06, same day)
 
 - The escalation sliver's bounds check was one-sided (`v < lo + e`), so the claim fired for any
