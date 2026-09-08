@@ -69,38 +69,55 @@ test("the grid layout carries a section carousel and remembers the switch", asyn
 // The plate takes the wheel from the page, which is a mode, so the thing worth pinning is that it
 // is only entered on purpose: a wheel over a card the pointer merely crossed still scrolls the page.
 test("a plate takes the wheel only once the pointer has held still on it", async ({ page }) => {
+    const TITLE = "Plate scroll fixture";
     const id = await makeArtifact(
         page.request,
-        "Plate scroll fixture",
+        TITLE,
         Array.from({ length: 8 }, (_, i) =>
             sec(`s${i + 1}`, colOf([txt(`Plate section ${i + 1} body copy that fills the page`)])),
         ),
     );
     await page.goto("/"); // canvas is the default, so the plates are already what is on screen
-    const card = page.locator('[data-testid="library-grid"] > div').first();
+    // This card, not the first one: the library sorts by recency, and on a full run another spec's
+    // artifact is newer, so `.first()` measured someone else's plate and never found its overflow.
+    const card = page
+        .locator('[data-testid="library-grid"] > div')
+        .filter({ hasText: TITLE })
+        .first();
     await expect(card).toBeVisible();
     const box = (await card.boundingBox())!;
     const x = Math.round(box.x + box.width / 2);
     const y = Math.round(box.y + 60);
+    // the plate belonging to THIS card, for the same reason
     const tops = (): Promise<{ page: number; plate: number }> =>
-        page.evaluate(() => ({
-            page: Math.round(document.querySelector("main")!.scrollTop),
-            plate: Math.round(document.querySelector('[data-testid="plate"]')!.scrollTop),
-        }));
+        page.evaluate((t) => {
+            const own = [...document.querySelectorAll('[data-testid="library-grid"] > div')]
+                .find((d) => d.textContent?.includes(t))!
+                .querySelector('[data-testid="plate"]')!;
+            return {
+                page: Math.round(document.querySelector("main")!.scrollTop),
+                plate: Math.round(own.scrollTop),
+            };
+        }, TITLE);
 
     const overflow = (): Promise<string> =>
-        page.evaluate(
-            () => getComputedStyle(document.querySelector('[data-testid="plate"]')!).overflowY,
-        );
+        page.evaluate((t) => {
+            const own = [...document.querySelectorAll('[data-testid="library-grid"] > div')]
+                .find((d) => d.textContent?.includes(t))!
+                .querySelector('[data-testid="plate"]')!;
+            return getComputedStyle(own).overflowY;
+        }, TITLE);
 
     // A plate fills with its sections on a fetch of its own, so on a loaded run the wheel below can
     // arrive while the card still holds fewer sections than fit its box, and a scrollTop that
     // cannot move reads as the feature being broken. Wait for the overflow the test is about.
     const scrollable = (): Promise<boolean> =>
-        page.evaluate(() => {
-            const el = document.querySelector('[data-testid="plate"]')!;
-            return el.scrollHeight > el.clientHeight + 1;
-        });
+        page.evaluate((t) => {
+            const el = [...document.querySelectorAll('[data-testid="library-grid"] > div')]
+                .find((d) => d.textContent?.includes(t))
+                ?.querySelector('[data-testid="plate"]');
+            return !!el && el.scrollHeight > el.clientHeight + 1;
+        }, TITLE);
 
     // A scroll event is dispatched a frame after the scroll that caused it, and on a loaded run that
     // frame can land after the next pointermove: the dwell would then be started and immediately
@@ -140,7 +157,9 @@ test("a plate takes the wheel only once the pointer has held still on it", async
     // moving the pointer again starts a fresh dwell, and holding hands the wheel to the plate
     await page.evaluate(() => document.querySelector("main")!.scrollTo({ top: 0 }));
     await settled();
-    await expect.poll(scrollable).toBe(true);
+    // a precondition on a fetch, not the behaviour under test: under a loaded parallel run the
+    // card's sections queue behind other workers, and the default 5s is not that wait
+    await expect.poll(scrollable, { timeout: 20_000 }).toBe(true);
     await page.mouse.move(x + 4, y + 4);
     await expect.poll(overflow).toBe("auto");
     await page.mouse.wheel(0, 250);
@@ -190,16 +209,20 @@ test("the card's menu button stays put while its menu is open", async ({ page })
     const media = page.getByTitle("Menu anchor deck").locator("..").first();
     const dots = media.getByTitle("Move to folder");
 
-    // it is hover chrome, so it is not there until the pointer is
-    await expect(dots).not.toBeVisible();
+    // Hover chrome here is opacity, not mounting: the button is always in the tree and fades in
+    // under `group-hover`. Playwright counts an opacity-0 element as visible, so asserting
+    // `not.toBeVisible()` only held while the card had not painted yet, which made this race the
+    // order of the run. Read the opacity the rule actually sets.
+    const fade = (): Promise<string> => dots.evaluate((el) => getComputedStyle(el).opacity);
+    await expect.poll(fade).toBe("0");
     await media.hover();
-    await expect(dots).toBeVisible();
+    await expect.poll(fade).toBe("1");
 
     // Opening it moves the pointer into a panel portalled to <body>, so the card's hover ends and a
     // mouse click does not match :focus-visible. Without care the button vanishes under its own menu.
     await dots.click();
     await expect(page.getByText("Duplicate", { exact: true })).toBeVisible();
-    await expect(dots).toBeVisible();
+    await expect.poll(fade).toBe("1"); // still lit, not hidden under its own menu
 
     await page.request.post(`/api/artifacts/${id}/trash`);
 });
