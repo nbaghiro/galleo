@@ -157,7 +157,10 @@ export const GutterPills: Component = () => {
 };
 
 export const DropIndicators: Component = () => {
-    const newSection = createMemo(() => drag()?.target?.op === "newSection");
+    // A new-section target is marked by the band rather than a line, but only the element paths
+    // build a receiver for it: a section dragged in the stack has no receiver box, so suppressing
+    // the line there left the drag with no landing mark at all. Suppress only when a band follows.
+    const newSection = createMemo(() => drag()?.target?.op === "newSection" && !!drag()?.receiver);
     const activeLine = createMemo(() => {
         const ind = drag()?.indicator;
         return ind?.kind === "line" && !newSection() ? ind : null;

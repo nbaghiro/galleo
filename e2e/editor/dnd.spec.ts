@@ -56,8 +56,10 @@ test("moving an element shows indicators without reflow and drops at the line", 
         { x: cBox.x + cBox.width - 4, y: cBox.y + cBox.height / 2 },
     ]);
 
-    // overlays are up: ghost follows the cursor, the source is veiled, indicators mark the slots
-    await expect(page.getByTestId("drag-ghost")).toBeVisible();
+    // overlays are up: the element rides at its slot, the source is veiled, the line marks the drop.
+    // The cursor pill is a section drag's mark, so an element move leaves it mounted and hidden.
+    await expect(page.getByTestId("slot-card")).toBeVisible();
+    await expect(page.getByTestId("drag-ghost")).toBeHidden();
     await expect(page.getByTestId("lift-veil")).toBeVisible();
     await expect(page.getByTestId("drop-active")).toBeVisible();
 
