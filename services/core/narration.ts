@@ -58,6 +58,47 @@ async function rowsFor(artifactId: string): Promise<(typeof schema.narrations.$i
         .where(eq(schema.narrations.artifactId, artifactId));
 }
 
+// The voice a piece speaks with, the recordings it has, and whether a section's is current: one
+// definition of "cached", shared by the run that records and the pass that decides what to record.
+// Adopts a default voice on first use, so it belongs to the write path only.
+async function recorded(
+    artifactId: string,
+    content: ArtifactContent,
+    workspaceId: string,
+    fetchFn?: typeof fetch,
+): Promise<{
+    voice: { id: string; externalId: string; name: string };
+    rows: (typeof schema.narrations.$inferSelect)[];
+    hashOf: (s: Section) => string;
+    current: (s: Section) => boolean;
+}> {
+    const voice = await ensureVoice(workspaceId, content.voice, fetchFn);
+    if (!voice)
+        throw new Error(
+            "No narration voice could be found. Add one in workspace settings and try again.",
+        );
+    const rows = await rowsFor(artifactId);
+    const have = new Set(rows.map((r) => `${r.sectionId}:${r.hash}`));
+    const hashOf = (s: Section): string =>
+        narrationHash(spokenOf(s), voice.externalId, NARRATION_MODEL);
+    return { voice, rows, hashOf, current: (s) => have.has(`${s.id}:${hashOf(s)}`) };
+}
+
+/**
+ * The narratable sections with no current recording: what a run would synthesize now. A prepare
+ * pass asks for these alone, so a section already recorded never reaches the executor, holds
+ * nothing, and leaves nothing in the ledger or the traces.
+ */
+export async function unrecorded(
+    artifactId: string,
+    content: ArtifactContent,
+    workspaceId: string,
+    fetchFn?: typeof fetch,
+): Promise<Section[]> {
+    const { current } = await recorded(artifactId, content, workspaceId, fetchFn);
+    return narratable(content).filter((s) => !current(s));
+}
+
 /**
  * What the player can play. A section with notes but no current row is `stale`: it dwells rather
  * than being skipped, because someone meant to narrate it and the audio just is not built yet.
@@ -218,24 +259,22 @@ export async function* prepare(
     sectionIds: readonly string[] | undefined,
     fetchFn?: typeof fetch,
 ): AsyncGenerator<PrepareEvent, void> {
-    // adopts a default on first use, so narration works before anyone opens settings
-    const voice = await ensureVoice(workspaceId, content.voice, fetchFn);
-    if (!voice)
-        throw new Error(
-            "No narration voice could be found. Add one in workspace settings and try again.",
-        );
     // a section deleted since the last run leaves audio nothing points at; this is the one path that
     // already walks the whole piece, so it is where the sweep belongs
     await pruneOrphans(artifactId, content);
     const wanted = sectionIds?.length ? new Set(sectionIds) : null;
-    const rows = await rowsFor(artifactId);
-    const have = new Set(rows.map((r) => `${r.sectionId}:${r.hash}`));
+    const { voice, rows, hashOf, current } = await recorded(
+        artifactId,
+        content,
+        workspaceId,
+        fetchFn,
+    );
 
     for (const section of narratable(content)) {
         if (wanted && !wanted.has(section.id)) continue;
         const spoken = spokenOf(section);
-        const hash = narrationHash(spoken, voice.externalId, NARRATION_MODEL);
-        if (have.has(`${section.id}:${hash}`)) {
+        if (current(section)) {
+            const hash = hashOf(section);
             const row = rows.find((r) => r.sectionId === section.id && r.hash === hash)!;
             yield { sectionId: section.id, ms: row.ms, cached: true, chars: 0 };
             continue;

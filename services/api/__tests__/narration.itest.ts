@@ -315,9 +315,8 @@ describe("who pays when a collaborator narrates someone else's artifact", () => 
         return { owner, guest, artifactId: a!.id };
     }
 
-    // Ledger rows rather than the balance: the run reaches a provider this test cannot reach, so
-    // the reserve settles back to nothing. What it still proves is which tenant the hold was taken
-    // against, which is the whole question.
+    // The narration has to land: a run that cost nothing leaves no ledger row, so the provider is
+    // the fake one for the length of the call and the charge it leaves says which tenant paid.
     const ledgerRows = async (workspaceId: string): Promise<number> => {
         const rows = await db
             .select({ id: schema.credits.id })
@@ -331,13 +330,19 @@ describe("who pays when a collaborator narrates someone else's artifact", () => 
         const guestBefore = await ledgerRows(guest.workspaceId);
         const ownerBefore = await ledgerRows(owner.workspaceId);
 
-        const res = await authed(
-            guest.userId,
-            `/artifacts/${artifactId}/narration`,
-            jsonInit("POST", {}),
-        );
-        expect(res.status).toBe(200);
-        await res.text(); // drain the stream so the settle runs
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = fakeProvider;
+        try {
+            const res = await authed(
+                guest.userId,
+                `/artifacts/${artifactId}/narration`,
+                jsonInit("POST", {}),
+            );
+            expect(res.status).toBe(200);
+            await res.text(); // drain the stream so the settle runs
+        } finally {
+            globalThis.fetch = realFetch;
+        }
 
         expect(await ledgerRows(guest.workspaceId)).toBe(guestBefore);
         expect(await ledgerRows(owner.workspaceId)).toBeGreaterThan(ownerBefore);

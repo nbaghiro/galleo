@@ -6,9 +6,11 @@ import { MockLanguageModelV4, convertArrayToReadableStream } from "ai/test";
 
 export const fakeAiActive = (): boolean => process.env.GALLEO_FAKE_AI === "1";
 
+// a canned answer still reports tokens, so a scripted run costs credits the way a real one does
+// and the ledger path under test is the production one, not a free variant of it
 const USAGE = {
-    inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 },
-    outputTokens: { total: 0, text: 0, reasoning: 0 },
+    inputTokens: { total: 400, noCache: 400, cacheRead: 0, cacheWrite: 0 },
+    outputTokens: { total: 120, text: 120, reasoning: 0 },
 } as const;
 
 interface PromptPart {

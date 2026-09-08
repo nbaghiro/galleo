@@ -12,9 +12,9 @@ import { aiReady } from "@services/core/ai/provider";
 import { speechReady } from "@services/core/ai/speech";
 import { musicReady } from "@services/core/ai/music";
 import { DEFAULT_MS } from "@services/core/ai/music";
-import { pruneOrphans, spokenOf, unitsFor } from "@services/core/narration";
+import { pruneOrphans, spokenOf, unitsFor, unrecorded } from "@services/core/narration";
 import type { Composed, Narrated } from "@services/core/ai/tools/audio";
-import { bedMinutes } from "@services/core/soundtrack";
+import { bedFor, bedMinutes } from "@services/core/soundtrack";
 import { unitPricesFor } from "@services/core/models";
 import { warn } from "@services/utils/env";
 
@@ -139,7 +139,13 @@ export async function prepare({ artifactId, workspaceId }: PrepareTarget): Promi
         await recordSections(artifactId, workspaceId, ws, spender, content);
     }
 
-    if (features.audio && musicReady() && !content.music?.trackId)
+    // only a bed the piece does not have yet: a cached one must not reach the executor at all
+    if (
+        features.audio &&
+        musicReady() &&
+        !content.music?.trackId &&
+        !(await bedFor(artifactId, content, DEFAULT_MS))
+    )
         await composeBed(artifactId, workspaceId, ws, spender, content);
 }
 
@@ -253,7 +259,12 @@ async function fillScripts(
     };
 }
 
-/** Record every scripted section that has no audio, one at a time so a long piece stays polite. */
+/**
+ * Record every scripted section that has no current audio, one at a time so a long piece stays
+ * polite. Which sections that is gets decided here, before the executor: a section already recorded
+ * would only hold credits and settle to nothing, and a pass over a prepared piece must cost nothing
+ * and record nothing.
+ */
 async function recordSections(
     artifactId: string,
     workspaceId: string,
@@ -261,9 +272,12 @@ async function recordSections(
     spender: string,
     content: ArtifactContent,
 ): Promise<void> {
-    for (const section of content.sections) {
+    const missing = await unrecorded(artifactId, content, workspaceId).catch((e: unknown) => {
+        warn(`prepare voice ${artifactId}: ${e instanceof Error ? e.message : "failed"}`);
+        return [];
+    });
+    for (const section of missing) {
         const chars = spokenOf(section).length;
-        if (!chars) continue;
 
         const out = await runTool<Narrated>(
             { id: "narrate-artifact", surface: "direct", input: { sectionIds: [section.id] } },

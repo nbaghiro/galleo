@@ -108,6 +108,22 @@ const recordings = async (id: string): Promise<number> => {
     return rows.length;
 };
 
+const ledgerRows = async (workspaceId: string): Promise<number> => {
+    const rows = await db
+        .select({ id: schema.credits.id })
+        .from(schema.credits)
+        .where(eq(schema.credits.workspaceId, workspaceId));
+    return rows.length;
+};
+
+const traceRows = async (workspaceId: string): Promise<number> => {
+    const rows = await db
+        .select({ id: schema.traces.id })
+        .from(schema.traces)
+        .where(eq(schema.traces.workspaceId, workspaceId));
+    return rows.length;
+};
+
 const beds = async (id: string): Promise<number> => {
     const rows = await db
         .select({ id: schema.soundtracks.id })
@@ -145,10 +161,15 @@ describe("preparing a piece before anyone asks", () => {
             return counted(u, i);
         }) as typeof fetch;
 
+        const ledgerBefore = await ledgerRows(workspaceId);
+        const tracesBefore = await traceRows(workspaceId);
         await prepare({ artifactId, workspaceId });
         expect(calls).toBe(0);
         expect(await recordings(artifactId)).toBe(1);
         expect(await beds(artifactId)).toBe(1);
+        // a prepared piece never reaches the executor: nothing held, nothing traced
+        expect(await ledgerRows(workspaceId)).toBe(ledgerBefore);
+        expect(await traceRows(workspaceId)).toBe(tracesBefore);
     });
 
     /**

@@ -123,23 +123,39 @@ export async function selfDescription(artifactId: string): Promise<SelfDescripti
  * total when there is one, so a narrated piece gets a bed that runs exactly as long as the voice and
  * never has to loop.
  */
+/** What a bespoke bed for this piece would be made from, and the key it is cached under. */
+async function bedKey(
+    artifactId: string,
+    content: ArtifactContent,
+    lengthMs: number,
+): Promise<{ prompt: string; ms: number; hash: string }> {
+    const { theme, title } = await selfDescription(artifactId);
+    const prompt = bespokePrompt(content, theme, title);
+    const ms = clampMs(lengthMs || DEFAULT_MS);
+    return { prompt, ms, hash: musicHash(prompt, ms, MUSIC_MODEL) };
+}
+
+/**
+ * The bed this piece already has for its current description, if any. A prepare pass checks this
+ * before it composes, so a piece that has its bed never reaches the executor for it.
+ */
+export async function bedFor(
+    artifactId: string,
+    content: ArtifactContent,
+    lengthMs: number,
+): Promise<typeof schema.soundtracks.$inferSelect | null> {
+    const { hash } = await bedKey(artifactId, content, lengthMs);
+    return (await byArtifactHash(artifactId, hash)) ?? null;
+}
+
 export async function composeForArtifact(
     artifactId: string,
     content: ArtifactContent,
     lengthMs: number,
     fetchFn?: typeof fetch,
 ): Promise<{ row: typeof schema.soundtracks.$inferSelect; ms: number }> {
-    const { theme, title } = await selfDescription(artifactId);
-    const prompt = bespokePrompt(content, theme, title);
-    const ms = clampMs(lengthMs || DEFAULT_MS);
-    const hash = musicHash(prompt, ms, MUSIC_MODEL);
-
-    const [held] = await db
-        .select()
-        .from(schema.soundtracks)
-        .where(
-            and(eq(schema.soundtracks.artifactId, artifactId), eq(schema.soundtracks.hash, hash)),
-        );
+    const { prompt, ms, hash } = await bedKey(artifactId, content, lengthMs);
+    const held = await byArtifactHash(artifactId, hash);
     if (held) return { row: held, ms: 0 };
 
     const out = await compose(prompt, ms, fetchFn);
