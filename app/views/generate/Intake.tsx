@@ -299,6 +299,9 @@ export const Intake: Component = () => {
                             >
                                 <TextArea
                                     ref={field}
+                                    // the modal's focus trap prefers [autofocus] over the first
+                                    // focusable, which is the close button: a run starts by typing
+                                    autofocus
                                     rounded="xl"
                                     rows={4}
                                     class="border-0 bg-transparent text-[15px] leading-relaxed placeholder:text-muted"
