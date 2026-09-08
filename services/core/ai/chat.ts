@@ -229,7 +229,11 @@ export async function* runChat(input: ChatInput, ctx: ToolContext): AsyncGenerat
                 context: input.context,
                 generation: ctx.generation,
                 content: ctx.artifact,
-                tools: offered.map((t) => ({ id: t.id, describe: t.describe })),
+                tools: offered.map((t) => ({
+                    id: t.id,
+                    describe: t.describe,
+                    confirm: confirmFor(t.id),
+                })),
             }),
             retrievedContext(packText),
             recallText

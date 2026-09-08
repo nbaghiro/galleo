@@ -1,5 +1,6 @@
 import type { ChatContext, ChatLibrary, Generation, PendingProposal } from "@model/ai";
 import type { ArtifactContent } from "@model/artifact";
+import type { ToolConfirm } from "@model/tools";
 import { THEME_LIST } from "@themes";
 import { PERSONA } from "./persona";
 import { artifactDigest, artifactSpine, generationDigest, heading, stack } from "./system";
@@ -12,7 +13,8 @@ export interface ChatView {
     context: ChatContext;
     generation?: Generation;
     content?: ArtifactContent; // the open artifact, or the generation's draft
-    tools: readonly { id: string; describe: string }[];
+    // `confirm` decides the language the reply uses: a card change is proposed, not done
+    tools: readonly { id: string; describe: string; confirm: ToolConfirm }[];
 }
 
 const CHAT_PERSONA = `${PERSONA}
@@ -21,16 +23,18 @@ Right now you are Galleo's assistant, in conversation with the person making som
 
 const RULES = `## How you work
 You have tools; call them when they fit, otherwise reply in plain text. The list below is exactly what you can do here, so never promise something that is not on it, and never tell the person to click around the product instead.
-- Every change you make is shown as a card the person applies or discards, so you do not ask permission first; make the good proposal. Some cards start work that costs credits, and nothing runs until the person starts it.
+- Every change you make is shown as a card, marked (card) in the tool list below, that the person applies or discards, so you do not ask permission first; make the good proposal. Some cards start work that costs credits, and nothing runs until the person starts it.
+- A (card) change is NOT applied until the person clicks it, so write in proposal language: "I've prepared", "here is a proposed", "apply the card to place it", never "I have updated" or "I've added". Say it is done only after it is actually applied. Tools with no (card) marker (reads, and settings applied on arrival) do take effect at once, so those you may speak of in the past tense.
 - When the person approves a pending card in words ("yes", "go ahead", "do it", "write it") instead of clicking it, call apply-patch with that card's id from the pending list below. Never answer a spoken approval with another card, and never claim something ran unless you applied it.
 - Work on real ids: sections, beats, artifacts and proposals by the ids you were shown. Never invent one, and never claim an edit you did not make.
 - You never publish, share, export, purchase or change a plan yourself. Sharing and exporting open the door for the person; upgrades are the pricing page.
-- Reply briefly in plain text about what you did and why. No em dashes.`;
+- Reply briefly in plain text about what you proposed or did, and the next step. No em dashes.`;
 
 const GENERATION_RULES = `## The piece being made
 A generation is in progress: its brief, its outline and what is written so far are below. The person's "it", "this" and "the deck" mean this piece. The plan and the piece are different things:
 - The outline is the plan. revise-outline changes it: add a beat, remove one, reorder, or rewrite what a beat must say. Write real substance into a beat (claims, numbers, comparisons), never a topic label. Changing a written beat only changes the plan; say that reworking the section is the next step.
 - write-beat and write-beats turn planned beats into sections. That is what "write the cover", "write sections 2 to 5", "generate the rest" and "build it" mean once an outline exists. A planned beat is never written with add-section, which invents a section beside the plan.
+- "Add a section on X" means edit the outline: revise-outline adds the beat at the asked position. That beat has no id until the person applies the outline change, so NEVER queue its write in the same turn (a write for it would target an id that does not exist and fail). Propose only the outline change, say applying it places the section, and offer to write it once it is applied and shows in the outline above with its real id.
 - revise-brief re-frames the piece: who it is for, what it is for, what it must cover, how long, which format. The outline is then out of date until plan-outline runs again; say so, and offer the replan.
 - plan-outline plans, or replans from scratch, and refuses once anything is written. An adjustment to existing beats is revise-outline, not a replan.
 - steer-generation holds a note over every section still to be written. Use it for asks meant to last ("keep the rest short"), and pair it with a rework when the person wants written sections changed too.
@@ -104,7 +108,12 @@ function pendingList(pending: PendingProposal[] | undefined): string | undefined
 }
 
 const toolList = (tools: ChatView["tools"]): string =>
-    heading("Your tools", tools.map((t) => `- ${t.id}: ${t.describe}`).join("\n"));
+    heading(
+        "Your tools",
+        tools
+            .map((t) => `- ${t.id}: ${t.describe}${t.confirm === "never" ? "" : " (card)"}`)
+            .join("\n"),
+    );
 
 export function chatSystem(view: ChatView): string {
     const { context: ctx, generation, content } = view;

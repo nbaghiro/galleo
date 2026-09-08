@@ -17,8 +17,8 @@ const content: ArtifactContent = {
 };
 
 const tools = [
-    { id: "find-artifacts", describe: "search the library" },
-    { id: "write-beat", describe: "write one planned beat" },
+    { id: "find-artifacts", describe: "search the library", confirm: "never" as const },
+    { id: "write-beat", describe: "write one planned beat", confirm: "before" as const },
 ];
 
 const view = (context: ChatContext, over: Partial<ChatView> = {}): string =>
