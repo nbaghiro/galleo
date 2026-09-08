@@ -155,6 +155,9 @@ const surfaced = (d: ContainerData, ctx: LayoutCtx, kids: EngineNode[]): EngineN
         ...(dir === "grid" ? { columns: gridCols(d) } : {}),
         gap: d.gap ?? 12,
         padding,
+        // the same cross-axis mapping bare() makes; a surface changes the paint, never the axes
+        alignX: dir === "col" ? colAlign(d) : undefined,
+        alignY: dir === "col" ? undefined : d.align,
         ...justified(d, dir),
         children: dir === "grid" ? kids.map(unfraction) : kids,
     });
