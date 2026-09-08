@@ -1,5 +1,14 @@
 import type { Component, JSX } from "solid-js";
-import { createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import {
+    createEffect,
+    createMemo,
+    createSignal,
+    For,
+    onCleanup,
+    onMount,
+    Show,
+    untrack,
+} from "solid-js";
 import type { ArtifactSummary, SectionSummary } from "@model/artifact";
 import { emptyRegion } from "@model/artifact";
 import type { Template } from "@model/templates";
@@ -35,6 +44,7 @@ export interface PickedShape {
 
 const CARD_ASPECT = 16 / 9;
 const CARD_MIN = 220; // narrowest a card gets before a band drops a column
+const CARD_LEAD = "400px"; // how far ahead of the viewport a card asks for its cover
 const CARD_GAP = 20;
 const INSET = "px-5 md:px-9";
 
@@ -43,9 +53,10 @@ const Card: Component<{
     format: string;
     designs: number;
     selected: boolean;
+    ref?: (el: HTMLElement) => void;
     children: JSX.Element;
 }> = (props) => (
-    <div class="min-w-0">
+    <div ref={props.ref} class="min-w-0">
         {props.children}
         <div class="mt-2.5 flex items-center gap-2">
             <Eyebrow as="span" size={9} class="text-accent">
@@ -97,12 +108,28 @@ const YourCard: Component<{
 }> = (props) => {
     const cover = (): SectionSummary | undefined => props.art.sections?.[0];
     const coverId = (): string => cover()?.id ?? "";
+    // The pane shows the whole page of the library at once, so asking on mount fetched a cover for
+    // every artifact whether or not it was on screen. Gated the way the library gates its own
+    // cards: covers the list already loaded come from the shared cache and cost nothing either way.
+    let root!: HTMLElement;
+    const [near, setNear] = createSignal(false);
     onMount(() => {
-        if (coverId()) void ensureCardSections(props.art.id, [coverId()]);
+        const io = new IntersectionObserver((es) => setNear(es.some((e) => e.isIntersecting)), {
+            rootMargin: CARD_LEAD,
+        });
+        io.observe(root);
+        onCleanup(() => io.disconnect());
+    });
+    createEffect(() => {
+        const id = coverId();
+        // untracked for the library's reason: the cache is one signal for every card, and tracking
+        // it turns one card's fetch into every card's re-ask
+        if (near() && id) untrack(() => void ensureCardSections(props.art.id, [id]));
     });
     const loaded = () => (coverId() ? cardSection(props.art.id, coverId()) : undefined);
     return (
         <Card
+            ref={(el) => (root = el)}
             name={props.art.title}
             format={props.art.formatId}
             designs={props.art.sections?.length ?? 0}
