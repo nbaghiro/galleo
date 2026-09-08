@@ -182,6 +182,46 @@ describe("ensureCardSections", () => {
         expect(missingCardSections("a7", ["s1", "s2"])).toEqual([]);
     });
 
+    it("an evicted card keeps its cover, so a later surface does not refetch what it had", async () => {
+        // one more artifact than the cache holds, each with a cover the list surfaces paint
+        const ids = Array.from({ length: CARD_CACHE_MAX + 1 }, (_, i) => `e${i}`);
+        stubFetch([
+            {
+                artifacts: ids.map((id) =>
+                    summary(id, { sections: [{ id: "cover", kind: "cover" }] }),
+                ),
+                nextCursor: null,
+            },
+        ]);
+        await loadLibrary({});
+        stubFetch([sections(["cover"])]);
+        for (const id of ids) await ensureCardSections(id, ["cover"]);
+
+        // e0 is the least recently touched, so it is the one eviction reaches
+        expect(cardSection("e0", "cover")?.id).toBe("cover");
+        expect(missingCardSections("e0", ["cover"])).toEqual([]);
+    });
+
+    it("an evicted card still loses the sections beyond its cover", async () => {
+        const ids = Array.from({ length: CARD_CACHE_MAX + 1 }, (_, i) => `f${i}`);
+        stubFetch([
+            {
+                artifacts: ids.map((id) =>
+                    summary(id, { sections: [{ id: "cover", kind: "cover" }] }),
+                ),
+                nextCursor: null,
+            },
+        ]);
+        await loadLibrary({});
+        stubFetch([sections(["cover", "s2"])]);
+        await ensureCardSections("f0", ["cover", "s2"]);
+        stubFetch([sections(["cover"])]);
+        for (const id of ids.slice(1)) await ensureCardSections(id, ["cover"]);
+
+        expect(cardSection("f0", "cover")?.id).toBe("cover");
+        expect(cardSection("f0", "s2")).toBeUndefined(); // the weight is what goes
+    });
+
     it("leaves the tiles as stand-ins when the fetch fails", async () => {
         stubFetch([page(["a5"], null)]);
         await loadLibrary({});

@@ -1,6 +1,6 @@
 import type { ArtifactAccess, ArtifactContent, ElementInstance, Section } from "@model/artifact";
 import { emptyRegion } from "@model/artifact";
-import { createSignal } from "solid-js";
+import { createSignal, untrack } from "solid-js";
 import { api, type ArtifactSummary } from "@app/api";
 import { asFormat } from "@model/analytics";
 import { capture } from "@ui/analytics";
@@ -143,13 +143,25 @@ function touchCard(id: string): void {
     recentCards.unshift(id);
 }
 
+// An evicted card keeps its cover and loses the rest. The cap is there to stop a long scroll
+// accumulating whole artifacts, and the weight is in the extra sections a plate or a carousel
+// pulls, not in the one section every list surface paints. Dropping covers too meant scrolling
+// past 72 artifacts and then opening the design pane refetched 20 of the 24 covers that scroll
+// had just loaded; a cover per listed artifact is bounded by the list itself.
 function evictCards(
     next: Record<string, Record<string, Section>>,
 ): Record<string, Record<string, Section>> {
     if (recentCards.length <= CARD_CACHE_MAX) return next;
     const drop = recentCards.splice(CARD_CACHE_MAX);
     const kept = { ...next };
-    for (const id of drop) delete kept[id];
+    // untracked: this runs inside a setter, and the list is not a dependency of the cache
+    const coverOf = untrack(() => new Map(artifacts().map((a) => [a.id, a.sections?.[0]?.id])));
+    for (const id of drop) {
+        const cover = coverOf.get(id);
+        const held = cover ? kept[id]?.[cover] : undefined;
+        if (held) kept[id] = { [cover!]: held };
+        else delete kept[id];
+    }
     return kept;
 }
 
