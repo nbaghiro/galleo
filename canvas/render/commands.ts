@@ -154,7 +154,13 @@ export function layoutOutline(
     ghosts: Record<string, string> = {},
     draftFields: ReadonlySet<string> = new Set(),
 ): { commands: RenderCommand[]; regions: Region[]; height: number } {
-    const node = composeSection(section, ctxFor(width, theme, format, false, measure));
+    const composed = composeSection(section, ctxFor(width, theme, format, false, measure));
+    // The draft card wears the outline wrapper's own border. Drop the section's painted card border
+    // here so the two do not fight: the painted one sits at the layout-box edge, where the section's
+    // x-clip shaves its right stroke and leaves the wrapper border showing through on that side only.
+    const node = composed.fill?.border
+        ? { ...composed, fill: { ...composed.fill, border: undefined } }
+        : composed;
     const out = layoutGhosts(node, width, measure, ghostColors(theme), ghosts, copyId, draftFields);
     return { ...out, height: bottom(out.commands) };
 }

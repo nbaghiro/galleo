@@ -474,8 +474,7 @@ const Frame: Component<{
             <div
                 class="transition-colors"
                 classList={{
-                    "overflow-hidden rounded-xl border border-dashed border-accent/25":
-                        !doneReady() && paged(),
+                    "overflow-hidden rounded-xl border border-line": !doneReady() && paged(),
                     "ring-1 ring-accent shadow-[0_0_30px_-6px_var(--color-accent)]":
                         active() || selected(),
                     "shadow-[0_30px_60px_-40px_rgba(0,0,0,0.5)]": doneReady() && paged(),
