@@ -1,6 +1,7 @@
 import type { EngineNode } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
 import { fixed, grow } from "@model/geometry";
+import { fontStack } from "@themes";
 import { drawIcon, ICON_LIBRARY } from "@elements/media/vector";
 import {
     PAD,
@@ -15,6 +16,7 @@ import {
 const GAP = 10;
 const MAX_SLOTS = 20; // past this the marks stop being countable at a glance
 const DEFAULT_GLYPH = "users";
+const VALUE_W = 38; // the count's own column at the end of the strip
 
 function arrange(
     diagram: ResolvedDiagram,
@@ -68,7 +70,9 @@ function arrange(
                         h: fixed(rowH),
                         surface: {
                             paint: (g, box) => {
-                                const { size, step } = marks(box.w, box.h);
+                                // the count sits in a column of its own; without it the marks take
+                                // the whole strip and the figure paints past the edge
+                                const { size, step } = marks(Math.max(40, box.w - VALUE_W), box.h);
                                 const y = (box.h - size) / 2;
                                 for (let k = 0; k < slots; k++)
                                     drawIcon(
@@ -81,10 +85,18 @@ function arrange(
                                     );
                                 // the marks are counted against each other, so they need a shared
                                 // line to be counted from
+                                const end = step * (slots - 1) + size;
                                 const base = Math.min(box.h - 1, y + size + 5);
-                                g.line(0, base, step * (slots - 1) + size, base, {
-                                    stroke: ctx.theme.line,
-                                    width: 1,
+                                g.line(0, base, end, base, { stroke: ctx.theme.line, width: 1 });
+                                // the marks are countable, but nobody counts twenty of them; the
+                                // figure is chrome the data already carries, like a chart's label
+                                g.text(String(filled), end + 12, box.h / 2, {
+                                    fill: ctx.theme.muted,
+                                    size: 12,
+                                    weight: 600,
+                                    font: fontStack("mono", ctx.theme),
+                                    align: "start",
+                                    baseline: "middle",
                                 });
                             },
                         },

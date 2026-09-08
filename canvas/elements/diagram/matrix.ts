@@ -1,5 +1,6 @@
 import type { EngineNode } from "@engine/node";
 import type { LayoutCtx } from "@elements/spec";
+import { mix } from "@themes";
 import { fixed, grow, percent } from "@model/geometry";
 import {
     PAD,
@@ -64,6 +65,23 @@ function arrange(
             gap: GAP,
             children: Array.from({ length: ncol }, (_, c) =>
                 header(colHeaders[c] ?? "", ctx.theme),
+            ),
+        });
+    // a header that only floats above its column reads as a stray caption; the rule is what makes
+    // it the column's heading
+    if (hasHeaders)
+        rows.push({
+            w: grow(),
+            h: fixed(1),
+            direction: "row",
+            gap: GAP,
+            children: Array.from(
+                { length: ncol },
+                (): EngineNode => ({
+                    w: grow(),
+                    h: fixed(1),
+                    fill: { color: mix(ctx.theme.line, ctx.theme.ink, 0.35) },
+                }),
             ),
         });
     for (let r = 0; r < nrow; r++) {

@@ -260,7 +260,11 @@ const VARIANTS: {
         label: "Funnel",
         type: "funnel",
         preset: {
-            items: "Awareness, Interest, Consideration, Intent, Purchase",
+            // a funnel with no numbers is a stack of trapezoids; the values size the bands and the
+            // bands now state them
+            items:
+                "Awareness | | 4800\nInterest | | 2100\nConsideration | | 960\n" +
+                "Intent | | 410\nPurchase | | 330",
         },
     },
     {

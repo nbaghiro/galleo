@@ -192,6 +192,9 @@ exports[`composed diagrams > funnel keeps a stable command profile 1`] = `
       "lineTo",
       "lineTo",
       "closePath",
+      "text",
+      "text",
+      "text",
     ],
   ],
   "profile": [
@@ -207,8 +210,8 @@ exports[`composed diagrams > funnel keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 389,
-        "x": 125,
+        "w": 359,
+        "x": 164,
         "y": 37,
       },
       "kind": "text",
@@ -216,8 +219,8 @@ exports[`composed diagrams > funnel keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 389,
-        "x": 125,
+        "w": 359,
+        "x": 164,
         "y": 56,
       },
       "kind": "text",
@@ -225,8 +228,8 @@ exports[`composed diagrams > funnel keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 187,
-        "x": 227,
+        "w": 171,
+        "x": 257,
         "y": 113,
       },
       "kind": "text",
@@ -234,8 +237,8 @@ exports[`composed diagrams > funnel keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 187,
-        "x": 227,
+        "w": 171,
+        "x": 257,
         "y": 132,
       },
       "kind": "text",
@@ -243,8 +246,8 @@ exports[`composed diagrams > funnel keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 187,
-        "x": 227,
+        "w": 171,
+        "x": 257,
         "y": 189,
       },
       "kind": "text",
@@ -252,8 +255,8 @@ exports[`composed diagrams > funnel keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 187,
-        "x": 227,
+        "w": 171,
+        "x": 257,
         "y": 208,
       },
       "kind": "text",
@@ -358,7 +361,7 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 20,
         "w": 301,
         "x": 14,
-        "y": 19,
+        "y": 14,
       },
       "kind": "text",
     },
@@ -367,16 +370,34 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 20,
         "w": 301,
         "x": 325,
-        "y": 19,
+        "y": 14,
       },
       "kind": "text",
+    },
+    {
+      "box": {
+        "h": 1,
+        "w": 301,
+        "x": 14,
+        "y": 44,
+      },
+      "kind": "rect",
+    },
+    {
+      "box": {
+        "h": 1,
+        "w": 301,
+        "x": 325,
+        "y": 44,
+      },
+      "kind": "rect",
     },
     {
       "box": {
         "h": 91,
         "w": 301,
         "x": 14,
-        "y": 49,
+        "y": 55,
       },
       "kind": "rect",
     },
@@ -385,7 +406,7 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 16,
         "w": 281,
         "x": 24,
-        "y": 78,
+        "y": 84,
       },
       "kind": "text",
     },
@@ -394,7 +415,7 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 15,
         "w": 281,
         "x": 24,
-        "y": 96,
+        "y": 102,
       },
       "kind": "text",
     },
@@ -403,7 +424,7 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 91,
         "w": 301,
         "x": 325,
-        "y": 49,
+        "y": 55,
       },
       "kind": "rect",
     },
@@ -412,7 +433,7 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 16,
         "w": 281,
         "x": 335,
-        "y": 78,
+        "y": 84,
       },
       "kind": "text",
     },
@@ -421,7 +442,7 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 15,
         "w": 281,
         "x": 335,
-        "y": 96,
+        "y": 102,
       },
       "kind": "text",
     },
@@ -430,7 +451,7 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 91,
         "w": 301,
         "x": 14,
-        "y": 150,
+        "y": 156,
       },
       "kind": "rect",
     },
@@ -439,7 +460,7 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 16,
         "w": 281,
         "x": 24,
-        "y": 179,
+        "y": 185,
       },
       "kind": "text",
     },
@@ -448,7 +469,7 @@ exports[`composed diagrams > matrix keeps a stable command profile 1`] = `
         "h": 15,
         "w": 281,
         "x": 24,
-        "y": 197,
+        "y": 203,
       },
       "kind": "text",
     },
@@ -869,6 +890,7 @@ exports[`composed diagrams > pictogram keeps a stable command profile 1`] = `
       "moveTo",
       "bezierCurveTo",
       "line",
+      "text",
     ],
     [
       "path",
@@ -1076,6 +1098,7 @@ exports[`composed diagrams > pictogram keeps a stable command profile 1`] = `
       "moveTo",
       "bezierCurveTo",
       "line",
+      "text",
     ],
     [
       "path",
@@ -1283,6 +1306,7 @@ exports[`composed diagrams > pictogram keeps a stable command profile 1`] = `
       "moveTo",
       "bezierCurveTo",
       "line",
+      "text",
     ],
   ],
   "profile": [
@@ -1525,6 +1549,9 @@ exports[`composed diagrams > pyramid keeps a stable command profile 1`] = `
       "lineTo",
       "lineTo",
       "closePath",
+      "text",
+      "text",
+      "text",
     ],
   ],
   "profile": [
@@ -1541,7 +1568,7 @@ exports[`composed diagrams > pyramid keeps a stable command profile 1`] = `
       "box": {
         "h": 16,
         "w": 72,
-        "x": 284,
+        "x": 307,
         "y": 30,
       },
       "kind": "text",
@@ -1550,7 +1577,7 @@ exports[`composed diagrams > pyramid keeps a stable command profile 1`] = `
       "box": {
         "h": 30,
         "w": 72,
-        "x": 284,
+        "x": 307,
         "y": 48,
       },
       "kind": "text",
@@ -1558,8 +1585,8 @@ exports[`composed diagrams > pyramid keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 243,
-        "x": 198,
+        "w": 224,
+        "x": 231,
         "y": 113,
       },
       "kind": "text",
@@ -1567,8 +1594,8 @@ exports[`composed diagrams > pyramid keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 243,
-        "x": 198,
+        "w": 224,
+        "x": 231,
         "y": 132,
       },
       "kind": "text",
@@ -1576,8 +1603,8 @@ exports[`composed diagrams > pyramid keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 16,
-        "w": 418,
-        "x": 111,
+        "w": 385,
+        "x": 151,
         "y": 189,
       },
       "kind": "text",
@@ -1585,8 +1612,8 @@ exports[`composed diagrams > pyramid keeps a stable command profile 1`] = `
     {
       "box": {
         "h": 15,
-        "w": 418,
-        "x": 111,
+        "w": 385,
+        "x": 151,
         "y": 208,
       },
       "kind": "text",
@@ -2148,6 +2175,12 @@ exports[`composed diagrams > venn keeps a stable command profile 1`] = `
       "circle",
       "circle",
       "circle",
+      "path",
+      "moveTo",
+      "arc",
+      "arc",
+      "arc",
+      "closePath",
     ],
   ],
   "profile": [

@@ -96,6 +96,22 @@ function arrange(
     collect(left.placed, (x) => W / 2 - (x - lx), true);
 
     const at = new Map(spots.map((s) => [s.label, s] as const));
+    // A branch is one idea, so it carries one colour down its whole length; colouring by item index
+    // said "these six things descend in importance", which a map does not claim.
+    const branchOf = new Map<string, number>();
+    data.children.forEach((child, b) => {
+        const walk = (t: TreeDatum): void => {
+            branchOf.set(t.label, b);
+            t.children.forEach(walk);
+        };
+        walk(child);
+    });
+    const tone = (label: string): string => {
+        const b = branchOf.get(label);
+        if (b === undefined) return cols[0] ?? ctx.theme.accent;
+        const i = byLabel.get(data.children[b]!.label);
+        return (i !== undefined ? cols[i] : undefined) ?? cols[0] ?? ctx.theme.accent;
+    };
     const cells = spots.map((s) => {
         const i = byLabel.get(s.label);
         const item = i !== undefined ? diagram.items[i] : undefined;
@@ -103,7 +119,7 @@ function arrange(
         const cell = diagramCell(
             i !== undefined ? kids[i * 2] : undefined,
             detail ? kids[i! * 2 + 1] : undefined,
-            nodePaint(i !== undefined ? cols[i]! : ctx.theme.accent, ctx.theme, {
+            nodePaint(s.parent ? tone(s.label) : ctx.theme.accent, ctx.theme, {
                 style: diagram.options.style,
                 emphasis: !s.parent || item?.emphasis,
             }),
@@ -138,7 +154,8 @@ function arrange(
                         ],
                         ctx.theme,
                         // a branch, not a wiring run: the elbow is the wrong idiom here
-                        { color: ctx.theme.line, width: 2 * ms, head: false, curve: "h" },
+                        // the branch's own colour, so the eye can follow one idea out from the root
+                        { color: tone(s.label), width: 2 * ms, head: false, curve: "h" },
                     );
                 }
             }),

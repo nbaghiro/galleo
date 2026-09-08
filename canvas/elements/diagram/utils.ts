@@ -1009,12 +1009,24 @@ export function stackedPaint(
     return nodePaint(color, theme, { style: "tinted", emphasis, stroke: theme.line, width: 1 });
 }
 
+// a diagram states a figure the way a label does, not the way an axis does: 12400 reads as 12.4k
+const VALUE_GUTTER = 46; // the figures' own column beside the bands
+const fmtValue = (v: number): string =>
+    Math.abs(v) >= 1000 ? `${Math.round(v / 100) / 10}k` : String(Math.round(v * 10) / 10);
+
 export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
     return (diagram, ctx, kids, height) => {
         const items = diagram.items;
         const n = items.length;
         const cols = itemColors(diagram, ctx.theme);
-        const contentW = Math.max(1, ctx.availWidth - 32);
+        // A funnel's figures are the point of it, and they already size the bands. Given every item
+        // one, the bands give up a gutter and the figures read down it as a column: inside the band
+        // they collided with the centred label, and outside it the widest band is already at the
+        // box edge with nowhere to put one.
+        const showValues = items.every((it) => it.value !== undefined);
+        // a narrow box has no width to lend: the bands need theirs for their own labels
+        const gutter = showValues && ctx.availWidth > 400 ? VALUE_GUTTER : 0;
+        const contentW = Math.max(1, ctx.availWidth - 32 - gutter);
         // label floors are absolute px, so the same array serves arrange and the decorate repaint
         const minHalf = items.map((i) => (labelWidth(ctx, i.label) + 24) / 2);
         const geo = bandGeometry(items, contentW, height - 32, narrowTop, minHalf);
@@ -1046,12 +1058,22 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
                         h: fixed(bandH),
                         alignX: "center",
                         alignY: "center",
+                        // the gutter is the decorate's to paint in, so the label centres on the
+                        // band rather than on the box
+                        padding: { top: 0, bottom: 0, left: gutter, right: 0 },
                         children: [cell],
                     } satisfies EngineNode;
                 }),
                 decorate(
                     (g, box) => {
-                        const inner = bandGeometry(items, box.w, box.h, narrowTop, minHalf);
+                        const inner = bandGeometry(
+                            items,
+                            Math.max(1, box.w - gutter),
+                            box.h,
+                            narrowTop,
+                            minHalf,
+                        );
+                        const cx = inner.cx + gutter;
                         items.forEach((_, i) => {
                             const b = inner.bands[i]!;
                             const paint = stackedPaint(
@@ -1062,10 +1084,10 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
                             );
                             g.path(
                                 (p) => {
-                                    p.moveTo(inner.cx - b.half0, b.y0);
-                                    p.lineTo(inner.cx + b.half0, b.y0);
-                                    p.lineTo(inner.cx + b.half1, b.y1);
-                                    p.lineTo(inner.cx - b.half1, b.y1);
+                                    p.moveTo(cx - b.half0, b.y0);
+                                    p.lineTo(cx + b.half0, b.y0);
+                                    p.lineTo(cx + b.half1, b.y1);
+                                    p.lineTo(cx - b.half1, b.y1);
                                     p.closePath();
                                 },
                                 {
@@ -1076,17 +1098,40 @@ export function bandsArrange(narrowTop: boolean): DiagramType["arrange"] {
                                 },
                             );
                         });
+                        // The value is what a funnel is drawn for, and it already sizes the band;
+                        // stating it beside the band is the difference between a shape that is
+                        // proportional and one that says what the proportion is. Chrome, not item
+                        // text: it is a figure the data carries, like a chart's value label.
+                        if (!showValues) return;
+                        items.forEach((it, i) => {
+                            const b = inner.bands[i]!;
+                            g.text(fmtValue(it.value!), gutter - 14, (b.y0 + b.y1) / 2, {
+                                fill: ctx.theme.muted,
+                                size: 11.5,
+                                weight: 600,
+                                font: fontStack("mono", ctx.theme),
+                                align: "end",
+                                baseline: "middle",
+                            });
+                        });
                     },
                     -1,
                     (box) => {
-                        const inner = bandGeometry(items, box.w, box.h, narrowTop, minHalf);
+                        const inner = bandGeometry(
+                            items,
+                            Math.max(1, box.w - gutter),
+                            box.h,
+                            narrowTop,
+                            minHalf,
+                        );
+                        const cx = inner.cx + gutter;
                         return itemRegions(ctx, items.length, (i) => {
                             const b = inner.bands[i]!;
                             return [
-                                [inner.cx - b.half0, b.y0],
-                                [inner.cx + b.half0, b.y0],
-                                [inner.cx + b.half1, b.y1],
-                                [inner.cx - b.half1, b.y1],
+                                [cx - b.half0, b.y0],
+                                [cx + b.half0, b.y0],
+                                [cx + b.half1, b.y1],
+                                [cx - b.half1, b.y1],
                             ];
                         });
                     },
