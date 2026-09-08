@@ -25,6 +25,19 @@ const zElementLayout = z
             .describe(
                 "pins this element out of its parent container's flow, anchored to one of nine points of the parent's box (x/y: start|center|end) plus a px offset (dx/dy), layered by z (negative paints under the flow), optionally rotated (degrees clockwise). For small overlays only: a badge on a photo, a corner label, a decorative accent. Body content stays in the flow",
             ),
+        stick: z
+            .union([z.literal("top"), z.literal("page")])
+            .describe(
+                "holds the element at the viewport top while a continuous page scrolls: 'top' until its own section ends (a table header over long rows, an aside that follows the reader), 'page' for the rest of the document (the docked nav row, a persistent CTA). Paged formats ignore it",
+            ),
+        stickInset: z
+            .number()
+            .describe("px kept between the viewport edge and the stuck element; omit for flush"),
+        stickBar: z
+            .boolean()
+            .describe(
+                "with stick 'page' only: once detached, the element rides a full-width bar in the theme's surface with a hairline underneath, so a transparent nav stays legible over any section it passes",
+            ),
         dock: z
             .literal("top")
             .describe(

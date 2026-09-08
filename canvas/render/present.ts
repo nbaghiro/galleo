@@ -5,6 +5,7 @@ import type { Section, Connection } from "@model/artifact";
 import { parseDatumRegion } from "@model/artifact";
 import type { FormatDescriptor } from "@model/geometry";
 import type { Tokens } from "@themes";
+import type { StickyEntry } from "./backends";
 import { fitSlideContent } from "./backends";
 import { sectionSlides } from "./commands";
 
@@ -130,6 +131,11 @@ export function sectionScrollTop(
     return Math.max(0, (tops[at] ?? 0) - cover);
 }
 
+// the one carriage clamp: how far a scroll has carried a stuck box below its laid-out spot,
+// bounded by where its containment pushes it back out
+const carriage = (restTop: number, bound: number, scrollTop: number, offset: number): number =>
+    Math.max(0, Math.min(scrollTop + offset - restTop, bound - restTop));
+
 /**
  * How far a pinned section has been carried below its own slot by the scroll. Overlays anchored to
  * the static layout (a live player, a popup trigger) have to follow the layer they sit on.
@@ -142,7 +148,29 @@ export function pinnedShift(
 ): number {
     const at = sections.findIndex((s) => s.id === sectionId);
     if (at < 0 || !sections[at]?.pinned) return 0;
-    return Math.max(0, scrollTop - (tops[at] ?? 0));
+    return carriage(tops[at] ?? 0, Infinity, scrollTop, 0);
+}
+
+/** The element-granular sibling of pinnedShift, over one StickyEntry from the paint. */
+export function stickyShift(e: StickyEntry, scrollTop: number, stackH: number): number {
+    const bound = (e.mode === "top" ? e.sectionTop + e.sectionH : stackH) - e.box.h;
+    return carriage(e.box.y, bound, scrollTop, e.offset);
+}
+
+/** The carriage for any region inside a sticky subtree: the element and its descendants ride. */
+export function stickyCarry(
+    entries: readonly StickyEntry[],
+    regionId: string,
+    scrollTop: number,
+    stackH: number,
+): number {
+    const e = entries.find(
+        (s) =>
+            regionId === s.key ||
+            regionId.startsWith(`${s.key}.`) ||
+            regionId.startsWith(`${s.key}:`),
+    );
+    return e ? stickyShift(e, scrollTop, stackH) : 0;
 }
 
 /**

@@ -16,7 +16,8 @@ import {
     SliderRow,
     writeElementData,
 } from "./SharedControlFields";
-import { TextField, Toggle } from "@ui/inputs";
+import { Segmented, TextField, Toggle } from "@ui/inputs";
+import { capture } from "@ui/analytics";
 import {
     PIN_ANCHORS,
     anchorPoint,
@@ -138,6 +139,38 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
             setElementLayout(editor.artifact, props.address, on ? { ...rest, dock: "top" } : rest),
         );
     };
+    const stick = createMemo((): "top" | "page" | "off" => inst()?.layout?.stick ?? "off");
+    const setStick = (v: string): void => {
+        const { stick: _stick, stickInset: _si, stickBar: _sb, ...rest } = inst()?.layout ?? {};
+        commit(
+            setElementLayout(
+                editor.artifact,
+                props.address,
+                v === "off" ? rest : { ...(inst()?.layout ?? {}), stick: v as "top" | "page" },
+            ),
+        );
+        capture("element_stick_set", {
+            element_type: inst()?.type ?? "",
+            scope: v as "top" | "page" | "off",
+        });
+    };
+    const setStickInset = (n: number): void => {
+        const { stickInset: _si, ...rest } = inst()?.layout ?? {};
+        commit(
+            setElementLayout(editor.artifact, props.address, n ? { ...rest, stickInset: n } : rest),
+            { coalesce: `panel:${elementRegionId(props.address)}:stickInset` },
+        );
+    };
+    const setStickBar = (on: boolean): void => {
+        const { stickBar: _sb, ...rest } = inst()?.layout ?? {};
+        commit(
+            setElementLayout(
+                editor.artifact,
+                props.address,
+                on ? { ...rest, stickBar: true } : rest,
+            ),
+        );
+    };
     const setPin = (key: "z" | "rotate" | "dx" | "dy", value: number): void => {
         const cur = inst();
         const p = cur?.layout?.pin;
@@ -242,6 +275,39 @@ export const ElementInspector: Component<{ address: ElementAddress }> = (props) 
                         <FieldRow label="Dock to the section's top edge">
                             <Toggle value={dock()} onChange={setDock} />
                         </FieldRow>
+                    </Show>
+                    <Show when={!pin()}>
+                        <FieldRow label="Stick while scrolling">
+                            <Segmented
+                                value={stick()}
+                                options={[
+                                    { label: "Off", value: "off" },
+                                    { label: "In section", value: "top" },
+                                    { label: "Whole page", value: "page" },
+                                ]}
+                                onChange={setStick}
+                            />
+                        </FieldRow>
+                        <Show when={stick() !== "off"}>
+                            <FieldRow label="Stuck offset">
+                                <SliderRow
+                                    value={inst()?.layout?.stickInset ?? 0}
+                                    min={0}
+                                    max={120}
+                                    step={2}
+                                    unit="px"
+                                    onChange={setStickInset}
+                                />
+                            </FieldRow>
+                        </Show>
+                        <Show when={stick() === "page"}>
+                            <FieldRow label="Detach as a bar">
+                                <Toggle
+                                    value={inst()?.layout?.stickBar ?? false}
+                                    onChange={setStickBar}
+                                />
+                            </FieldRow>
+                        </Show>
                     </Show>
                     <Show when={!pin() && pinnable(editor.artifact, props.address)}>
                         <FieldRow label="Pin in place">

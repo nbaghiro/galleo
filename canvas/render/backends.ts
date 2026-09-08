@@ -1099,6 +1099,18 @@ interface SectionCacheEntry {
     regions: Region[]; // section-local (offset into stage coords per draw)
     height: number;
     fitScale: number;
+    // sticky proxy carriers keyed by the element's region id; rebuilt when the commands change,
+    // restyled every pass (their geometry depends on the whole stack)
+    carriers?: Map<
+        string,
+        {
+            el: HTMLElement;
+            inner: HTMLElement;
+            watch?: IntersectionObserver;
+            watchKey?: string; // the offset the observer was built for; a change rebuilds it
+            stuck?: boolean; // the bar chrome's current state, reapplied across repaints
+        }
+    >;
 }
 export interface SectionStackCache {
     entries: Map<string, SectionCacheEntry>;
@@ -1112,6 +1124,17 @@ export interface SectionLayer {
     commands: RenderCommand[];
     nodes: HTMLElement[];
     regions: Region[]; // section-local, the same space as `commands` (the return's are stage-offset)
+}
+
+/** One element-level sticky proxy, stack-absolute, for playback overlay carriage. */
+export interface StickyEntry {
+    key: string; // the element's region id
+    mode: "top" | "page";
+    box: Rect; // the element's laid-out box, stack-absolute
+    sectionId: string;
+    sectionTop: number;
+    sectionH: number;
+    offset: number; // px of stuck chrome above it (earlier page-scoped heights)
 }
 
 export function createSectionStackCache(): SectionStackCache {
@@ -1140,7 +1163,8 @@ const KEEP_MARGIN = 400;
 // positioned sections around it. Anything a surface floats over the stack (the live overlay) must
 // be stacked above this, or a press on it lands on the painted layer instead.
 export const PINNED_Z = 1;
-
+const BAR_PAD = 10; // vertical breathing room the detached bar chrome adds around the element
+const STICK_MIN_H = 48; // a detached page-stuck element reads as an app bar, never a bare strip
 export interface StackWindow {
     top: number;
     bottom: number;
@@ -1223,6 +1247,7 @@ export function paintSectionStack(
     painted: number;
     layers: SectionLayer[];
     shifts: FlipShift[];
+    sticky: StickyEntry[];
 } {
     const assets = opts.assets ?? "full";
     const gap = profile.kind === "continuous" ? 0 : SECTION_GAP; // doc/web merge seamlessly
@@ -1240,6 +1265,10 @@ export function paintSectionStack(
     const layers: HTMLElement[] = [];
     const painted: SectionLayer[] = [];
     const shifts: FlipShift[] = [];
+    const sticky: StickyEntry[] = [];
+    const stickyLayers: HTMLElement[] = [];
+    const pageCarriers: { el: HTMLElement; top: number }[] = [];
+    let stickOffset = 0; // accumulated heights of page-scoped elements, in document order
     const live = new Set<string>();
     let y = opts.startY ?? 0;
     // Pinned layers are the only ones left in normal flow, so the flow cursor counts just them and a
@@ -1325,8 +1354,10 @@ export function paintSectionStack(
             cache?.entries.set(section.id, entry);
         }
 
-        // a stuck nav bar must exist however far past its own slot the reader has scrolled
-        const inWindow = !win || pin || intersects(y, entry.height, win);
+        // a stuck nav bar must exist however far past its own slot the reader has scrolled;
+        // the same is true of a section whose element sticks for the whole page
+        const pageStick = honorPin && entry.commands.some((c) => c.stick?.mode === "page");
+        const inWindow = !win || pin || pageStick || intersects(y, entry.height, win);
         if (inWindow && entry.commands.length) {
             const flip = opts.flip && !pin && !pending && prev && !prev.ghost ? opts.flip : null;
             if (!entry.layer) {
@@ -1375,6 +1406,139 @@ export function paintSectionStack(
             layer.style.height = `${entry.height}px`;
             layer.style.opacity = opts.dimId === section.id ? "0.4" : "1"; // reset each paint (layers cache)
             if (pin) flowY = y + entry.height;
+            // element-level sticky: a proxy carrier per marked element, sibling of the layers.
+            // The proxy at rest sits pixel-identical over the original (whose nodes hide), so
+            // there is no swap moment and no scroll-time JS; CSS containment ends the stick.
+            if (honorPin && !pin) {
+                const keys = [
+                    ...new Set(entry.commands.flatMap((c) => (c.stick ? [c.stick.key] : []))),
+                ];
+                if (keys.length && !entry.carriers) entry.carriers = new Map();
+                for (const key of keys) {
+                    const el = entry.regions.find((r) => r.id === key);
+                    const stk = entry.commands.find((c) => c.stick?.key === key)!.stick!;
+                    const mode = stk.mode;
+                    const inset = stk.inset ?? 0;
+                    if (!el) continue;
+                    let made = entry.carriers!.get(key);
+                    if (!made || !reuse) {
+                        const group = entry.commands.filter((c) => c.stick?.key === key);
+                        const carrier = made?.el ?? document.createElement("div");
+                        const inner = made?.inner ?? document.createElement("div");
+                        paint(group, inner, assets);
+                        if (!made) {
+                            const wrapper = document.createElement("div");
+                            wrapper.appendChild(inner);
+                            carrier.appendChild(wrapper);
+                            made = { el: carrier, inner };
+                            entry.carriers!.set(key, made);
+                        }
+                    }
+                    const made_ = made;
+                    // frozen per carrier: dress() outlives the loop (observer fires), and the
+                    // accumulator has moved on by this element's own extent by then
+                    const myOffset = stickOffset + inset;
+                    const carrier = made.el;
+                    const wrapper = carrier.firstElementChild as HTMLElement;
+                    const inner = made.inner;
+                    carrier.dataset.stick = mode;
+                    carrier.style.position = "absolute";
+                    carrier.style.left = `${x}px`;
+                    carrier.style.width = `${layoutW}px`;
+                    carrier.style.pointerEvents = "none";
+                    // the page bar rides over section-scoped stickies, which ride over content
+                    carrier.style.zIndex = `${mode === "page" ? PINNED_Z + 1 : PINNED_Z}`;
+                    carrier.style.top = mode === "top" ? `${y}px` : `${y + el.box.y}px`;
+                    if (mode === "top") carrier.style.height = `${entry.height}px`;
+                    else pageCarriers.push({ el: carrier, top: y + el.box.y });
+                    // rest vs bar: everything the detach toggles lives here, so a repaint mid-stick
+                    // re-lands on the state the sentinel last reported
+                    const dress = (): void => {
+                        const stuck = !!made_.stuck;
+                        wrapper.style.position = "sticky";
+                        wrapper.style.top = `${myOffset}px`;
+                        wrapper.style.marginTop = mode === "top" ? `${el.box.y}px` : "0px";
+                        wrapper.style.pointerEvents = "auto";
+                        const bar = stuck && !!stk.bar;
+                        // detached, a page-stuck element grounds itself: scrolled content must
+                        // never show through it, and it holds an app-bar minimum height. The bar
+                        // flag widens the same ground to full bleed.
+                        const grounded = stuck && mode === "page";
+                        const barH = grounded
+                            ? Math.max(el.box.h + BAR_PAD * 2, STICK_MIN_H)
+                            : el.box.h;
+                        wrapper.style.marginLeft = bar ? "0px" : `${el.box.x}px`;
+                        wrapper.style.width = bar ? `${layoutW}px` : `${el.box.w}px`;
+                        wrapper.style.height = `${barH}px`;
+                        wrapper.style.background = grounded ? theme.surface : "";
+                        wrapper.style.borderBottom = grounded ? `1px solid ${theme.line}` : "";
+                        inner.style.position = "absolute";
+                        inner.style.left = bar ? "0px" : `${-el.box.x}px`;
+                        inner.style.top = grounded
+                            ? `${(barH - el.box.h) / 2 - el.box.y}px`
+                            : `${-el.box.y}px`;
+                        inner.style.width = `${layoutW}px`;
+                        inner.style.height = `${entry.height}px`;
+                        if (stuck) carrier.dataset.stuck = "1";
+                        else delete carrier.dataset.stuck;
+                    };
+                    dress();
+                    const watchKey = `${myOffset}`;
+                    if (mode === "page" && typeof IntersectionObserver !== "undefined") {
+                        // one observer for the carrier's life: recreating it per repaint replays
+                        // its initial callback (and the dress transition) on every scroll
+                        if (made.watchKey !== watchKey) {
+                            made.watch?.disconnect();
+                            let sentinel = carrier.querySelector("[data-sentinel]") as HTMLElement;
+                            if (!sentinel) {
+                                sentinel = document.createElement("div");
+                                sentinel.dataset.sentinel = "1";
+                                sentinel.style.cssText =
+                                    "position:absolute;top:0;left:0;width:1px;height:1px";
+                                carrier.appendChild(sentinel);
+                            }
+                            const soft =
+                                typeof matchMedia === "function" &&
+                                matchMedia("(prefers-reduced-motion: reduce)").matches
+                                    ? ""
+                                    : "margin-left 160ms ease, width 160ms ease, background 160ms ease, height 160ms ease";
+                            made.watch = new IntersectionObserver(
+                                (entries) => {
+                                    const was = made_.stuck;
+                                    made_.stuck = !entries[entries.length - 1]!.isIntersecting;
+                                    if (made_.stuck === was) return;
+                                    wrapper.style.transition = soft;
+                                    dress();
+                                },
+                                { rootMargin: `${-(myOffset + 1)}px 0px 0px 0px` },
+                            );
+                            made.watch.observe(sentinel);
+                            made.watchKey = watchKey;
+                        }
+                    } else if (made.watch) {
+                        made.watch.disconnect();
+                        made.watch = undefined;
+                        made.watchKey = undefined;
+                        made.stuck = false;
+                        dress();
+                    }
+                    sticky.push({
+                        key,
+                        mode,
+                        box: { x: x + el.box.x, y: y + el.box.y, w: el.box.w, h: el.box.h },
+                        sectionId: section.id,
+                        sectionTop: y,
+                        sectionH: entry.height,
+                        offset: myOffset,
+                    });
+                    // advance by the detached bar height: what sticks below meets the bar's edge
+                    if (mode === "page")
+                        stickOffset += Math.max(el.box.h + BAR_PAD * 2, STICK_MIN_H) + inset;
+                    stickyLayers.push(carrier);
+                }
+                for (const [i, c] of entry.commands.entries())
+                    if (c.stick && entry.nodes[i]) entry.nodes[i]!.style.visibility = "hidden";
+            }
             layers.push(layer);
             painted.push({
                 id: section.id,
@@ -1393,20 +1557,23 @@ export function paintSectionStack(
         fitScales.push(entry.fitScale);
         y += entry.height + gap;
     }
+    for (const pc of pageCarriers) pc.el.style.height = `${Math.max(0, y - pc.top)}px`;
+    layers.push(...stickyLayers);
     if (cache)
         for (const id of [...cache.entries.keys()]) if (!live.has(id)) cache.entries.delete(id);
-    // re-inserting the same layers in the same order rewrites the child list for nothing, which is
-    // what a scroll repaint between edits would otherwise cost
-    if (!sameChildren(host, layers)) host.replaceChildren(...layers);
+    // A windowed repaint touches only the diff: re-inserting a stable child restarts its sticky
+    // context, observers and transitions, which reads as a flash on every scroll.
+    reconcileChildren(host, layers);
     return {
         tops,
         heights,
         fitScales,
         regions,
         height: y,
-        painted: layers.length,
+        painted: painted.length,
         layers: painted,
         shifts,
+        sticky,
     };
 }
 
@@ -1415,12 +1582,19 @@ const keep = (w: StackWindow): StackWindow => ({
     bottom: w.bottom + KEEP_MARGIN,
 });
 
-const sameChildren = (host: HTMLElement, layers: HTMLElement[]): boolean => {
-    const kids = host.childNodes;
-    if (kids.length !== layers.length) return false;
-    for (let i = 0; i < layers.length; i++) if (kids[i] !== layers[i]) return false;
-    return true;
-};
+function reconcileChildren(host: HTMLElement, layers: HTMLElement[]): void {
+    const want = new Set(layers);
+    for (const kid of [...host.children]) if (!want.has(kid as HTMLElement)) host.removeChild(kid);
+    // insertBefore moves only the inserted node, so nodes already in relative order stay attached
+    let cursor = host.firstElementChild;
+    for (const layer of layers) {
+        if (cursor === layer) {
+            cursor = cursor.nextElementSibling;
+            continue;
+        }
+        host.insertBefore(layer, cursor);
+    }
+}
 
 export function fitSlideContent(
     commands: RenderCommand[],

@@ -234,6 +234,9 @@ export interface EngineNode {
     // marks section chrome for composeSection's hoist; the engine itself never reads it. A tag
     // rather than a float-shape sniff, since a pinned element can float with the same shape.
     docked?: boolean;
+    stick?: "top" | "page"; // consumption-time: emit marks the subtree, playback builds the proxy
+    stickInset?: number;
+    stickBar?: boolean;
     // paint-time spin of this subtree about its own box center, degrees clockwise; layout and
     // wrapping stay unrotated, so the box is solved flat and painted turned
     rotate?: number;
@@ -255,6 +258,15 @@ export interface Rotation {
     cy: number;
 }
 
+// the sticky element's whole subtree carries the mark, keyed by the element's own region id, so
+// the DOM stack can lift the group into one proxy without inferring boundaries
+export interface CommandStick {
+    mode: "top" | "page";
+    key: string;
+    inset?: number;
+    bar?: boolean;
+}
+
 // `clip` is the ancestor-intersected rect the backends honor; absent = no clip. `clipShape`
 // crops that rect as an ellipse where an ancestor asked for one and the rect is still its own.
 // `decor` marks a command emitted from a negative-z float, which `float.z` already defines as
@@ -271,6 +283,7 @@ export type RenderCommand =
           clipShape?: "ellipse";
           link?: string;
           decor?: boolean;
+          stick?: CommandStick;
       }
     | {
           kind: "text";
@@ -286,6 +299,7 @@ export type RenderCommand =
           clipShape?: "ellipse";
           link?: string;
           decor?: boolean;
+          stick?: CommandStick;
       }
     | {
           kind: "image";
@@ -298,6 +312,7 @@ export type RenderCommand =
           clipShape?: "ellipse";
           link?: string;
           decor?: boolean;
+          stick?: CommandStick;
       }
     | {
           kind: "surface";
@@ -310,6 +325,7 @@ export type RenderCommand =
           clipShape?: "ellipse";
           link?: string;
           decor?: boolean;
+          stick?: CommandStick;
       };
 
 // Separate from paint so selection and hit-testing don't depend on what was drawn. Regions are

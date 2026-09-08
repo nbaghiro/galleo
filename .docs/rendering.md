@@ -209,7 +209,7 @@ type is the worst of both. Nothing is stored: the scale is a pure function of co
 profile, which keeps it out of collab, undo and the save path. `layoutSlide`/`sectionSlides` return it and
 `paintSectionStack` reports it per section, so Present, export, thumbnails and the editor agree by
 construction; the editor holds one section's scale steady while an inline edit is open in it
-(`freezeFit`), and the inspector goes on showing authored sizes. Full design: `.docs/planning/autofit.md`.
+(`freezeFit`), and the inspector goes on showing authored sizes. Full design: `.docs/executed/autofit.md`.
 
 ### 3.4 Bands and the reading column (`sectionBleeds`, `containedWidth`)
 
@@ -262,6 +262,10 @@ turns it into an engine tree:
   path through `elementIdMap` (`@elements/ops`), which walks the same registry-aware children compose
   tags region ids from.
 - **Contrast.** Over a dark section background, content tokens flip to a light-on-dark set.
+- **Sticky elements.** `layout.stick` holds an element at the viewport top while a continuous page
+  scrolls: `"top"` until its own section ends, `"page"` for the rest of the document. Layout and
+  every export ignore it (the element paints in place); the continuous DOM stack alone builds a
+  sticky proxy carrier over the hidden original, so the behavior is playback chrome, never geometry.
 - **Docked chrome.** A child carrying `layout.dock: "top"` (a site's topbar) is hoisted out of the content
   flow onto the section node on a **continuous** format, so it anchors to the band's top edge while the
   rest centres below it. A **paged** format keeps it in the flow as the section's first row instead: a

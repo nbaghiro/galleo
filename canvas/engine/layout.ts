@@ -1,6 +1,7 @@
 import { maxRadius } from "@engine/node";
 import type {
     Align,
+    CommandStick,
     EngineNode,
     MeasureText,
     Rect,
@@ -568,10 +569,22 @@ function emit(
     decor = false,
     rot?: Rotation,
     clipShape?: "ellipse",
+    stick?: CommandStick,
 ): void {
     const { node } = ln;
     const acc = node.opacity !== undefined ? opacity * node.opacity : opacity;
     const o = acc < 1 ? acc : undefined;
+    // the whole subtree carries the mark, so the DOM proxy lifts the group without inference
+    const stk =
+        stick ??
+        (node.stick && node.id
+            ? {
+                  mode: node.stick,
+                  key: node.id,
+                  ...(node.stickInset ? { inset: node.stickInset } : {}),
+                  ...(node.stickBar ? { bar: true } : {}),
+              }
+            : undefined);
     // A link covers everything it wraps: the commands are flat siblings, so a descendant painted
     // over the anchor would otherwise swallow the click.
     const href = node.link ?? link;
@@ -579,7 +592,11 @@ function emit(
     const spin =
         rot ??
         (node.rotate ? { deg: node.rotate, cx: ln.x + ln.w / 2, cy: ln.y + ln.h / 2 } : undefined);
-    const dec = { ...(decor ? { decor: true as const } : {}), ...(spin ? { rotate: spin } : {}) };
+    const dec = {
+        ...(decor ? { decor: true as const } : {}),
+        ...(spin ? { rotate: spin } : {}),
+        ...(stk ? { stick: stk } : {}),
+    };
     const box: Rect = { x: ln.x, y: ln.y, w: ln.w, h: ln.h };
     if (node.id) {
         const r: Region = {
@@ -655,13 +672,13 @@ function emit(
         .sort((a, b) => (a.node.float?.z ?? 0) - (b.node.float?.z ?? 0));
     for (const c of floats)
         if ((c.node.float?.z ?? 0) < 0)
-            emit(c, commands, regions, measure, acc, childClip, href, true, spin, childShape);
+            emit(c, commands, regions, measure, acc, childClip, href, true, spin, childShape, stk);
     for (const c of ln.children)
         if (!c.node.float)
-            emit(c, commands, regions, measure, acc, childClip, href, decor, spin, childShape);
+            emit(c, commands, regions, measure, acc, childClip, href, decor, spin, childShape, stk);
     for (const c of floats)
         if ((c.node.float?.z ?? 0) >= 0)
-            emit(c, commands, regions, measure, acc, childClip, href, decor, spin);
+            emit(c, commands, regions, measure, acc, childClip, href, decor, spin, undefined, stk);
 }
 
 // The polygon of the region turned about the rotation center; `box` becomes the bounding box, so

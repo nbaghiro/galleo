@@ -213,6 +213,11 @@ function applyLayout(node: EngineNode, layout: ElementLayout | undefined): Engin
         node.float = { x: "start", y: "start", z: 1 };
         node.docked = true;
     }
+    if (layout.stick) {
+        node.stick = layout.stick;
+        if (layout.stickInset) node.stickInset = layout.stickInset;
+        if (layout.stickBar) node.stickBar = layout.stickBar;
+    }
     if (layout.pin) {
         const p = layout.pin;
         node.float = {

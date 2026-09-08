@@ -9,6 +9,8 @@ import {
     pagedSteps,
     pinnedShift,
     sectionScrollTop,
+    stickyCarry,
+    stickyShift,
     sectionSlideCount,
     slideElement,
     stepHoldMs,
@@ -184,6 +186,42 @@ describe("where a section link lands", () => {
 
     it("stays inert for an id no section carries", () => {
         expect(sectionScrollTop(sections, tops, heights, "gone")).toBeNull();
+    });
+});
+
+describe("what element stick carries with it", () => {
+    // a top-scoped header at y 300 in a section spanning 200..1200, page bound 5000
+    const top = {
+        key: "el:s1:0",
+        mode: "top" as const,
+        box: { x: 40, y: 300, w: 600, h: 60 },
+        sectionId: "s1",
+        sectionTop: 200,
+        sectionH: 1000,
+        offset: 0,
+    };
+    const page = { ...top, mode: "page" as const, key: "el:s1:1", offset: 48 };
+
+    it("rests until the scroll reaches the element, then tracks it", () => {
+        expect(stickyShift(top, 0, 5000)).toBe(0);
+        expect(stickyShift(top, 300, 5000)).toBe(0);
+        expect(stickyShift(top, 500, 5000)).toBe(200);
+    });
+
+    it("a top scope is pushed out by its own section's end", () => {
+        // bound: section bottom 1200 minus the element's 60 → carried at most 840 past y 300
+        expect(stickyShift(top, 4000, 5000)).toBe(840);
+    });
+
+    it("a page scope holds to the stack bottom, below the chrome already stuck", () => {
+        expect(stickyShift(page, 300, 5000)).toBe(48);
+        expect(stickyShift(page, 1000, 5000)).toBe(748);
+        expect(stickyShift(page, 99999, 5000)).toBe(5000 - 300 - 60);
+    });
+
+    it("carries a descendant of the sticky element the same distance", () => {
+        expect(stickyCarry([top], "el:s1:0.2", 500, 5000)).toBe(200);
+        expect(stickyCarry([top], "el:s1:9", 500, 5000)).toBe(0);
     });
 });
 

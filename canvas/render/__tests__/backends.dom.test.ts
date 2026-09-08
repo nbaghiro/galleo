@@ -331,6 +331,282 @@ describe("paintSectionStack", () => {
     });
 });
 
+describe("paintSectionStack — element sticky", () => {
+    const web = resolveProfile("web");
+    const stickSection = (id: string, stick: "top" | "page"): Section =>
+        sectionOf(
+            {
+                type: "container",
+                data: {
+                    direction: "col",
+                    children: [
+                        { type: "text", data: { text: "held" }, layout: { stick } },
+                        { type: "text", data: { text: "body under it" } },
+                    ],
+                },
+            },
+            { id },
+        );
+    const draw = (sections: Section[], playback = true) => {
+        const host = document.createElement("div");
+        const res = paintSectionStack(host, sections, web, tokens, {
+            fullW: 1000,
+            ...(playback ? { pinned: true } : {}),
+        });
+        return { host, res };
+    };
+    const carriers = (host: HTMLElement): HTMLElement[] =>
+        [...host.children].filter((c) => (c as HTMLElement).dataset.stick) as HTMLElement[];
+
+    it("playback builds one carrier per sticky element, after the section layers", () => {
+        const { host, res } = draw([stickSection("s1", "top")]);
+        const cs = carriers(host);
+        expect(cs).toHaveLength(1);
+        const carrier = cs[0]!;
+        // a top-scoped carrier spans exactly its section, so containment ends the stick there
+        expect(carrier.style.top).toBe("0px");
+        expect(parseFloat(carrier.style.height)).toBeCloseTo(res.heights[0]!, 1);
+        expect(carrier.style.pointerEvents).toBe("none");
+        const wrapper = carrier.firstElementChild as HTMLElement;
+        expect(wrapper.style.position).toBe("sticky");
+        expect(wrapper.style.pointerEvents).toBe("auto");
+        // the inner offset makes the proxy pixel-identical over the original at rest
+        const el = res.regions.find((r) => r.id === "el:s1:0")!;
+        expect(parseFloat(wrapper.style.marginTop)).toBeCloseTo(el.box.y, 1);
+        const inner = wrapper.firstElementChild as HTMLElement;
+        expect(parseFloat(inner.style.top)).toBeCloseTo(-el.box.y, 1);
+        expect(inner.children.length).toBeGreaterThan(0);
+    });
+
+    it("hides the original's nodes while the proxy stands over them", () => {
+        const { res } = draw([stickSection("s1", "top")]);
+        const layer = res.layers[0]!;
+        const hidden = layer.nodes.filter((n) => n.style.visibility === "hidden");
+        expect(hidden.length).toBeGreaterThan(0);
+    });
+
+    it("builds nothing without the playback flag, and hides nothing", () => {
+        const { host, res } = draw([stickSection("s1", "top")], false);
+        expect(carriers(host)).toHaveLength(0);
+        expect(res.layers[0]!.nodes.every((n) => n.style.visibility !== "hidden")).toBe(true);
+        expect(res.sticky).toHaveLength(0);
+    });
+
+    it("a page carrier runs from the element to the stack bottom; two accumulate offset", () => {
+        const { host, res } = draw([
+            stickSection("s1", "page"),
+            sectionOf(inst("text", { text: "mid" }), { id: "s2" }),
+            stickSection("s3", "page"),
+        ]);
+        const cs = carriers(host);
+        expect(cs).toHaveLength(2);
+        const first = cs[0]!;
+        const el1 = res.sticky.find((e) => e.key === "el:s1:0")!;
+        expect(parseFloat(first.style.top)).toBeCloseTo(el1.box.y, 1);
+        expect(parseFloat(first.style.height)).toBeCloseTo(res.height - el1.box.y, 1);
+        const w1 = first.firstElementChild as HTMLElement;
+        const w2 = cs[1]!.firstElementChild as HTMLElement;
+        expect(w1.style.top).toBe("0px");
+        // the accumulator advances by the DETACHED bar height (the app-bar minimum applies), so
+        // whatever sticks below never tucks under the grounded bar
+        const el1H = res.sticky.find((e) => e.key === "el:s1:0")!.box.h;
+        expect(parseFloat(w2.style.top)).toBeCloseTo(Math.max(el1H + 20, 48), 1);
+    });
+
+    it("a section-scoped sticky rests below the page bar and never paints over it", () => {
+        const { host } = draw([stickSection("s1", "page"), stickSection("s2", "top")]);
+        const cs = carriers(host);
+        expect(cs).toHaveLength(2);
+        const pageC = cs.find((c) => c.dataset.stick === "page")!;
+        const topC = cs.find((c) => c.dataset.stick === "top")!;
+        const topWrap = topC.firstElementChild as HTMLElement;
+        // below the detached bar, not the resting strip
+        expect(parseFloat(topWrap.style.top)).toBeGreaterThanOrEqual(48);
+        // the page bar rides above every section-scoped carrier
+        expect(parseInt(pageC.style.zIndex)).toBeGreaterThan(parseInt(topC.style.zIndex));
+    });
+
+    it("a section holding a page-scoped element stays materialized outside the window", () => {
+        const host = document.createElement("div");
+        const sections = [
+            stickSection("s1", "page"),
+            sectionOf(inst("text", { text: "far below" }), { id: "s2" }),
+        ];
+        const res = paintSectionStack(host, sections, web, tokens, {
+            fullW: 1000,
+            pinned: true,
+            cache: createSectionStackCache(),
+            window: { top: 100000, bottom: 101000 },
+        });
+        expect(res.layers.some((l) => l.id === "s1")).toBe(true);
+    });
+});
+
+describe("paintSectionStack — stuck inset and bar chrome", () => {
+    const web = resolveProfile("web");
+    const navSection = (extra: Record<string, unknown>): Section =>
+        sectionOf(
+            {
+                type: "container",
+                data: {
+                    direction: "col",
+                    children: [
+                        {
+                            type: "text",
+                            data: { text: "nav" },
+                            layout: { stick: "page", ...extra },
+                        },
+                        { type: "text", data: { text: "body" } },
+                    ],
+                },
+            },
+            { id: "s1" },
+        );
+    const draw = (extra: Record<string, unknown>) => {
+        const host = document.createElement("div");
+        const res = paintSectionStack(host, [navSection(extra)], web, tokens, {
+            fullW: 1000,
+            pinned: true,
+        });
+        const carrier = [...host.children].find(
+            (c) => (c as HTMLElement).dataset.stick,
+        ) as HTMLElement;
+        return { host, res, carrier, wrapper: carrier?.firstElementChild as HTMLElement };
+    };
+
+    it("the inset moves the stuck resting line down, and rides the carriage offset", () => {
+        const { res, wrapper } = draw({ stickInset: 16 });
+        expect(wrapper.style.top).toBe("16px");
+        expect(res.sticky[0]!.offset).toBe(16);
+    });
+
+    // production reads only isIntersecting off the last entry, so the fake reports just that
+    type SentinelEntry = Pick<IntersectionObserverEntry, "isIntersecting">;
+    class FakeObserver implements IntersectionObserver {
+        static seen: FakeObserver[] = [];
+        readonly root = null;
+        readonly rootMargin = "";
+        readonly thresholds: readonly number[] = [];
+        constructor(public cb: IntersectionObserverCallback) {
+            FakeObserver.seen.push(this);
+        }
+        fire(isIntersecting: boolean): void {
+            (this.cb as (e: SentinelEntry[], o: IntersectionObserver) => void)(
+                [{ isIntersecting }],
+                this,
+            );
+        }
+        observe(): void {}
+        disconnect(): void {}
+        unobserve(): void {}
+        takeRecords(): IntersectionObserverEntry[] {
+            return [];
+        }
+    }
+
+    it("the sticky top never absorbs the element's own height across observer dresses", () => {
+        // dress() must not read the accumulator the loop keeps advancing: the observer fires
+        // after the loop, when the accumulator already includes this element's own extent
+        const Orig = globalThis.IntersectionObserver;
+        FakeObserver.seen = [];
+        globalThis.IntersectionObserver = FakeObserver;
+        try {
+            const { wrapper } = draw({});
+            expect(wrapper.style.top).toBe("0px");
+            FakeObserver.seen[0]!.fire(false);
+            expect(wrapper.style.top).toBe("0px");
+            FakeObserver.seen[0]!.fire(true);
+            expect(wrapper.style.top).toBe("0px");
+        } finally {
+            globalThis.IntersectionObserver = Orig;
+        }
+    });
+
+    it("a bar-flagged element grows a sentinel and detaches into theme chrome", () => {
+        const Orig = globalThis.IntersectionObserver;
+        FakeObserver.seen = [];
+        globalThis.IntersectionObserver = FakeObserver;
+        try {
+            const { carrier, wrapper } = draw({ stickBar: true });
+            expect(FakeObserver.seen).toHaveLength(1);
+            // past the sentinel: the bar chrome applies, full width, theme ground
+            FakeObserver.seen[0]!.fire(false);
+            expect(carrier.dataset.stuck).toBe("1");
+            expect(wrapper.style.marginLeft).toBe("0px");
+            expect(parseFloat(wrapper.style.width)).toBe(1000);
+            expect(wrapper.style.background).not.toBe("");
+            // back at rest: pixel-identical again
+            FakeObserver.seen[0]!.fire(true);
+            expect(carrier.dataset.stuck).toBeUndefined();
+            expect(wrapper.style.background).toBe("");
+        } finally {
+            globalThis.IntersectionObserver = Orig;
+        }
+    });
+
+    // flipped again (user feedback on the transparent nav): a detached page-stuck element gets
+    // an app-bar ground by default — opaque surface, hairline, a small min height with the
+    // element centred — at the element's own width; the bar flag keeps the full-bleed variant
+    it("a bare page-stuck element detaches into an app-bar ground at its own width", () => {
+        const Orig = globalThis.IntersectionObserver;
+        FakeObserver.seen = [];
+        globalThis.IntersectionObserver = FakeObserver;
+        try {
+            const { carrier, wrapper } = draw({});
+            expect(FakeObserver.seen).toHaveLength(1);
+            FakeObserver.seen[0]!.fire(false);
+            expect(carrier.dataset.stuck).toBe("1");
+            expect(wrapper.style.borderBottom).not.toBe("");
+            expect(wrapper.style.background).not.toBe("");
+            expect(wrapper.style.marginLeft).not.toBe("0px");
+            expect(parseFloat(wrapper.style.height)).toBeGreaterThanOrEqual(48);
+            FakeObserver.seen[0]!.fire(true);
+            expect(wrapper.style.borderBottom).toBe("");
+            expect(wrapper.style.background).toBe("");
+            expect(parseFloat(wrapper.style.height)).toBeLessThan(48);
+        } finally {
+            globalThis.IntersectionObserver = Orig;
+        }
+    });
+
+    it("a section-scoped element grows no sentinel", () => {
+        const Orig = globalThis.IntersectionObserver;
+        FakeObserver.seen = [];
+        globalThis.IntersectionObserver = FakeObserver;
+        try {
+            const host = document.createElement("div");
+            paintSectionStack(
+                host,
+                [
+                    sectionOf(
+                        {
+                            type: "container",
+                            data: {
+                                direction: "col",
+                                children: [
+                                    {
+                                        type: "text",
+                                        data: { text: "head" },
+                                        layout: { stick: "top" },
+                                    },
+                                    { type: "text", data: { text: "body" } },
+                                ],
+                            },
+                        },
+                        { id: "s1" },
+                    ),
+                ],
+                web,
+                tokens,
+                { fullW: 1000, pinned: true },
+            );
+            expect(FakeObserver.seen).toHaveLength(0);
+        } finally {
+            globalThis.IntersectionObserver = Orig;
+        }
+    });
+});
+
 describe("paintSectionStack — slide framing", () => {
     const deck = resolveProfile("deck");
     const short = (): Section[] => [sectionOf(inst("text", { text: "A" }), { id: "s1" })];
@@ -919,5 +1195,51 @@ describe("richer paint", () => {
             clipShape: "ellipse",
         });
         expect(el.style.clipPath).toBe("ellipse(50px 40px at 50px 40px)");
+    });
+});
+
+describe("windowed repaints reconcile the child list minimally", () => {
+    const secs = (n: number): Section[] =>
+        Array.from({ length: n }, (_, i) =>
+            sectionOf(inst("text", { text: `s${i}` }), { id: `w${i}` }),
+        );
+    const spyOps = (host: HTMLElement): { removed: string[]; inserted: string[] } => {
+        const log = { removed: [] as string[], inserted: [] as string[] };
+        const rc = host.removeChild.bind(host);
+        const ib = host.insertBefore.bind(host);
+        host.removeChild = ((n: Node) => {
+            log.removed.push((n as HTMLElement).dataset?.probe ?? "?");
+            return rc(n);
+        }) as typeof host.removeChild;
+        host.insertBefore = ((n: Node, ref: Node | null) => {
+            log.inserted.push((n as HTMLElement).dataset?.probe ?? "?");
+            return ib(n, ref);
+        }) as typeof host.insertBefore;
+        host.replaceChildren = () => {
+            throw new Error("full replaceChildren on a windowed repaint");
+        };
+        return log;
+    };
+
+    it("an unchanged set touches nothing; one new section inserts one node", () => {
+        const host = document.createElement("div");
+        const cache = createSectionStackCache();
+        const profile = resolveProfile("web");
+        const win = { top: 0, bottom: 600 };
+        paintSectionStack(host, secs(6), profile, tokens, { fullW: 1000, cache, window: win });
+        for (const [i, el] of [...host.children].entries())
+            (el as HTMLElement).dataset.probe = `n${i}`;
+        const log = spyOps(host);
+        paintSectionStack(host, secs(6), profile, tokens, { fullW: 1000, cache, window: win });
+        expect(log.removed).toEqual([]);
+        expect(log.inserted).toEqual([]);
+        paintSectionStack(host, secs(6), profile, tokens, {
+            fullW: 1000,
+            cache,
+            window: { top: 0, bottom: 5000 },
+        });
+        // whatever newly materialized was inserted; the probed originals were never detached
+        expect(log.removed).toEqual([]);
+        expect(log.inserted.every((p) => p === "?")).toBe(true);
     });
 });

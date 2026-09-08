@@ -32,6 +32,7 @@ import {
     PINNED_Z,
     type SectionLayer,
     type StackWindow,
+    type StickyEntry,
 } from "@canvas/render/backends";
 import { connectionCommands } from "@canvas/render/connect";
 import { stackWindow, windowMoved } from "@canvas/render/window";
@@ -41,6 +42,7 @@ import {
     locateSlide,
     pagedSteps,
     pinnedShift,
+    stickyCarry,
     sectionScrollTop,
     sectionSlideCount,
     slideElement,
@@ -146,6 +148,8 @@ export const PresentSurface: Component<{
     let host!: HTMLDivElement;
     let sectionTops: number[] = []; // continuous mode: y offset of each section, from the last paint
     let sectionHeights: number[] = []; // same paint, so a pinned nav's cover is measurable
+    let stickyEls: StickyEntry[] = []; // element-level sticky proxies, for overlay carriage
+    let stackH = 0;
     const [index, setIndex] = createSignal(0);
     const [showOverview, setShowOverview] = createSignal(false);
     const [showNotes, setShowNotes] = createSignal(false);
@@ -209,7 +213,10 @@ export const PresentSurface: Component<{
         if (paged()) return 0;
         const t = parseTarget(regionId);
         if (t?.kind !== "element") return 0;
-        return pinnedShift(props.artifact.sections, sectionTops, scrolled(), t.address.section);
+        return (
+            pinnedShift(props.artifact.sections, sectionTops, scrolled(), t.address.section) +
+            stickyCarry(stickyEls, regionId, scrolled(), stackH)
+        );
     };
 
     const renderPaged = (motion: MotionCue): void => {
@@ -331,13 +338,15 @@ export const PresentSurface: Component<{
         const viewH = host.clientHeight || window.innerHeight;
         const win = stackWindow(host.scrollTop, viewH);
         lastWindow = win;
-        const { tops, heights, height, layers, regions } = paintSectionStack(
+        const { tops, heights, height, layers, regions, sticky } = paintSectionStack(
             paintHost,
             shownContent().sections,
             prof,
             tokens(),
             { fullW, cache: stackCache, window: win, pinned: true },
         );
+        stickyEls = sticky;
+        stackH = height;
         observeReveals(layers);
         const conn = connectionCommands(shownContent(), regions, tokens(), { skipPinned: true });
         if (connectHost) paint(conn.commands, connectHost);

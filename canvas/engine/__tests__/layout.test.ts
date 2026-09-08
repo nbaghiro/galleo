@@ -389,6 +389,44 @@ describe("main-axis distribution", () => {
 });
 
 describe("emit — flatten to commands + regions", () => {
+    it("a sticky node stamps its whole subtree, keyed by its own id; siblings stay unmarked", () => {
+        const tree = colNode([
+            colNode([boxNode("kid", fixed(50), fixed(20))], {
+                id: "nav",
+                stick: "page",
+                fill: { color: "#000" },
+            }),
+            boxNode("body", fixed(50), fixed(100)),
+        ]);
+        const out = cmds(tree);
+        expect(commandById(out, "nav").stick).toEqual({ mode: "page", key: "nav" });
+        expect(commandById(out, "kid").stick).toEqual({ mode: "page", key: "nav" });
+        expect(commandById(out, "body").stick).toBeUndefined();
+    });
+
+    it("the mark carries the node's inset and bar flags for the carrier to honor", () => {
+        const tree = colNode([
+            colNode([boxNode("kid", fixed(50), fixed(20))], {
+                id: "nav",
+                stick: "page",
+                stickInset: 16,
+                stickBar: true,
+                fill: { color: "#000" },
+            }),
+        ]);
+        expect(commandById(cmds(tree), "kid").stick).toEqual({
+            mode: "page",
+            key: "nav",
+            inset: 16,
+            bar: true,
+        });
+    });
+
+    it("a sticky node without an id stays unmarked, since nothing could anchor it", () => {
+        const tree = colNode([boxNode("kid", fixed(50), fixed(20))], { stick: "top" });
+        expect(commandById(cmds(tree), "kid").stick).toBeUndefined();
+    });
+
     it("opacity multiplies down the subtree", () => {
         const tree = colNode([boxNode("c", fixed(100), fixed(100), { opacity: 0.5 })], {
             opacity: 0.5,

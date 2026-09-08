@@ -28,6 +28,11 @@ export interface ElementLayout {
     // section chrome: lifted out of the content flow and anchored to the section's own band, so a
     // topbar hugs a hero's top edge while the content centres below it
     dock?: "top";
+    // holds at the viewport top while a continuous page scrolls: "top" until its own section
+    // ends, "page" for the rest of the document. Layout never reads it; playback honors it.
+    stick?: "top" | "page";
+    stickInset?: number; // px below the viewport edge once stuck; the detach becomes a short slide
+    stickBar?: boolean; // page scope only: detach into a full-width theme bar instead of bare paint
     // Pinned out of the flow: anchored to the parent's box (never an absolute coordinate, so it
     // survives reflow, format switches and autofit), offset in px at compose scale, layered by `z`
     // (negative paints under the flow), optionally spun about its own center.

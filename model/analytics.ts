@@ -388,6 +388,8 @@ export interface Events {
     connection_deleted: { cross_section: boolean };
     // an element pinned out of the flow, and its way back; via names the entry point
     element_pinned: { element_type: string; via: "panel" | "bar" | "palette" | "drag" };
+    // an element told to hold at the viewport top while the page scrolls, or released
+    element_stick_set: { element_type: string; scope: "top" | "page" | "off" };
     element_unpinned: { element_type: string; via: "panel" | "bar" | "palette" | "drag" };
     template_used: { template_id: string; category: string; format: Surface; from: string };
 
