@@ -40,9 +40,10 @@ export const PlanPanel: Component = () => {
         return limit > 0 && cost > 0 ? Math.floor(limit / cost) : null;
     };
 
-    const overLimit = (): boolean => {
+    // the cap counts every artifact ever made, so nothing short of a higher plan lifts it
+    const atLimit = (): boolean => {
         const u = b()?.usage;
-        return !!u && u.maxArtifacts >= 0 && u.artifacts > u.maxArtifacts;
+        return !!u && u.maxArtifacts >= 0 && u.artifactsMade >= u.maxArtifacts;
     };
 
     const busy = billingBusy;
@@ -116,10 +117,10 @@ export const PlanPanel: Component = () => {
                     checkout is disabled until the Stripe keys are set.
                 </div>
             </Show>
-            <Show when={overLimit()}>
+            <Show when={atLimit()}>
                 <div class="mb-5 rounded-xl border border-line bg-panel px-4 py-3 text-[13px] text-ink">
-                    You're over your plan's limits. Your existing work is safe, but you can't create
-                    more until you upgrade or remove some.
+                    You've made every artifact your plan allows. Your existing work is safe, but you
+                    can't create more until you upgrade.
                 </div>
             </Show>
 
@@ -216,14 +217,22 @@ export const PlanPanel: Component = () => {
                                 <Eyebrow as="div">Artifacts</Eyebrow>
                                 <div class="mt-1 flex items-baseline gap-1.5 tabular-nums">
                                     <span class="text-[20px] font-bold">
-                                        {state().usage.artifacts}
+                                        {state().usage.maxArtifacts < 0
+                                            ? state().usage.artifacts
+                                            : state().usage.artifactsMade}
                                     </span>
                                     <span class="text-[13px] text-muted">
                                         {state().usage.maxArtifacts < 0
                                             ? "/ ∞"
-                                            : `/ ${state().usage.maxArtifacts}`}
+                                            : `/ ${state().usage.maxArtifacts} made`}
                                     </span>
                                 </div>
+                                <Show when={state().usage.maxArtifacts >= 0}>
+                                    <div class="mt-1 text-[11px] text-muted">
+                                        Counts every artifact made here, including any in Trash or
+                                        deleted.
+                                    </div>
+                                </Show>
                                 <div class="mt-2 text-[11.5px] text-muted">
                                     {state().usage.storageMb} MB
                                     {state().usage.maxStorageMb < 0

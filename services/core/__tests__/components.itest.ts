@@ -117,10 +117,12 @@ describe("the ui:// components", () => {
 
     it("paints a carousel from the stored sections and answers the model with the spine", async () => {
         const { userId, workspaceId } = await seedUser();
-        const artifactId = (await createArtifact(workspaceId, userId, {
+        const made = await createArtifact(workspaceId, userId, {
             title: "Carousel target",
             draftContent: DECK,
-        }))!;
+        });
+        if ("error" in made) throw new Error(made.error);
+        const artifactId = made.id;
 
         const out = await call(readOnly(userId, workspaceId), "show-sections", {
             artifact: artifactId,

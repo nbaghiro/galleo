@@ -79,7 +79,14 @@ export interface BillingState {
         rolloverCap: number; // ceiling granted credits may bank to; purchases sit above it
         capped: boolean; // the next grant will land short of the full allowance
     };
-    usage: { artifacts: number; maxArtifacts: number; storageMb: number; maxStorageMb: number };
+    // `artifacts` is what is live; `artifactsMade` is every one ever made, which the cap is on
+    usage: {
+        artifacts: number;
+        artifactsMade: number;
+        maxArtifacts: number;
+        storageMb: number;
+        maxStorageMb: number;
+    };
     catalog: Plan[];
     // one-off credit purchases: the flat rate and the quantities offered as buttons, or null when
     // the plan cannot buy them or no price is configured

@@ -1,14 +1,12 @@
 import { Hono } from "hono";
-import type { Context } from "hono";
 import type { ArtifactContent, ArtifactPage } from "@model/artifact";
 import { isAccess } from "@model/artifact";
-import { featuresFor, isUnlimited, limit } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
 import { z } from "zod";
-import { BAD_BODY, checkLimit, readJson } from "@services/utils/http";
+import { BAD_BODY, limitResponse, readJson } from "@services/utils/http";
 import { capture } from "@services/utils/analytics";
 import { asFormat } from "@model/analytics";
-import { currentMembership, type WorkspaceRow } from "@services/core/accounts";
+import { currentMembership } from "@services/core/accounts";
 import { artifactCredits } from "@services/core/media";
 import { recordArtifactVisit, recordTemplateUse } from "@services/core/visits";
 import { markGrantSeen } from "@services/core/collaborators";
@@ -23,7 +21,7 @@ import {
     isArtifactContent,
     isSectionOp,
     listArtifacts,
-    liveArtifactCount,
+    artifactCapMessage,
     setArtifactAccess,
     pageLimit,
     parseWindow,
@@ -66,26 +64,6 @@ artifacts.get("/artifacts", requireUser, async (c) => {
     );
 });
 
-/**
- * The artifact cap, applied wherever a live artifact appears rather than only where one is inserted:
- * restoring from Trash raises the live count just as creating does, and without this a workspace at
- * the cap could trash one, create one, and restore the first. Counting is skipped on an unlimited
- * plan so the common path does not pay for a COUNT.
- */
-async function overArtifactCap(
-    c: Context<WorkspaceEnv>,
-    ws: WorkspaceRow,
-): Promise<Response | null> {
-    if (isUnlimited(limit(featuresFor(ws), "maxArtifacts"))) return null;
-    return checkLimit(
-        c,
-        ws,
-        "maxArtifacts",
-        await liveArtifactCount(ws.id),
-        (cap) => `Your plan is limited to ${cap} artifacts — upgrade for unlimited.`,
-    );
-}
-
 // z.custom validates without rebuilding, so stored content and provenance keep every field they
 // arrived with; a z.object here would strip whatever this file does not enumerate.
 const zContent = z.custom<ArtifactContent>(isArtifactContent);
@@ -110,15 +88,14 @@ const zContentPatch = z.object({
 
 artifacts.post("/artifacts", requireWorkspace, async (c) => {
     const ws = c.get("ws");
-    const denied = await overArtifactCap(c, ws);
-    if (denied) return denied;
     const body = await readJson(c, zArtifactInput);
     if (!body) return c.json(BAD_BODY, 400);
-    const id = await createArtifact(ws.id, c.get("user").id, body);
+    const made = await createArtifact(ws.id, c.get("user").id, body);
+    if ("error" in made) return limitResponse(c, "maxArtifacts", artifactCapMessage(made.cap));
     // popularity is measured from these events; never let the tally break a create
-    if (id && body?.templateId && TEMPLATE_INDEX.some((t) => t.id === body.templateId))
+    if (body.templateId && TEMPLATE_INDEX.some((t) => t.id === body.templateId))
         await recordTemplateUse(c.get("user").id, body.templateId).catch(() => undefined);
-    return id ? c.json({ id }) : c.json({ error: "create failed" }, 500);
+    return c.json({ id: made.id });
 });
 
 // Artifact-scoped from here on: the gate resolves the workspace from the artifact row, so an
@@ -196,8 +173,6 @@ artifacts.post("/artifacts/:id/restore", requireWorkspace, async (c) => {
     const ws = c.get("ws");
     const gate = await gateArtifact(c, c.req.param("id"), "edit");
     if (isResponse(gate)) return gate;
-    const denied = await overArtifactCap(c, ws);
-    if (denied) return denied;
     const before = await setTrashed(ws.id, c.req.param("id"), null);
     if (before?.trashedAt)
         capture({ userId: c.get("user").id, workspaceId: ws.id }, "artifact_restored", {

@@ -9,7 +9,7 @@ import { runTool } from "@services/core/ai/execute";
 import { makeWorkspaceReader } from "@services/core/ai/reader";
 import { makeGenerationStore } from "@services/core/generations";
 import { Built, commitPatch, commitNew, loadContent } from "@services/core/ai/effects";
-import { setTrashed, updateArtifact } from "@services/core/artifacts";
+import { setTrashed, updateArtifact, artifactCapMessage } from "@services/core/artifacts";
 import type { WorkspaceRow } from "@services/core/accounts";
 import { capture } from "@services/utils/analytics";
 
@@ -284,8 +284,9 @@ async function dispatch(call: Call, grant: Grant | null, landing: Landing): Prom
             ctx: { image: {}, workspace: reader },
         });
         if (!made.ok) return refused(made, id, def.title, ws.name, call.surface);
-        const newId = await commitNew(ws.id, grant.userId, built);
-        if (!newId) return no("refused", "The piece was built but could not be saved.");
+        const saved = await commitNew(ws.id, grant.userId, built);
+        if ("error" in saved) return no("refused", artifactCapMessage(saved.cap));
+        const newId = saved.id;
         const made_content = built.content();
         return {
             ok: true,

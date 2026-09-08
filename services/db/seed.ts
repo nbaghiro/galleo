@@ -653,6 +653,15 @@ async function resetCredits(): Promise<void> {
     }
 }
 
+// the cap is on artifacts ever made, and the seed never deletes, so the rows are the whole history
+async function syncArtifactsMade(wsId: string): Promise<void> {
+    const made = await db.$count(schema.artifacts, eq(schema.artifacts.workspaceId, wsId));
+    await db
+        .update(schema.workspaces)
+        .set({ artifactsMade: made })
+        .where(eq(schema.workspaces.id, wsId));
+}
+
 async function seed(): Promise<void> {
     assertDatabaseUrl();
     if (CREDITS) return resetCredits();
@@ -681,6 +690,7 @@ async function seed(): Promise<void> {
             await seedVisits(spec, docs, userIds);
             if (spec.contexts && embed) await seedContexts(ws.id, ownerId, docs);
         }
+        await syncArtifactsMade(ws.id);
         await seedThemes(ws.id, spec);
         if (spec.assets) await seedAssets(ws.id);
         const { balance } = await seedLedger(ws, spec, userIds);

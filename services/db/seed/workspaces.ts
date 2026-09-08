@@ -462,33 +462,19 @@ export const WORKSPACES: WorkspaceSpec[] = [
         // the Free cap is 500 MB and only stored bytes count, so narrow it to make the wall reachable
         featureOverrides: { storageMb: 1 },
         windowStartedDaysAgo: 6,
-        // exactly 10 live artifacts: at the Free cap, so POST /artifacts 402s
+        // four live and one in Trash: five made, the Free cap, so POST /artifacts 402s and the
+        // trashed one shows that a slot is not freed by trashing
         folders: [
             {
                 folder: "Job hunt",
-                docs: [
-                    { ref: { template: "resume" } },
-                    { ref: { template: "cover-letter" } },
-                    { ref: { template: "personal-site" } },
-                ],
+                docs: [{ ref: { template: "resume" } }, { ref: { template: "cover-letter" } }],
             },
             {
                 folder: null,
-                docs: [
-                    { ref: { corpus: "fieldnotes" } },
-                    { ref: { corpus: "slowweb" } },
-                    { ref: { template: "newsletter" } },
-                    { ref: { template: "event-invite" } },
-                    { ref: { template: "photo-essay" } },
-                    { ref: { template: "waitlist-page" } },
-                    { ref: { template: "portfolio" } },
-                ],
+                docs: [{ ref: { corpus: "fieldnotes" } }, { ref: { corpus: "slowweb" } }],
             },
         ],
-        trashed: [
-            { ref: { template: "sow" }, daysAgo: 5 },
-            { ref: { template: "trends-report" }, daysAgo: 20 },
-        ],
+        trashed: [{ ref: { template: "sow" }, daysAgo: 5 }],
         visits: [{ corpus: "fieldnotes" }, { corpus: "slowweb" }],
         // Lands near the wall with about 60 of 600 left: rewrite-text (3) and ask-assistant (8) still
         // pass, generate-artifact (~95) takes the 402 branch. Free runs basic models, so each charge is

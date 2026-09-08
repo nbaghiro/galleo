@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { readArtifact } from "@services/core/artifacts";
 import { makeGenerationStore } from "@services/core/generations";
 import { seedUser } from "@services/__tests__/harness";
+import { db } from "@services/db/client";
+import { schema } from "@services/db/schema";
 
 // The record a run leaves on its artifact: written at create so the piece is marked as generated
 // before a single beat lands, then rewritten at finish with the models that ran.
@@ -50,5 +53,18 @@ describe("the run's record on its artifact", () => {
 
         const row = await readArtifact(workspaceId, first.generation.artifactId);
         expect(row?.aiMeta?.generationId).toBe(second.generation.id);
+    });
+
+    // the draft is an artifact like any other, so a run on a capped workspace is refused where the
+    // row would be made, with the same words the route uses
+    it("refuses a new draft when the workspace has made all its plan allows", async () => {
+        const { userId, workspaceId } = await seedUser({ plan: "free" });
+        await db
+            .update(schema.workspaces)
+            .set({ artifactsMade: 5 })
+            .where(eq(schema.workspaces.id, workspaceId));
+        await expect(makeGenerationStore(workspaceId, userId).create({ brief })).rejects.toThrow(
+            "Upgrade for unlimited",
+        );
     });
 });

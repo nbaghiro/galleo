@@ -168,6 +168,7 @@ export async function billingSummary(ws: WorkspaceRow) {
         },
         usage: {
             artifacts: Number(artifactCount?.n ?? 0),
+            artifactsMade: ws.artifactsMade,
             maxArtifacts: feats.maxArtifacts,
             storageMb: Math.round(Number(storage?.total ?? 0) / (1024 * 1024)),
             maxStorageMb: feats.storageMb,

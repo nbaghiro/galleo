@@ -41,7 +41,7 @@ describe("planFor", () => {
 describe("resolveFeatures", () => {
     it("resolves the free baseline", () => {
         const free = resolveFeatures("free");
-        expect(free.maxArtifacts).toBe(10);
+        expect(free.maxArtifacts).toBe(5);
         expect(free.maxMembers).toBe(1);
         expect(free.exportFormats).toEqual(["png", "pdf"]);
         expect(free.audio).toBe(false);
@@ -70,14 +70,14 @@ describe("enforcement accessors", () => {
         expect(withinLimit(resolveFeatures("premium"), "maxMembers", 999)).toBe(true);
     });
     it("withinLimit is strict against a finite cap", () => {
-        expect(withinLimit(free, "maxArtifacts", 9)).toBe(true);
-        expect(withinLimit(free, "maxArtifacts", 10)).toBe(false);
+        expect(withinLimit(free, "maxArtifacts", 4)).toBe(true);
+        expect(withinLimit(free, "maxArtifacts", 5)).toBe(false);
         expect(withinLimit(free, "maxMembers", 1)).toBe(false); // the owner already holds it
     });
     it("can / limit read the resolved set", () => {
         expect(can(free, "removeBranding")).toBe(false);
         expect(can(resolveFeatures("free", { removeBranding: true }), "removeBranding")).toBe(true);
-        expect(limit(free, "maxArtifacts")).toBe(10);
+        expect(limit(free, "maxArtifacts")).toBe(5);
     });
 });
 
@@ -238,7 +238,7 @@ describe("upgradeFor across feature kinds", () => {
     });
 
     it("treats a bigger or unlimited number as an upgrade", () => {
-        expect(upgradeFor("maxArtifacts", "free")?.id).toBe("pro"); // 10 -> unlimited
+        expect(upgradeFor("maxArtifacts", "free")?.id).toBe("pro"); // 5 -> unlimited
         expect(upgradeFor("maxArtifacts", "pro")).toBeNull(); // already unlimited
         expect(upgradeFor("storageMb", "pro")?.id).toBe("premium"); // 20 GB -> unlimited
         expect(upgradeFor("maxMembers", "pro")?.id).toBe("premium"); // solo -> a team

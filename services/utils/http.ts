@@ -117,15 +117,16 @@ export function checkLimit(
     const f = featuresFor(ws);
     if (withinLimit(f, key, current)) return null;
     const cap = limit(f, key);
-    return c.json(
-        {
-            error: message?.(cap) ?? `Your plan is limited to ${cap} — upgrade for more.`,
-            reason: "feature" as const,
-            feature: key,
-            upgrade: true,
-        },
-        402,
+    return limitResponse(
+        c,
+        key,
+        message?.(cap) ?? `Your plan is limited to ${cap}. Upgrade for more.`,
     );
+}
+
+/** The 402 a numeric wall answers with: `checkLimit` derives it from a count, this states it. */
+export function limitResponse(c: Context, key: NumFeature, message: string): Response {
+    return c.json({ error: message, reason: "feature" as const, feature: key, upgrade: true }, 402);
 }
 
 // Fixed-window and per-process: buckets reset on restart and aren't shared across instances.

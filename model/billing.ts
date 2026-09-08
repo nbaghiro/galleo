@@ -22,7 +22,7 @@ export interface PlanAi {
 }
 
 export interface PlanAccount {
-    maxArtifacts: number; // -1 = unlimited
+    maxArtifacts: number; // -1 = unlimited; counts every artifact made, trashed and deleted ones too
     storageMb: number; // -1 = unlimited
     maxMembers: number; // -1 = unlimited; 1 = solo
 }
@@ -84,14 +84,14 @@ export const PLANS: Record<PlanId, Plan> = {
         tagline: "For trying it out.",
         highlights: [
             `${credits(CREDITS.free)} credits a month`,
-            "Up to 10 artifacts",
+            "Up to 5 artifacts",
             `All ${THEME_LIST.length} built-in themes`,
             "PNG · PDF export (with a Galleo mark)",
             "Just you",
         ],
         billing: { priceMonthly: 0, priceAnnualMonthly: 0 },
         ai: { monthlyCredits: CREDITS.free },
-        account: { maxArtifacts: 10, storageMb: 500, maxMembers: 1 },
+        account: { maxArtifacts: 5, storageMb: 500, maxMembers: 1 },
         features: {
             removeBranding: false,
             customThemes: false,
@@ -199,7 +199,7 @@ export const FEATURES: Record<FeatureKey, { label: string; description: string }
     },
     maxArtifacts: {
         label: "Artifacts",
-        description: "How many live artifacts a workspace can hold.",
+        description: "How many artifacts a workspace can make, counting any it trashes or deletes.",
     },
     storageMb: { label: "Storage", description: "Uploaded-media storage per workspace." },
     maxMembers: { label: "Members", description: "How many people a workspace can hold." },

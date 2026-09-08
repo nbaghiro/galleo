@@ -21,6 +21,13 @@ import {
 } from "@services/core/media";
 import { seedUser } from "@services/__tests__/harness";
 
+// the create path answers with a result; these tests want the id or a loud failure
+const makeArtifact = async (...args: Parameters<typeof createArtifact>): Promise<string> => {
+    const made = await createArtifact(...args);
+    if ("error" in made) throw new Error(made.error);
+    return made.id;
+};
+
 const image = (src: string) => ({ type: "image", data: { src } });
 
 const content = (...urls: string[]): ArtifactContent => ({
@@ -48,9 +55,9 @@ const indexed = async (id: string): Promise<string[]> =>
 describe("every media url in an artifact is an asset", () => {
     it("holds on create, and indexes what it referenced", async () => {
         const { userId, workspaceId } = await seedUser();
-        const id = (await createArtifact(workspaceId, userId, {
+        const id = await makeArtifact(workspaceId, userId, {
             draftContent: content("https://images.unsplash.com/a.jpg", "https://x.example/b.png"),
-        }))!;
+        });
 
         const refs = await storedRefs(workspaceId, id);
         expect(refs).toHaveLength(2);
@@ -60,7 +67,7 @@ describe("every media url in an artifact is an asset", () => {
 
     it("holds on a whole-document save", async () => {
         const { userId, workspaceId } = await seedUser();
-        const id = (await createArtifact(workspaceId, userId, { draftContent: content() }))!;
+        const id = await makeArtifact(workspaceId, userId, { draftContent: content() });
         await updateArtifact(workspaceId, id, {
             draftContent: content("https://cdn.example/late.jpg"),
         });
@@ -69,7 +76,7 @@ describe("every media url in an artifact is an asset", () => {
 
     it("holds on a section-op write, the path autosave takes", async () => {
         const { userId, workspaceId } = await seedUser();
-        const id = (await createArtifact(workspaceId, userId, { draftContent: content() }))!;
+        const id = await makeArtifact(workspaceId, userId, { draftContent: content() });
         const res = await applyContentOps(
             workspaceId,
             id,
@@ -97,18 +104,18 @@ describe("every media url in an artifact is an asset", () => {
 
     it("carries the canonical url into the derived cover, so the library thumbnail resolves", async () => {
         const { userId, workspaceId } = await seedUser();
-        const id = (await createArtifact(workspaceId, userId, {
+        const id = await makeArtifact(workspaceId, userId, {
             draftContent: content("https://cdn.example/cover.jpg"),
-        }))!;
+        });
         const row = await readArtifact(workspaceId, id);
         expect(assetIdFromUrl(row!.digest!.cover.image!)).toBeTruthy();
     });
 
     it("re-saving unchanged content adopts nothing new", async () => {
         const { userId, workspaceId } = await seedUser();
-        const id = (await createArtifact(workspaceId, userId, {
+        const id = await makeArtifact(workspaceId, userId, {
             draftContent: content("https://cdn.example/once.jpg"),
-        }))!;
+        });
         const stored = (await readArtifact(workspaceId, id))!.draftContent as ArtifactContent;
         await updateArtifact(workspaceId, id, { draftContent: stored });
         const rows = await db
@@ -120,10 +127,10 @@ describe("every media url in an artifact is an asset", () => {
 
     it("refuses to delete an asset a deck still shows, and names it", async () => {
         const { userId, workspaceId } = await seedUser();
-        const id = (await createArtifact(workspaceId, userId, {
+        const id = await makeArtifact(workspaceId, userId, {
             title: "Q3 deck",
             draftContent: content("https://cdn.example/in-use.jpg"),
-        }))!;
+        });
         const [assetId] = await indexed(id);
 
         const blocked = await deleteAsset(workspaceId, assetId!);
@@ -164,10 +171,10 @@ describe("every media url in an artifact is an asset", () => {
                 authorUrl: "https://unsplash.com/@areyes",
             },
         });
-        const id = (await createArtifact(workspaceId, userId, {
+        const id = await makeArtifact(workspaceId, userId, {
             // the same photo twice, plus one nobody needs crediting for
             draftContent: content(shot.url, shot.url, "https://picsum.photos/seed/x/800/600"),
-        }))!;
+        });
 
         expect(await artifactCredits(id)).toEqual([
             {
@@ -181,9 +188,9 @@ describe("every media url in an artifact is an asset", () => {
 
     it("drops the reverse index when the artifact goes", async () => {
         const { userId, workspaceId } = await seedUser();
-        const id = (await createArtifact(workspaceId, userId, {
+        const id = await makeArtifact(workspaceId, userId, {
             draftContent: content("https://cdn.example/gone.jpg"),
-        }))!;
+        });
         expect(await indexed(id)).toHaveLength(1);
         await db.delete(schema.artifacts).where(eq(schema.artifacts.id, id));
         expect(await indexed(id)).toHaveLength(0);

@@ -595,7 +595,7 @@ seats; a subscription is one Stripe line at quantity one.
 | Price                 | $0              | $20/mo, $16 annual | $99/mo, $82 annual |
 | Members               | 1               | 1                  | unlimited          |
 | Credits a month       | 300             | 1,200              | 5,000              |
-| Artifacts / storage   | 10 / 500 MB     | ∞ / 20 GB          | ∞ / ∞              |
+| Artifacts / storage   | 5 / 500 MB      | ∞ / 20 GB          | ∞ / ∞              |
 | Export, branding      | png/pdf, marked | all, no mark       | all, no mark       |
 | Custom themes, links  | —               | ✓                  | ✓                  |
 | Audio                 | —               | ✓                  | ✓                  |

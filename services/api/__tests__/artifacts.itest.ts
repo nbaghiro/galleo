@@ -65,73 +65,64 @@ describe("artifact routes", () => {
         expect(res.status).toBe(401);
     });
 
-    it("enforces the free plan artifact cap: the 11th live artifact is a 402 with upgrade:true", async () => {
-        const { userId, workspaceId } = await seedUser({ plan: "free" }); // maxArtifacts = 10
-        await db.insert(schema.artifacts).values(
-            Array.from({ length: 10 }, () => ({
-                workspaceId,
-            })),
-        );
-        const res = await authed(userId, "/artifacts", jsonInit("POST", { title: "one too many" }));
+    // The cap counts every artifact the workspace has ever made, on the workspace row, and is checked
+    // where the row is made; these create through the route so the counter moves as it would.
+    const createOne = (userId: string, title: string): Promise<Response> =>
+        authed(userId, "/artifacts", jsonInit("POST", { title }));
+    const createFive = async (userId: string): Promise<string[]> => {
+        const ids: string[] = [];
+        for (let i = 1; i <= 5; i++) {
+            const res = await createOne(userId, `Piece ${i}`);
+            expect(res.status).toBe(200);
+            ids.push(((await res.json()) as { id: string }).id);
+        }
+        return ids;
+    };
+
+    it("enforces the free plan artifact cap: the sixth artifact ever is a 402 with upgrade:true", async () => {
+        const { userId } = await seedUser({ plan: "free" }); // maxArtifacts = 5
+        await createFive(userId);
+        const res = await createOne(userId, "one too many");
         expect(res.status).toBe(402);
-        const body = (await res.json()) as { upgrade?: boolean };
+        const body = (await res.json()) as { upgrade?: boolean; feature?: string };
         expect(body.upgrade).toBe(true);
+        expect(body.feature).toBe("maxArtifacts");
     });
 
-    // the hole this closes: trash one, create one, restore the first, and you are over the cap
-    it("restoring from Trash is capped too, not just creating", async () => {
-        const { userId, workspaceId } = await seedUser({ plan: "free" });
-        const [trashed] = await db
-            .insert(schema.artifacts)
-            .values({
-                workspaceId,
-                trashedAt: new Date(),
-            })
-            .returning();
-        await db.insert(schema.artifacts).values(
-            Array.from({ length: 10 }, () => ({
-                workspaceId,
-            })),
+    // the hole this closes: trash or delete one, make another, and stay at five live forever
+    it("trashing or deleting frees no slot: the cap counts what was ever made", async () => {
+        const { userId } = await seedUser({ plan: "free" });
+        const ids = await createFive(userId);
+        expect(
+            (await authed(userId, `/artifacts/${ids[0]}/trash`, jsonInit("POST", {}))).status,
+        ).toBe(200);
+        expect(
+            (await authed(userId, `/artifacts/${ids[1]}/trash`, jsonInit("POST", {}))).status,
+        ).toBe(200);
+        expect((await authed(userId, `/artifacts/${ids[1]}`, { method: "DELETE" })).status).toBe(
+            200,
         );
-        const res = await authed(userId, `/artifacts/${trashed!.id}/restore`, jsonInit("POST", {}));
+        const res = await createOne(userId, "still one too many");
         expect(res.status).toBe(402);
-        expect(((await res.json()) as { upgrade?: boolean }).upgrade).toBe(true);
-        const [still] = await db
-            .select({ trashedAt: schema.artifacts.trashedAt })
-            .from(schema.artifacts)
-            .where(eq(schema.artifacts.id, trashed!.id));
-        expect(still!.trashedAt).not.toBeNull(); // refused, not silently restored
     });
 
-    it("restores freely while the workspace is under the cap", async () => {
-        const { userId, workspaceId } = await seedUser({ plan: "free" });
-        const [trashed] = await db
-            .insert(schema.artifacts)
-            .values({
-                workspaceId,
-                trashedAt: new Date(),
-            })
-            .returning();
-        const res = await authed(userId, `/artifacts/${trashed!.id}/restore`, jsonInit("POST", {}));
+    it("restores freely at the cap, since a trashed piece was counted when it was made", async () => {
+        const { userId } = await seedUser({ plan: "free" });
+        const ids = await createFive(userId);
+        await authed(userId, `/artifacts/${ids[0]}/trash`, jsonInit("POST", {}));
+        const res = await authed(userId, `/artifacts/${ids[0]}/restore`, jsonInit("POST", {}));
         expect(res.status).toBe(200);
         const [row] = await db
             .select({ trashedAt: schema.artifacts.trashedAt })
             .from(schema.artifacts)
-            .where(eq(schema.artifacts.id, trashed!.id));
+            .where(eq(schema.artifacts.id, ids[0]!));
         expect(row!.trashedAt).toBeNull();
     });
 
-    it("the cap counts only LIVE artifacts — a trashed one leaves a slot free", async () => {
-        const { userId, workspaceId } = await seedUser({ plan: "free" });
-        // 9 live + 1 trashed = 10 rows, but only 9 count against the cap.
-        await db.insert(schema.artifacts).values(
-            Array.from({ length: 9 }, () => ({
-                workspaceId,
-            })),
-        );
-        await insertArtifact(workspaceId, { trashedAt: new Date() });
-        const res = await authed(userId, "/artifacts", jsonInit("POST", { title: "fits" }));
-        expect(res.status).toBe(200);
+    it("an unlimited plan is never counted against", async () => {
+        const { userId } = await seedUser({ plan: "pro" });
+        await createFive(userId);
+        expect((await createOne(userId, "a sixth")).status).toBe(200);
     });
 
     it("PATCH bumps updatedAt on a real content edit but NOT on a folder-only move", async () => {

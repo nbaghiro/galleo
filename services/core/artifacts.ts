@@ -10,6 +10,7 @@ import type {
     SectionOp,
 } from "@model/artifact";
 import { accessFor, applySectionOps, artifactDigest, asContent } from "@model/artifact";
+import { featuresFor, limit, withinLimit } from "@model/billing";
 import type { WorkspaceRole } from "@model/workspace";
 import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
@@ -242,16 +243,6 @@ export async function setArtifactAccess(
     return !!row;
 }
 
-export async function liveArtifactCount(workspaceId: string): Promise<number> {
-    const live = await db
-        .select({ id: schema.artifacts.id })
-        .from(schema.artifacts)
-        .where(
-            and(eq(schema.artifacts.workspaceId, workspaceId), isNull(schema.artifacts.trashedAt)),
-        );
-    return live.length;
-}
-
 // Media normalization sits in front of the derived columns: content is rewritten so every picture
 // it references is an asset row in this workspace, and only then are digest/search_text derived
 // from it. Adopting inside the caller's transaction keeps the rows and the content atomic.
@@ -279,12 +270,37 @@ const withShell = (content: unknown, shell: { formatId?: string; themeId?: strin
               ...(shell.themeId ? { theme: shell.themeId } : {}),
           };
 
+export type CreateResult = { id: string } | { error: "over-artifacts"; cap: number };
+
+/** What every surface says when a workspace has made all the artifacts its plan allows. */
+export const artifactCapMessage = (cap: number): string =>
+    `Your plan holds ${cap} artifacts, counting any you trash or delete. Upgrade for unlimited.`;
+
+/**
+ * The one place an artifact is made, on every surface, so the plan's cap is checked here and
+ * nowhere else. The cap is on `artifacts_made`, which only ever grows: trashing or deleting a
+ * piece frees nothing, so a workspace cannot cycle through pieces to stay under it. The row is
+ * locked for the check and the bump, so two creates racing at the cap admit one.
+ */
 export async function createArtifact(
     workspaceId: string,
     userId: string,
     body: ArtifactInput,
-): Promise<string | null> {
+): Promise<CreateResult> {
     return db.transaction(async (tx) => {
+        const [ws] = await tx
+            .select({
+                plan: schema.workspaces.plan,
+                featureOverrides: schema.workspaces.featureOverrides,
+                artifactsMade: schema.workspaces.artifactsMade,
+            })
+            .from(schema.workspaces)
+            .where(eq(schema.workspaces.id, workspaceId))
+            .for("update");
+        if (!ws) throw new Error("the workspace is gone");
+        const feats = featuresFor(ws);
+        if (!withinLimit(feats, "maxArtifacts", ws.artifactsMade))
+            return { error: "over-artifacts", cap: limit(feats, "maxArtifacts") };
         const content = withShell(body.draftContent, body);
         const { columns, assetIds } = await contentColumns(workspaceId, content, tx);
         const [a] = await tx
@@ -298,9 +314,13 @@ export async function createArtifact(
                 createdBy: userId,
             })
             .returning({ id: schema.artifacts.id });
-        if (!a) return null;
+        if (!a) throw new Error("the artifact could not be created");
+        await tx
+            .update(schema.workspaces)
+            .set({ artifactsMade: sql`${schema.workspaces.artifactsMade} + 1` })
+            .where(eq(schema.workspaces.id, workspaceId));
         await syncArtifactAssets(a.id, assetIds, tx);
-        return a.id;
+        return { id: a.id };
     });
 }
 

@@ -4,6 +4,13 @@ import { app, request, resetDb, seedUser } from "@services/__tests__/harness";
 import { SESSION_COOKIE, makeSession } from "@services/utils/auth";
 import { createArtifact, readArtifact } from "@services/core/artifacts";
 
+// the create path answers with a result; these tests want the id or a loud failure
+const makeArtifact = async (...args: Parameters<typeof createArtifact>): Promise<string> => {
+    const made = await createArtifact(...args);
+    if ("error" in made) throw new Error(made.error);
+    return made.id;
+};
+
 const REDIRECT = "http://localhost:33418/cb";
 const form = (b: Record<string, string | string[]>): RequestInit => {
     const p = new URLSearchParams();
@@ -83,14 +90,14 @@ describe("the effect path", () => {
 
     it("a write over MCP lands in the stored artifact and bumps seq for the room", async () => {
         const { userId, workspaceId } = await seedUser();
-        const artifactId = (await createArtifact(workspaceId, userId, {
+        const artifactId = await makeArtifact(workspaceId, userId, {
             title: "Effect target",
             draftContent: {
                 format: "deck",
                 theme: "studio",
                 sections: [{ id: "s1", root: { type: "text", data: { text: "hi" } } }],
             },
-        }))!;
+        });
         const before = await readArtifact(workspaceId, artifactId);
         const access = await grant(userId, workspaceId, "artifacts:read artifacts:write");
 
@@ -110,14 +117,14 @@ describe("the effect path", () => {
     // come back as "Moved to Trash." all the same.
     it("performs a trash, and refuses one that names an artifact there is none of", async () => {
         const { userId, workspaceId } = await seedUser();
-        const artifactId = (await createArtifact(workspaceId, userId, {
+        const artifactId = await makeArtifact(workspaceId, userId, {
             title: "Trash target",
             draftContent: {
                 format: "deck",
                 theme: "studio",
                 sections: [{ id: "s1", root: { type: "text", data: { text: "bye" } } }],
             },
-        }))!;
+        });
         const access = await grant(userId, workspaceId, "artifacts:read artifacts:delete");
         const trash = async (
             id: string,
@@ -141,14 +148,14 @@ describe("the effect path", () => {
 
     it("hands the component a tree to paint, and keeps it out of what the model reads", async () => {
         const { userId, workspaceId } = await seedUser();
-        const artifactId = (await createArtifact(workspaceId, userId, {
+        const artifactId = await makeArtifact(workspaceId, userId, {
             title: "Component target",
             draftContent: {
                 format: "deck",
                 theme: "studio",
                 sections: [{ id: "s1", root: { type: "text", data: { text: "hello" } } }],
             },
-        }))!;
+        });
         const access = await grant(userId, workspaceId, "artifacts:read");
 
         const listed = (await rpc(access, "resources/list")) as {

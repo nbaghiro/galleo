@@ -23,7 +23,7 @@ describe("features — resolved feature set per plan", () => {
         expect(features.publicLinks).toBe(false);
         expect(features.customThemes).toBe(false);
         expect(features.removeBranding).toBe(false);
-        expect(features.maxArtifacts).toBe(10);
+        expect(features.maxArtifacts).toBe(5);
     });
 
     it("projects the pro plan's grants and unlimited artifacts", async () => {

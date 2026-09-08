@@ -111,6 +111,9 @@ export const workspaces = pgTable("workspaces", {
     // and this floor exempts purchases; re-clamped to the balance at each grant, since spends draw
     // granted credits first by convention.
     purchasedCredits: integer("purchased_credits").notNull().default(0),
+    // Every artifact ever created here, trashed and deleted ones included. The artifact cap is on
+    // this rather than on the live count, so a slot cannot be freed by deleting and made again.
+    artifactsMade: integer("artifacts_made").notNull().default(0),
     creditsResetAt: timestamp("credits_reset_at").notNull().defaultNow(),
     // when the current credit window opened; every writer of credits_reset_at sets both
     creditsStartedAt: timestamp("credits_started_at").notNull().defaultNow(),

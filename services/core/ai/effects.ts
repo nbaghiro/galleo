@@ -4,6 +4,7 @@ import type { ArtifactContent } from "@model/artifact";
 import {
     applyContentOps as writeOps,
     createArtifact,
+    type CreateResult,
     isArtifactContent,
     readArtifact,
     updateArtifact,
@@ -85,7 +86,7 @@ export async function commitNew(
     workspaceId: string,
     userId: string,
     built: Built,
-): Promise<string | null> {
+): Promise<CreateResult> {
     const content = built.content();
     return createArtifact(workspaceId, userId, {
         title: built.named,

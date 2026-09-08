@@ -362,6 +362,9 @@ the phases above describe an intermediate state. What shipped instead:
 - 2026-09-07: bought credits are any whole quantity within `CREDIT_BOUNDS` again, typed beside
   the presets, since the single one-credit price already charges by quantity; the presets stay as
   quick picks. The bounds check replaces the preset check on the route, the webhook and the seed.
+- 2026-09-07: Free holds 5 artifacts, counted for life on `workspaces.artifacts_made` inside the
+  one create path, so trashing or deleting frees nothing and the agent, MCP and API surfaces
+  are capped like the route; restore is no longer checked. Migration `0052_opposite_random.sql`.
 
 Still open from the sandbox run: a tier upgrade grants the whole new allowance in a fresh window
 rather than the difference, which is generous by up to one month's grant and bounded by the

@@ -7,7 +7,12 @@ import { db } from "@services/db/client";
 import { schema } from "@services/db/schema";
 import type { GenerationRead, GenerationStore } from "@services/core/ai/tools";
 import { commitPatch } from "@services/core/ai/effects";
-import { createArtifact, readArtifact, updateArtifact } from "@services/core/artifacts";
+import {
+    artifactCapMessage,
+    createArtifact,
+    readArtifact,
+    updateArtifact,
+} from "@services/core/artifacts";
 
 // The database-backed GenerationStore: rows in `generations`, the section of record in the draft
 // artifact. Tool bodies never touch either; the executor applies their patches through here, so
@@ -82,13 +87,15 @@ export function makeGenerationStore(workspaceId: string, userId: string): Genera
     };
     return {
         async create({ brief, artifactId }) {
-            const target =
-                artifactId ??
-                (await createArtifact(workspaceId, userId, {
+            let target = artifactId;
+            if (!target) {
+                const made = await createArtifact(workspaceId, userId, {
                     title: "Untitled",
                     draftContent: emptyContent(brief),
-                }));
-            if (!target) throw new Error("the draft artifact could not be created");
+                });
+                if ("error" in made) throw new Error(artifactCapMessage(made.cap));
+                target = made.id;
+            }
             const [row] = await db
                 .insert(schema.generations)
                 .values({

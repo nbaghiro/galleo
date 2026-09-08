@@ -532,7 +532,6 @@ const CreditsCard: Component<{ b: BillingState; navigate: (p: string) => void }>
                         : `+${props.b.credits.monthlyGrant.toLocaleString()} in ${grantIn()}d`}
                 </span>
             </div>
-            {/* a capped member's real ceiling is their own, not the pool's */}
             <a
                 class="mt-1.5 block cursor-pointer whitespace-nowrap text-[11.5px] font-semibold text-accent"
                 onClick={() => props.navigate("/settings/plan")}

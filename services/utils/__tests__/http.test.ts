@@ -37,10 +37,10 @@ describe("plan guards", () => {
     feature("/pro", { plan: "pro" }, "nope");
     feature("/free", { plan: "free" }, "Themes are Pro.");
     feature("/override", { plan: "free", featureOverrides: { customThemes: true } }, "nope");
-    capped("/under", "free", 9);
-    capped("/at", "free", 10);
+    capped("/under", "free", 4);
+    capped("/at", "free", 5);
     capped("/unlimited", "pro", 999_999);
-    capped("/message", "free", 10, (cap) => `Free tops out at ${cap}.`);
+    capped("/message", "free", 5, (cap) => `Free tops out at ${cap}.`);
 
     it("requireFeature passes a granted feature and 402s a withheld one", async () => {
         expect((await app.request("/pro")).status).toBe(200);
@@ -66,7 +66,7 @@ describe("plan guards", () => {
 
     it("checkLimit passes the resolved cap to the message builder", async () => {
         expect(await body(await app.request("/message"))).toEqual({
-            error: "Free tops out at 10.",
+            error: "Free tops out at 5.",
             reason: "feature",
             feature: "maxArtifacts",
             upgrade: true,
