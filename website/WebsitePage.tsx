@@ -1,5 +1,5 @@
 import type { Accessor, Component, JSX } from "solid-js";
-import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
+import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import { THEME_LIST } from "@themes";
 import { PLAN_ORDER, PLANS } from "@model/billing";
 import { TEMPLATE_INDEX } from "@model/templates";
@@ -9,14 +9,8 @@ import { listElements } from "@elements/spec";
 // element and lays every one out as a bare block
 import "@elements/register";
 import { AuthCta, BrandLink, authed, ctaClicked } from "./chrome";
-import { plateGeometry } from "@ui/section";
-import { fontsGeneration } from "@ui/fonts";
-import { resolveTheme } from "@themes";
-import { profileFor } from "@engine/profile";
-import { layoutSection, measureText, SECTION_GAP } from "@canvas/render/commands";
-import { backdropCss, renderToCanvas } from "@canvas/render/backends";
+import { ArtifactCanvasPreview } from "@ui/section";
 import { showcaseFor, type ShowcasePiece } from "./showcase";
-import { sectionRegionId, type ArtifactContent } from "@model/artifact";
 
 // the marketing "N designer themes" claim, so it cannot drift from the theme library
 const THEME_COUNT = THEME_LIST.length;
@@ -167,103 +161,6 @@ const Strip: Component<{ text: string; sep?: string }> = (props) => (
     </span>
 );
 
-// Illustrative previews paint pixels, so sample copy and links never become homepage content.
-const FitPlate: Component<{
-    content: ArtifactContent;
-    theme: string;
-    padTop?: number;
-}> = (props) => {
-    let box!: HTMLDivElement;
-    let inner!: HTMLDivElement;
-    const [width, setWidth] = createSignal(0);
-    const [visible, setVisible] = createSignal(false);
-    onMount(() => {
-        const resize = new ResizeObserver(([entry]) =>
-            setWidth(Math.floor(entry!.contentRect.width)),
-        );
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry?.isIntersecting) {
-                    setVisible(true);
-                    observer.disconnect();
-                }
-            },
-            { rootMargin: "200px" },
-        );
-        resize.observe(box);
-        observer.observe(box);
-        onCleanup(() => {
-            resize.disconnect();
-            observer.disconnect();
-        });
-    });
-    createEffect(() => {
-        fontsGeneration();
-        if (!visible() || width() === 0) return;
-        const geometry = plateGeometry(props.content.format, width(), props.padTop);
-        const tokens = resolveTheme(props.theme).tokens;
-        const content = props.content;
-        const profile = profileFor(content);
-        let cancelled = false;
-        onCleanup(() => {
-            cancelled = true;
-        });
-        box.style.background = backdropCss(content.background, tokens);
-        const scale = geometry.width / geometry.layoutWidth;
-        inner.style.width = `${geometry.layoutWidth}px`;
-        inner.style.transform = `scale(${scale})`;
-        inner.style.transformOrigin = "top center";
-        inner.style.paddingTop = `${geometry.padTop / scale}px`;
-        void (async () => {
-            const canvases: HTMLCanvasElement[] = [];
-            for (const section of content.sections) {
-                if (cancelled) return;
-                const layout = layoutSection(
-                    section,
-                    geometry.layoutWidth,
-                    measureText,
-                    tokens,
-                    profile,
-                    true,
-                );
-                const canvas = await renderToCanvas(
-                    layout.commands,
-                    geometry.layoutWidth,
-                    layout.height,
-                    "transparent",
-                    scale * 2,
-                );
-                canvas.style.width = "100%";
-                canvas.style.height = "auto";
-                canvas.style.display = "block";
-                const ground = layout.commands.find((c) => c.id === sectionRegionId(section.id));
-                const surface =
-                    ground?.kind === "rect"
-                        ? ground.fill
-                        : ground?.kind === "image"
-                          ? ground.image
-                          : undefined;
-                if (typeof surface?.radius === "number")
-                    canvas.style.borderRadius = `${surface.radius}px`;
-                if (typeof surface?.shadow === "string") canvas.style.boxShadow = surface.shadow;
-                if (profile.kind === "paged") canvas.style.marginBottom = `${SECTION_GAP}px`;
-                canvases.push(canvas);
-            }
-            if (!cancelled) inner.replaceChildren(...canvases);
-        })();
-    });
-    return (
-        <div
-            ref={box}
-            class="flex h-full w-full justify-center overflow-hidden"
-            inert
-            aria-hidden="true"
-        >
-            <div ref={inner} class="shrink-0" />
-        </div>
-    );
-};
-
 type Orbiter = {
     piece: ShowcasePiece;
     /** percentage of the section, so the ring holds its shape as the viewport changes */
@@ -312,7 +209,7 @@ const PlateFan: Component<{ theme: string }> = (props) => (
                         transform: `translateX(calc(-50% + ${f.shift}%)) rotate(${f.rotate}deg) scale(${f.scale})`,
                     }}
                 >
-                    <FitPlate
+                    <ArtifactCanvasPreview
                         content={{ ...f.piece.content, theme: props.theme }}
                         theme={props.theme}
                         padTop={8}
@@ -339,7 +236,7 @@ const PlateOrbit: Component<{ theme: string }> = (props) => (
                         transform: `rotate(${o.rotate}deg) scale(${o.scale})`,
                     }}
                 >
-                    <FitPlate
+                    <ArtifactCanvasPreview
                         content={{ ...o.piece.content, theme: props.theme }}
                         theme={props.theme}
                         padTop={10}
@@ -388,7 +285,7 @@ const LiveStrip: Component<{
                 "-webkit-mask-image": "linear-gradient(180deg,#000 82%,transparent 100%)",
             }}
         >
-            <FitPlate
+            <ArtifactCanvasPreview
                 content={{ ...p.content, theme: props.theme }}
                 theme={props.theme}
                 padTop={STRIP_PAD_TOP}
@@ -690,7 +587,7 @@ export const WebsitePage: Component<{ theme: string }> = (props) => {
                                                 "linear-gradient(180deg,#000 84%,transparent 100%)",
                                         }}
                                     >
-                                        <FitPlate
+                                        <ArtifactCanvasPreview
                                             content={{
                                                 ...VIEW_PIECE.content,
                                                 format: v.format,

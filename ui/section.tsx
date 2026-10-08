@@ -1,6 +1,12 @@
 import type { Component, JSX } from "solid-js";
-import { createEffect, createSignal, onCleanup, onMount, Show } from "solid-js";
-import type { ArtifactContent, Section, SectionBackground, SectionSummary } from "@model/artifact";
+import { createEffect, createSignal, onCleanup, onMount, Show, splitProps } from "solid-js";
+import {
+    sectionRegionId,
+    type ArtifactContent,
+    type Section,
+    type SectionBackground,
+    type SectionSummary,
+} from "@model/artifact";
 import type { RenderCommand } from "@engine/node";
 import type { FormatDescriptor } from "@model/geometry";
 import { profileFor } from "@engine/profile";
@@ -8,6 +14,7 @@ import { resolveTheme } from "@themes";
 import type { Tokens } from "@themes";
 import {
     paint,
+    renderToCanvas,
     backdropCss,
     createSectionStackCache,
     paintSectionStack,
@@ -18,6 +25,7 @@ import { fitIntoBox, fitSectionToFrame, thumbFrame } from "@canvas/render/fit";
 import { createFontsInvalidator, fontsGeneration } from "./fonts";
 import {
     measureText,
+    SECTION_GAP,
     layoutSlide,
     layoutSlideSkeleton,
     layoutSection,
@@ -384,6 +392,107 @@ export const ArtifactPlate: Component<{
             >
                 <div ref={inner} />
             </div>
+        </div>
+    );
+};
+
+// Illustrative previews paint pixels, so sample copy and links never become homepage content.
+export const ArtifactCanvasPreview: Component<
+    {
+        content: ArtifactContent;
+        theme: string;
+        padTop?: number;
+    } & Omit<JSX.HTMLAttributes<HTMLDivElement>, "content">
+> = (props) => {
+    const [own, rest] = splitProps(props, ["content", "theme", "padTop", "class"]);
+    let box!: HTMLDivElement;
+    let inner!: HTMLDivElement;
+    const [width, setWidth] = createSignal(0);
+    const [visible, setVisible] = createSignal(false);
+    onMount(() => {
+        const resize = new ResizeObserver(([entry]) =>
+            setWidth(Math.floor(entry!.contentRect.width)),
+        );
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry?.isIntersecting) {
+                    setVisible(true);
+                    observer.disconnect();
+                }
+            },
+            { rootMargin: "200px" },
+        );
+        resize.observe(box);
+        observer.observe(box);
+        onCleanup(() => {
+            resize.disconnect();
+            observer.disconnect();
+        });
+    });
+    createEffect(() => {
+        fontsGeneration();
+        if (!visible() || width() === 0) return;
+        const geometry = plateGeometry(own.content.format, width(), own.padTop);
+        const tokens = resolveTheme(own.theme).tokens;
+        const content = own.content;
+        const profile = profileFor(content);
+        let cancelled = false;
+        onCleanup(() => {
+            cancelled = true;
+        });
+        box.style.background = backdropCss(content.background, tokens);
+        const scale = geometry.width / geometry.layoutWidth;
+        inner.style.width = `${geometry.layoutWidth}px`;
+        inner.style.transform = `scale(${scale})`;
+        inner.style.transformOrigin = "top center";
+        inner.style.paddingTop = `${geometry.padTop / scale}px`;
+        void (async () => {
+            const canvases: HTMLCanvasElement[] = [];
+            for (const section of content.sections) {
+                if (cancelled) return;
+                const layout = layoutSection(
+                    section,
+                    geometry.layoutWidth,
+                    measureText,
+                    tokens,
+                    profile,
+                    true,
+                );
+                const canvas = await renderToCanvas(
+                    layout.commands,
+                    geometry.layoutWidth,
+                    layout.height,
+                    "transparent",
+                    scale * 2,
+                );
+                canvas.style.width = "100%";
+                canvas.style.height = "auto";
+                canvas.style.display = "block";
+                const ground = layout.commands.find((c) => c.id === sectionRegionId(section.id));
+                const surface =
+                    ground?.kind === "rect"
+                        ? ground.fill
+                        : ground?.kind === "image"
+                          ? ground.image
+                          : undefined;
+                if (typeof surface?.radius === "number")
+                    canvas.style.borderRadius = `${surface.radius}px`;
+                if (typeof surface?.shadow === "string") canvas.style.boxShadow = surface.shadow;
+                if (profile.kind === "paged") canvas.style.marginBottom = `${SECTION_GAP}px`;
+                canvases.push(canvas);
+            }
+            if (!cancelled) inner.replaceChildren(...canvases);
+        })();
+    });
+    return (
+        <div
+            {...rest}
+            ref={box}
+            class={`flex h-full w-full justify-center overflow-hidden ${own.class ?? ""}`}
+            inert
+            aria-hidden="true"
+        >
+            <div ref={inner} class="shrink-0" />
         </div>
     );
 };

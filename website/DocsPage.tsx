@@ -1,14 +1,97 @@
-import { createMemo, createSignal, For, onMount, Show, type Component } from "solid-js";
+import { createMemo, createSignal, For, lazy, onMount, Show, type Component } from "solid-js";
 import { resolveTheme, themeCssVars, THEME_LIST } from "@themes";
 import { queryBucket } from "@model/analytics";
 import { capture } from "@ui/analytics";
 import { TextField } from "@ui/inputs";
+import type { ArtifactContent } from "@model/artifact";
 import { Icon, UiThemeProvider } from "@ui/icons";
 import { SelectField } from "@ui/select";
 import { AuthCta, BrandLink } from "./chrome";
 import { DOC_ARTICLES, searchDocs, type DocArticle } from "./docs";
 
 const groups = [...new Set(DOC_ARTICLES.map((article) => article.group))];
+
+const groupDescriptions: Record<string, string> = {
+    "Start here": "Find your footing. Make something worth sharing.",
+    Create: "Turn a brief, a template, or your source material into a first draft.",
+    "Edit and design": "Shape the content and the way it looks.",
+    "Share and deliver": "Bring your work to the people it is for.",
+    "Manage your workspace": "Keep your work, people, and account organized.",
+    Reference: "Find a control, solve a problem, or check a detail.",
+};
+
+const ArtifactCanvasPreview = lazy(async () => ({
+    default: (await import("@ui/section")).ArtifactCanvasPreview,
+}));
+
+const FormatStudy: Component<{ theme: string }> = (props) => {
+    const [content, setContent] = createSignal<ArtifactContent>();
+    onMount(() => {
+        void Promise.all([import("./showcase"), import("@elements/register")]).then(([samples]) => {
+            setContent(samples.showcaseFor("deck")[0]!.content);
+        });
+    });
+    return (
+        <figure
+            class="docs-study"
+            aria-label="The same example content arranged as a deck, document, and website"
+        >
+            <figcaption class="docs-study-caption">
+                <span class="lab text-accent">ONE IDEA, THREE FORMATS</span>
+                <span class="text-sm text-soft">
+                    One real artifact, rendered by Galleo in every view.
+                </span>
+            </figcaption>
+            <div class="docs-study-formats">
+                <For
+                    each={[
+                        { id: "deck" as const, name: "Deck", body: "A sequence for presenting." },
+                        {
+                            id: "doc" as const,
+                            name: "Document",
+                            body: "A page for reading closely.",
+                        },
+                        {
+                            id: "web" as const,
+                            name: "Website",
+                            body: "A continuous view for browsing.",
+                        },
+                    ]}
+                >
+                    {(format) => (
+                        <div class="docs-study-format">
+                            <div
+                                class={`docs-study-stage docs-study-stage-${format.id}`}
+                                aria-hidden="true"
+                            >
+                                <Show when={content()}>
+                                    {(example) => (
+                                        <ArtifactCanvasPreview
+                                            content={{ ...example(), format: format.id }}
+                                            theme={props.theme}
+                                            padTop={18}
+                                        />
+                                    )}
+                                </Show>
+                            </div>
+                            <div class="docs-study-label">
+                                <h2 class="sec-title text-xl">{format.name}</h2>
+                                <p class="text-sm text-soft mt-1">{format.body}</p>
+                            </div>
+                        </div>
+                    )}
+                </For>
+            </div>
+            <p class="docs-study-note text-xs text-muted">
+                Sample artifact with fictional business content. Change the guide theme to see all
+                three views update.
+            </p>
+            <a class="docs-study-link text-sm" href="/docs/formats">
+                Explore how formats work <Icon name="chevronRight" size={16} />
+            </a>
+        </figure>
+    );
+};
 
 export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
     const [query, setQuery] = createSignal("");
@@ -79,6 +162,7 @@ export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
             <div
                 class="web docs-shell h-full overflow-y-auto bg-canvas text-ink font-body"
                 style={vars()}
+                classList={{ "docs-article": !!props.article }}
             >
                 <a class="docs-skip" href="#docs-content">
                     Skip to content
@@ -120,7 +204,7 @@ export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
                             <summary class="cursor-pointer font-bold">Browse the guide</summary>
                             <nav aria-label="Mobile documentation">{navigation()}</nav>
                         </details>
-                        <div class="mb-10">
+                        <div class="docs-search mb-10">
                             <TextField
                                 type="search"
                                 aria-label="Search documentation"
@@ -152,41 +236,7 @@ export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
                                         when={props.article}
                                         fallback={
                                             <>
-                                                <div
-                                                    class="docs-format-map mt-10 grid sm:grid-cols-3 gap-3"
-                                                    aria-label="One source of content, three formats"
-                                                >
-                                                    <div class="sm:col-span-3 lab text-muted">
-                                                        One piece of content
-                                                    </div>
-                                                    <For
-                                                        each={[
-                                                            {
-                                                                name: "Deck",
-                                                                body: "Guide the room through a sequence.",
-                                                            },
-                                                            {
-                                                                name: "Document",
-                                                                body: "Give readers room to explore the detail.",
-                                                            },
-                                                            {
-                                                                name: "Website",
-                                                                body: "Share a continuous page in a browser.",
-                                                            },
-                                                        ]}
-                                                    >
-                                                        {(format) => (
-                                                            <div class="border border-line rounded-lg bg-panel p-5">
-                                                                <h2 class="sec-title text-2xl">
-                                                                    {format.name}
-                                                                </h2>
-                                                                <p class="mt-2 text-sm text-soft">
-                                                                    {format.body}
-                                                                </p>
-                                                            </div>
-                                                        )}
-                                                    </For>
-                                                </div>
+                                                <FormatStudy theme={theme()} />
                                                 <a
                                                     class="docs-start block mt-8 p-6 md:p-8 rounded-lg bg-accent text-onaccent"
                                                     href="/docs/getting-started"
@@ -206,11 +256,24 @@ export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
                                                     </p>
                                                 </a>
                                                 <For each={groups}>
-                                                    {(group) => (
-                                                        <section class="mt-12">
-                                                            <h2 class="sec-title text-2xl mb-5">
-                                                                {group}
-                                                            </h2>
+                                                    {(group, index) => (
+                                                        <section class="docs-group mt-12">
+                                                            <div class="docs-group-heading">
+                                                                <span class="docs-group-number lab">
+                                                                    {String(index() + 1).padStart(
+                                                                        2,
+                                                                        "0",
+                                                                    )}
+                                                                </span>
+                                                                <div>
+                                                                    <h2 class="sec-title text-3xl">
+                                                                        {group}
+                                                                    </h2>
+                                                                    <p class="text-sm text-soft mt-2">
+                                                                        {groupDescriptions[group]}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
                                                             <div class="grid md:grid-cols-2 gap-4">
                                                                 <For
                                                                     each={DOC_ARTICLES.filter(
@@ -221,7 +284,7 @@ export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
                                                                     {(article) => (
                                                                         <a
                                                                             href={`/docs/${article.slug}`}
-                                                                            class="docs-card border border-line rounded-lg bg-panel p-6"
+                                                                            class="docs-card docs-guide-card border border-line rounded-lg bg-panel p-6"
                                                                         >
                                                                             <h3 class="font-bold text-lg">
                                                                                 {article.title}{" "}
@@ -249,18 +312,40 @@ export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
                                         {(article) => (
                                             <>
                                                 <Show when={article().steps.length}>
-                                                    <section class="mt-9 p-6 border border-line rounded-lg bg-panel">
-                                                        <h2 class="font-bold">The workflow</h2>
-                                                        <ol class="list-decimal pl-5 mt-4 space-y-3 text-soft">
+                                                    <section class="docs-workflow mt-9 p-6 border border-line rounded-lg bg-panel">
+                                                        <h2 class="lab text-accent">
+                                                            The workflow
+                                                        </h2>
+                                                        <ol class="mt-5 text-soft">
                                                             <For each={article().steps}>
-                                                                {(step) => <li>{step}</li>}
+                                                                {(step, index) => (
+                                                                    <li>
+                                                                        <span
+                                                                            class="docs-step-number"
+                                                                            aria-hidden="true"
+                                                                        >
+                                                                            {String(
+                                                                                index() + 1,
+                                                                            ).padStart(2, "0")}
+                                                                        </span>
+                                                                        <span>{step}</span>
+                                                                    </li>
+                                                                )}
                                                             </For>
                                                         </ol>
                                                     </section>
                                                 </Show>
+                                                <Show
+                                                    when={
+                                                        article().slug === "formats" ||
+                                                        article().slug === "getting-started"
+                                                    }
+                                                >
+                                                    <FormatStudy theme={theme()} />
+                                                </Show>
                                                 <nav
                                                     aria-label="On this page"
-                                                    class="my-9 border-y border-line py-5"
+                                                    class="docs-toc my-9 border-y border-line py-5"
                                                 >
                                                     <p class="lab text-muted mb-3">On this page</p>
                                                     <ul class="space-y-2">
