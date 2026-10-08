@@ -454,6 +454,6 @@ the existing marketing pageview. Static prerendering emits no analytics.
 
 ### Documentation
 
-`DocsPage` emits `docs_opened` with the fixed article slug, `docs_theme_changed` with the theme id,
+`DocsPage` emits `docs_opened` with the fixed article slug
 and `docs_searched` on search submission or blur with a query-length bucket and result count.
 Search words never leave the browser through these events.

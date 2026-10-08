@@ -1,12 +1,11 @@
 import { createMemo, createSignal, For, lazy, onMount, Show, type Component } from "solid-js";
-import { resolveTheme, themeCssVars, THEME_LIST } from "@themes";
+import { resolveTheme, themeCssVars } from "@themes";
 import { queryBucket } from "@model/analytics";
 import { capture } from "@ui/analytics";
 import { TextField } from "@ui/inputs";
 import type { ArtifactContent } from "@model/artifact";
 import { Icon, UiThemeProvider } from "@ui/icons";
-import { SelectField } from "@ui/select";
-import { AuthCta, BrandLink } from "./chrome";
+import { AuthCta, BrandLink, publicTheme } from "./chrome";
 import { DOC_ARTICLES, searchDocs, type DocArticle } from "./docs";
 
 const groups = [...new Set(DOC_ARTICLES.map((article) => article.group))];
@@ -25,22 +24,24 @@ const ArtifactCanvasPreview = lazy(async () => ({
 }));
 
 const FormatStudy: Component<{ theme: string }> = (props) => {
-    const [content, setContent] = createSignal<ArtifactContent>();
+    const [content, setContent] = createSignal<ArtifactContent[]>([]);
     onMount(() => {
         void Promise.all([import("./showcase"), import("@elements/register")]).then(([samples]) => {
-            setContent(samples.showcaseFor("deck")[0]!.content);
+            setContent([
+                samples.showcaseFor("deck")[1]!.content,
+                samples.showcaseFor("doc")[1]!.content,
+                samples.showcaseFor("web")[0]!.content,
+            ]);
         });
     });
     return (
         <figure
             class="docs-study"
-            aria-label="The same example content arranged as a deck, document, and website"
+            aria-label="Examples of a deck, document, and website made with Galleo"
         >
             <figcaption class="docs-study-caption">
-                <span class="lab text-accent">ONE IDEA, THREE FORMATS</span>
-                <span class="text-sm text-soft">
-                    One real artifact, rendered by Galleo in every view.
-                </span>
+                <span class="lab text-accent">MADE WITH GALLEO</span>
+                <span class="text-sm text-soft">Three examples, each in its own format.</span>
             </figcaption>
             <div class="docs-study-formats">
                 <For
@@ -64,10 +65,12 @@ const FormatStudy: Component<{ theme: string }> = (props) => {
                                 class={`docs-study-stage docs-study-stage-${format.id}`}
                                 aria-hidden="true"
                             >
-                                <Show when={content()}>
+                                <Show
+                                    when={content().find((sample) => sample.format === format.id)}
+                                >
                                     {(example) => (
                                         <ArtifactCanvasPreview
-                                            content={{ ...example(), format: format.id }}
+                                            content={example()}
                                             theme={props.theme}
                                             padTop={18}
                                         />
@@ -83,8 +86,7 @@ const FormatStudy: Component<{ theme: string }> = (props) => {
                 </For>
             </div>
             <p class="docs-study-note text-xs text-muted">
-                Sample artifact with fictional business content. Change the guide theme to see all
-                three views update.
+                Sample artifacts with fictional business content, shown in your app theme.
             </p>
             <a class="docs-study-link text-sm" href="/docs/formats">
                 Explore how formats work <Icon name="chevronRight" size={16} />
@@ -95,33 +97,17 @@ const FormatStudy: Component<{ theme: string }> = (props) => {
 
 export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
     const [query, setQuery] = createSignal("");
-    const [theme, setTheme] = createSignal("studio");
     const results = createMemo(() => searchDocs(query()));
     const searching = () => query().trim().length > 0;
     const position = () =>
         DOC_ARTICLES.findIndex((article) => article.slug === props.article?.slug);
     const next = () => DOC_ARTICLES[position() + 1];
     const previous = () => DOC_ARTICLES[position() - 1];
-    const tokens = () => resolveTheme(theme()).tokens;
+    const tokens = () => resolveTheme(publicTheme()).tokens;
     const vars = () => themeCssVars(tokens());
     onMount(() => {
-        try {
-            const saved = localStorage.getItem("galleo-docs-theme");
-            if (THEME_LIST.some((item) => item.id === saved)) setTheme(saved!);
-        } catch {
-            /* Storage can be unavailable in private browsing. */
-        }
         capture("docs_opened", { article: props.article?.slug ?? "overview" });
     });
-    const chooseTheme = (value: string): void => {
-        setTheme(value);
-        try {
-            localStorage.setItem("galleo-docs-theme", value);
-        } catch {
-            /* Optional preference. */
-        }
-        capture("docs_theme_changed", { theme_id: value });
-    };
     const noteSearch = (): void => {
         if (searching())
             capture("docs_searched", {
@@ -174,17 +160,6 @@ export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
                             Product guide
                         </a>
                         <div class="ml-auto flex items-center gap-4">
-                            <div class="w-36" role="group" aria-label="Guide theme">
-                                <SelectField
-                                    label="Guide theme"
-                                    value={theme()}
-                                    options={THEME_LIST.map((item) => ({
-                                        value: item.id,
-                                        label: item.name,
-                                    }))}
-                                    onChange={chooseTheme}
-                                />
-                            </div>
                             <AuthCta />
                         </div>
                     </div>
@@ -236,7 +211,7 @@ export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
                                         when={props.article}
                                         fallback={
                                             <>
-                                                <FormatStudy theme={theme()} />
+                                                <FormatStudy theme={publicTheme()} />
                                                 <a
                                                     class="docs-start block mt-8 p-6 md:p-8 rounded-lg bg-accent text-onaccent"
                                                     href="/docs/getting-started"
@@ -341,7 +316,7 @@ export const DocsPage: Component<{ article?: DocArticle }> = (props) => {
                                                         article().slug === "getting-started"
                                                     }
                                                 >
-                                                    <FormatStudy theme={theme()} />
+                                                    <FormatStudy theme={publicTheme()} />
                                                 </Show>
                                                 <nav
                                                     aria-label="On this page"
