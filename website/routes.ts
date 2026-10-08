@@ -1,3 +1,4 @@
+import { DOC_ARTICLES, docFor } from "./docs";
 export const LEGAL_DOC_IDS = ["privacy", "terms"] as const;
 export type LegalDocId = (typeof LEGAL_DOC_IDS)[number];
 export const LEGAL_PATHS: Record<LegalDocId, string> = { privacy: "/privacy", terms: "/terms" };
@@ -249,11 +250,21 @@ export function marketingPageFor(pathname: string): MarketingPage | undefined {
 
 export const PUBLIC_PATHS = [
     "/",
+    "/docs",
+    ...DOC_ARTICLES.map((article) => `/docs/${article.slug}`),
     ...MARKETING_PAGES.map((page) => page.path),
     ...Object.values(LEGAL_PATHS),
 ];
 
 export function metadataFor(pathname: string): { title: string; description: string } {
+    const doc = docFor(pathname);
+    if (doc) return { title: `${doc.title} | Galleo Docs`, description: doc.description };
+    if (pathname === "/docs")
+        return {
+            title: "Product Documentation and Guides | Galleo",
+            description:
+                "Learn how to create, edit, share, and export presentations, visual documents, and websites with Galleo. Explore practical guides for every workflow.",
+        };
     const page = marketingPageFor(pathname);
     if (page) return page;
     const legal = legalDocFor(pathname);

@@ -1,3 +1,5 @@
+import { DocsPage } from "./DocsPage";
+import { docFor } from "./docs";
 import { mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { renderToString, generateHydrationScript } from "solid-js/web";
 import { resolveTheme, themeCssVars } from "@themes";
@@ -27,7 +29,9 @@ for (const path of PUBLIC_PATHS) {
     if (page?.templateId && !TEMPLATE_INDEX.some((entry) => entry.id === page.templateId))
         throw new Error(`Unknown template: ${page.templateId}`);
     const body = renderToString(() =>
-        legal ? (
+        path === "/docs" || docFor(path) ? (
+            <DocsPage article={docFor(path)} />
+        ) : legal ? (
             <LegalPage doc={legal} />
         ) : page ? (
             <ContentPage page={page} />

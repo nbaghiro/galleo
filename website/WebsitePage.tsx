@@ -146,6 +146,7 @@ const footerCols = [
     {
         title: "Product",
         links: [
+            { label: "Documentation", href: "/docs" },
             { label: "Three formats", href: "#views" },
             { label: "Themes", href: "#themes" },
             { label: "Pricing", href: "#pricing" },

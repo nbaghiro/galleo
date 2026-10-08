@@ -96,6 +96,7 @@ export const ContentPage: Component<{ page: MarketingPage }> = (props) => {
             <footer class="border-t border-line px-5 py-8 flex flex-wrap justify-center gap-6 text-sm text-muted">
                 <a href="/">Galleo</a>
                 <a href="/#pricing">Pricing</a>
+                <a href="/docs">Documentation</a>
                 <a href="/privacy">Privacy</a>
                 <a href="/terms">Terms</a>
             </footer>

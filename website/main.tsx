@@ -1,3 +1,5 @@
+import { DocsPage } from "./DocsPage";
+import { docFor } from "./docs";
 /* @refresh reload */
 import "@ui/styles.css";
 import "./website.css";
@@ -13,11 +15,17 @@ const root = document.getElementById("root");
 if (root) {
     for (const [key, value] of Object.entries(themeCssVars(resolveTheme("studio").tokens)))
         root.style.setProperty(key, value);
+    const docs =
+        window.location.pathname.replace(/\/$/, "") === "/docs" ||
+        !!docFor(window.location.pathname);
     const legal = legalDocFor(window.location.pathname);
     const page = marketingPageFor(window.location.pathname);
-    const WebsitePage = !legal && !page ? (await import("./WebsitePage")).WebsitePage : undefined;
+    const WebsitePage =
+        !legal && !page && !docs ? (await import("./WebsitePage")).WebsitePage : undefined;
     const view = () =>
-        legal ? (
+        docs ? (
+            <DocsPage article={docFor(window.location.pathname)} />
+        ) : legal ? (
             <LegalPage doc={legal} />
         ) : page ? (
             <ContentPage page={page} />
