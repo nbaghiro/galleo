@@ -49,7 +49,7 @@ ui/                     @ui · Solid · imports model + canvas + @themes only
                           · textColorSwatches · highlightSwatches
   overlay.tsx           Popover · Modal · ConfirmModal · FloatingBar · FloatingPanel
   menu.tsx              Menu · MenuItem · MenuLabel · MenuSeparator   (anchored dropdowns, on Popover)
-  section.tsx           ScaledSectionCanvas · SlideProgress · backdropHostStyle   (canvas-backed)
+  section.tsx           ScaledSectionCanvas · ArtifactPlate · ArtifactCanvasPreview · SlideProgress · backdropHostStyle
   present.tsx           PresentSurface   (shared present paint + keyboard nav + control bar)
   gen-overlay.tsx       GenOverlay   (unified AI sweep/glow generation overlay)
   status.tsx            Meter · StatusDot · EmptyState
@@ -637,3 +637,8 @@ restore/purge`, `trash.empty`), `folder.*`, `template.use`, roving element selec
 - **`@ui/visual` + `tokens.css`.** Specced but not built — the `Visual` animated backdrop stays inline in
   `app/components/previews.tsx`; shared class tokens live in `ui/styles.css`. Do it if/when a second
   consumer appears.
+
+`ArtifactCanvasPreview` in `ui/section.tsx` is the responsive, lazy canvas-only artifact preview
+used by the marketing page and product guide. It paints every section through the shared engine,
+preserves the artifact backdrop and theme surfaces, and keeps fictional sample text out of public
+page markup. `ArtifactPlate` remains the DOM-backed preview for product surfaces.
