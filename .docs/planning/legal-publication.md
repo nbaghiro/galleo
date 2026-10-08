@@ -96,3 +96,38 @@ Resolve the owner decisions, verify operational settings, update both rendered l
 `pnpm check:legal` until it passes without removing the marker detection. Then wire that guard into
 pre-commit and CI in the same release, as the repository instructions require. Verify the live pages,
 contact links, dates, canonical URLs, and no unresolved placeholders after deployment.
+
+## October 8 revision
+
+The replacement copy in `website/LegalPage.tsx` now covers both policies in full. It remains a review
+revision, with explicit markers at the decisions awaiting the owner. It is not authorized for release
+while `check:legal` is red. Known company identity is filled in, and the proposed liability and venue
+clauses are written out for review. The date will be set to the actual publication date.
+
+The browser analytics initialization in `ui/analytics.ts` currently starts PostHog without a consent
+choice. The owner has been asked to select between adding opt-in controls, disabling optional browser
+analytics, or discussing an alternative. Do not describe a consent control as shipped before it exists.
+The revision removes the incorrect claim that proxied PostHog is not a third-party analytics service
+and separates viewer product analytics from author-facing audience records.
+
+The owner has also been asked for the public business address, confirmation that support@galleo.app
+handles privacy/legal requests, Delaware jurisdiction, the proposed age and liability choices,
+EU/EEA/UK availability, refunds, and provider training settings. A provider region is deliberately not
+invented; dashboard access was unavailable through the computer-use connection in this session.
+
+Retention wording uses purposes and criteria instead of unverified fixed periods. Request timing
+follows applicable law instead of the old universal 60-day deadline. The copy does not claim that
+local account-lifecycle tooling is deployed or that deleting an artifact necessarily purges media.
+
+Current reference checks:
+
+- https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/individual-rights/the-right-to-be-informed/
+- https://ico.org.uk/for-organisations/uk-gdpr-guidance-and-resources/data-protection-principles/a-guide-to-the-data-protection-principles/storage-limitation/
+- https://ico.org.uk/for-organisations/direct-marketing-and-privacy-and-electronic-communications/guidance-on-the-use-of-storage-and-access-technologies/what-are-storage-and-access-technologies/
+- https://www.edpb.europa.eu/sme/be-compliant/respect-individuals-rights_en
+- https://elevenlabs.io/docs/help-center/legal/is-my-data-used-to-improve-eleven-labs-ai-models
+
+Validation so far: production build, SEO checks for all 32 public routes, focused ESLint, and browser
+checks of both legal routes at phone width with working policy links and no horizontal overflow.
+`check:legal` still fails intentionally while the decisions above are outstanding. Do not wire it
+into CI or pre-commit until the finalized revision passes, then wire it as part of that release.

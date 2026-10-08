@@ -26,155 +26,158 @@ interface LegalDoc {
 
 const PRIVACY: LegalDoc = {
     title: "Privacy Policy",
-    effective: "[DATE]",
-    updated: "[DATE]",
-    intro: "Galleo turns a brief into a deck, a document or a website. To do that we store what you write and send parts of it to the AI providers that generate and edit it. This page says exactly what we hold, what leaves our systems, who receives it, and how long we keep it.",
+    effective: "[EFFECTIVE DATE]",
+    updated: "[EFFECTIVE DATE]",
+    intro: "This policy explains how GalleoApp Inc. handles personal information when you visit Galleo, create or manage an account, use our content tools, collaborate, or view a published piece. It also explains your choices and how to contact us.",
     sections: [
-        {
-            id: "short-version",
-            heading: "The short version",
-            blocks: [
-                {
-                    kind: "p",
-                    text: "We store your account details, the pieces you create, and the files you attach to them. When you generate or edit something, that content goes to a model provider so it can produce the result. We do not sell your content or your personal information, we do not use your content to train models, and our product analytics is built so that no content reaches it: it records that a thing happened and never what the thing said.",
-                },
-            ],
-        },
         {
             id: "who-we-are",
             heading: "Who we are",
             blocks: [
                 {
                     kind: "p",
-                    text: "[LEGAL ENTITY NAME] operates Galleo at galleo.app and is the controller of the personal data described here. You can reach us at [PRIVACY CONTACT ADDRESS].",
+                    text: "GalleoApp Inc. operates Galleo at galleo.app. Contact us at [CONFIRMED CONTACT EMAIL]. Our business mailing address is [BUSINESS MAILING ADDRESS].",
+                },
+                {
+                    kind: "p",
+                    text: "We determine how personal information is used for our account administration, billing, security, and product operations. When we process personal information in a business customer’s workspace on that customer’s instructions, the customer may be responsible for that information as its controller. Your workspace administrator may manage membership and access to workspace content.",
                 },
             ],
         },
         {
             id: "what-we-collect",
-            heading: "What we collect",
+            heading: "Information we collect",
             blocks: [
                 {
                     kind: "lead",
-                    label: "Your account.",
-                    text: "Your email address, and a display name and avatar if you set one or if they come from Google when you sign in that way. If you set a password we store a scrypt hash of it, never the password. We record when your email was confirmed and when your password last changed.",
+                    label: "Account and sign-in information.",
+                    text: "Your email address, name, avatar, account preferences, workspace memberships, and authentication records. Google sign-in supplies profile information needed to identify your account. If you set a password, we store a password hash rather than the password.",
                 },
                 {
                     kind: "lead",
-                    label: "What you create.",
-                    text: "The pieces you write and everything in them: text, images, video, uploaded files, comments, speaker notes, and the narration and music beds generated from them. We also store what you attach as context, which includes the text extracted from files you upload and pages you ask us to fetch, and the original file alongside it.",
+                    label: "Your content.",
+                    text: "The material you submit, upload, generate, or edit, including prompts, text, images, video, files, extracted reference material, comments, chat history, speaker notes, narration, and music. Content may include personal information that you or a collaborator chooses to provide.",
                 },
                 {
                     kind: "lead",
-                    label: "How you use Galleo.",
-                    text: "Which pieces you open and how often, so the library can order itself sensibly. What each AI action cost, in a credit ledger tied to the person who ran it, so a workspace admin can see where its credits went.",
+                    label: "Usage and technical information.",
+                    text: "Feature activity, identifiers, timestamps, errors, credit use, and request information needed to operate and secure the service. Infrastructure providers process network information such as IP addresses when serving requests.",
                 },
                 {
                     kind: "lead",
-                    label: "Payments.",
-                    text: "If you subscribe, Stripe handles the payment and we store only your Stripe customer and subscription identifiers, your plan, and its status. We never see or store your card number.",
+                    label: "Billing and communications.",
+                    text: "Subscription and payment status, Stripe customer and subscription references, and information you send in support requests. Stripe processes payment details; Galleo does not store full payment-card numbers.",
                 },
                 {
                     kind: "lead",
-                    label: "Published links.",
-                    text: "When somebody opens a link you published, we record that a view happened, which section they reached, the referring site's hostname, a coarse device type, and a country derived from the request. We do not store the reader's IP address or user agent. To count returning readers without identifying them we store a one-way hash of the day, the address, the user agent and the link, which cannot be reversed into any of those.",
+                    label: "Published pieces and forms.",
+                    text: "Audience activity for published links, including views, section progress, referrer hostname, device category, and country when available. Link-view records use a daily pseudonymous key for deduplication rather than storing the raw viewer IP address or user-agent string. Information submitted through a form in a published piece is available to the people authorized to manage that piece.",
+                },
+            ],
+        },
+        {
+            id: "purposes",
+            heading: "Why we use information",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "We use information to provide accounts and workspaces; generate, edit, store, display, and export content; support sharing and collaboration; process subscriptions and credits; deliver service messages; answer support requests; understand product use; diagnose problems; prevent fraud and abuse; and comply with legal obligations.",
+                },
+                {
+                    kind: "p",
+                    text: "Where applicable law requires a legal basis, we rely on performance of our contract to provide the requested service, legitimate interests in operating and securing the service, legal obligations, or consent where required. Legitimate interests are subject to the balancing of your rights and our interests. You may withdraw consent for processing based on consent without affecting earlier lawful processing.",
                 },
             ],
         },
         {
             id: "ai-providers",
-            heading: "What we send to AI providers, and to whom",
+            heading: "AI features and provider data use",
             blocks: [
                 {
                     kind: "p",
-                    text: "When you generate or edit a piece, the content of that piece, the instruction you gave, and any context you attached are sent to a model provider so it can produce the result. The default provider for every task is Google, and a workspace on a paid plan can select Anthropic, OpenAI or xAI for a given task instead. Images and video are generated by Google, and narration, voice design and music beds by ElevenLabs. Searching for stock media sends your search terms, or terms derived from the text of your piece, to Unsplash, Pexels, Pixabay and Openverse. Dictation is the one exception to this pattern: your microphone audio goes from your browser straight to ElevenLabs and never passes through our servers.",
+                    text: "When you request AI work, we send the prompts, content, and reference material relevant to that action to the provider handling it. Depending on the feature and workspace configuration, this can include Google, Anthropic, OpenAI, or xAI for language tasks; Google for generated images, video, and embeddings; and ElevenLabs for voice, narration, dictation, and music. Dictation streams microphone audio from your browser to ElevenLabs.",
                 },
                 {
                     kind: "p",
-                    text: "We send this content only to produce the result you asked for, and we do not train models on it. We have no model of our own to train.",
+                    text: "Galleo does not train its own AI models on your content. External providers have their own processing, abuse-monitoring, retention, and data-use terms. These vary by provider, API product, account settings, and agreement. We do not promise that all providers offer zero retention or identical restrictions on model training.",
                 },
                 {
                     kind: "p",
-                    text: "Under the commercial terms these providers publish, Anthropic, OpenAI and Google do not use content sent through their paid interfaces to train their models. Anthropic states this as a contractual prohibition rather than a policy. Each keeps a copy for a limited period so it can detect abuse of its service: up to 30 days at Anthropic and OpenAI, and up to 55 days at Google. Content that a provider's safety systems flag can be kept longer, and Anthropic states that flagged material may be held for up to two years.",
+                    text: "ElevenLabs’ terms allow use of customer content to improve its models unless the applicable account opts out or other contractual restrictions apply. [ELEVENLABS ACCOUNT DATA-USE SETTING]. Provider details are available at https://elevenlabs.io/docs/help-center/legal/is-my-data-used-to-improve-eleven-labs-ai-models.",
                 },
                 {
                     kind: "p",
-                    text: "[ELEVENLABS: ITS TERMS ALLOW IT TO USE CUSTOMER CONTENT TO IMPROVE ITS SERVICES UNLESS THE ACCOUNT OPTS OUT. STATE OUR POSITION HERE ONCE THE OPT-OUT IS CONFIRMED, OR NAME IT AS AN EXCEPTION.]",
-                },
-                {
-                    kind: "p",
-                    text: "These periods are what each provider commits to, not a guarantee we can make on their behalf. A provider may also keep content where the law or a court requires it, which is outside our control and outside theirs.",
+                    text: "Use AI features only for material you are authorized to disclose. Review generated output before relying on it or sharing it.",
                 },
             ],
         },
         {
             id: "processors",
-            heading: "Everyone who processes data for us",
+            heading: "Service providers",
             blocks: [
                 {
+                    kind: "p",
+                    text: "We use the following providers for the activities described below. A provider receives information relevant to the service it performs; not every provider receives every category of information.",
+                },
+                {
                     kind: "table",
-                    columns: ["Who", "What they do", "What they receive"],
+                    columns: ["Provider", "Purpose", "Information involved"],
                     rows: [
                         [
                             "Google",
-                            "the default model for every task, image and video generation, embeddings, and Google sign-in",
-                            "your content, prompts and attached context; your Google profile if you sign in that way",
+                            "AI generation, embeddings, and optional Google integrations",
+                            "Relevant prompts, content, reference material, generated media, and information authorized through sign-in or a connected integration",
                         ],
                         [
                             "Anthropic, OpenAI, xAI",
-                            "models a paid workspace can pin a task onto",
-                            "your content and prompts, when selected",
+                            "AI language tasks when selected",
+                            "Relevant prompts, content, and reference material",
                         ],
                         [
                             "ElevenLabs",
-                            "narration, dictation, voice design, music beds",
-                            "speaker-note text; microphone audio, browser to provider",
+                            "Voice, narration, dictation, and music",
+                            "Relevant text, audio, voice instructions, and generated media",
                         ],
                         [
-                            "Resend",
-                            "transactional and invitation email",
-                            "recipient address, the piece's title, the sender's name, and any note added to an invite",
+                            "Render, Neon, Cloudflare",
+                            "Hosting, database, and network services",
+                            "Stored service data and request information needed to host and deliver Galleo",
                         ],
                         [
                             "Stripe",
-                            "subscriptions and payments",
-                            "your email, the workspace name, and payment details you give Stripe directly",
+                            "Payments and subscriptions",
+                            "Billing and payment details, customer references, and subscription information",
+                        ],
+                        [
+                            "Resend",
+                            "Service, verification, and invitation email",
+                            "Recipient addresses and message content, which may include invitation details",
                         ],
                         [
                             "PostHog",
-                            "product analytics",
-                            "events about what happened, never content; your IP for the browser's own events",
+                            "Product analytics and masked session recordings",
+                            "Usage events, identifiers, device and request information, and masked interaction recordings",
                         ],
                         [
-                            "Unsplash, Pexels, Pixabay, Openverse",
-                            "stock image and video search",
-                            "your search terms",
-                        ],
-                        ["Iconify", "icon search", "your search terms"],
-                        [
-                            "Render, Neon, Cloudflare",
-                            "hosting, the database, and the network in front of it",
-                            "everything we store, at rest and in transit",
+                            "Unsplash, Pexels, Pixabay, Openverse, Iconify",
+                            "Stock-media and icon search",
+                            "Search terms, including terms derived from content when you request a search",
                         ],
                     ],
                 },
             ],
         },
         {
-            id: "analytics",
-            heading: "Analytics, and what we deliberately do not collect",
+            id: "sharing",
+            heading: "Sharing and disclosure",
             blocks: [
                 {
                     kind: "p",
-                    text: "Our product analytics records ids, counts, durations and fixed categories. It never records content. No prompt text, no section copy, no titles, no file names, no email addresses, no search queries. Where the size of something matters we send a bucket rather than the value, so a search is reported as a result count and a length band and never as the words you typed. You are identified to our analytics by an internal account id rather than by your email.",
+                    text: "We share information with service providers as needed to operate Galleo, with collaborators and audiences under the access settings you choose, and when reasonably necessary to comply with law, protect rights or safety, or investigate misuse. We may disclose information in connection with a merger, financing, acquisition, or transfer of business assets, subject to applicable protections and notice requirements.",
                 },
                 {
                     kind: "p",
-                    text: "We record screen sessions on the app and marketing site, with every piece of text and every input masked, so what we can see is layout, scrolling and where a click landed rather than anything you wrote. Recording is switched off entirely inside the editor and on published pages.",
-                },
-                {
-                    kind: "p",
-                    text: "Somebody reading a link you published is counted but never recorded, is given no identifier that outlives the page, and has no referrer or campaign information collected. They are your audience rather than ours.",
+                    text: "We do not sell personal information or share it for cross-context behavioral advertising. A published link may be accessible to anyone with its address, depending on its access settings. Published pieces display their current content, so later edits can change what readers see. People with access may download or retain copies that we cannot recall.",
                 },
             ],
         },
@@ -184,69 +187,89 @@ const PRIVACY: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "You can connect Galleo to an external AI client such as Claude or ChatGPT. When you do, you choose which of your workspaces that connection can reach and what it is allowed to do, and the connection gets nothing beyond what you granted. We store the tokens as one-way hashes rather than in a form we could read back. You can see every connected app and disconnect it in your account settings, which takes effect immediately.",
+                    text: "When you authorize an external app or AI client, it can access information and perform actions within the permissions you grant. Review the requested permissions before connecting an app. You can revoke a connection in your account settings. Revocation stops future authorized access but does not delete information already received by the external service. Its use of that information is governed by its own terms and privacy policy.",
                 },
             ],
         },
         {
-            id: "tracking",
-            heading: "Tracking across other sites, and Do Not Track",
+            id: "analytics",
+            heading: "Product and audience analytics",
             blocks: [
                 {
                     kind: "p",
-                    text: "No third party collects information about what you do on other websites through Galleo. We run no advertising pixels, no tag manager and no third-party analytics script: our own analytics is served from our own domain, and the fonts we use are hosted by us rather than fetched from a font service.",
+                    text: "Our explicit product events are designed to record identifiers, categories, counts, durations, and size bands rather than prompts, document text, titles, filenames, email addresses, or search words. Website analytics can also receive page addresses, referring pages, campaign parameters, and technical request information.",
                 },
                 {
                     kind: "p",
-                    text: "Because nothing here follows you across other sites, we do not currently respond to Do Not Track signals or similar browser signals. If that changes we will say so here.",
+                    text: "PostHog is a third-party analytics provider, even though analytics requests pass through a Galleo endpoint. Where session recording is enabled on the app or marketing site, text and inputs are masked. Recording is disabled in the editor and the published viewer.",
+                },
+                {
+                    kind: "p",
+                    text: "Published-viewer product analytics uses in-memory identifiers rather than persistent browser identifiers, and disables session recording, campaign capture, and referrer capture. Separately, the service records link audience activity for the author as described under Information we collect. Pseudonymous data is not necessarily anonymous.",
                 },
             ],
         },
         {
             id: "cookies",
-            heading: "Cookies and local storage",
+            heading: "Cookies, browser storage, and choices",
             blocks: [
                 {
                     kind: "p",
-                    text: "We set a session cookie when you sign in, which lasts 30 days and is signed so it cannot be forged. Three short-lived cookies exist only while you are signing in with Google, and are deleted as soon as that finishes. Our analytics sets its own storage on the app and marketing site, and is prevented from doing so on published pages. Your browser also keeps small preferences locally, such as your theme and library layout.",
+                    text: "We use a session cookie to keep you signed in and short-lived cookies for authentication flows. Browser storage also holds preferences such as your app theme and may hold unfinished local work. Product analytics on the app and marketing site can use browser storage.",
+                },
+                {
+                    kind: "p",
+                    text: "[ANALYTICS CONSENT AND OPT-OUT IMPLEMENTATION]. You can also control cookies and site storage in your browser. Blocking essential storage may prevent sign-in or other requested features from working. We do not use Galleo for cross-context behavioral advertising; browser Do Not Track signals do not currently change the service’s behavior. Applicable privacy rights remain available through our contact address.",
                 },
             ],
         },
         {
             id: "retention",
-            heading: "How long we keep things",
+            heading: "Retention and deletion",
             blocks: [
                 {
                     kind: "p",
-                    text: "Sessions expire after 30 days. Sign-in codes last 15 minutes and password reset links an hour. Access tokens for connected apps last an hour and their refresh tokens 90 days, after which they are cleared.",
+                    text: "We retain account information and workspace content while needed to provide the service and handle account requests. Moving a piece to Trash does not permanently delete it, and Trash is not automatically emptied. Deleting an artifact does not necessarily remove separately stored media, shared content, or copies already received by others.",
                 },
                 {
                     kind: "p",
-                    text: "Your content is kept for as long as your account exists. Moving a piece to Trash does not delete it, and Trash is not emptied automatically, so a piece stays there until you empty it or delete the piece outright. [INTENDED RETENTION FOR CONTENT, MEDIA, NARRATION AUDIO, CHAT HISTORY AND LEDGER ROWS.]",
+                    text: "Retention depends on the kind of record and why it is needed. Support records are kept as needed to resolve requests and document their outcome. Billing and credit records may be retained for accounting, fraud prevention, disputes, and legal obligations. Operational and security records may be retained to investigate failures or misuse. Where we must preserve records for a legal claim or obligation, access and use are limited to that purpose.",
                 },
                 {
                     kind: "p",
-                    text: "[ACCOUNT DELETION: THERE IS NO SELF-SERVICE DELETION PATH IN THE PRODUCT TODAY. SEE THE NOTE BELOW.]",
+                    text: "Deleted information may remain temporarily in backups until those copies are overwritten or expire under the provider’s backup process. A deletion request may require separate handling of stored files and external-provider records. We do not promise immediate removal from every backup or from independent copies held by recipients.",
+                },
+                {
+                    kind: "p",
+                    text: "Contact us to request account deletion or a copy of your personal information. We verify requests as necessary to protect your account and other people’s information. Content belonging to a shared workspace may remain with that workspace. Resolve active subscriptions and export work you need before requesting permanent deletion; restoration may not be available afterward.",
                 },
             ],
         },
         {
-            id: "your-rights",
-            heading: "Your rights",
+            id: "rights",
+            heading: "Your privacy rights",
             blocks: [
                 {
                     kind: "p",
-                    text: "[RIGHTS SECTION, WHICH DEPENDS ON THE DELETION AND EXPORT DECISION.]",
+                    text: "Depending on where you live and the circumstances, you may have rights to access or obtain a copy of your personal information, correct it, request deletion, restrict processing, object to certain uses, receive portable data, withdraw consent, or appeal a decision about a request. You may also complain to your applicable privacy or data-protection authority.",
+                },
+                {
+                    kind: "p",
+                    text: "Send requests to [CONFIRMED CONTACT EMAIL]. We respond without undue delay and within the deadline required by applicable law. Where a permitted extension is needed, we explain it and notify you within the required period. We may request information to verify your identity or an authorized agent’s authority. We do not unlawfully discriminate against people for exercising their privacy rights.",
+                },
+                {
+                    kind: "p",
+                    text: "If your request concerns information controlled by your employer, another workspace owner, or a publisher using Galleo, we may direct you to that organization and assist it as required.",
                 },
             ],
         },
         {
-            id: "where-your-data-is-held",
-            heading: "Where your data is held",
+            id: "international",
+            heading: "International processing",
             blocks: [
                 {
                     kind: "p",
-                    text: "Galleo runs in the United States. Our servers are in Oregon, our database is [NEON REGION], and our analytics is on PostHog's US cloud. Our AI providers process your content in their own regions. [TRANSFER MECHANISM FOR USERS IN THE EU AND UK.]",
+                    text: "Galleo uses providers that may process information in the United States and other countries, including countries different from where you live. Those countries may have different data-protection laws. [APPLICABLE INTERNATIONAL TRANSFER SAFEGUARDS]. Contact us for information about the safeguards applicable to your data.",
                 },
             ],
         },
@@ -256,11 +279,11 @@ const PRIVACY: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "Passwords are stored as scrypt hashes. Every credential we issue, including invitation tokens, sign-in codes and connected-app tokens, is stored as a one-way hash rather than in a readable form. Traffic is encrypted in transit.",
+                    text: "We use measures such as encrypted transport, hashed credentials, access controls, and workspace permissions to protect the service. No service can guarantee absolute security. Keep your sign-in details private and contact us promptly if you suspect unauthorized access.",
                 },
                 {
                     kind: "p",
-                    text: "[MEDIA URL DISCLOSURE: IMAGES AND VIDEO IN YOUR PIECES ARE SERVED FROM AN UNGUESSABLE ADDRESS THAT DOES NOT ITSELF CHECK WHO IS ASKING. SEE THE NOTE BELOW.]",
+                    text: "Media files may be served from unguessable URLs that do not independently check the viewer’s account or the piece’s sharing permissions. Anyone who obtains such a URL may be able to access the file. Restricting or removing a shared page does not necessarily revoke an already obtained media URL.",
                 },
             ],
         },
@@ -270,31 +293,17 @@ const PRIVACY: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "Galleo is not intended for children, and we do not knowingly collect personal information from anyone under [AGE].",
-                },
-            ],
-        },
-        {
-            id: "requests",
-            heading: "Requests, and how to reach us",
-            blocks: [
-                {
-                    kind: "p",
-                    text: "To ask what we hold about you, to correct it, to ask us to delete it, or to opt out of any sale of your personal information, write to [DESIGNATED REQUEST ADDRESS]. We answer a verified request within 60 days, and will tell you if we need up to 30 days more. We do not sell personal information, so there is nothing to opt out of, but the address exists so you can ask.",
-                },
-                {
-                    kind: "p",
-                    text: "You can review and change your account details, and the content of anything you have made, in the product at any time.",
+                    text: "Galleo is intended for people aged [MINIMUM AGE] or older. We do not knowingly collect personal information from children below that age. If you believe a child has supplied personal information in violation of this policy, contact us so we can investigate and take appropriate action.",
                 },
             ],
         },
         {
             id: "changes",
-            heading: "Changes",
+            heading: "Changes to this policy",
             blocks: [
                 {
                     kind: "p",
-                    text: "We will update this page when what we do changes, and the date at the top will say when. If a change materially affects how we handle your personal data we will tell you rather than relying on you noticing.",
+                    text: "We may update this policy when our practices, service, or legal requirements change. The dates at the top identify the current version. We provide notice of material changes as required by law, which may include an in-product notice or email.",
                 },
             ],
         },
@@ -303,132 +312,99 @@ const PRIVACY: LegalDoc = {
 
 const TERMS: LegalDoc = {
     title: "Terms of Service",
-    updated: "[DATE]",
-    intro: "These terms are the agreement between you and [LEGAL ENTITY NAME] for the use of Galleo. The grey boxes explain a section in ordinary language. Only the text outside the boxes is binding.",
+    effective: "[EFFECTIVE DATE]",
+    updated: "[EFFECTIVE DATE]",
+    intro: "These Terms of Service govern your use of Galleo and form an agreement between you and GalleoApp Inc. Please read them together with our Privacy Policy at https://galleo.app/privacy.",
     sections: [
         {
-            id: "your-account",
-            heading: "1. Your account",
+            id: "account",
+            heading: "1. Agreement, eligibility, and accounts",
             blocks: [
                 {
-                    kind: "summary",
-                    text: "You need an account, you are responsible for what happens under it, and you must be old enough.",
+                    kind: "p",
+                    text: "By accepting these terms during registration or otherwise using Galleo where legally sufficient acceptance applies, you agree to them. You must be at least [MINIMUM AGE] years old and legally able to enter this agreement. If you use Galleo for an organization, you represent that you have authority to bind it.",
                 },
                 {
                     kind: "p",
-                    text: "You must provide an accurate email address and keep your sign-in details to yourself. You are responsible for everything done through your account. You must be at least [AGE] to use Galleo. If you use Galleo for an organisation, you confirm you are allowed to accept these terms for it.",
+                    text: "Provide accurate account information, protect your credentials, and notify us of suspected unauthorized access. You are responsible for activity you authorize through your account and connected apps. Do not share a login to bypass membership or usage limits.",
                 },
             ],
         },
         {
-            id: "what-you-put-in",
-            heading: "2. What you put into Galleo",
+            id: "workspaces",
+            heading: "2. Workspaces and permissions",
             blocks: [
                 {
-                    kind: "summary",
-                    text: "Your content stays yours. We need permission to store it and show it, and nothing more.",
-                },
-                {
                     kind: "p",
-                    text: "You keep every right you already have in what you upload or write. To run the service we need your permission to store, copy, display and adapt that content, and to send parts of it to the providers described in section 4. That permission is limited to operating Galleo for you, lasts only as long as you keep the content here, and ends when you delete it.",
-                },
-                {
-                    kind: "p",
-                    text: "You confirm that you have the rights to what you put in, and that it does not infringe anyone else's rights or break the law.",
+                    text: "Workspace owners and administrators can manage membership, settings, billing, and content permissions within the controls the service provides. They may be able to access or retain workspace content after an individual member leaves. If you join an organization’s workspace, understand its policies before adding information. You may not grant access to information you are not authorized to share.",
                 },
             ],
         },
         {
-            id: "what-galleo-produces",
-            heading: "3. What Galleo produces",
+            id: "your-content",
+            heading: "3. Your content and our permission to process it",
             blocks: [
                 {
-                    kind: "summary",
-                    text: "You own what Galleo generates for you. We do not promise it is accurate, and we do not promise it is unique or that it infringes nobody's rights.",
+                    kind: "p",
+                    text: "You retain the rights you hold in content you provide. You grant GalleoApp Inc. and its service providers the permissions needed to host, copy, process, transmit, display, and transform that content to operate the service, perform your instructions, and provide requested features. This permission does not transfer ownership of your content to us.",
                 },
                 {
                     kind: "p",
-                    text: "As between you and us, and to the extent the law allows, you own the output Galleo generates from your input. We assign to you whatever rights we may have in that output, if any.",
+                    text: "You are responsible for having the rights and permissions needed for your content, including uploaded files, personal information, voices, images, and third-party material. You are responsible for the accuracy, lawfulness, and suitability of what you publish.",
+                },
+            ],
+        },
+        {
+            id: "generated-output",
+            heading: "4. AI output and third-party material",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "To the extent permitted by law and subject to third-party rights and applicable provider terms, you may use the output generated for you. To the extent GalleoApp Inc. has transferable rights in that output, we assign those rights to you. This does not grant rights in third-party content, the service itself, or material you were not entitled to submit.",
                 },
                 {
                     kind: "p",
-                    text: "Generative systems do not produce unique results. Another user giving a similar instruction may receive similar output, and we make no claim that any output is original or that using it infringes nobody's rights. Nothing we generate is checked by us for accuracy, and it does not represent our views. You are responsible for reviewing output before you rely on it or publish it, which includes obtaining any permission the material itself requires.",
+                    text: "AI output can be inaccurate, incomplete, non-unique, or unsuitable. Similar output may be generated for other people. We do not guarantee that output is exclusive, qualifies for copyright protection, or is free of third-party claims. Review facts, calculations, permissions, attribution, and suitability before relying on or sharing output. Galleo does not replace professional advice.",
                 },
                 {
                     kind: "p",
-                    text: "Do not present Galleo's output as human-written where that would mislead someone, and do not use it for legal, medical, financial or other professional advice without a qualified person.",
+                    text: "Stock media, fonts, and other third-party materials may carry their own license conditions. You must comply with any applicable license, attribution, and usage restrictions.",
                 },
             ],
         },
         {
             id: "ai-providers-and-training",
-            heading: "4. AI providers, and training",
+            heading: "5. AI and external services",
             blocks: [
                 {
-                    kind: "summary",
-                    text: "We do not train models on your content. We do send it to the providers who generate the result, and we name every one of them.",
+                    kind: "p",
+                    text: "AI features send relevant prompts, content, and reference material to the providers handling your request. The provider categories and data-use considerations are described at https://galleo.app/privacy#ai-providers. Galleo does not train its own AI models on your content. External-provider processing and any model-training use depend on their terms, account settings, and applicable agreements.",
                 },
                 {
                     kind: "p",
-                    text: "Producing a result means sending your content to a model provider. Which providers, and what each receives, is listed at [AI PROVIDERS PAGE] and in our Privacy Policy, and we keep that list current.",
-                },
-                {
-                    kind: "p",
-                    text: "We do not use your content to train models, and we have no model of our own to train. [WHETHER OUR PROVIDERS MAY TRAIN ON WHAT WE SEND THEM, AND FOR HOW LONG THEY KEEP IT, DEPENDS ON OUR AGREEMENT WITH EACH. STATE IT HERE ONCE THOSE TERMS ARE SETTLED.]",
+                    text: "External apps and connected services have their own terms and privacy policies. Review their permissions before connecting them. Their availability and actions are outside our control, except to the extent applicable law makes us responsible.",
                 },
             ],
         },
         {
             id: "plans-credits-and-payment",
-            heading: "5. Plans, credits and payment",
+            heading: "6. Plans, payment, cancellation, and credits",
             blocks: [
                 {
-                    kind: "summary",
-                    text: "AI work costs credits. Here is exactly how they behave.",
+                    kind: "p",
+                    text: "Available features, prices, billing periods, taxes, and allowances are displayed in the product and checkout. Paid subscriptions renew automatically at the disclosed interval until cancelled. You authorize the disclosed charges and agree to keep billing information current.",
                 },
                 {
                     kind: "p",
-                    text: "Paid plans renew automatically at the interval you chose until you cancel, and we will tell you before a renewal charge. Cancelling stops the next renewal and does not refund what you have already paid, except where the law requires otherwise. If we raise a price it applies from your next renewal, and we will give you notice first.",
+                    text: "Cancel through the billing controls before the next renewal to stop that renewal. Cancellation ordinarily takes effect at the end of the paid billing period, as shown in your billing settings, and does not itself delete your content or account. [REFUND POLICY]. Any cancellation, withdrawal, or refund rights required by applicable law are preserved.",
                 },
                 {
                     kind: "p",
-                    text: "AI actions consume credits. Credits are an operating limit on how much work a plan may do, not property and not a currency: they have no cash value and cannot be transferred or redeemed.",
-                },
-                {
-                    kind: "list",
-                    items: [
-                        "Your plan's credits are granted each billing period. Unspent credits roll over, up to two months of your plan's allowance in total; above that, a new grant only fills the gap.",
-                        "Credits you buy do not expire and do not count toward that rollover limit.",
-                        "Credits are not refundable, including on cancellation or downgrade.",
-                        "If you downgrade, you keep your balance, but you receive no further monthly grants until it falls below two months of the new plan's allowance.",
-                        "If a workspace runs out mid-action, the action stops and we charge only for the work already done.",
-                    ],
+                    text: "AI actions can consume credits shared by the workspace. Credits are service-use allowances, not money or property, and cannot be transferred or redeemed for cash. Grant amounts, rollover limits, and purchased-credit rules are shown in the plan or purchase terms. Statutory refund rights still apply.",
                 },
                 {
                     kind: "p",
-                    text: "Every member of a workspace draws on the workspace's shared credits, and the workspace shows what each member has spent.",
-                },
-            ],
-        },
-        {
-            id: "publishing",
-            heading: "6. Publishing",
-            blocks: [
-                {
-                    kind: "summary",
-                    text: "A published page is public to anyone with the link. Here is what happens to it if you stop paying.",
-                },
-                {
-                    kind: "p",
-                    text: "Publishing a piece makes it readable by anyone who has the link, and by search engines unless you say otherwise. You are responsible for what you publish. [WHAT HAPPENS TO A PUBLISHED PAGE WHEN A SUBSCRIPTION LAPSES OR AN ACCOUNT CLOSES.]",
-                },
-                {
-                    kind: "p",
-                    text: "If you publish text that Galleo generated, and you are publishing it to inform the public about a matter of public interest, the law in some places requires you to say that it was generated by AI. That duty is yours as the publisher rather than ours, and it does not apply where a person has reviewed the text and takes editorial responsibility for it. We mark generated content so that it can be recognised as such, and we give you a way to label a published page.",
-                },
-                {
-                    kind: "p",
-                    text: "We may take down a published page that breaks section 7, and will tell you why.",
+                    text: "We may change future prices or plan terms with notice as required by law. Changes apply at the time stated in the notice and do not remove mandatory consumer rights. If you do not accept a future change, you may cancel before it takes effect.",
                 },
             ],
         },
@@ -437,87 +413,126 @@ const TERMS: LegalDoc = {
             heading: "7. Acceptable use",
             blocks: [
                 {
-                    kind: "summary",
-                    text: "Do not use Galleo to hurt people, break the law, or attack the service.",
+                    kind: "list",
+                    items: [
+                        "Do not violate the law, another person’s privacy, or intellectual-property rights.",
+                        "Do not exploit or sexualize children, distribute malicious code, commit fraud, threaten or unlawfully harass people, or impersonate someone deceptively.",
+                        "Do not upload, clone, or use a voice or likeness without the required authority and consent.",
+                        "Do not gain unauthorized access, misuse credentials, interfere with the service, or circumvent access, security, billing, or usage limits.",
+                        "Do not use the service in violation of applicable export controls, sanctions, or restrictions imposed by relevant providers.",
+                    ],
                 },
                 {
                     kind: "p",
-                    text: "You may not use Galleo to create or publish material that is unlawful, that harasses or defames someone, that sexualises children, that impersonates a real person or organisation in a way meant to deceive, or that is designed to defraud. You may not attempt to break, overload or gain unauthorised access to the service, resell it without our agreement, or use it to build a competing model.",
+                    text: "We may investigate misuse, restrict access, or remove content when reasonably necessary to address violations, legal requirements, security, or harm, subject to applicable rights and notice obligations.",
                 },
             ],
         },
         {
-            id: "connected-apps",
-            heading: "8. Connected apps and third-party services",
+            id: "publishing",
+            heading: "8. Sharing and publishing",
             blocks: [
                 {
-                    kind: "summary",
-                    text: "If you connect Galleo to another tool, you decide what it may reach, and you can cut it off.",
+                    kind: "p",
+                    text: "You choose the audience and access settings for your work. Published links display the current content, so later edits can change what readers see. Depending on access settings, anyone with a link may be able to view or copy the content. Do not publish information you are not authorized to disclose.",
                 },
                 {
                     kind: "p",
-                    text: "You may connect Galleo to an external client such as Claude or ChatGPT. You choose which workspaces the connection reaches and what it may do, you can revoke it at any time in your settings, and you are responsible for what you connect. Those tools are governed by their own terms, not these.",
+                    text: "A link stops serving when it is removed, the piece is trashed or permanently deleted, or the owning workspace no longer has the plan entitlement required for public links. Removing a link does not recall copies already obtained, and media URLs may remain accessible separately as described in our Privacy Policy.",
                 },
             ],
         },
         {
-            id: "ending-it",
-            heading: "9. Ending it",
+            id: "our-service",
+            heading: "9. Rights in the service",
             blocks: [
-                { kind: "summary", text: "You can leave whenever. Take your work with you." },
                 {
                     kind: "p",
-                    text: "You may stop using Galleo at any time. We may suspend or end an account that breaks these terms, and we will say why unless the law stops us.",
-                },
-                {
-                    kind: "p",
-                    text: "[POST-TERMINATION RETRIEVAL: HOW LONG CONTENT STAYS AVAILABLE FOR EXPORT AFTER AN ACCOUNT ENDS.]",
-                },
-                {
-                    kind: "p",
-                    text: "If we discontinue Galleo, we will give reasonable notice and a period to export your work before it becomes unavailable.",
+                    text: "GalleoApp Inc. and its licensors retain rights in the software, service design, branding, and other materials we provide, excluding your content and rights expressly granted to you. Subject to these terms and your plan, you may access and use the service for its intended purposes. You may not copy or commercially exploit the service itself except as permitted by us or applicable law.",
                 },
             ],
         },
         {
-            id: "what-we-do-not-promise",
-            heading: "10. What we do not promise",
+            id: "availability",
+            heading: "10. Availability and changes",
             blocks: [
                 {
                     kind: "p",
-                    text: "Galleo is provided as it is. To the extent the law allows, we make no warranty that it will be uninterrupted, error-free, or fit for a particular purpose, and section 3 governs output.",
+                    text: "We work to provide a reliable service, but do not promise uninterrupted availability, error-free operation, or compatibility with every third-party service. Features may change as the product develops. We provide notice of material changes, discontinuation, and any export opportunity where required by law or an applicable agreement. Keep copies of work you need independently of the service.",
+                },
+            ],
+        },
+        {
+            id: "termination",
+            heading: "11. Suspension and ending use",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "You may stop using Galleo and cancel a subscription through the available controls. Contact us for account deletion or export requests. Export work you need before permanent deletion; we do not promise a recovery window afterward. Shared-workspace content may remain with that workspace.",
+                },
+                {
+                    kind: "p",
+                    text: "We may suspend or terminate access for material breaches, nonpayment, security risks, legal requirements, or other lawful reasons. Where reasonably possible and consistent with safety and legal obligations, we provide notice and an opportunity to resolve the issue. Suspension does not remove statutory refund rights.",
+                },
+                {
+                    kind: "p",
+                    text: "Terms that by their nature should survive termination, including payment obligations already incurred, ownership provisions, and applicable liability and dispute provisions, continue to apply.",
+                },
+            ],
+        },
+        {
+            id: "disclaimers",
+            heading: "12. Disclaimers",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "To the extent permitted by applicable law, the service is provided as available without warranties of uninterrupted operation, error-free results, merchantability, fitness for a particular purpose, or non-infringement. Mandatory statutory warranties and consumer rights are not excluded. You are responsible for reviewing generated material before use.",
                 },
             ],
         },
         {
             id: "liability",
-            heading: "11. Liability",
+            heading: "13. Liability",
             blocks: [
                 {
                     kind: "p",
-                    text: "[LIMITATION OF LIABILITY, WHICH DEPENDS ON THE JURISDICTION IN SECTION 13 AND IS THE ONE CLAUSE HERE THAT A LAWYER SHOULD WRITE RATHER THAN REVIEW.]",
-                },
-            ],
-        },
-        {
-            id: "changes",
-            heading: "12. Changes to these terms",
-            blocks: [
-                {
-                    kind: "p",
-                    text: "We will post any change here and update the date at the top. If a change materially affects your rights we will tell you before it takes effect, and continuing to use Galleo after that is your acceptance of it.",
+                    text: "To the extent permitted by applicable law, neither party is liable under these terms for indirect or consequential losses. GalleoApp Inc.’s aggregate liability arising out of the service is limited to the greater of the fees you paid for the affected service in the 12 months before the event giving rise to the claim or US$100. These limits do not apply to fraud or any liability that applicable law does not allow to be excluded or limited. [CONFIRM LIABILITY ALLOCATION].",
                 },
             ],
         },
         {
             id: "governing-law",
-            heading: "13. Governing law",
-            blocks: [{ kind: "p", text: "[GOVERNING LAW AND JURISDICTION.]" }],
+            heading: "14. Governing law and disputes",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "Delaware law governs these terms, without regard to its conflict-of-laws rules, and disputes are subject to the competent state and federal courts in Delaware. Mandatory consumer protections and any right to bring a claim in a local court that cannot lawfully be excluded remain unaffected. These terms do not require arbitration or waive class-action rights. [CONFIRM GOVERNING LAW AND VENUE].",
+                },
+            ],
+        },
+        {
+            id: "changes",
+            heading: "15. Changes and general terms",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "We may update these terms, with notice and an effective date for material changes as required by law. Where renewed acceptance is required, we will request it. Changes do not retroactively remove rights that applicable law protects.",
+                },
+                {
+                    kind: "p",
+                    text: "If a provision is unenforceable, the remaining provisions continue to apply to the extent permitted by law. Failure to enforce a provision is not a waiver. These terms and any applicable order or separately agreed terms form the agreement for the service; a separately signed agreement controls to the extent it expressly conflicts with these terms.",
+                },
+            ],
         },
         {
             id: "contact",
-            heading: "14. Contact",
-            blocks: [{ kind: "p", text: "[CONTACT ADDRESS]." }],
+            heading: "16. Contact",
+            blocks: [
+                {
+                    kind: "p",
+                    text: "Questions, privacy requests, and legal notices may be sent to GalleoApp Inc. at [CONFIRMED CONTACT EMAIL] or [BUSINESS MAILING ADDRESS]. To report suspected copyright infringement, identify the protected work, the material at issue and its location, your contact information, and the basis for your request.",
+                },
+            ],
         },
     ],
 };
@@ -526,6 +541,8 @@ const DOCS: Record<LegalDocId, LegalDoc> = { privacy: PRIVACY, terms: TERMS };
 
 // The capture keeps the markers in the split, so a run of text alternates prose, marker, prose.
 const PLACEHOLDER = /(\[[^\]]+\])/g;
+const PROSE_PART =
+    /(\[[^\]]+\]|https:\/\/[^\s]+[a-zA-Z0-9/#]|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
 
 const isPlaceholder = (part: string): boolean => part.startsWith("[") && part.endsWith("]");
 
@@ -546,9 +563,24 @@ function openCount(doc: LegalDoc): number {
 
 /** Prose with its unresolved decisions marked, so a reader cannot mistake one for a statement. */
 const Prose: Component<{ text: string }> = (props) => (
-    <Index each={props.text.split(PLACEHOLDER)}>
+    <Index each={props.text.split(PROSE_PART)}>
         {(part) => (
-            <Show when={isPlaceholder(part())} fallback={part()}>
+            <Show
+                when={isPlaceholder(part())}
+                fallback={
+                    <Show
+                        when={part().startsWith("https://") || part().includes("@")}
+                        fallback={part()}
+                    >
+                        <a
+                            class="text-accent underline underline-offset-4 break-words"
+                            href={part().startsWith("https://") ? part() : `mailto:${part()}`}
+                        >
+                            {part()}
+                        </a>
+                    </Show>
+                }
+            >
                 <mark class="todo">{part()}</mark>
             </Show>
         )}
@@ -674,7 +706,7 @@ export const LegalPage: Component<{ doc: LegalDocId }> = (props) => {
             </header>
 
             <main class="max-w-[1280px] mx-auto px-5 md:px-8 py-12 md:py-20">
-                <div class="lab text-accent mb-4">✺ Legal</div>
+                <div class="lab text-accent mb-4">Legal</div>
                 <h1 class="display text-4xl md:text-6xl">{doc().title}</h1>
                 <div class="lab text-muted mt-8 flex flex-wrap gap-x-8 gap-y-3">
                     <Show when={doc().effective}>
@@ -713,20 +745,22 @@ export const LegalPage: Component<{ doc: LegalDocId }> = (props) => {
                     {/* min-w-0: a grid item defaults to min-width:auto, which would let the
                         sub-processor table's min width widen the whole column past the viewport */}
                     <article class="lg:col-span-8 xl:col-span-9 min-w-0 max-w-[68ch]">
-                        <div
-                            class="card p-5 md:p-6"
-                            style={{
-                                "border-style": "dashed",
-                                "border-color": "var(--color-accent)",
-                            }}
-                        >
-                            <div class="lab text-accent mb-3">✺ Draft</div>
-                            <p class="leading-relaxed text-soft">
-                                This page is not final. The marked passages below are decisions we
-                                have not made yet, so read them as gaps rather than as statements of
-                                what we do. There are {openCount(doc())} of them.
-                            </p>
-                        </div>
+                        <Show when={openCount(doc()) > 0}>
+                            <div
+                                class="card p-5 md:p-6"
+                                style={{
+                                    "border-style": "dashed",
+                                    "border-color": "var(--color-accent)",
+                                }}
+                            >
+                                <div class="lab text-accent mb-3">Review draft</div>
+                                <p class="leading-relaxed text-soft">
+                                    This page is not final. The marked passages below are decisions
+                                    we have not made yet, so read them as gaps rather than as
+                                    statements of what we do. There are {openCount(doc())} of them.
+                                </p>
+                            </div>
+                        </Show>
 
                         <p class="mt-8 text-lg leading-relaxed text-soft">
                             <Prose text={doc().intro} />
