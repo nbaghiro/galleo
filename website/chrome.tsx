@@ -1,6 +1,7 @@
 import { createSignal, onMount, Show, type Component } from "solid-js";
 import { Mark } from "@ui/brand";
 import { capture } from "@ui/analytics";
+import { Icon } from "@ui/icons";
 
 // Which placement earned the account. The landing itself is a $pageview carrying the referrer and
 // the click id; this is the click that leaves for signup, so the two together close the loop from
@@ -65,7 +66,7 @@ export const AuthCta: Component = () => {
                 }
             >
                 <a href="/" class="btn btn-primary text-sm" style={{ padding: "0.6rem 1.1rem" }}>
-                    Go to app →
+                    Go to app <Icon name="chevronRight" size={18} />
                 </a>
             </Show>
         </div>
