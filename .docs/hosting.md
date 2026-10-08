@@ -421,3 +421,54 @@ row for the whole deployment, and a custom bed is one row per artifact, both at 
 
 Synthesis is slow, roughly a second of wall clock per ten seconds of audio, which is why preparing a
 deck streams progress rather than blocking on a single request.
+
+## Marketing search visibility
+
+`pnpm build` builds the browser entries, compiles `website/prerender.tsx` with Solid's server
+renderer, then writes nine public HTML pages, `marketing.json`, `robots.txt` and `sitemap.xml` to
+`dist/`. It needs no browser, database or external rendering service. The generated server bundle is
+removed after rendering. `website/routes.ts` owns the public paths, titles, descriptions and product
+page copy. Legal pages use their existing content and receive their own metadata.
+
+`services/api/site.ts` serves that build manifest, with explicit application routes and a real 404
+for unknown URLs. Public routes are canonical at `https://galleo.app`, trailing slashes redirect,
+and `/home` redirects anonymously or serves the canonical homepage for a signed-in person who
+chose “view the site”. The contextual signed-in root remains the library. App responses carry
+`noindex` in both HTML and the response header, and session-dependent HTML is private/no-cache.
+The sitemap contains public marketing and legal pages only, never private artifacts or app routes.
+Published customer pages keep their own existing access and metadata policy.
+
+The homepage and product copy are readable before JavaScript executes. Solid hydrates the generated
+HTML; decorative examples render into canvases as they approach the viewport, so their fictional
+business copy and sample links never enter the homepage DOM. Product and legal pages load the shared
+marketing chrome without the homepage's sample data or rendering engine. The marketing theme starts
+consistently at Studio. A static favicon and 1200×630 social card are served at stable public URLs.
+
+`pnpm check:seo` runs after the build in CI. It checks static content, unique page titles,
+descriptions, canonicals, social metadata, real internal links, sitemap membership and the app's
+`noindex`. Its negative probes verify that an empty heading or accidental public `noindex` fails.
+`services/api/__tests__/site.test.ts` exercises the actual Hono router, including authenticated roots,
+unknown URLs, crawler-file media types and preserved application deep links.
+
+After deploying these changes:
+
+1. Verify the Google Search Console property in the account that owns the product. Prefer a Domain
+   property verified through DNS; a URL-prefix property for `https://galleo.app/` is an alternative.
+   Do not publish another person's verification token or attach an unconfirmed account.
+2. Inspect `https://galleo.app/` with URL Inspection. Record the indexing status, last crawl,
+   Google-selected canonical and any crawl/render failure. Compare the crawled result with a live
+   test; the live test alone does not prove that the page is indexed.
+3. Submit `https://galleo.app/sitemap.xml`, then request indexing of the homepage and the three
+   product pages. Confirm the sitemap is fetched successfully and Google sees the headline, copy
+   and links in the rendered HTML.
+4. Check Page Indexing and Search Performance over subsequent crawls. Separate branded queries
+   from presentation, visual-document and landing-page queries. Track impressions before judging
+   clicks or rankings. Do not treat an absent `site:` result as a definitive indexing diagnosis.
+5. Use the same name, URL and concise product description on genuine company profiles and launch
+   listings. Link to useful examples or template guides from relevant articles and conversations.
+   Obtain real customer examples only with permission. Avoid purchased links, invented reviews or
+   mass directory submissions. Neither the sitemap nor structured data guarantees rankings.
+
+The public product description is: “Galleo creates AI presentations, visual documents and websites
+from one source. Edit your content once and keep every format in sync.” Only add `sameAs` profile
+URLs to structured data after confirming that those profiles are actually owned by Galleo.

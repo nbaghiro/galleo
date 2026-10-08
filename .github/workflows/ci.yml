@@ -85,6 +85,9 @@ jobs:
             - name: Build
               run: pnpm build
 
+            - name: Marketing SEO
+              run: pnpm check:seo
+
     # The layout engine's only automated guard. Real Chromium because ~70 webfonts drive
     # measureText, measureText drives the solver, and the solver decides every box: measure with a
     # fallback face and you are checking a layout nobody sees. Free, ~10s, and deterministic, so

@@ -362,7 +362,16 @@ AI turn/suggest/revise/text-assist transports).
 `@canvas` + the theme registry, with no app SPA, auth, or editor · `api.ts` (its own client for the three
 unauthenticated `/p/:slug` reads). Its own build, so anonymous viewers load only the engine.
 
-### website/ — the public landing build (served at `/`), separate from the product SPA.
+### website/ — the public marketing build (served at `/`), separate from the product SPA.
+
+`WebsitePage.tsx` is the landing page with decorative canvas previews; `ContentPage.tsx` renders
+product and template guides; `LegalPage.tsx` holds the legal documents. `chrome.tsx` owns their
+shared brand link, session-aware account controls and signup reporter. `routes.ts` owns the public
+route/content/metadata catalog. `prerender.tsx` renders these components at build time into real
+HTML with canonical URLs, social metadata and site identity, plus a sitemap and robots file.
+`main.tsx` hydrates that HTML and loads the homepage renderer only on the homepage. Public HTML is
+served from the generated manifest by `services/api/site.ts`. See `hosting.md` for Search Console
+setup and the post-deployment checks.
 
 `ui/styles.css` — the shared Tailwind `@theme` tokens every layer reads.
 

@@ -1,11 +1,12 @@
 import "dotenv/config";
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { z } from "zod";
+import { siteRouter } from "./api/site";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { createNodeWebSocket } from "@hono/node-ws";
 import { Hono } from "hono";
-import { getCookie } from "hono/cookie";
-import { readSession, SESSION_COOKIE } from "./utils/auth";
 import { assertDatabaseUrl } from "./db/client";
 import { setTraceStore, traceStore } from "./core/traces";
 import { checkMailConfig } from "./core/mail";
@@ -114,20 +115,17 @@ if (process.env.NODE_ENV === "production") {
     app.use("/fonts/*", serveStatic({ root: "./dist" }));
     app.get("/fonts.css", serveStatic({ path: "./dist/fonts.css" }));
     app.get("/p/*", serveStatic({ path: "./dist/publish/index.html" })); // public read-only viewer
-    app.get("/home", serveStatic({ path: "./dist/index.html" })); // marketing, always (signed-in "view the site")
-    // the legal pages read the same signed in or out, so they are the marketing build for everyone;
-    // both slash forms, since these are URLs other systems paste and rewrite
-    for (const path of ["/privacy", "/privacy/", "/terms", "/terms/"]) {
-        app.get(path, serveStatic({ path: "./dist/index.html" }));
+    for (const file of ["favicon.svg", "social-card.png"]) {
+        app.get(`/${file}`, serveStatic({ path: `./dist/${file}` }));
     }
-    // contextual root: the app for a valid session, the marketing site otherwise
-    app.get("/", (c, next) => {
-        const authed = readSession(getCookie(c, SESSION_COOKIE)) !== null;
-        const path = authed ? "./dist/app/index.html" : "./dist/index.html";
-        return serveStatic({ path })(c, next);
-    });
-    // every other route is the app SPA; its own auth gate renders sign-in when needed
-    app.get("*", serveStatic({ path: "./dist/app/index.html" }));
+    const pages = z
+        .record(z.string(), z.string().regex(/^marketing\/[a-z0-9-]+\.html$/))
+        .parse(JSON.parse(await readFile("./dist/marketing.json", "utf8")));
+    if (!pages["/"]) throw new Error("The marketing build is missing its homepage");
+    app.route(
+        "/",
+        siteRouter(pages, (file) => readFile(`./dist/${file}`, "utf8")),
+    );
 }
 
 // Render injects PORT; API_PORT is the local-dev override (8601 default).

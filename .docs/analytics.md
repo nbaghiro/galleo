@@ -447,3 +447,7 @@ about the feature than one that ran for a month; it is reported once, since the 
 credential that is still live. The name an admin typed is the customer's own words and never travels,
 so these carry the same opaque `client_id` as the four events above, which is what joins a credential
 to the tokens it went on to issue.
+
+Marketing product and template guides use the same `signup_cta_clicked` reporter in
+`website/chrome.tsx`, with `product_page` as their placement. Each full-page navigation records
+the existing marketing pageview. Static prerendering emits no analytics.
