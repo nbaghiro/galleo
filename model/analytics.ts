@@ -187,7 +187,6 @@ export type AiFailureReason =
 export interface Events {
     docs_opened: { article: string };
     docs_searched: { query_length: QueryBucket; results: number };
-    docs_theme_changed: { theme_id: string };
     // Account and session.
     // The marketing page's own conversion step. The landing itself is a $pageview, which is what
     // carries the referrer and the campaign parameters; this is the click that leaves for signup,
