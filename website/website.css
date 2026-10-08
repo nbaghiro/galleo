@@ -354,6 +354,7 @@
 /* The pieces ring the centred column and stay out of it. Below the width where a real margin
    exists they are hidden rather than shrunk: a card behind the headline is worse than no card. */
 .web .orbit {
+    display: none;
     position: absolute;
     inset: 0;
     pointer-events: none;
@@ -391,6 +392,16 @@
     margin-top: 3.25rem;
     pointer-events: none;
 }
+/* CSS selects the prerendered layout before hydration; hidden previews stay unpainted. */
+@media (min-width: 1440px) {
+    .web .orbit {
+        display: block;
+    }
+    .web .fan {
+        display: none;
+    }
+}
+
 .web .fan__card {
     position: absolute;
     left: 50%;

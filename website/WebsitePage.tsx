@@ -282,18 +282,6 @@ const ORBIT: Orbiter[] = [
     { piece: showcaseFor("doc")[3]!, top: 71, side: "right", inset: 8, rotate: 5, scale: 0.88 },
 ];
 
-/**
- * A ring needs a margin either side of the centred column to live in, and on a phone the copy is
- * the full width, so the arrangement cannot simply shrink: it is replaced by a fan below the copy.
- * A fan only needs the width of its widest card, which is the one thing a narrow screen has.
- *
- * The breakpoint is a signal rather than a CSS `display` toggle because a hidden FitPlate measures
- * a zero-width box and paints nothing, so a CSS-only switch would mount eight empty plates on a
- * phone and wait for a resize to fill them. One arrangement exists at a time.
- */
-const RING_MIN = 1440;
-const [wide, setWide] = createSignal(false);
-
 type Fanned = {
     piece: ShowcasePiece;
     /** offset from centre, as a percentage of the card's own width, so it scales with the card */
@@ -498,15 +486,6 @@ function Marquee<T>(props: {
 }
 
 export const WebsitePage: Component<{ theme: string }> = (props) => {
-    onMount(() => {
-        const query = window.matchMedia(`(min-width: ${RING_MIN}px)`);
-        const update = (): void => {
-            setWide(query.matches);
-        };
-        update();
-        query.addEventListener("change", update);
-        onCleanup(() => query.removeEventListener("change", update));
-    });
     return (
         <div class="web h-full w-full overflow-y-auto bg-canvas font-body text-ink">
             <Marquee
@@ -558,9 +537,7 @@ export const WebsitePage: Component<{ theme: string }> = (props) => {
                 whatever corner was left, which is why they kept fighting the type however they were
                 nudged. A centred column leaves a real margin on both sides, and the pieces sit in
                 it instead of under the words. */}
-                <Show when={wide()}>
-                    <PlateOrbit theme={props.theme} />
-                </Show>
+                <PlateOrbit theme={props.theme} />
                 <div class="max-w-320 mx-auto px-5 md:px-8 pt-20 md:pt-28 pb-20 md:pb-28 relative z-raised">
                     <div class="mx-auto max-w-[46rem] text-center">
                         <span class="hero-chip rise" style={{ "animation-delay": "0.05s" }}>
@@ -612,9 +589,7 @@ export const WebsitePage: Component<{ theme: string }> = (props) => {
                         {/* Below the call to action, never above it: the hero already fills a phone
                         screen, and the pieces are the reward for scrolling rather than the thing
                         standing between the reader and the button. */}
-                        <Show when={!wide()}>
-                            <PlateFan theme={props.theme} />
-                        </Show>
+                        <PlateFan theme={props.theme} />
                     </div>
                 </div>
 
