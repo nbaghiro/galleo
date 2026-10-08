@@ -350,12 +350,19 @@ describe("who pays when a collaborator narrates someone else's artifact", () => 
 
     it("gates on the owner's plan, so a Free guest cannot block a Pro owner's deck", async () => {
         const { guest, artifactId } = await invitedOutsider("pro", "free");
-        const res = await authed(
-            guest.userId,
-            `/artifacts/${artifactId}/narration`,
-            jsonInit("POST", {}),
-        );
-        expect(res.status).toBe(200);
+        const realFetch = globalThis.fetch;
+        globalThis.fetch = fakeProvider;
+        try {
+            const res = await authed(
+                guest.userId,
+                `/artifacts/${artifactId}/narration`,
+                jsonInit("POST", {}),
+            );
+            expect(res.status).toBe(200);
+            await res.text(); // settle before the next test truncates the database
+        } finally {
+            globalThis.fetch = realFetch;
+        }
     });
 
     it("refuses when the OWNER's plan lacks narration, whatever the guest's is", async () => {

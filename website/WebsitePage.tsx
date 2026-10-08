@@ -13,10 +13,10 @@ import { plateGeometry } from "@ui/section";
 import { fontsGeneration } from "@ui/fonts";
 import { resolveTheme } from "@themes";
 import { profileFor } from "@engine/profile";
-import { layoutSection, measureText } from "@canvas/render/commands";
+import { layoutSection, measureText, SECTION_GAP } from "@canvas/render/commands";
 import { backdropCss, renderToCanvas } from "@canvas/render/backends";
 import { showcaseFor, type ShowcasePiece } from "./showcase";
-import type { ArtifactContent } from "@model/artifact";
+import { sectionRegionId, type ArtifactContent } from "@model/artifact";
 
 // the marketing "N designer themes" claim, so it cannot drift from the theme library
 const THEME_COUNT = THEME_LIST.length;
@@ -208,8 +208,11 @@ const FitPlate: Component<{
             cancelled = true;
         });
         box.style.background = backdropCss(content.background, tokens);
-        inner.style.width = `${geometry.width}px`;
-        inner.style.paddingTop = `${geometry.padTop}px`;
+        const scale = geometry.width / geometry.layoutWidth;
+        inner.style.width = `${geometry.layoutWidth}px`;
+        inner.style.transform = `scale(${scale})`;
+        inner.style.transformOrigin = "top center";
+        inner.style.paddingTop = `${geometry.padTop / scale}px`;
         void (async () => {
             const canvases: HTMLCanvasElement[] = [];
             for (const section of content.sections) {
@@ -226,13 +229,23 @@ const FitPlate: Component<{
                     layout.commands,
                     geometry.layoutWidth,
                     layout.height,
-                    tokens.bg,
-                    (geometry.width * 2) / geometry.layoutWidth,
+                    "transparent",
+                    scale * 2,
                 );
                 canvas.style.width = "100%";
                 canvas.style.height = "auto";
                 canvas.style.display = "block";
-                if (profile.kind === "paged") canvas.style.marginBottom = "8px";
+                const ground = layout.commands.find((c) => c.id === sectionRegionId(section.id));
+                const surface =
+                    ground?.kind === "rect"
+                        ? ground.fill
+                        : ground?.kind === "image"
+                          ? ground.image
+                          : undefined;
+                if (typeof surface?.radius === "number")
+                    canvas.style.borderRadius = `${surface.radius}px`;
+                if (typeof surface?.shadow === "string") canvas.style.boxShadow = surface.shadow;
+                if (profile.kind === "paged") canvas.style.marginBottom = `${SECTION_GAP}px`;
                 canvases.push(canvas);
             }
             if (!cancelled) inner.replaceChildren(...canvases);
