@@ -212,8 +212,8 @@ const FitPlate: Component<{
         inner.style.paddingTop = `${geometry.padTop}px`;
         void (async () => {
             const canvases: HTMLCanvasElement[] = [];
-            // Only the first few sections can be seen through the decorative crop.
-            for (const section of content.sections.slice(0, 3)) {
+            for (const section of content.sections) {
+                if (cancelled) return;
                 const layout = layoutSection(
                     section,
                     geometry.layoutWidth,
