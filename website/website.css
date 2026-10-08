@@ -372,14 +372,6 @@
         0 34px 60px -26px rgba(0, 0, 0, 0.3),
         0 6px 16px -10px rgba(0, 0, 0, 0.18);
 }
-/* Out of focus, not faded: blur is what reads as "further away", where opacity reads as "washed
-   out". The border goes with it, because a crisp edge on a blurred card looks like a mistake. */
-.web .orbit__card--soft {
-    filter: blur(11px);
-    opacity: 0.75;
-    border-color: transparent;
-    box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.22);
-}
 /* the card keeps its edge; the content inside it fades at the foot */
 .web .orbit__card > * {
     -webkit-mask-image: linear-gradient(180deg, #000 76%, transparent 100%);

@@ -321,3 +321,10 @@ do the gated helpers + editor/app/publish first.
 Cheap, node-testable now (no project needed), not yet covered: `ui/color` (`isHex`/`textColorSwatches`/
 `highlightSwatches`), `ui/z` (`Z` ordering), `ui/section` (`backdropHostStyle`), `ui/icons` (`ICON_NAMES`
 drift), and `publish/PublicView` `viewLabel`. Fold these in alongside (b)'s gated-helper batch.
+
+## Marketing SEO
+
+The post-build `pnpm check:seo` guard checks the nine prerendered public pages, metadata, internal
+links, sitemap entries and noindex separation. The real router is exercised by
+`services/api/__tests__/site.test.ts` without a database. Browser QA should cover mobile and desktop
+hydration, a no-JavaScript read, signup links and canvas previews without sample text in the DOM.

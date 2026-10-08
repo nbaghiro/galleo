@@ -1,6 +1,6 @@
 import type { Component, JSX } from "solid-js";
 import { For, Index, Show } from "solid-js";
-import { AuthCta, Wordmark } from "./WebsitePage";
+import { AuthCta, BrandLink } from "./chrome";
 import { LEGAL_DOC_IDS, LEGAL_PATHS, type LegalDocId } from "./routes";
 
 type Block =
@@ -651,7 +651,7 @@ export const LegalPage: Component<{ doc: LegalDocId }> = (props) => {
                 style={{ background: "var(--color-canvas)", "border-bottom": rule }}
             >
                 <div class="max-w-[1280px] mx-auto px-5 md:px-8 h-16 flex items-center justify-between gap-4">
-                    <Wordmark href="/" />
+                    <BrandLink href="/" />
                     <nav class="hidden md:flex items-center gap-8 lab">
                         <For each={LEGAL_DOC_IDS}>
                             {(id) => (

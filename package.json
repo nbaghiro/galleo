@@ -33,7 +33,7 @@
         "format:check": "prettier --check .",
         "prepare": "git config core.hooksPath .githooks || true",
         "dev": "vite",
-        "build": "vite build",
+        "build": "vite build && vite build --ssr website/prerender.tsx --outDir dist/.prerender && node dist/.prerender/prerender.js",
         "start": "NODE_ENV=production tsx services/server.ts",
         "preview": "vite preview",
         "preapi": "bash scripts/ensure-db.sh",
@@ -57,7 +57,8 @@
         "mcp": "tsx scripts/mcp.ts",
         "traces": "tsx scripts/traces.ts",
         "posthog:dashboards": "tsx scripts/posthog-dashboards.ts",
-        "media:elements": "tsx scripts/migrate-media-elements.ts"
+        "media:elements": "tsx scripts/migrate-media-elements.ts",
+        "check:seo": "node scripts/check-seo.mjs"
     },
     "dependencies": {
         "@ai-sdk/anthropic": "^4.0.30",
