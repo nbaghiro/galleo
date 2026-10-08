@@ -442,3 +442,47 @@
     background: var(--color-ink);
     opacity: 0.3;
 }
+
+.docs-layout {
+    display: grid;
+    gap: 3rem;
+}
+.docs-skip {
+    position: fixed;
+    top: -10rem;
+    left: 1rem;
+    z-index: 100;
+    padding: 1rem;
+    background: var(--color-panel);
+    color: var(--color-ink);
+}
+.docs-skip:focus {
+    top: 1rem;
+}
+.docs-nav-link[aria-current="page"] {
+    background: var(--color-panel);
+    color: var(--color-accent);
+    font-weight: 700;
+}
+.docs-card:hover {
+    border-color: var(--color-accent);
+}
+.docs-shell a:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 4px;
+}
+.docs-section {
+    scroll-margin-top: 8rem;
+}
+@media (min-width: 1024px) {
+    .docs-layout {
+        grid-template-columns: 15rem minmax(0, 1fr);
+    }
+    .docs-sidebar {
+        position: sticky;
+        top: 6rem;
+        align-self: start;
+        max-height: calc(100dvh - 6rem);
+        overflow-y: auto;
+    }
+}

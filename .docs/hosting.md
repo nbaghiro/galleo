@@ -472,3 +472,15 @@ After deploying these changes:
 The public product description is: “Galleo creates AI presentations, visual documents and websites
 from one source. Edit your content once and keep every format in sync.” Only add `sameAs` profile
 URLs to structured data after confirming that those profiles are actually owned by Galleo.
+
+### Public product documentation
+
+`website/docs.ts` contains the user-facing guide catalog and search index; `DocsPage.tsx` renders
+the overview and article pages at `/docs` and `/docs/:slug`. These routes use the same static
+prerendering, canonical metadata, sitemap, and manifest routing as the marketing pages. The sidebar
+and mobile disclosure work without JavaScript. Search runs locally and the theme picker changes
+only the guide theme, persisted under `galleo-docs-theme`. Hidden search text is never sent to analytics.
+
+The SEO guard checks that every public page is reachable from the homepage and validates fragments
+across pages as well as within them. Footer product links resolve to existing guides or homepage
+sections; Documentation points to the guide overview. Legal pages remain distinct from help articles.

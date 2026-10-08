@@ -51,9 +51,11 @@ const robots = await readFile("dist/robots.txt", "utf8");
 assert.ok(robots.includes("Sitemap: https://galleo.app/sitemap.xml"));
 assert.ok(!robots.includes("Disallow: /\n"));
 const titles = new Set();
+const documents = new Map();
 for (const [path, file] of Object.entries(manifest)) {
     const html = await readFile(`dist/${file}`, "utf8");
     const document = checkPage(html, path);
+    documents.set(path, document);
     assert.ok(!titles.has(document.title), `${path}: duplicate title`);
     titles.add(document.title);
     assert.ok(sitemap.includes(`<loc>https://galleo.app${path}</loc>`), `${path}: not in sitemap`);
@@ -66,7 +68,9 @@ for (const [path, file] of Object.entries(manifest)) {
             !document.body.textContent.includes("maja@ondine.dk"),
             "sample content leaked into the homepage",
         );
-        for (const target of Object.keys(manifest).filter((p) => p !== "/"))
+        for (const target of Object.keys(manifest).filter(
+            (p) => p !== "/" && !p.startsWith("/docs/"),
+        ))
             assert.ok(
                 document.querySelector(`a[href="${target}"]`),
                 `homepage does not link ${target}`,
@@ -90,6 +94,28 @@ for (const [path, file] of Object.entries(manifest)) {
         checkPage(html.replace("</head>", '<meta name="robots" content="noindex"></head>'), path),
     );
 }
+const reachable = new Set();
+const pending = ["/"];
+while (pending.length) {
+    const path = pending.pop();
+    if (reachable.has(path)) continue;
+    reachable.add(path);
+    const document = documents.get(path);
+    for (const link of document.querySelectorAll("a[href]")) {
+        const target = new URL(link.getAttribute("href"), `https://galleo.app${path}`);
+        if (target.origin !== "https://galleo.app") continue;
+        const destination = documents.get(target.pathname);
+        if (!destination) continue;
+        if (target.hash)
+            assert.ok(
+                destination.getElementById(decodeURIComponent(target.hash.slice(1))),
+                `${path}: broken cross-page fragment ${target.pathname}${target.hash}`,
+            );
+        pending.push(target.pathname);
+    }
+}
+for (const path of documents.keys())
+    assert.ok(reachable.has(path), `unreachable public page: ${path}`);
 await access("dist/favicon.svg");
 await access("dist/social-card.png");
 assert.ok(
