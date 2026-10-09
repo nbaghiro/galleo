@@ -185,6 +185,7 @@ export type AiFailureReason =
     | "rate_limited";
 
 export interface Events {
+    analytics_consent_granted: NoProps;
     docs_opened: { article: string };
     docs_searched: { query_length: QueryBucket; results: number };
     // Account and session.

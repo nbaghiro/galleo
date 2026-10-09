@@ -6,7 +6,6 @@ import { LEGAL_DOC_IDS, LEGAL_PATHS, type LegalDocId } from "./routes";
 type Block =
     | { kind: "p"; text: string }
     | { kind: "lead"; label: string; text: string }
-    | { kind: "summary"; text: string }
     | { kind: "list"; items: string[] }
     | { kind: "table"; columns: string[]; rows: string[][] };
 
@@ -26,8 +25,8 @@ interface LegalDoc {
 
 const PRIVACY: LegalDoc = {
     title: "Privacy Policy",
-    effective: "[EFFECTIVE DATE]",
-    updated: "[EFFECTIVE DATE]",
+    effective: "October 8, 2026",
+    updated: "October 8, 2026",
     intro: "This policy explains how GalleoApp Inc. handles personal information when you visit Galleo, create or manage an account, use our content tools, collaborate, or view a published piece. It also explains your choices and how to contact us.",
     sections: [
         {
@@ -36,7 +35,7 @@ const PRIVACY: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "GalleoApp Inc. operates Galleo at galleo.app. Contact us at [CONFIRMED CONTACT EMAIL]. Our business mailing address is [BUSINESS MAILING ADDRESS].",
+                    text: "GalleoApp Inc., a Delaware corporation, operates Galleo at galleo.app. Contact us at support@galleo.app.",
                 },
                 {
                     kind: "p",
@@ -103,7 +102,7 @@ const PRIVACY: LegalDoc = {
                 },
                 {
                     kind: "p",
-                    text: "ElevenLabs’ terms allow use of customer content to improve its models unless the applicable account opts out or other contractual restrictions apply. [ELEVENLABS ACCOUNT DATA-USE SETTING]. Provider details are available at https://elevenlabs.io/docs/help-center/legal/is-my-data-used-to-improve-eleven-labs-ai-models.",
+                    text: "ElevenLabs’ terms allow use of customer content to improve its models unless the applicable account opts out or other contractual restrictions apply. We do not make a service-wide guarantee that external providers exclude all model-training use. Provider details are available at https://elevenlabs.io/docs/help-center/legal/is-my-data-used-to-improve-eleven-labs-ai-models.",
                 },
                 {
                     kind: "p",
@@ -205,7 +204,7 @@ const PRIVACY: LegalDoc = {
                 },
                 {
                     kind: "p",
-                    text: "Published-viewer product analytics uses in-memory identifiers rather than persistent browser identifiers, and disables session recording, campaign capture, and referrer capture. Separately, the service records link audience activity for the author as described under Information we collect. Pseudonymous data is not necessarily anonymous.",
+                    text: "Optional browser product analytics and session recording are disabled in the published viewer. The service still records link audience activity for the author as described under Information we collect. Pseudonymous data is not necessarily anonymous.",
                 },
             ],
         },
@@ -219,7 +218,7 @@ const PRIVACY: LegalDoc = {
                 },
                 {
                     kind: "p",
-                    text: "[ANALYTICS CONSENT AND OPT-OUT IMPLEMENTATION]. You can also control cookies and site storage in your browser. Blocking essential storage may prevent sign-in or other requested features from working. We do not use Galleo for cross-context behavioral advertising; browser Do Not Track signals do not currently change the service’s behavior. Applicable privacy rights remain available through our contact address.",
+                    text: "Optional browser analytics and masked session recordings on our app and marketing site remain off until you choose Accept analytics. Choose Essential only to decline, or reopen Privacy settings to change your choice at any time. Your choice is stored in this browser and does not disable server-side operational analytics, billing records, security logging, or published-link audience records. You can also control cookies and site storage in your browser. Blocking essential storage may prevent sign-in or other requested features from working. We do not use Galleo for cross-context behavioral advertising; browser Do Not Track signals do not currently change the service’s behavior. Applicable privacy rights remain available through our contact address.",
                 },
             ],
         },
@@ -255,7 +254,7 @@ const PRIVACY: LegalDoc = {
                 },
                 {
                     kind: "p",
-                    text: "Send requests to [CONFIRMED CONTACT EMAIL]. We respond without undue delay and within the deadline required by applicable law. Where a permitted extension is needed, we explain it and notify you within the required period. We may request information to verify your identity or an authorized agent’s authority. We do not unlawfully discriminate against people for exercising their privacy rights.",
+                    text: "Send requests to support@galleo.app. We respond without undue delay and within the deadline required by applicable law. Where a permitted extension is needed, we explain it and notify you within the required period. We may request information to verify your identity or an authorized agent’s authority. We do not unlawfully discriminate against people for exercising their privacy rights.",
                 },
                 {
                     kind: "p",
@@ -269,7 +268,7 @@ const PRIVACY: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "Galleo uses providers that may process information in the United States and other countries, including countries different from where you live. Those countries may have different data-protection laws. [APPLICABLE INTERNATIONAL TRANSFER SAFEGUARDS]. Contact us for information about the safeguards applicable to your data.",
+                    text: "Galleo uses providers that may process information in the United States and other countries, including countries different from where you live. Those countries may have different data-protection laws. Where a provider’s standard data-processing terms apply, the transfer protections in those terms apply to its processing. Depending on the provider and the transfer, these protections can include adequacy decisions, the European Commission’s standard contractual clauses, and UK transfer addenda. For example, our hosting providers publish their terms at https://render.com/dpa and https://neon.com/dpa. These arrangements do not mean that your information stays in your home country. Contact us for information about the safeguards applicable to your data.",
                 },
             ],
         },
@@ -293,7 +292,7 @@ const PRIVACY: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "Galleo is intended for people aged [MINIMUM AGE] or older. We do not knowingly collect personal information from children below that age. If you believe a child has supplied personal information in violation of this policy, contact us so we can investigate and take appropriate action.",
+                    text: "Galleo is intended for people aged 18 or older. We do not knowingly collect personal information from children below that age. If you believe a child has supplied personal information in violation of this policy, contact us so we can investigate and take appropriate action.",
                 },
             ],
         },
@@ -312,8 +311,8 @@ const PRIVACY: LegalDoc = {
 
 const TERMS: LegalDoc = {
     title: "Terms of Service",
-    effective: "[EFFECTIVE DATE]",
-    updated: "[EFFECTIVE DATE]",
+    effective: "October 8, 2026",
+    updated: "October 8, 2026",
     intro: "These Terms of Service govern your use of Galleo and form an agreement between you and GalleoApp Inc. Please read them together with our Privacy Policy at https://galleo.app/privacy.",
     sections: [
         {
@@ -322,7 +321,7 @@ const TERMS: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "By accepting these terms during registration or otherwise using Galleo where legally sufficient acceptance applies, you agree to them. You must be at least [MINIMUM AGE] years old and legally able to enter this agreement. If you use Galleo for an organization, you represent that you have authority to bind it.",
+                    text: "By accepting these terms during registration or otherwise using Galleo where legally sufficient acceptance applies, you agree to them. You must be at least 18 years old and legally able to enter this agreement. If you use Galleo for an organization, you represent that you have authority to bind it.",
                 },
                 {
                     kind: "p",
@@ -396,7 +395,7 @@ const TERMS: LegalDoc = {
                 },
                 {
                     kind: "p",
-                    text: "Cancel through the billing controls before the next renewal to stop that renewal. Cancellation ordinarily takes effect at the end of the paid billing period, as shown in your billing settings, and does not itself delete your content or account. [REFUND POLICY]. Any cancellation, withdrawal, or refund rights required by applicable law are preserved.",
+                    text: "Cancel through the billing controls before the next renewal to stop that renewal. Cancellation ordinarily takes effect at the end of the paid billing period, as shown in your billing settings, and does not itself delete your content or account. For a voluntary refund, contact support@galleo.app with your account and purchase details. We review these requests case by case; a request does not create an automatic right to a refund. Any cancellation, withdrawal, or refund rights required by applicable law are preserved.",
                 },
                 {
                     kind: "p",
@@ -496,7 +495,7 @@ const TERMS: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "To the extent permitted by applicable law, neither party is liable under these terms for indirect or consequential losses. GalleoApp Inc.’s aggregate liability arising out of the service is limited to the greater of the fees you paid for the affected service in the 12 months before the event giving rise to the claim or US$100. These limits do not apply to fraud or any liability that applicable law does not allow to be excluded or limited. [CONFIRM LIABILITY ALLOCATION].",
+                    text: "To the extent permitted by applicable law, neither party is liable under these terms for indirect or consequential losses. GalleoApp Inc.’s aggregate liability arising out of the service is limited to the greater of the fees you paid for the affected service in the 12 months before the event giving rise to the claim or US$100. These limits do not apply to fraud or any liability that applicable law does not allow to be excluded or limited.",
                 },
             ],
         },
@@ -506,7 +505,7 @@ const TERMS: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "Delaware law governs these terms, without regard to its conflict-of-laws rules, and disputes are subject to the competent state and federal courts in Delaware. Mandatory consumer protections and any right to bring a claim in a local court that cannot lawfully be excluded remain unaffected. These terms do not require arbitration or waive class-action rights. [CONFIRM GOVERNING LAW AND VENUE].",
+                    text: "Delaware law governs these terms, without regard to its conflict-of-laws rules, and disputes are subject to the competent state and federal courts in Delaware. Mandatory consumer protections and any right to bring a claim in a local court that cannot lawfully be excluded remain unaffected. These terms do not require arbitration or waive class-action rights.",
                 },
             ],
         },
@@ -530,7 +529,7 @@ const TERMS: LegalDoc = {
             blocks: [
                 {
                     kind: "p",
-                    text: "Questions, privacy requests, and legal notices may be sent to GalleoApp Inc. at [CONFIRMED CONTACT EMAIL] or [BUSINESS MAILING ADDRESS]. To report suspected copyright infringement, identify the protected work, the material at issue and its location, your contact information, and the basis for your request.",
+                    text: "Questions, privacy requests, and legal notices may be sent to GalleoApp Inc. at support@galleo.app. To report suspected copyright infringement, identify the protected work, the material at issue and its location, your contact information, and the basis for your request.",
                 },
             ],
         },
@@ -539,49 +538,20 @@ const TERMS: LegalDoc = {
 
 const DOCS: Record<LegalDocId, LegalDoc> = { privacy: PRIVACY, terms: TERMS };
 
-// The capture keeps the markers in the split, so a run of text alternates prose, marker, prose.
-const PLACEHOLDER = /(\[[^\]]+\])/g;
-const PROSE_PART =
-    /(\[[^\]]+\]|https:\/\/[^\s]+[a-zA-Z0-9/#]|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
-
-const isPlaceholder = (part: string): boolean => part.startsWith("[") && part.endsWith("]");
-
 const rule = "calc(var(--border-width) * 2) solid var(--color-ink)";
+const PROSE_LINK =
+    /(https:\/\/[^\s]+[a-zA-Z0-9/#]|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
 
-function openCount(doc: LegalDoc): number {
-    const strings = [doc.intro, doc.updated, doc.effective ?? ""];
-    for (const section of doc.sections) {
-        for (const block of section.blocks) {
-            if (block.kind === "p" || block.kind === "summary") strings.push(block.text);
-            else if (block.kind === "lead") strings.push(block.text);
-            else if (block.kind === "list") strings.push(...block.items);
-            else strings.push(...block.rows.flat());
-        }
-    }
-    return strings.reduce((n, s) => n + (s.match(PLACEHOLDER)?.length ?? 0), 0);
-}
-
-/** Prose with its unresolved decisions marked, so a reader cannot mistake one for a statement. */
 const Prose: Component<{ text: string }> = (props) => (
-    <Index each={props.text.split(PROSE_PART)}>
+    <Index each={props.text.split(PROSE_LINK)}>
         {(part) => (
-            <Show
-                when={isPlaceholder(part())}
-                fallback={
-                    <Show
-                        when={part().startsWith("https://") || part().includes("@")}
-                        fallback={part()}
-                    >
-                        <a
-                            class="text-accent underline underline-offset-4 break-words"
-                            href={part().startsWith("https://") ? part() : `mailto:${part()}`}
-                        >
-                            {part()}
-                        </a>
-                    </Show>
-                }
-            >
-                <mark class="todo">{part()}</mark>
+            <Show when={part().startsWith("https://") || part().includes("@")} fallback={part()}>
+                <a
+                    class="text-accent underline underline-offset-4 break-words"
+                    href={part().startsWith("https://") ? part() : `mailto:${part()}`}
+                >
+                    {part()}
+                </a>
             </Show>
         )}
     </Index>
@@ -602,15 +572,6 @@ function blockView(block: Block): JSX.Element {
                     <strong class="text-ink font-bold">{block.label}</strong>{" "}
                     <Prose text={block.text} />
                 </p>
-            );
-        case "summary":
-            return (
-                <aside class="summary mt-5">
-                    <div class="lab text-muted mb-2">Plain language · not binding</div>
-                    <p class="leading-relaxed">
-                        <Prose text={block.text} />
-                    </p>
-                </aside>
             );
         case "list":
             return (
@@ -745,23 +706,6 @@ export const LegalPage: Component<{ doc: LegalDocId }> = (props) => {
                     {/* min-w-0: a grid item defaults to min-width:auto, which would let the
                         sub-processor table's min width widen the whole column past the viewport */}
                     <article class="lg:col-span-8 xl:col-span-9 min-w-0 max-w-[68ch]">
-                        <Show when={openCount(doc()) > 0}>
-                            <div
-                                class="card p-5 md:p-6"
-                                style={{
-                                    "border-style": "dashed",
-                                    "border-color": "var(--color-accent)",
-                                }}
-                            >
-                                <div class="lab text-accent mb-3">Review draft</div>
-                                <p class="leading-relaxed text-soft">
-                                    This page is not final. The marked passages below are decisions
-                                    we have not made yet, so read them as gaps rather than as
-                                    statements of what we do. There are {openCount(doc())} of them.
-                                </p>
-                            </div>
-                        </Show>
-
                         <p class="mt-8 text-lg leading-relaxed text-soft">
                             <Prose text={doc().intro} />
                         </p>

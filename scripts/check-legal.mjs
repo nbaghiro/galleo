@@ -1,20 +1,5 @@
-// Legal guard: fails when an unresolved placeholder is still in the legal pages.
-//
-// The privacy policy and the terms were drafted around decisions nobody has made yet (the entity
-// name, the governing law, the retention periods), and each one is left in the page as a bracketed
-// marker in capitals so it cannot be quietly forgotten. Those pages are a legal statement rather
-// than marketing copy, so publishing one that still names its own gaps is worse than publishing
-// nothing: a reader learns the document was never finished, and a regulator reads a policy that
-// does not say who the controller is.
-//
-// The page renders every marker in a loud inline chip, which is the reminder while the drafting is
-// in progress. This is the gate that stops one reaching production, so it is expected to FAIL until
-// the placeholders are resolved. It is deliberately not wired into pre-commit or CI yet.
-//
-// Self-verifying: a guard that can only report violations cannot tell you it has stopped working,
-// so it runs the scan over a planted marker and over a clean sample before trusting a real result.
-//
-// Uses process.stdout.write rather than console because `no-console` is an error repo-wide.
+// Legal copy must not ship with unresolved decision markers.
+// Probe both a planted marker and clean source before trusting the scan.
 
 import { existsSync, readFileSync } from "node:fs";
 
