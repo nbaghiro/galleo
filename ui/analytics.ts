@@ -1,3 +1,4 @@
+import { createSignal } from "solid-js";
 import type { PostHog } from "posthog-js";
 import type {
     DeviceTier,
@@ -110,30 +111,117 @@ let enabled = false;
 let client: PostHog | null = null;
 const pending: ((ph: PostHog) => void)[] = [];
 
+type AnalyticsConsent = "accepted" | "essential" | null;
+const CONSENT_KEY = "galleo:analytics-consent";
+const [analyticsConsent, setConsent] = createSignal<AnalyticsConsent>(null);
+export { analyticsConsent };
+let activeSurface: CaptureSurface = "app";
+let listening = false;
+let revision = 0;
+let replayPaused = false;
+let person: { id: string; traits: Partial<PersonTraits> } | null = null;
+let superProps: Partial<SuperProperties> = {};
+let workspace: { id: string; traits?: Partial<WorkspaceTraits> } | null = null;
+
 export const analyticsEnabled = (): boolean => enabled;
 
 const run = (fn: (ph: PostHog) => void): void => {
+    if (!enabled) return;
     if (client) fn(client);
-    else if (enabled && pending.length < QUEUE_CAP) pending.push(fn);
+    else if (pending.length < QUEUE_CAP) pending.push(fn);
 };
 
+function readConsent(): AnalyticsConsent {
+    try {
+        const value = localStorage.getItem(CONSENT_KEY);
+        return value === "accepted" || value === "essential" ? value : null;
+    } catch {
+        return null;
+    }
+}
+
+function applyConsent(value: AnalyticsConsent): void {
+    setConsent(value);
+    if (value === "accepted") {
+        startAnalytics();
+    } else {
+        enabled = false;
+        revision += 1;
+        pending.length = 0;
+        client?.stopSessionRecording();
+        client?.opt_out_capturing();
+        lastPerson = "";
+        lastGroup = "";
+    }
+}
+
+export function setAnalyticsConsent(value: Exclude<AnalyticsConsent, null>): void {
+    try {
+        localStorage.setItem(CONSENT_KEY, value);
+    } catch {
+        /* A blocked store keeps the choice for this page only. */
+    }
+    applyConsent(value);
+    if (value === "accepted") capture("analytics_consent_granted", {});
+}
+
 export function initAnalytics(surface: CaptureSurface = "app"): void {
+    activeSurface = surface;
+    if (typeof window === "undefined" || surface === "publish") return;
+    if (!listening) {
+        listening = true;
+        window.addEventListener("storage", (event) => {
+            if (event.key === CONSENT_KEY || event.key === null) applyConsent(readConsent());
+        });
+    }
+    applyConsent(readConsent());
+}
+
+function startAnalytics(): void {
     const key = import.meta.env.VITE_POSTHOG_KEY?.trim();
-    if (!key || enabled || typeof window === "undefined") return;
+    if (!key || enabled || activeSurface === "publish") return;
     enabled = true;
+    const started = ++revision;
+    const ready = (posthog: PostHog): void => {
+        client = posthog;
+        register({
+            ...superProps,
+            app_build: import.meta.env.VITE_APP_BUILD ?? "dev",
+            device_tier: tier(),
+        });
+        lastPerson = "";
+        lastGroup = "";
+        if (person) identifyUser(person.id, person.traits);
+        if (workspace) setWorkspace(workspace.id, workspace.traits);
+        if (replayPaused) posthog.stopSessionRecording();
+        if (activeSurface === "marketing") posthog.capture("$pageview");
+        for (const fn of pending.splice(0)) fn(posthog);
+    };
+    if (client) {
+        client.opt_in_capturing();
+        if (!replayPaused) client.startSessionRecording();
+        ready(client);
+        return;
+    }
     void import("posthog-js")
         .then(({ default: posthog }) => {
+            // Revocation can happen while the SDK chunk is still downloading.
+            if (!enabled || started !== revision) return;
             posthog.init(key, {
-                ...policyFor(surface),
+                ...policyFor(activeSurface),
+                disable_session_recording: replayPaused,
+                // Send the first page view only after explicit SDK opt-in below.
+                capture_pageview: false,
+                opt_out_persistence_by_default: true,
+                opt_out_capturing_persistence_type: "localStorage",
                 api_host: `${window.location.origin}${INGEST_PATH}`,
                 ui_host: import.meta.env.VITE_POSTHOG_HOST?.trim() || UI_HOST,
             });
-            client = posthog;
-            register({ app_build: import.meta.env.VITE_APP_BUILD ?? "dev", device_tier: tier() });
-            for (const fn of pending.splice(0)) fn(posthog);
+            posthog.opt_in_capturing();
+            ready(posthog);
         })
         .catch(() => {
-            // A blocked or failed chunk is not worth an error the user sees; analytics stays off.
+            if (started !== revision) return;
             enabled = false;
             pending.length = 0;
         });
@@ -145,6 +233,7 @@ const tier = (): DeviceTier => viewportTier();
 
 /** Attach to every subsequent event. Called again whenever the plan or the balance moves. */
 export function register(props: Partial<SuperProperties>): void {
+    superProps = { ...superProps, ...props };
     run((ph) => ph.register(props));
 }
 
@@ -158,6 +247,8 @@ const unchanged = (key: string, last: string): boolean => key === last;
 
 /** Keyed by user id, never by email. Called on login and on session restore alike. */
 export function identifyUser(userId: string, traits: Partial<PersonTraits>): void {
+    person = { id: userId, traits };
+    if (!enabled) return;
     const key = `${userId}|${JSON.stringify(traits)}`;
     if (unchanged(key, lastPerson)) return;
     lastPerson = key;
@@ -166,6 +257,8 @@ export function identifyUser(userId: string, traits: Partial<PersonTraits>): voi
 
 /** The workspace is the billing entity, so usage is readable per tenant. Re-called on a switch. */
 export function setWorkspace(workspaceId: string, traits?: Partial<WorkspaceTraits>): void {
+    workspace = { id: workspaceId, traits };
+    if (!enabled) return;
     const key = `${workspaceId}|${JSON.stringify(traits ?? {})}`;
     if (unchanged(key, lastGroup)) return;
     lastGroup = key;
@@ -174,6 +267,9 @@ export function setWorkspace(workspaceId: string, traits?: Partial<WorkspaceTrai
 
 /** Without this the next user on a shared machine inherits the previous identity. */
 export function resetAnalytics(): void {
+    person = null;
+    workspace = null;
+    superProps = {};
     lastPerson = "";
     lastGroup = "";
     run((ph) => ph.reset());
@@ -187,10 +283,12 @@ export function resetAnalytics(): void {
  * copy out of every recording; this is about volume, not content.
  */
 export function pauseReplay(): void {
+    replayPaused = true;
     run((ph) => ph.stopSessionRecording());
 }
 
 export function resumeReplay(): void {
+    replayPaused = false;
     run((ph) => ph.startSessionRecording());
 }
 

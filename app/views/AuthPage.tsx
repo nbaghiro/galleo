@@ -329,6 +329,28 @@ export const AuthPage: Component = () => {
                             >
                                 Continue with Google
                             </button>
+                            <p class="mt-4 text-xs leading-relaxed text-muted">
+                                By creating an account, including with Google, you confirm you are
+                                at least 18 and agree to the{" "}
+                                <a
+                                    href="/terms"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="text-accent underline"
+                                >
+                                    Terms of Service
+                                </a>
+                                . Read our{" "}
+                                <a
+                                    href="/privacy"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="text-accent underline"
+                                >
+                                    Privacy Policy
+                                </a>{" "}
+                                for how we handle your information.
+                            </p>
                         </Show>
 
                         <p class="mt-6 text-[13px] text-muted">

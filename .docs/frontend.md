@@ -52,6 +52,7 @@ ui/                     @ui · Solid · imports model + canvas + @themes only
   section.tsx           ScaledSectionCanvas · ArtifactPlate · ArtifactCanvasPreview · SlideProgress · backdropHostStyle
   present.tsx           PresentSurface   (shared present paint + keyboard nav + control bar)
   gen-overlay.tsx       GenOverlay   (unified AI sweep/glow generation overlay)
+  privacy.tsx           PrivacyControls (shared analytics consent and settings)
   status.tsx            Meter · StatusDot · EmptyState
   icons.tsx             Icon (merged registry ~90 glyphs) + generated named *Icon wrappers + UiThemeProvider
   brand.tsx             Mark   (logo) · setFavicon   (the same mark as the tab icon)
