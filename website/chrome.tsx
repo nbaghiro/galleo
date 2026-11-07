@@ -1,7 +1,6 @@
 import { createSignal, onMount, Show, type Component } from "solid-js";
 import { Mark } from "@ui/brand";
 import { capture } from "@ui/analytics";
-import { PrivacyControls } from "@ui/privacy";
 import { Icon } from "@ui/icons";
 import {
     DEFAULT_THEME,
@@ -89,7 +88,6 @@ export const AuthCta: Component = () => {
     onMount(askAuth);
     return (
         <div class="flex items-center gap-3">
-            <PrivacyControls />
             <Show
                 when={signedIn()}
                 fallback={

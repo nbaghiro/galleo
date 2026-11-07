@@ -160,15 +160,15 @@ has it, and `plan_changed` and `checkout_completed` carry it explicitly.
 They differ on one question: is a page view the event, or noise? In the app it is noise, because the
 interesting acts are explicit and the editor repaints constantly. On the marketing site it _is_ the
 event, because it carries the referrer and the campaign parameters, and that is the whole of
-paid-traffic attribution. The publish viewer does not initialize optional browser analytics. Server-side link audience records
-remain separate from the consent-controlled browser SDK.
+paid-traffic attribution. The publish viewer does not initialize browser analytics. Server-side link
+audience records remain separate from the browser SDK.
 
-|                            | app                            | marketing              | publish |
-| -------------------------- | ------------------------------ | ---------------------- | ------- |
-| page views                 | no                             | after consent          | no      |
-| campaign params + referrer | SDK default                    | SDK default            | **off** |
-| session replay             | consent, masked, editor paused | consent, masked        | **off** |
-| persistence                | consent, local storage         | consent, local storage | none    |
+|                            | app                   | marketing     | publish |
+| -------------------------- | --------------------- | ------------- | ------- |
+| page views                 | no                    | yes           | no      |
+| campaign params + referrer | SDK default           | SDK default   | **off** |
+| session replay             | masked, editor paused | masked        | **off** |
+| persistence                | local storage         | local storage | none    |
 
 The publish column is a deliberate position rather than an oversight. Those readers are our customer's
 audience rather than ours, looking at content its author considers confidential, so they get no campaign
@@ -218,8 +218,8 @@ Recording stops entirely on the editor route (`pauseReplay` on mount, `resumeRep
 engine repaints the whole section stack on every layout change, so the editor produces a mutation stream
 that is heavy to record and noisy to watch. Masking is the content control; the pause is the volume one.
 Note that replay only runs at all if it is enabled at the project level, since it starts from remote
-config. Only consenting app and marketing visitors initialize the browser SDK. The published viewer
-never loads it; its separate server-side audience activity is described in the privacy policy.
+config. Every app and marketing visitor initializes the browser SDK when a key is set. The published
+viewer never loads it; its separate server-side audience activity is described in the privacy policy.
 Exception autocapture is off because an exception message can carry the content that produced it.
 Person profiles are identified-only, which is a cost lever: we never query anonymous ones.
 
@@ -458,15 +458,8 @@ Search words never leave the browser through these events.
 
 ## Browser consent
 
-`ui/privacy.tsx` provides the shared Privacy settings control in the app and public marketing chrome.
-Both initial choices have equal prominence. `ui/analytics.ts` reads `galleo:analytics-consent` and
-loads no SDK until the value is `accepted`. Events before consent are discarded, not replayed later.
-Current identity, workspace, and super-properties stay in memory so a later opt-in has the right context.
-Withdrawal disables capture, stops replay, opts out of SDK persistence, and clears the pending queue.
-A revision counter cancels an SDK import that completes after withdrawal. Storage events synchronize
-choices between tabs; blocked storage retains the choice only for the current page. An editor replay
-pause is honored even when it happened before consent.
-
-`analytics_consent_granted` records acceptance only after consent. Declining is never reported through
-browser analytics. Server-side operational events and link audience records do not use this browser
-preference; the Privacy Policy describes the distinction.
+There is no consent banner. The browser SDK starts on every app and marketing page load when
+`VITE_POSTHOG_KEY` is set, and the Privacy Policy's cookies section says so and names
+support@galleo.app for objections. A banner with an opt-in gate shipped with the legal round and was
+removed on 2026-10-24 by decision, to be revisited; the record is in
+`.docs/executed/legal-publication.md`.

@@ -54,6 +54,27 @@ async function fetchTtfOnce(
     return await decompress(bytes);
 }
 
+// The weights /fonts.css declared for a family, or null outside a page that loaded it. Asking for a
+// face that was never vendored answers 404, which the browser logs as an error.
+function vendoredWeights(family: string, italic: boolean): number[] | null {
+    if (typeof document === "undefined" || !document.fonts) return null;
+    const style = italic ? "italic" : "normal";
+    const weights: number[] = [];
+    document.fonts.forEach((f) => {
+        if (f.family.replace(/^['"]|['"]$/g, "") === family && f.style === style)
+            weights.push(parseInt(f.weight, 10));
+    });
+    return weights.length ? weights : null;
+}
+
+// the vendored weight nearest the asked one within its slot, since PDF/PPTX only tell bold apart
+function nearestInSlot(weight: number, weights: number[]): number | null {
+    const bold = weight >= BOLD_MIN;
+    const same = weights.filter((w) => w >= BOLD_MIN === bold);
+    if (!same.length) return null;
+    return same.reduce((a, b) => (Math.abs(b - weight) < Math.abs(a - weight) ? b : a));
+}
+
 // Static families 400 on off-menu weights, so a miss retries at the slot's canonical weight.
 export async function fetchFontTtf(
     family: string,
@@ -61,6 +82,11 @@ export async function fetchFontTtf(
     italic: boolean,
 ): Promise<Uint8Array | null> {
     try {
+        const vendored = vendoredWeights(family, italic);
+        if (vendored) {
+            const w = nearestInSlot(weight, vendored);
+            return w === null ? null : await withDeadline(fetchTtfOnce(family, w, italic));
+        }
         const exact = await withDeadline(fetchTtfOnce(family, weight, italic));
         if (exact) return exact;
         const snapped = weight >= BOLD_MIN ? 700 : 400;

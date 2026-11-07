@@ -26,7 +26,7 @@ interface LegalDoc {
 const PRIVACY: LegalDoc = {
     title: "Privacy Policy",
     effective: "October 8, 2026",
-    updated: "October 8, 2026",
+    updated: "October 24, 2026",
     intro: "This policy explains how GalleoApp Inc. handles personal information when you visit Galleo, create or manage an account, use our content tools, collaborate, or view a published piece. It also explains your choices and how to contact us.",
     sections: [
         {
@@ -204,7 +204,7 @@ const PRIVACY: LegalDoc = {
                 },
                 {
                     kind: "p",
-                    text: "Optional browser product analytics and session recording are disabled in the published viewer. The service still records link audience activity for the author as described under Information we collect. Pseudonymous data is not necessarily anonymous.",
+                    text: "Browser product analytics and session recording are disabled in the published viewer. The service still records link audience activity for the author as described under Information we collect. Pseudonymous data is not necessarily anonymous.",
                 },
             ],
         },
@@ -218,7 +218,7 @@ const PRIVACY: LegalDoc = {
                 },
                 {
                     kind: "p",
-                    text: "Optional browser analytics and masked session recordings on our app and marketing site remain off until you choose Accept analytics. Choose Essential only to decline, or reopen Privacy settings to change your choice at any time. Your choice is stored in this browser and does not disable server-side operational analytics, billing records, security logging, or published-link audience records. You can also control cookies and site storage in your browser. Blocking essential storage may prevent sign-in or other requested features from working. We do not use Galleo for cross-context behavioral advertising; browser Do Not Track signals do not currently change the service’s behavior. Applicable privacy rights remain available through our contact address.",
+                    text: "Our app and marketing site use browser analytics and masked session recordings to understand how Galleo is used and to improve it. They start when a page loads and store an identifier in browser storage. You can clear or block cookies and site storage in your browser, which resets that identifier. Blocking essential storage may prevent sign-in or other requested features from working. Server-side operational analytics, billing records, security logging, and published-link audience records are kept separately from browser analytics. We do not use Galleo for cross-context behavioral advertising; browser Do Not Track signals do not currently change the service’s behavior. To object to analytics or exercise other privacy rights, contact support@galleo.app.",
                 },
             ],
         },

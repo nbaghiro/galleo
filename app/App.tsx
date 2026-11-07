@@ -30,7 +30,6 @@ import { WorkspaceSettingsView } from "./views/WorkspaceSettingsView";
 import { AccountSettingsView } from "./views/AccountSettingsView";
 import { InviteView } from "./views/InviteView";
 import { CollabInviteView } from "./views/CollabInviteView";
-import { PrivacyControls } from "@ui/privacy";
 import { UiThemeProvider } from "@ui/icons";
 import { Spinner } from "@ui/button";
 import { CommandPalette } from "@ui/CommandPalette";
@@ -228,7 +227,6 @@ export const App: Component = () => {
                         </Router>
                     </Show>
                 </Show>
-                <PrivacyControls />
             </div>
         </UiThemeProvider>
     );

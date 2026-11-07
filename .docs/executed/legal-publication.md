@@ -20,7 +20,12 @@ section points to published provider terms without representing every account-sp
 as independently verified. PostHog is described as a third-party provider even though browser
 requests are proxied by Galleo. Server link-audience records are distinct from browser product events.
 
-The app and marketing site share `PrivacyControls` from `ui/privacy.tsx`. Optional browser analytics
+The opt-in banner described below (`PrivacyControls` in `ui/privacy.tsx`) was removed on 2026-10-24
+by decision, to be revisited later. Browser analytics and masked replay now start on page load in the
+app and on the marketing site, the published viewer still never loads the SDK, and the Privacy Policy's
+cookies section was rewritten to say so. The rest of this paragraph is the record of what shipped.
+
+The app and marketing site shared `PrivacyControls` from `ui/privacy.tsx`. Optional browser analytics
 and masked replay wait for acceptance. Essential-only and withdrawal stop capture and replay;
 revocation during the SDK import cancels initialization. No pre-consent event history is replayed.
 Current identity and workspace context stay in memory for a later opt-in. Published customer pages
